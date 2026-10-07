@@ -312,6 +312,9 @@ export function RealtimeScreen() {
                 notchEvery={Math.max(1, Math.round(times.length / 6))}
                 annotations={annotations}
                 live={!paused}
+                // Refreshed in place every poll: a full rewrite each time would be
+                // noise. The live pen's datum tick still marks each new reading.
+                write={false}
                 formatTime={(t) =>
                   new Date(t).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
                 }

@@ -106,7 +106,11 @@ export function Readout({ channels, dense }: { channels: Channel[]; dense?: bool
             aria-pressed={c.onSelect ? !!c.active : undefined}
           >
             <span className="mf-readout__label">{c.label}</span>
-            <span className="mf-readout__value mf-data">{c.value}</span>
+            {/* Keyed by the reading, so a new figure is inked in once when it
+                lands and a re-render that changes nothing leaves it alone. */}
+            <span key={String(c.value)} className="mf-readout__value mf-data mf-ink-write">
+              {c.value}
+            </span>
             <span className="mf-readout__foot">
               {c.delta != null && Number.isFinite(c.delta) ? (
                 <span

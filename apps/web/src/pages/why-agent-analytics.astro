@@ -150,7 +150,9 @@ const verdicts = [
       <figure class="mf-fig">
         <div class="mf-panel mf-panel--feed arg-record">
           <Drum
-            client:visible
+            client:idle
+            writeOnMount={false}
+            writeOnView={true}
             times={rec.times}
             channels={channels}
             annotations={rec.annotations}

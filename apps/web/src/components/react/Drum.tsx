@@ -24,7 +24,7 @@
  * paint. The only motion is the live pen's datum tick, which draws once and
  * holds, and it is disabled under `prefers-reduced-motion` by the stylesheet.
  */
-import type { PointerEvent as ReactPointerEvent } from "react";
+import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
 export type PenStyle = "written" | "stepped";
@@ -108,6 +108,29 @@ export interface DrumProps {
   className?: string;
   /** Marks the whole record as illustrative rather than measured. */
   demo?: boolean;
+  /**
+   * The pen writes the record again, left to right, whenever the data it is
+   * recording changes: a new range, a new filter, a new audience. Off for a
+   * record that is refreshed in place on a timer, where a rewrite every poll
+   * would be noise rather than news.
+   */
+  write?: boolean;
+  /**
+   * Write the record when it first appears. Off for a record that was already
+   * painted by the server, where hiding it again at hydration would flicker.
+   */
+  writeOnMount?: boolean;
+  /**
+   * Hold the record unwritten until it scrolls into view, then write it. Only
+   * for an island that hydrates before it is seen; a record already on screen
+   * when this mounts is left exactly as it is.
+   */
+  writeOnView?: boolean;
+  /**
+   * A live record's step counter. Each increment means the data advanced by
+   * one sample, and the paper slides one step left under a pen that stays put.
+   */
+  advance?: number;
 }
 
 const MARGIN = { top: 18, right: 176, bottom: 30, left: 52 };
@@ -180,6 +203,39 @@ function useWidth<T extends HTMLElement>() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   return [ref, w] as const;
+}
+
+/**
+ * Hold a record unwritten until it is seen, then write it.
+ *
+ * `pending` only from the moment the record is found below or above the
+ * viewport until it scrolls in; `write` from then on. A record that was on
+ * screen when this ran stays `idle` and is never hidden, and so does every
+ * record under reduced motion or without IntersectionObserver.
+ */
+function useWriteOnView(ref: { current: HTMLElement | null }, enabled: boolean) {
+  const [state, setState] = useState<"idle" | "pending" | "write">("idle");
+  useEffect(() => {
+    const el = ref.current;
+    if (!enabled || !el || typeof IntersectionObserver === "undefined") return;
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    const box = el.getBoundingClientRect();
+    if (box.top < window.innerHeight && box.bottom > 0) return;
+    setState("pending");
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setState("write");
+          io.disconnect();
+        }
+      },
+      { threshold: 0.3 },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled]);
+  return state;
 }
 
 /**
@@ -344,9 +400,14 @@ export function Drum({
   emptyLabel = "No record yet. The pen has not written since this site started reporting.",
   className,
   demo = false,
+  write = true,
+  writeOnMount = true,
+  writeOnView = false,
+  advance,
 }: DrumProps) {
   const uid = useId().replace(/:/g, "");
   const [wrapRef, width] = useWidth<HTMLDivElement>();
+  const pending = useWriteOnView(wrapRef, writeOnView);
   const narrow = width < 620;
   const M = narrow ? MARGIN_NARROW : MARGIN;
 
@@ -526,6 +587,41 @@ export function Drum({
   }, [bands]);
 
   const empty = n === 0 || channels.every((c) => c.values.every((v) => !v));
+
+  /* ── motion ──────────────────────────────────────────────────────────
+     One epoch per thing worth showing: a new record, written in, or a live
+     record that moved on by a sample, advanced. The group carrying the pens is
+     keyed by the epoch, so its animation runs once per epoch, and a hover, a
+     resize or any other re-render leaves a running animation alone. */
+  const signature = useMemo(
+    () =>
+      `${n}|${times[0] ?? ""}|${times[n - 1] ?? ""}|${channels
+        .map((c) => `${c.id}:${c.values.reduce<number>((a, v) => a + (v ?? 0), 0)}`)
+        .join(",")}`,
+    [n, times, channels],
+  );
+  const epoch = useRef<{
+    sig: string | null;
+    adv: number | undefined;
+    view: string;
+    key: number;
+    kind: "write" | "advance" | null;
+  }>({ sig: null, adv: advance, view: pending, key: 0, kind: null });
+  {
+    const e = epoch.current;
+    if (e.sig === null) {
+      epoch.current = { sig: signature, adv: advance, view: pending, key: 1, kind: write && writeOnMount ? "write" : null };
+    } else if (pending !== e.view) {
+      epoch.current = { sig: signature, adv: advance, view: pending, key: e.key + 1, kind: pending === "write" ? "write" : null };
+    } else if (advance !== e.adv) {
+      epoch.current = { sig: signature, adv: advance, view: pending, key: e.key + 1, kind: "advance" };
+    } else if (signature !== e.sig) {
+      epoch.current = { sig: signature, adv: advance, view: pending, key: e.key + 1, kind: write ? "write" : null };
+    }
+  }
+  const motion = epoch.current;
+  const motionClass =
+    motion.kind === "write" ? "mf-drum__write" : motion.kind === "advance" ? "mf-drum__adv" : undefined;
 
   const fmtT = useCallback(
     (t: number) =>
@@ -833,6 +929,16 @@ export function Drum({
             ))}
 
           <g clipPath={`url(#clip-${uid})`}>
+            <g
+              key={motion.key}
+              className={motionClass}
+              data-pen={pending === "pending" ? "pending" : undefined}
+              style={
+                motion.kind === "advance"
+                  ? ({ "--mf-adv": `${x(1) - x(0)}px` } as CSSProperties)
+                  : undefined
+              }
+            >
             {/* ── the mirrored gap, hatched between the two pens.
                    The hatch means "the interval between these two readings", so
                    it is only true when both pens share one gain. At per-channel
@@ -934,7 +1040,7 @@ export function Drum({
                       it has just written draws once and holds. A recorder's pen
                       does not breathe, so there is no pulse here. */}
                   {live && !channel.ghost && (
-                    <g>
+                    <g className="mf-drum__head">
                       <path
                         className="mf-drum__tick"
                         d={`M${last[0]},${last[1]} L${last[0]},${last[1] - dir * 8}`}
@@ -950,6 +1056,7 @@ export function Drum({
                 </g>
               );
             })}
+            </g>
 
             {/* ── the caliper: two jaws and the interval between them ─── */}
             {caliper && (
@@ -1070,7 +1177,9 @@ export function Drum({
 
       {/* Readout. Sits below the record the way a station's digital readout sits
           under the drum, not floating over the paper as a tooltip. */}
-      <div className="mf-drum__readout" aria-live="polite">
+      {/* A live demonstration record moves every few seconds; announcing each
+          step would drown a screen reader, so its readout is not a live region. */}
+      <div className="mf-drum__readout" aria-live={advance == null ? "polite" : "off"}>
         <span className="mf-drum__stamp">
           {demo ? "Demonstration record, not measured traffic" : "Channel"}
         </span>

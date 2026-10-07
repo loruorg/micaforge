@@ -110,10 +110,10 @@ cd micaforge
         </div>
         <p class="sh-note">
           The third one is what makes the machines visible. Crawlers never run JavaScript, so
-          the snippet above will never see one; their fetches only exist in your server's own
-          log. Caddy in this stack already writes a log for the ingest endpoint to read. If your
-          site is served from somewhere else, ship that server's log too, or the Citation Gap
-          has only one of its two numbers.
+          the snippet above will never see one; their fetches only exist in the access log of
+          the server that serves your site. Run the shipper beside it, or the Citation Gap has
+          only one of its two numbers. The dashboard's setup screen prints this command with
+          your site id and key already filled in.
         </p>
       </section>
 
@@ -140,7 +140,7 @@ cd micaforge
 
                 <rect class="mf-arch__box" x="8" y="178" width="168" height="62" rx="3" />
                 <text class="mf-arch__name" x="92" y="206" text-anchor="middle">Access log</text>
-                <text class="mf-arch__sub" x="92" y="224" text-anchor="middle">every crawler fetch</text>
+                <text class="mf-arch__sub" x="92" y="224" text-anchor="middle">shipped, every crawl</text>
 
                 <!-- caddy -->
                 <rect class="mf-arch__box" x="256" y="110" width="128" height="62" rx="3" />
@@ -166,21 +166,27 @@ cd micaforge
                 <text class="mf-arch__name" x="771" y="214" text-anchor="middle">Valkey 8</text>
                 <text class="mf-arch__sub" x="771" y="232" text-anchor="middle">salts, limits, live count</text>
 
-                <!-- flows: people are written, machines are stepped and dashed -->
-                <path class="mf-arch__flow" d="M176 75 H216 V128 H250" />
-                <path class="mf-arch__flow mf-arch__flow--machine" d="M176 209 H216 V154 H250" />
-                <path class="mf-arch__flow" d="M384 141 H440" />
-                <path class="mf-arch__flow" d="M628 141 H659 V65 H684" />
-                <path class="mf-arch__flow" d="M628 141 H684" />
-                <path class="mf-arch__flow" d="M628 141 H659 V217 H684" />
-
-                <!-- arrowheads, drawn in the icon set's grammar -->
-                <path class="mf-arch__flow" d="M244 122 L250 128 L244 134" />
-                <path class="mf-arch__flow" d="M244 148 L250 154 L244 160" />
-                <path class="mf-arch__flow" d="M434 135 L440 141 L434 147" />
-                <path class="mf-arch__flow" d="M678 59 L684 65 L678 71" />
-                <path class="mf-arch__flow" d="M678 135 L684 141 L678 147" />
-                <path class="mf-arch__flow" d="M678 211 L684 217 L678 223" />
+                <!-- flows: people are written, machines are stepped and dashed.
+                     Three stages, written in order when the figure is first seen,
+                     so the path a hit takes is drawn the way it travels. -->
+                <g data-pen-write="0">
+                  <path class="mf-arch__flow" d="M176 75 H216 V128 H250" />
+                  <path class="mf-arch__flow mf-arch__flow--machine" d="M176 209 H216 V154 H250" />
+                  <path class="mf-arch__flow" d="M244 122 L250 128 L244 134" />
+                  <path class="mf-arch__flow" d="M244 148 L250 154 L244 160" />
+                </g>
+                <g data-pen-write="4">
+                  <path class="mf-arch__flow" d="M384 141 H440" />
+                  <path class="mf-arch__flow" d="M434 135 L440 141 L434 147" />
+                </g>
+                <g data-pen-write="7">
+                  <path class="mf-arch__flow" d="M628 141 H659 V65 H684" />
+                  <path class="mf-arch__flow" d="M628 141 H684" />
+                  <path class="mf-arch__flow" d="M628 141 H659 V217 H684" />
+                  <path class="mf-arch__flow" d="M678 59 L684 65 L678 71" />
+                  <path class="mf-arch__flow" d="M678 135 L684 141 L678 147" />
+                  <path class="mf-arch__flow" d="M678 211 L684 217 L678 223" />
+                </g>
 
                 <!-- key -->
                 <path class="mf-arch__flow" d="M8 296 H44" />

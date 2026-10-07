@@ -11,9 +11,11 @@ interface Props {
   width?: number;
   height?: number;
   label: string;
+  /** Position in a column of sparks, so they are written one after another. */
+  order?: number;
 }
 
-const { machines, readers, width = 96, height = 26, label } = Astro.props;
+const { machines, readers, width = 96, height = 26, label, order = 0 } = Astro.props;
 
 const max = Math.max(1, ...machines, ...readers);
 const mid = height / 2;
@@ -39,6 +41,7 @@ function written(vals: number[]): string {
 ---
 
 <svg
+  data-pen-write={order}
   class="mf-spark"
   viewBox={`0 0 ${width} ${height}`}
   width={width}

@@ -10,7 +10,7 @@ interface Props {
 }
 
 const { title, description, bare = false, ogImage = "/og/default.png" } = Astro.props;
-const canonical = new URL(Astro.url.pathname, Astro.site ?? "https://micaforge.dev");
+const canonical = new URL(Astro.url.pathname, Astro.site ?? "https://micaforge.com");
 ---
 
 <!doctype html>
@@ -102,5 +102,9 @@ const canonical = new URL(Astro.url.pathname, Astro.site ?? "https://micaforge.d
         flex-direction: column;
       }
     </style>
+    <script>
+      import { armPens } from "../lib/pen";
+      armPens();
+    </script>
   </body>
 </html>

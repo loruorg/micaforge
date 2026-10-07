@@ -35,6 +35,16 @@ function shape(seedA: number, seedB: number, n = 16) {
   return { m, r };
 }
 
+// The policy beside the observed table, as data, so the file the reader sees and
+// the scan that reads it back cannot disagree about which agent a rule names.
+const robots = [
+  { agent: "GPTBot", rules: ["Allow: /", "Disallow: /docs/api/"] },
+  { agent: "ClaudeBot", rules: ["Allow: /"] },
+  { agent: "Google-Extended", rules: ["Disallow: /"] },
+  { agent: "CCBot", rules: ["Disallow: /"] },
+  { agent: "Bytespider", rules: ["Disallow: /"] },
+];
+
 const verdicts = [
   {
     key: "extracted",
@@ -69,7 +79,7 @@ const verdicts = [
 
 <Base
   title="Micaforge: analytics that counts the machines reading you"
-  description="Open-source, cookieless web and product analytics. Full parity with Plausible, plus the one report it does not have: what AI agents took from your site, and what came back."
+  description="See which AI crawlers read your pages, which answer engines send readers back, and which pages are worth writing more of. Open-source, cookieless analytics for every reader of your site, human or machine."
 >
   <SiteHeader />
 
@@ -80,15 +90,20 @@ const verdicts = [
     <section class="mf-sec mf-sec--ledger" aria-labelledby="ledger-h">
       <div class="mf-sec__inner">
         <h2 id="ledger-h" class="mf-sec__head">
-          Everything the others measure. One thing they cannot.
+          Every reader counted. Including the ones that never click.
         </h2>
+        <p class="mf-sec__lede">
+          Your human traffic, the way you already read it, beside the half of your audience
+          that never runs a line of your JavaScript: the crawlers deciding what an answer
+          engine says about you.
+        </p>
 
         <div class="mf-ledger">
           <div class="mf-ledger__col">
-            <h3 class="mf-ledger__title">Parity</h3>
+            <h3 class="mf-ledger__title">The numbers you check every morning</h3>
             <p class="mf-ledger__note">
-              The measurements you would refuse to switch without. All of it in the
-              self-hosted build, none of it behind a tier.
+              Without a cookie, so without a consent banner standing between a reader and
+              your page. All of it in the self-hosted build, none of it behind a tier.
             </p>
             <ul class="mf-ledger__list">
               <li>Visitors, sessions, pageviews, bounce rate, time on page</li>
@@ -112,10 +127,10 @@ const verdicts = [
           </div>
 
           <div class="mf-ledger__col mf-ledger__col--wedge">
-            <h3 class="mf-ledger__title">Only here</h3>
+            <h3 class="mf-ledger__title">What the machines do with your work</h3>
             <p class="mf-ledger__note">
-              A growing share of what reads your site is not a person. Micaforge
-              measures that share instead of discarding it.
+              A growing share of what reads your site is not a person. Micaforge shows you
+              who it is, what it took, and whether any reader came back for it.
             </p>
             <ul class="mf-ledger__list mf-ledger__list--wedge">
               <li>
@@ -162,16 +177,16 @@ const verdicts = [
     <!-- ── the verdicts: prove the mechanism ──────────────────────────── -->
     <section class="mf-sec mf-sec--verdicts" aria-labelledby="verdict-h">
       <div class="mf-sec__inner">
-        <h2 id="verdict-h" class="mf-sec__head">Four things a page can be doing</h2>
+        <h2 id="verdict-h" class="mf-sec__head">Know what to do with every page</h2>
         <p class="mf-sec__lede">
-          Micaforge holds two counts against every URL. How much the machines fetched it,
-          and how many people arrived at it from an answer. The relationship between them
-          is the whole report.
+          Micaforge holds two counts against every URL: how much the machines fetched it,
+          and how many people arrived at it from an answer. Together they say whether a page
+          is paying you back, and what to change when it is not.
         </p>
 
         <ul class="mf-verdicts">
           {
-            verdicts.map((v) => {
+            verdicts.map((v, row) => {
               const s = shape(v.mult[0] * 4, v.mult[1] * 7);
               return (
                 <li class="mf-verdict-row" data-verdict={v.key}>
@@ -182,6 +197,7 @@ const verdicts = [
                       width={132}
                       height={44}
                       label={`${v.name}: machine fetches against reader arrivals`}
+                      order={row}
                     />
                   </div>
                   <div class="mf-verdict-row__text">
@@ -268,24 +284,14 @@ const verdicts = [
           fetch nobody can be identified as making is charged to nobody.
         </p>
 
-        <div class="mf-policy">
+        <div class="mf-policy" data-policy-scan>
           <figure class="mf-policy__file mf-panel">
             <figcaption class="mf-policy__cap mf-data">robots.txt</figcaption>
-            <pre class="mf-policy__code mf-data"><code>User-agent: GPTBot
-Allow: /
-Disallow: /docs/api/
-
-User-agent: ClaudeBot
-Allow: /
-
-User-agent: Google-Extended
-Disallow: /
-
-User-agent: CCBot
-Disallow: /
-
-User-agent: Bytespider
-Disallow: /</code></pre>
+            <pre class="mf-policy__code mf-data"><code>{
+              robots.map((b) => (
+                <span class="mf-rb" data-agent={b.agent}>{`User-agent: ${b.agent}\n${b.rules.join("\n")}`}</span>
+              ))
+            }</code></pre>
           </figure>
 
           <div class="mf-policy__obs mf-sheet-wrap">
@@ -305,7 +311,7 @@ Disallow: /</code></pre>
               <tbody>
                 {
                   agents.map((a) => (
-                    <tr>
+                    <tr data-agent={a.name}>
                       <td>
                         <span class="mf-sheet__cell">
                           <span class="mf-data">{a.name}</span>
@@ -418,6 +424,39 @@ cd micaforge && ./install.sh</code></pre>
 
   <SiteFooter />
 </Base>
+
+<script>
+  /* Reading the rules back. When the policy comes into view, a pen runs down
+     the robots.txt one block at a time, and as it reaches each block it rules
+     off the matching row of what was observed. The verified fetch against a
+     rule is marked in the red pen as the pen passes it. Every mark is drawn
+     over content that is already there; under reduced motion, or without this
+     script, the file and the table simply stand as they are. */
+  const STEP_MS = 520;
+  const root = document.querySelector<HTMLElement>("[data-policy-scan]");
+  const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  if (root && !reduce && typeof IntersectionObserver !== "undefined") {
+    const blocks = [...root.querySelectorAll<HTMLElement>(".mf-rb[data-agent]")];
+    const run = () => {
+      blocks.forEach((block, i) => {
+        window.setTimeout(() => {
+          block.setAttribute("data-scan", "");
+          const row = root.querySelector<HTMLElement>(`tr[data-agent="${block.dataset.agent}"]`);
+          row?.setAttribute("data-scan", "");
+        }, i * STEP_MS);
+      });
+    };
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((e) => e.isIntersecting)) return;
+        io.disconnect();
+        run();
+      },
+      { threshold: 0.45 },
+    );
+    io.observe(root);
+  }
+</script>
 
 <style is:global>
   /* ── the hero's action row ───────────────────────────────────────────────
@@ -690,6 +729,43 @@ cd micaforge && ./install.sh</code></pre>
   }
   .mf-policy__obs td[data-violation="true"] { color: var(--mf-oxide); }
   .mf-policy__op[data-attributed="false"] { font-style: italic; }
+
+  /* ── the read-back marks ──────────────────────────────────────────────
+     A block of the policy file, and the observed row it governs, each get the
+     same pen mark: a short shellac rule down its left gutter, written top to
+     bottom as the scan reaches it. The same mark on both is what ties a rule to
+     the row it governs. Text never moves; the marks exist only once the scan
+     reaches them, and only with motion allowed. */
+  .mf-rb { display: block; position: relative; padding-left: var(--mf-3); }
+  /* One blank line between blocks, as the file has it, drawn as space rather
+     than as a newline inside the block, so the gutter mark spans only rules. */
+  .mf-rb + .mf-rb { margin-top: 1.62em; }
+  .mf-rb::before,
+  .mf-policy__obs tr[data-agent] td:first-child::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    width: 2px;
+    background: var(--mf-shellac);
+    clip-path: inset(0 0 100% 0);
+  }
+  .mf-rb::before { top: 0.2em; bottom: 0.2em; }
+  .mf-policy__obs tr[data-agent] td:first-child { position: relative; }
+  .mf-policy__obs tr[data-agent] td:first-child::before { top: 30%; bottom: 30%; }
+  @media (prefers-reduced-motion: no-preference) {
+    .mf-rb[data-scan]::before,
+    .mf-policy__obs tr[data-scan] td:first-child::before {
+      animation: mf-rb-write var(--mf-dur-3) var(--mf-ease-pen) both;
+    }
+    .mf-policy__obs tr[data-scan] td[data-violation="true"] {
+      box-shadow: inset 0 -2px 0 var(--mf-oxide);
+      transition: box-shadow var(--mf-dur-2) linear var(--mf-dur-3);
+    }
+  }
+  @keyframes mf-rb-write {
+    from { clip-path: inset(0 0 100% 0); }
+    to   { clip-path: inset(0 0 0 0); }
+  }
   .mf-policy__rule {
     margin-top: var(--mf-4);
     padding-top: var(--mf-3);

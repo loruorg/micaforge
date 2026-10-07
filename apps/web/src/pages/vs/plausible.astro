@@ -301,12 +301,16 @@ const sections = [
                 rows.map((r) => (
                   <tr>
                     <th scope="row">{r.q}</th>
-                    {r.cells.map((c) => (
+                    {r.cells.map((c, k) => (
                       <td>
                         <span class="mf-cmp__mark" data-state={c.s}>
-                          {c.s === "yes" && <IconCheck size={14} />}
-                          {c.s === "partial" && <IconPartial size={14} />}
-                          {c.s === "no" && <IconClose size={14} />}
+                          {/* The tick is written, column by column, the first time
+                              the table is seen; the words beside it never move. */}
+                          <span class="mf-cmp__tick" data-pen-write={k}>
+                            {c.s === "yes" && <IconCheck size={14} />}
+                            {c.s === "partial" && <IconPartial size={14} />}
+                            {c.s === "no" && <IconClose size={14} />}
+                          </span>
                           {c.w}
                         </span>
                         {c.n && <span class="mf-cmp__note">{c.n}</span>}

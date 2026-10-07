@@ -721,6 +721,9 @@
   color: var(--mf-ink);
 }
 .mf-cmp__mark svg { flex: none; align-self: center; }
+/* The tick's own box, so it can be written without the words beside it. */
+.mf-cmp__tick { display: inline-flex; flex: none; align-self: center; }
+.mf-cmp__tick:empty { display: none; }
 .mf-cmp__mark[data-state="yes"] svg { color: var(--mf-verdigris); }
 .mf-cmp__mark[data-state="partial"] svg { color: var(--mf-shellac); }
 .mf-cmp__mark[data-state="no"] svg { color: var(--mf-ink-3); }

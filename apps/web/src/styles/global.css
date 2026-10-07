@@ -228,6 +228,43 @@
     .mf-drum__tick { animation: none; stroke-dashoffset: 0; }
   }
 
+  /* ── the pen advance ─────────────────────────────────────────────────────
+     The one authored motion in this product. A trace is written left to right
+     by revealing a clip, never by scaling it, and a live drum advances by
+     sliding the record one sample to the left under a pen that stays still.
+
+     Only the pens move: traces, ruling and ink. Words and figures as text never
+     fade, slide or rise. Everything here is gated on the reader not having asked
+     for reduced motion, and nothing is held hidden unless a script has already
+     arranged to write it back (see lib/pen.ts). */
+  @keyframes mf-pen-write {
+    from { clip-path: inset(0 100% 0 0); }
+    to   { clip-path: inset(0 0 0 0); }
+  }
+  @keyframes mf-drum-advance {
+    from { transform: translateX(var(--mf-adv, 0px)); }
+    to   { transform: translateX(0); }
+  }
+  @keyframes mf-drum-hold {
+    from { transform: translateX(calc(var(--mf-adv, 0px) * -1)); }
+    to   { transform: translateX(0); }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .mf-drum__write { animation: mf-pen-write var(--mf-dur-drum) var(--mf-ease-pen) both; }
+    .mf-drum__adv { animation: mf-drum-advance 640ms var(--mf-ease-pen) both; }
+    /* The pen does not travel with the paper: the head is held at the newest
+       sample by the exact opposite slide, so the two cancel and only the record
+       moves, as it does under a real stylus. */
+    .mf-drum__adv .mf-drum__head { animation: mf-drum-hold 640ms var(--mf-ease-pen) both; }
+    [data-pen="pending"] { clip-path: inset(0 100% 0 0); }
+    [data-pen="write"] {
+      animation: mf-pen-write var(--mf-dur-drum) var(--mf-ease-pen) var(--mf-pen-delay, 0ms) both;
+    }
+    /* A new reading inked into a readout channel, the way the bank's figure
+       is rewritten when the pen moves on. Short, because it is read often. */
+    .mf-ink-write { animation: mf-pen-write var(--mf-dur-3) var(--mf-ease-pen) both; }
+  }
+
   .mf-drum__empty {
     font-family: var(--mf-font-ui);
     font-size: var(--mf-t-sm);
@@ -865,6 +902,15 @@
     pointer-events: none;
     border-radius: 0 1px 1px 0;
   }
+  /* Share is laid down behind the row the way ink is: from the left, once, and
+     when the share changes it runs on or back from where it stood. A width with
+     a square leading edge, never a scale on the rounded cap. */
+  @media (prefers-reduced-motion: no-preference) {
+    .mf-sheet__ink {
+      animation: mf-pen-write var(--mf-dur-3) var(--mf-ease-pen) both;
+      transition: width var(--mf-dur-3) var(--mf-ease-pen);
+    }
+  }
   .mf-sheet__cell { position: relative; display: inline-flex; align-items: center; gap: var(--mf-2); max-width: 100%; }
   .mf-sheet__cell > span, .mf-sheet__cell > a {
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -1058,7 +1104,21 @@
   }
   .mf-hero__link:hover { color: var(--mf-ink); border-color: var(--mf-ink-3); }
 
-  .mf-hero__winbar { display: flex; justify-content: flex-end; margin-bottom: var(--mf-3); }
+  .mf-hero__winbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--mf-3);
+    margin-bottom: var(--mf-3);
+  }
+  /* The window keys keep the right edge whether or not the hold key is there. */
+  .mf-hero__wins { margin-left: auto; }
+  /* A key of its own, outside the window bank: holding the drum is not a
+     window, so it does not share the bank's ruling. */
+  .mf-hero__hold {
+    border: 1px solid var(--mf-rule);
+    border-radius: var(--mf-r-sm);
+  }
   .mf-hero__wins {
     display: inline-flex;
     border: 1px solid var(--mf-rule);

@@ -9,11 +9,56 @@
  *
  * Deliberately not the category's hero: no eyebrow, no centred stack, no
  * product panel floated to the right, no filled-button-next-to-ghost-button.
+ *
+ * The record runs. Every few seconds a day is written at the right edge and the
+ * paper moves on, so the first thing a reader sees is the instrument doing its
+ * job: counting what the machines take, beside what comes back. It runs only
+ * while it is on screen and the tab is visible, never under reduced motion, and
+ * one key holds it still.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Drum } from "./Drum";
-import { demoRecord } from "../../lib/demo";
+import { demoAdvance } from "../../lib/demo";
 import { gapRatio, num } from "../../lib/format";
+
+/** One drum step. Slow enough to read a figure before the next one lands. */
+const STEP_MS = 2800;
+
+/** Is the reader asking for less motion? Assumed yes until the client says. */
+function useReducedMotion() {
+  const [reduce, setReduce] = useState(true);
+  useEffect(() => {
+    const mq = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+    if (!mq) {
+      setReduce(false);
+      return;
+    }
+    const sync = () => setReduce(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+  return reduce;
+}
+
+/** Is this element on screen, in a tab the reader is looking at? */
+function useSeen(ref: { current: HTMLElement | null }) {
+  const [onScreen, setOnScreen] = useState(true);
+  const [tabVisible, setTabVisible] = useState(true);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver((e) => setOnScreen(e.some((x) => x.isIntersecting)));
+    io.observe(el);
+    const vis = () => setTabVisible(document.visibilityState === "visible");
+    document.addEventListener("visibilitychange", vis);
+    return () => {
+      io.disconnect();
+      document.removeEventListener("visibilitychange", vis);
+    };
+  }, [ref]);
+  return onScreen && tabVisible;
+}
 
 const WINDOWS: { key: string; label: string; days: number }[] = [
   { key: "30d", label: "30 days", days: 30 },
@@ -24,13 +69,34 @@ const WINDOWS: { key: string; label: string; days: number }[] = [
 export function HeroRecord() {
   const [win, setWin] = useState("60d");
   const days = WINDOWS.find((w) => w.key === win)?.days ?? 60;
-  const rec = useMemo(() => demoRecord(days), [days]);
+
+  // `steps` is how far this window has run; `advanced` counts every step ever
+  // taken and never resets, so the drum can tell a step (slide) from a new
+  // window (rewrite).
+  const [steps, setSteps] = useState(0);
+  const [advanced, setAdvanced] = useState(0);
+  const [held, setHeld] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const reduce = useReducedMotion();
+  const seen = useSeen(rootRef);
+  const running = !reduce && !held && seen;
+
+  useEffect(() => {
+    if (!running) return;
+    const id = window.setInterval(() => {
+      setSteps((s) => s + 1);
+      setAdvanced((a) => a + 1);
+    }, STEP_MS);
+    return () => window.clearInterval(id);
+  }, [running]);
+
+  const rec = useMemo(() => demoAdvance(days, steps), [days, steps]);
 
   const took = rec.machines.reduce((a, b) => a + b, 0);
   const back = rec.answers.reduce((a, b) => a + b, 0);
 
   return (
-    <div className="mf-hero">
+    <div className="mf-hero" ref={rootRef}>
       <div className="mf-hero__sheet mf-panel mf-panel--feed">
         {/* The caption, written on the record's own top margin. */}
         <div className="mf-hero__caption">
@@ -40,9 +106,9 @@ export function HeroRecord() {
             What came back.
           </h1>
           <p className="mf-hero__sub">
-            Micaforge is open-source, cookieless analytics that counts AI crawlers and
-            answer-engine referrals as an audience rather than as noise, then shows you the
-            distance between the two.
+            See which AI crawlers read your pages, which answers send readers back, and which
+            pages are worth writing more of. Open-source, cookieless analytics that counts the
+            machines as an audience instead of throwing them away.
           </p>
 
           <div className="mf-hero__act">
@@ -61,6 +127,16 @@ export function HeroRecord() {
 
         <div className="mf-hero__record">
           <div className="mf-hero__winbar">
+            {!reduce && (
+              <button
+                type="button"
+                className="mf-caliper__stop mf-hero__hold"
+                aria-pressed={held}
+                onClick={() => setHeld((h) => !h)}
+              >
+                {held ? "Run the drum" : "Hold the drum"}
+              </button>
+            )}
             <div className="mf-hero__wins" role="group" aria-label="Window">
               {WINDOWS.map((w) => (
                 <button
@@ -68,7 +144,10 @@ export function HeroRecord() {
                   type="button"
                   className="mf-caliper__stop"
                   aria-pressed={win === w.key}
-                  onClick={() => setWin(w.key)}
+                  onClick={() => {
+                    setWin(w.key);
+                    setSteps(0);
+                  }}
                 >
                   {w.label}
                 </button>
@@ -81,6 +160,9 @@ export function HeroRecord() {
             mode="mirrored"
             height={300}
             demo
+            live={!reduce}
+            writeOnMount={false}
+            advance={advanced}
             annotations={rec.annotations}
             channels={[
               {
