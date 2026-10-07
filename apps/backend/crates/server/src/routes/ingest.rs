@@ -374,7 +374,7 @@ async fn ingest_one(state: &AppState, p: Payload, ctx: &RequestCtx) -> Verdict {
     // non-human hit on this route is a spoof or a headless run, so it is
     // recorded as suspected rather than as a genuine agent fetch.
     if !classification.is_human() {
-        let location = state.geo.lookup(ctx.ip);
+        let location = locate(state, ctx);
         let realtime_member = ip_hash.clone();
         let mut row = BotEventRow {
             site_id,
@@ -429,7 +429,7 @@ async fn ingest_one(state: &AppState, p: Payload, ctx: &RequestCtx) -> Verdict {
         ctx.sec_ch_ua.as_deref(),
         ctx.sec_ch_ua_platform.as_deref(),
         ctx.sec_ch_ua_mobile.as_deref(),
-        &state.geo.lookup(ctx.ip),
+        &locate(state, ctx),
     );
     row.visitor_id = visitor.clone();
     row.session_id = session;
@@ -1156,6 +1156,9 @@ struct RequestCtx {
     /// beacon can be told apart after the fact.
     method: String,
     do_not_track: bool,
+    /// The visitor's location as the edge in front of this server resolved it,
+    /// when that edge is Cloudflare and is trusted for the address too.
+    edge_location: Option<Location>,
 }
 
 impl RequestCtx {
@@ -1212,6 +1215,7 @@ async fn split_request(req: Request, limit: usize) -> Option<(RequestCtx, Vec<u8
         do_not_track: matches!(header(headers, "dnt"), Some("1"))
             || matches!(header(headers, "sec-gpc"), Some("1")),
         origin_host,
+        edge_location: edge_location(headers),
     };
 
     if limit == 0 {
@@ -1631,6 +1635,97 @@ fn salt_from(map: &mut FallbackSalts, site_id: u16, today: NaiveDate) -> Vec<u8>
 /// which means it rotates and expires on the same 48-hour schedule, and it is
 /// synchronous so that a batch of five hundred rows costs one salt read rather
 /// than five hundred.
+/// Where the visitor is, from the GeoIP database when there is one, and from
+/// the trusted edge's own lookup when the database has no answer.
+///
+/// An install with no `.mmdb` (the default) would otherwise record no
+/// geography at all, while Cloudflare has already resolved it on every request.
+fn locate(state: &AppState, ctx: &RequestCtx) -> Location {
+    let mut location = state.geo.lookup(ctx.ip);
+    if location.country.is_empty() {
+        if let Some(edge) = &ctx.edge_location {
+            location.country = edge.country.clone();
+            location.region = edge.region.clone();
+            location.city = edge.city.clone();
+            location.lat = edge.lat;
+            location.lon = edge.lon;
+        }
+    }
+    location
+}
+
+/// Cloudflare's own lookup of the visitor, believed only when Cloudflare is the
+/// proxy this server already trusts for the client address
+/// (`MICAFORGE_TRUSTED_PROXY_HEADER` is `cf-connecting-ip`): the same trust,
+/// extended to the same hop's other answers. `CF-IPCountry` is always sent; the
+/// city, region and coordinates arrive when the zone has Cloudflare's "Add
+/// visitor location headers" transform turned on.
+fn edge_location(headers: &axum::http::HeaderMap) -> Option<Location> {
+    if crate::client_ip::proxy_header() != Some("cf-connecting-ip") {
+        return None;
+    }
+    // City names are sent as raw UTF-8, which `header` (visible ASCII only)
+    // would refuse, so they are read off the bytes.
+    let utf8 = |name: &str| {
+        headers
+            .get(name)
+            .and_then(|v| std::str::from_utf8(v.as_bytes()).ok())
+            .map(str::trim)
+            .filter(|v| !v.is_empty())
+    };
+    parse_edge_location(
+        header(headers, "cf-ipcountry"),
+        header(headers, "cf-region-code"),
+        utf8("cf-region"),
+        utf8("cf-ipcity"),
+        header(headers, "cf-iplatitude"),
+        header(headers, "cf-iplongitude"),
+    )
+}
+
+/// The location itself, or `None` without a real country code.
+fn parse_edge_location(
+    country: Option<&str>,
+    region_code: Option<&str>,
+    region_name: Option<&str>,
+    city: Option<&str>,
+    lat: Option<&str>,
+    lon: Option<&str>,
+) -> Option<Location> {
+    let country = parse_edge_country(country)?;
+    let code = region_code
+        .map(|c| c.trim().to_ascii_uppercase())
+        .filter(|c| (1..=3).contains(&c.len()) && c.bytes().all(|b| b.is_ascii_alphanumeric()));
+    let region = match code {
+        Some(code) => format!("{country}-{code}"),
+        None => region_name.map(|r| clamp(r, 64)).unwrap_or_default(),
+    };
+    let coord = |raw: Option<&str>, limit: f32| {
+        raw.and_then(|v| v.trim().parse::<f32>().ok())
+            .filter(|v| v.is_finite() && v.abs() <= limit)
+    };
+    let (lat, lon) = match (coord(lat, 90.0), coord(lon, 180.0)) {
+        (Some(lat), Some(lon)) => (lat, lon),
+        _ => (0.0, 0.0),
+    };
+    Some(Location {
+        country,
+        region,
+        city: city.map(|c| clamp(c, 64)).unwrap_or_default(),
+        lat,
+        lon,
+        ..Location::default()
+    })
+}
+
+/// The country code itself, or `None` for anything that is not one. `XX`
+/// (unknown) and `T1` (Tor) are Cloudflare's markers, not countries.
+fn parse_edge_country(raw: Option<&str>) -> Option<String> {
+    let code = raw?.trim().to_ascii_uppercase();
+    let is_code = code.len() == 2 && code.bytes().all(|b| b.is_ascii_uppercase());
+    (is_code && code != "XX" && code != "T1").then_some(code)
+}
+
 fn ip_digest(salt: &[u8], site_id: u16, ip_text: &str) -> String {
     if ip_text.is_empty() {
         return String::new();
@@ -2669,6 +2764,48 @@ mod tests {
         make_room(&mut map, now + Duration::from_secs(1));
         assert_eq!(map.len(), 1);
         assert!(map.contains_key(&u16::MAX));
+    }
+
+    #[test]
+    fn the_edge_location_is_read_whole_and_validated() {
+        let loc = parse_edge_location(
+            Some("US"),
+            Some("ca"),
+            Some("California"),
+            Some("San José"),
+            Some("37.3394"),
+            Some("-121.8950"),
+        )
+        .expect("a full set of headers is a location");
+        assert_eq!(loc.country, "US");
+        assert_eq!(loc.region, "US-CA");
+        assert_eq!(loc.city, "San José");
+        assert!((loc.lat - 37.3394).abs() < 1e-3 && (loc.lon + 121.895).abs() < 1e-3);
+
+        // No region code: the name stands in, as the GeoIP reader does it.
+        let loc = parse_edge_location(Some("GB"), None, Some("England"), None, None, None).unwrap();
+        assert_eq!(loc.region, "England");
+        assert_eq!((loc.lat, loc.lon), (0.0, 0.0));
+
+        // Nonsense coordinates are dropped rather than plotted.
+        let loc =
+            parse_edge_location(Some("DE"), None, None, None, Some("91"), Some("10")).unwrap();
+        assert_eq!((loc.lat, loc.lon), (0.0, 0.0));
+
+        // Without a country there is no location at all.
+        assert!(parse_edge_location(Some("XX"), Some("CA"), None, Some("x"), None, None).is_none());
+    }
+
+    #[test]
+    fn only_a_real_country_code_from_the_edge_is_kept() {
+        assert_eq!(parse_edge_country(Some("de")), Some("DE".to_string()));
+        assert_eq!(parse_edge_country(Some(" US ")), Some("US".to_string()));
+        // Cloudflare's markers for "unknown" and "Tor exit" are not countries.
+        assert_eq!(parse_edge_country(Some("XX")), None);
+        assert_eq!(parse_edge_country(Some("T1")), None);
+        assert_eq!(parse_edge_country(Some("USA")), None);
+        assert_eq!(parse_edge_country(Some("1A")), None);
+        assert_eq!(parse_edge_country(None), None);
     }
 
     #[test]
