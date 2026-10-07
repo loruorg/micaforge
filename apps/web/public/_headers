@@ -1,0 +1,25 @@
+# Response headers on Cloudflare Pages. The same rules infra/caddy/Caddyfile
+# applies in the self-hosted stack.
+
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: accelerometer=(), camera=(), geolocation=(), gyroscope=(), microphone=(), payment=(), usb=()
+  Strict-Transport-Security: max-age=31536000
+
+# The dashboard acts with the operator's session, so nothing may frame it.
+/app/*
+  X-Frame-Options: DENY
+  Content-Security-Policy: frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'
+  Cache-Control: no-cache
+  X-Robots-Tag: noindex, nofollow
+
+# A shared dashboard exists to be embedded by the site it reports on.
+/share/*
+  Content-Security-Policy: base-uri 'self'; object-src 'none'; form-action 'self'
+  Cache-Control: no-cache
+  X-Robots-Tag: noindex, nofollow
+
+# Astro fingerprints everything here, so a file never changes under its name.
+/_astro/*
+  Cache-Control: public, max-age=31536000, immutable

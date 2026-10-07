@@ -1,2 +1,6 @@
-/app/*   /app/index.html   200
-/share/* /share/index.html 200
+# The dashboard and the shared view are client-side routers, so every path under
+# them is served the router's entry document. The target is the directory, not
+# its index.html: Pages answers /app/index.html with a redirect to /app/, and a
+# rewrite onto a redirect resolves to nothing.
+/app/*   /app/   200
+/share/* /share/ 200
