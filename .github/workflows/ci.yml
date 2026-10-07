@@ -183,7 +183,7 @@ jobs:
       - name: Shell scripts
         run: |
           shellcheck --version
-          shellcheck install.sh update.sh backup.sh
+          shellcheck install.sh update.sh backup.sh scripts/smoke.sh
 
       # The production file is full of required variables with no defaults,
       # which is the point of it. Shell variables win over --env-file, so these

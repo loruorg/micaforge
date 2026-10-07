@@ -101,7 +101,9 @@ org=$(api GET /api/auth/me | jq -r '.data.organizations[0].id // empty')
 DOMAIN="smoke-$(date +%s).example.com"
 site=$(api POST /api/sites "$(jq -nc --arg o "$org" --arg d "$DOMAIN" '{org_id:$o,domain:$d,name:"Smoke test"}')")
 SITE_ID=$(jq -r '.data.site_id' <<<"$site")
-[ -n "$SITE_ID" ] && [ "$SITE_ID" != null ] || fail "creating a site returned no site_id" "$site"
+if [ -z "$SITE_ID" ] || [ "$SITE_ID" = null ]; then
+	fail "creating a site returned no site_id" "$site"
+fi
 pass "created site $SITE_ID ($DOMAIN)"
 
 # --- a pageview, the way the tracker sends it --------------------------------

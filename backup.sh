@@ -433,9 +433,9 @@ EOF
 	printf 'freeze      %s\n' "$FREEZE_NAME"
 	printf '\nfiles\n\n'
 	if command -v sha256sum >/dev/null 2>&1; then
-		(cd "$DEST" && find . -maxdepth 1 -type f ! -name MANIFEST.txt -exec sha256sum {} + 2>/dev/null | sort -k2 || true)
+		(cd "$DEST" && find . -maxdepth 1 -type f ! -name MANIFEST.txt -exec sha256sum {} + 2>/dev/null | sort -k2) || true
 	else
-		(cd "$DEST" && find . -maxdepth 1 -type f ! -name MANIFEST.txt -exec ls -l {} + 2>/dev/null || true)
+		(cd "$DEST" && find . -maxdepth 1 -type f ! -name MANIFEST.txt -exec ls -l {} + 2>/dev/null) || true
 	fi
 } >"$DEST/MANIFEST.txt"
 
