@@ -292,21 +292,76 @@ pub fn router() -> Router<AppState> {
 async fn list_sites(State(st): State<AppState>, auth: AuthUser) -> ApiResult<Json<Value>> {
     let rows = sites::list_sites_for_user(&st.pg, auth.user.id).await?;
 
-    let mut out = Vec::with_capacity(rows.len());
-    for site in rows {
-        // A key lists its own organisation's sites, or its one site, and not
-        // every site its owner happens to belong to.
-        if let Some(grant) = auth.key.as_ref() {
-            if !grant.permits_site(site.org_id, site.id) {
-                continue;
-            }
+    // A key lists its own organisation's sites, or its one site, and not
+    // every site its owner happens to belong to.
+    let visible: Vec<Site> = rows
+        .into_iter()
+        .filter(|site| {
+            auth.key
+                .as_ref()
+                .is_none_or(|grant| grant.permits_site(site.org_id, site.id))
+        })
+        .collect();
+
+    // Which of them have ever reported, asked once for the whole list: the site
+    // chooser renders a site that has never reported as its install steps, so
+    // a list without this marks every site "not reporting yet". If ClickHouse
+    // cannot answer, the list still loads and simply omits the field.
+    let ids: Vec<u16> = visible.iter().map(|s| s.site_id_u16()).collect();
+    let reporting = match sites_with_data(&st, &ids).await {
+        Ok(found) => Some(found),
+        Err(e) => {
+            tracing::warn!(error = %e, "could not read which sites have reported");
+            None
         }
+    };
+
+    let mut out = Vec::with_capacity(visible.len());
+    for site in visible {
         // The list query already proved visibility; this resolves *which* role,
         // which the dashboard needs to decide what to render as editable.
         let role = effective_site_role(&st.pg, &site, auth.user.id).await?;
-        out.push(site_json(&site, Some(&role)));
+        let mut row = site_json(&site, Some(&role));
+        if let Some(found) = &reporting {
+            row["has_data"] = json!(found.contains(&site.site_id_u16()));
+        }
+        out.push(row);
     }
     Ok(ok(out))
+}
+
+/// One site id, from the reporting check.
+#[derive(Debug, clickhouse::Row, serde::Deserialize)]
+struct SiteIdRow {
+    site_id: u16,
+}
+
+/// The subset of `ids` with at least one human or agent row, in one query.
+///
+/// `DISTINCT ... LIMIT n` lets ClickHouse stop reading as soon as every listed
+/// site has been seen, and `site_id` leads both tables' sort keys, so a site
+/// with no rows costs an index lookup rather than a scan.
+async fn sites_with_data(st: &AppState, ids: &[u16]) -> Result<std::collections::HashSet<u16>> {
+    if ids.is_empty() {
+        return Ok(Default::default());
+    }
+    let rows = st
+        .ch
+        .client()
+        .query(
+            "SELECT DISTINCT site_id FROM (
+                 SELECT site_id FROM events WHERE has(?, site_id)
+                 UNION ALL
+                 SELECT site_id FROM agent_events WHERE has(?, site_id)
+             ) LIMIT ?",
+        )
+        .bind(ids)
+        .bind(ids)
+        .bind(ids.len() as u64)
+        .fetch_all::<SiteIdRow>()
+        .await
+        .map_err(|e| Error::Database(format!("clickhouse sites-with-data: {e}")))?;
+    Ok(rows.into_iter().map(|r| r.site_id).collect())
 }
 
 /// What a new site needs.
