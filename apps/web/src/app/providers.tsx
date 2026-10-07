@@ -142,6 +142,14 @@ export interface SiteValue {
   timezone: string | undefined;
   isLoading: boolean;
   error: Error | null;
+  /**
+   * The address names a site this account cannot read: the list has loaded and
+   * nothing in it answers to the key. Screens would otherwise wait forever for
+   * a site id that is never coming, so the shell says so instead.
+   */
+  notFound: boolean;
+  /** The site key as written in the address, for that message. */
+  requested: string | null;
 }
 
 const SiteContext = createContext<SiteValue | null>(null);
@@ -197,8 +205,10 @@ export function SiteProvider({ children }: { children: ReactNode }) {
       timezone: match?.timezone,
       isLoading: param != null && sites.isPending && siteId == null,
       error: err ? (err instanceof Error ? err : new Error(String(err))) : null,
+      notFound: param != null && sites.isSuccess && match == null,
+      requested: param,
     };
-  }, [param, sites.data, sites.error, sites.isPending]);
+  }, [param, sites.data, sites.error, sites.isPending, sites.isSuccess]);
 
   return <SiteContext.Provider value={value}>{children}</SiteContext.Provider>;
 }

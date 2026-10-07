@@ -340,7 +340,7 @@ function StationControls({ hasSite, pathname }: { hasSite: boolean; pathname: st
 /* ── the station ─────────────────────────────────────────────────────────── */
 
 export function AppRoot({ children }: { children?: ReactNode }) {
-  const { siteId, domain } = useSite();
+  const { siteId, domain, notFound, requested } = useSite();
   const { pathname } = useLocation();
   const hidden = useHidden();
 
@@ -373,7 +373,22 @@ export function AppRoot({ children }: { children?: ReactNode }) {
       liveAgents={live.data?.agents_now ?? 0}
       right={<StationControls hasSite={siteId != null} pathname={pathname} />}
     >
-      {children ?? <Outlet />}
+      {notFound ? (
+        <div className="mf-empty mf-empty--error" role="alert">
+          <h3 className="mf-empty__title">No site at this address</h3>
+          <p className="mf-empty__body">
+            Nothing on this account answers to <span className="mf-data">{requested}</span>. It may
+            have been removed, or the address may name a site you cannot read.
+          </p>
+          <div className="mf-empty__action">
+            <Link className="mf-btn mf-btn--key" to="/app">
+              <span className="mf-btn__label">Choose a site</span>
+            </Link>
+          </div>
+        </div>
+      ) : (
+        (children ?? <Outlet />)
+      )}
     </AppShell>
   );
 }
