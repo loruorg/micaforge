@@ -89,6 +89,10 @@ const inCompare = COMPARE.some((c) => here(c.href));
         </button>
       </div>
 
+      <a class="mf-head__out" href="/app/">
+        <span>Sign in</span>
+      </a>
+
       <a class="mf-head__out" href="https://github.com/micaforge/micaforge" rel="noopener">
         <span>Source</span>
         <IconOut size={14} />
@@ -108,6 +112,7 @@ const inCompare = COMPARE.some((c) => here(c.href));
             {COMPARE.map((c) => (
               <a href={c.href} class:list={["mf-drawer__sub", here(c.href) && "is-here"]}>{c.label}</a>
             ))}
+            <a href="/app/">Sign in</a>
             <a href="https://github.com/micaforge/micaforge" rel="noopener">Source on GitHub</a>
           </div>
           <div class="mf-wrap mf-drawer__foot">
