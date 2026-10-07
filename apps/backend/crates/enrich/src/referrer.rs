@@ -433,6 +433,18 @@ pub fn attribute(
     }
 
     if !referrer_host.is_empty() {
+        // A checkout or sign-in page handing the visitor back. That is the same
+        // visit continuing after a payment or a login, not a site that sent a
+        // new reader, so it is filed as internal rather than as acquisition.
+        // First, because `accounts.google.com` would otherwise read as search.
+        if is_return_host(&referrer_host) {
+            return Attribution {
+                channel: Channel::Internal,
+                source: referrer_host.clone(),
+                referrer_host,
+            };
+        }
+
         // 3. The wedge. Checked before search, because several answer engines
         //    also run a conventional search index and would otherwise be
         //    counted as one.
@@ -718,6 +730,35 @@ fn table_source(table: &HashMap<&'static str, &'static str>, host: &str) -> Opti
     table.get(registrable_domain(host)).copied()
 }
 
+/// Checkout and sign-in hosts a visitor comes back from in the middle of a
+/// visit. Exact hosts, never registrable domains: `google.com` itself is a
+/// search engine, and only its sign-in host is a return.
+const RETURN_HOSTS: &[&str] = &[
+    "checkout.stripe.com",
+    "pay.stripe.com",
+    "buy.stripe.com",
+    "billing.stripe.com",
+    "invoice.stripe.com",
+    "paypal.com",
+    "www.paypal.com",
+    "checkout.paddle.com",
+    "buy.paddle.com",
+    "pay.paddle.io",
+    "checkout.lemonsqueezy.com",
+    "nowpayments.io",
+    "account.nowpayments.io",
+    "checkout.shopify.com",
+    "accounts.google.com",
+    "appleid.apple.com",
+    "login.microsoftonline.com",
+    "login.live.com",
+];
+
+/// Is this referrer a checkout or sign-in page returning the visitor?
+fn is_return_host(host: &str) -> bool {
+    RETURN_HOSTS.contains(&host) || host.ends_with(".lemonsqueezy.com")
+}
+
 /// The first of these that is not empty, owned.
 fn first_non_empty(candidates: &[&str]) -> String {
     candidates
@@ -761,6 +802,24 @@ mod tests {
 
     fn attribute_for(referrer: Option<&str>, url: &str) -> Attribution {
         attribute(referrer, &page(url), "example.com", &answer_engines)
+    }
+
+    // -- returns from checkout and sign-in -----------------------------------
+
+    #[test]
+    fn a_return_from_checkout_or_sign_in_is_the_same_visit_not_a_referral() {
+        for referrer in [
+            "https://checkout.stripe.com/c/pay/cs_live_x",
+            "https://www.paypal.com/checkoutnow?token=x",
+            "https://acme.lemonsqueezy.com/checkout/buy/x",
+            "https://accounts.google.com/o/oauth2/v2/auth",
+        ] {
+            let a = attribute_for(Some(referrer), "https://example.com/thanks");
+            assert_eq!(a.channel, Channel::Internal, "{referrer}");
+        }
+        // Google itself is still search; only its sign-in host is a return.
+        let a = attribute_for(Some("https://www.google.com/"), "https://example.com/");
+        assert_eq!(a.channel, Channel::Search);
     }
 
     // -- the wedge ----------------------------------------------------------
