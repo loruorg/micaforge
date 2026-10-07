@@ -40,7 +40,8 @@ use url::Url;
 /// The `+url` form is the convention every crawler documentation page uses, and
 /// the token before the slash is what a site owner writes in `robots.txt` to
 /// talk to us. Both halves are part of the contract with the sites we read.
-pub const USER_AGENT: &str = "Micaforge/1.0 (+https://micaforge.dev/bot)";
+pub const USER_AGENT: &str =
+    "Micaforge/1.0 (+https://micaforge.com/docs/agents/robots-and-llms-txt)";
 
 /// The `robots.txt` product token these crawlers obey.
 pub const ROBOTS_TOKEN: &str = "Micaforge";

@@ -110,7 +110,7 @@
 		Strict-Transport-Security "max-age=31536000"
 
 		# An analytics host has no business in a search index. The marketing
-		# pages it also serves name micaforge.dev as their canonical address.
+		# pages it also serves name micaforge.com as their canonical address.
 		X-Robots-Tag "noindex, nofollow"
 	}
 

@@ -296,7 +296,7 @@ services:
       dockerfile: Dockerfile
       target: web
       args:
-        PUBLIC_SITE_URL: ${PUBLIC_SITE_URL:-https://micaforge.dev}
+        PUBLIC_SITE_URL: ${PUBLIC_SITE_URL:-https://micaforge.com}
     image: ${MICAFORGE_WEB_IMAGE:-micaforge-web}:${MICAFORGE_VERSION:-local}
     restart: unless-stopped
     logging: *logging

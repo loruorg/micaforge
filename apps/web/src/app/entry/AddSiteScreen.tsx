@@ -46,13 +46,13 @@ export function readDomain(raw: string): DomainReading {
 
   const labels = v.split(".");
   if (labels.length < 2)
-    return { domain: v, error: "Give the full domain, including the ending. For example micaforge.dev." };
+    return { domain: v, error: "Give the full domain, including the ending. For example, example.com." };
   if (/^[\d.]+$/.test(v)) return { domain: v, error: "Record a domain name rather than an IP address." };
   for (const l of labels) {
     if (!LABEL.test(l))
       return {
         domain: v,
-        error: "Use letters, numbers and hyphens between the dots. For example docs.micaforge.dev.",
+        error: "Use letters, numbers and hyphens between the dots. For example, docs.example.com.",
       };
   }
   return { domain: v };
@@ -185,7 +185,7 @@ export function AddSiteScreen({ nextPath = ENTRY_PATHS.onboarding }: AddSiteScre
               hint={
                 reading.domain && !reading.error
                   ? `Micaforge will record ${reading.domain} and every path under it.`
-                  : "Paste a full address if that is easier and Micaforge will take the domain out of it. For example micaforge.dev."
+                  : "Paste a full address if that is easier and Micaforge will take the domain out of it. For example, example.com."
               }
             >
               <input

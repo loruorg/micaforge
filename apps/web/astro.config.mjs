@@ -6,7 +6,7 @@ import sitemap from "@astrojs/sitemap";
 import tailwind from "@tailwindcss/vite";
 import spaDevRouting from "./spa-dev.mjs";
 
-const site = process.env.PUBLIC_SITE_URL ?? "https://micaforge.dev";
+const site = process.env.PUBLIC_SITE_URL ?? "https://micaforge.com";
 
 export default defineConfig({
   site,

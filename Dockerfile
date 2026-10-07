@@ -54,7 +54,7 @@ COPY apps/web apps/web
 # The canonical address the marketing pages and the sitemap name. It is not the
 # address this install answers on: the dashboard calls the API on whatever origin
 # served it, so one image works on every domain.
-ARG PUBLIC_SITE_URL=https://micaforge.dev
+ARG PUBLIC_SITE_URL=https://micaforge.com
 ENV PUBLIC_SITE_URL=${PUBLIC_SITE_URL}
 
 # The SDK build bundles the tracker and then fails if it is over its size budget,
