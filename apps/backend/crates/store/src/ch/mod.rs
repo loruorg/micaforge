@@ -94,6 +94,12 @@ impl Ch {
                 .with_url(url)
                 .with_user(user)
                 .with_password(pass)
+                // No transport compression. With LZ4 on, this driver cannot read
+                // a result body from ClickHouse 26.9 ("decompression error:
+                // incorrect magic number"), so every SELECT failed while DDL,
+                // which returns no body, appeared to work. The server is on the
+                // same private network, where compression saves nothing.
+                .with_compression(clickhouse::Compression::None)
                 // ClickHouse 24.10+: carry `JSON` columns as JSON strings over
                 // RowBinary in both directions. See the note on `EventRow`.
                 .with_option("allow_experimental_json_type", "1")
@@ -338,9 +344,13 @@ impl Ch {
     /// no connect timeout and a probe must never hang on a host that drops
     /// packets.
     pub async fn ping(&self) -> Result<()> {
-        let probe = self.client.query("SELECT 1").execute();
+        // Read through the typed path every real query uses. `execute()` on a
+        // SELECT discards a compressed result body, and newer servers frame that
+        // body in a way the discard path rejects ("incorrect magic number"), so
+        // the probe failed against a server that was answering every query.
+        let probe = self.client.query("SELECT toUInt8(1)").fetch_one::<u8>();
         match tokio::time::timeout(PING_DEADLINE, probe).await {
-            Ok(result) => result.map_err(|e| ch_err("ping", e)),
+            Ok(result) => result.map(|_| ()).map_err(|e| ch_err("ping", e)),
             Err(_) => Err(Error::Upstream(format!(
                 "clickhouse ping: no answer within {}ms",
                 PING_DEADLINE.as_millis()
@@ -381,6 +391,34 @@ fn validate_db_name(db: &str) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Against a real server, because the defect this guards against lived in
+    /// the wire format, not in this crate. Opt in with
+    /// `MICAFORGE_TEST_CLICKHOUSE_URL=http://user:password@127.0.0.1:8123`
+    /// and `cargo test -p micaforge-store -- --ignored`.
+    #[tokio::test]
+    #[ignore = "needs a ClickHouse server"]
+    async fn ping_reads_through_the_typed_path_on_a_live_server() {
+        let raw = std::env::var("MICAFORGE_TEST_CLICKHOUSE_URL")
+            .expect("set MICAFORGE_TEST_CLICKHOUSE_URL to run this test");
+        let url = url::Url::parse(&raw).expect("a URL");
+        let base = format!(
+            "{}://{}:{}",
+            url.scheme(),
+            url.host_str().unwrap(),
+            url.port().unwrap_or(8123)
+        );
+        let ch = Ch::connect(
+            &base,
+            "default",
+            url.username(),
+            url.password().unwrap_or(""),
+        )
+        .unwrap();
+        ch.ping()
+            .await
+            .expect("ping must succeed against a live server");
+    }
 
     #[test]
     fn database_names_are_bare_identifiers_only() {
