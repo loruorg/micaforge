@@ -21,7 +21,7 @@
     "stack:down": "docker compose down"
   },
   "devDependencies": {
-    "turbo": "^2.5.0"
+    "turbo": "^2.11.7"
   },
   "engines": {
     "node": ">=22"
