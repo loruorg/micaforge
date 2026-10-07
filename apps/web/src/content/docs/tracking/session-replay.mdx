@@ -1,0 +1,43 @@
+---
+title: "Session replay"
+description: "The store, the retention and the route exist; the recorder does not."
+group: "tracking"
+order: 8
+updated: 2026-08-22
+---
+
+<aside class="doc-annot" data-tone="gap">
+
+**Not built yet.** No recorder ships in `@micaforge/sdk`. Nothing is captured, nothing is
+stored, and the replay screen is empty. The pieces described below are real, and they are
+what the recorder will write into when it lands.
+
+</aside>
+
+## What is already decided
+
+- **The table.** `replay_events` holds `(site_id, session_id, timestamp, seq, type, data)`,
+  rrweb-compatible, with the payload column compressed with ZSTD.
+- **The retention.** Replay expires on its own clock, 30 days by default, set with
+  `MICAFORGE_REPLAY_RETENTION_DAYS`. It is metered separately from events on purpose: one
+  recorded session outweighs a month of events on disk.
+- **The screens.** `/app/:site/replay` and `/app/:site/replay/:id` are in the route map,
+  next to the session detail they belong to.
+
+## Why the order is that way round
+
+Replay is the feature most likely to record something it should not: a password field
+mid-type, a customer's address, a support agent's screen. Storage that expires, a
+retention setting that is visible and a session it hangs off are the parts that make a
+recorder safe to turn on. Building the recorder first, and the discipline afterwards, is
+how analytics tools end up holding data nobody meant to keep.
+
+## In the meantime
+
+A session's own timeline is already readable without any recording. `GET
+/api/stats/sessions` returns the sessions list and one session's detail: every pageview in
+order, the entry and exit path, the referrer and channel it arrived on, the events fired,
+engagement time per page, and the device it happened on.
+
+For most "what did they actually do" questions, that sequence answers it, and it costs no
+recording of anyone's screen.

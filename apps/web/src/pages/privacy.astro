@@ -1,0 +1,271 @@
+---
+/**
+ * Privacy, as a template.
+ *
+ * Micaforge is software other people run. A privacy policy on this site that
+ * spoke only for this site would be useless to the person who actually needs
+ * one, so this is written as the document an operator adapts, with the
+ * placeholders left visible and a warning at the top that nobody can miss.
+ *
+ * Every factual claim below is checked against docs/CONTRACT.md section 7 and
+ * the columns listed in docs/privacy/what-we-store.
+ */
+import Base from "../layouts/Base.astro";
+import SiteHeader from "../components/SiteHeader.astro";
+import SiteFooter from "../components/SiteFooter.astro";
+import Prose from "../components/Prose.astro";
+import { IconAlert, IconOut } from "../components/react/icons.tsx";
+
+const sections = [
+  { id: "who", n: "1", t: "Who this document is for" },
+  { id: "collected", n: "2", t: "What is collected" },
+  { id: "never", n: "3", t: "What is never collected" },
+  { id: "cookies", n: "4", t: "Cookies and local storage" },
+  { id: "machines", n: "5", t: "Records of machines" },
+  { id: "basis", n: "6", t: "Why it is lawful to collect" },
+  { id: "kept", n: "7", t: "How long it is kept" },
+  { id: "shared", n: "8", t: "Who else sees it" },
+  { id: "rights", n: "9", t: "Your rights, and their limits" },
+  { id: "children", n: "10", t: "Children" },
+  { id: "changes", n: "11", t: "Changes" },
+  { id: "contact", n: "12", t: "Contact" },
+];
+---
+
+<Base
+  title="Privacy · Micaforge"
+  description="A plain-language privacy policy template for anyone running Micaforge: what a Micaforge install collects, what it never collects, and the honest limits of a data subject request against data that identifies nobody."
+>
+  <SiteHeader />
+
+  <main id="main">
+    <article class="mf-wrap mf-doc">
+      <header class="mf-doc__head">
+        <h1 class="mf-doc__title">Privacy policy</h1>
+        <p class="mf-doc__lede">
+          Written for the person running the software, in language a reader can actually
+          check. Micaforge measures traffic rather than individuals, and this document says
+          exactly what that does and does not mean.
+        </p>
+        <div class="mf-doc__meta">
+          <span><strong>Template</strong> version 1</span>
+          <span>Last changed <strong>22 August 2026</strong></span>
+          <span>Covers a Micaforge installation and this project's own site</span>
+        </div>
+      </header>
+
+      <div class="mf-note lg-warn">
+        <div class="mf-note__head"><IconAlert size={18} />This is a template, not advice</div>
+        <p>
+          Micaforge is open-source software that other people install. This document is written
+          so an operator can adapt it, and the parts only an operator can fill in are marked{" "}
+          <code>[LIKE THIS]</code>. It has not been reviewed by a lawyer, and nothing on this
+          page is legal advice.
+        </p>
+        <p>
+          If you are running Micaforge: read every section, replace every placeholder, delete
+          what does not apply to you, and have somebody qualified check the result before you
+          publish it. If you are a visitor reading this on somebody's site and it still contains
+          placeholders, the operator has not finished, and you should ask them.
+        </p>
+      </div>
+
+      <nav class="mf-toc" aria-label="Contents">
+        <ol>
+          {sections.map((s) => <li><a href={`#${s.id}`}>{s.t}</a></li>)}
+        </ol>
+      </nav>
+
+      <Prose class="lg-body" as="section">
+        <h2 id="who">1. Who this document is for</h2>
+        <p>
+          <strong>[OPERATOR NAME]</strong> (&ldquo;we&rdquo;) runs an analytics installation at{" "}
+          <strong>[ANALYTICS DOMAIN]</strong> and uses it to measure traffic to{" "}
+          <strong>[YOUR SITES]</strong>. This document describes what that installation records.
+        </p>
+        <p>
+          The software is Micaforge, which is AGPL-3.0 and self-hosted. Nobody but us operates
+          it, and it makes no outbound network call while it runs, including for geolocation.
+          Your data does not reach the authors of the software, because there is no path by
+          which it could.
+        </p>
+
+        <h2 id="collected">2. What is collected</h2>
+        <p>When you load a page that carries the tracking script, the following is recorded.</p>
+        <ul>
+          <li>
+            <strong>The page.</strong> The address you visited, its title, the query string and
+            fragment, and which page you entered and left on.
+          </li>
+          <li>
+            <strong>Where you came from.</strong> The referring site, and any campaign
+            parameters in the link you followed.
+          </li>
+          <li>
+            <strong>Your device, in categories.</strong> Browser and version, operating system
+            and version, device type, screen and window size, language and time zone.
+          </li>
+          <li>
+            <strong>Roughly where you are.</strong> Country, region and city, derived from your
+            address and then discarded. Map coordinates are the coordinates of the city, not of
+            you.
+          </li>
+          <li>
+            <strong>What you did.</strong> Time on the previous page, how far you scrolled, and
+            any custom events the site chose to send.
+          </li>
+          <li>
+            <strong>How fast the page was.</strong> Standard web performance measurements.
+          </li>
+          <li>
+            <strong>A visitor identifier.</strong> Not a name and not a cookie: a one-way hash
+            of a daily secret, the site, your address and your browser string. It changes every
+            day and cannot be reversed. Tomorrow you are a different visitor to us.
+          </li>
+        </ul>
+        <p>
+          <strong>[If session replay is enabled, say so here.]</strong> Replay records the
+          structure of the page and your interactions with it so a visit can be watched back.
+          Delete this paragraph if you have not turned it on.
+        </p>
+        <p>
+          <strong>[If the site calls identify(), say so here.]</strong> A site can attach its own
+          account identifier to events for signed-in users. That is a deliberate choice by the
+          operator, it is off unless the site's code calls it, and it is the one place where
+          data here can be tied to a person.
+        </p>
+
+        <h2 id="never">3. What is never collected</h2>
+        <ul>
+          <li>
+            <strong>No raw IP address is ever stored on a visitor's record.</strong> It is read
+            when the request arrives, turned into a country, a region, a city and a network
+            operator, folded into the daily hash, and dropped. There is no column for it.
+          </li>
+          <li>
+            <strong>No browser string is stored on a visitor's record.</strong> It is read to
+            work out the browser, operating system and device type, and those categories are
+            what is kept.
+          </li>
+          <li><strong>No cookie is set and none is read.</strong></li>
+          <li><strong>No cross-site tracking, no advertising identifiers, no data sharing.</strong></li>
+          <li><strong>No fingerprinting beyond the daily hash described above.</strong></li>
+        </ul>
+
+        <h2 id="cookies">4. Cookies and local storage</h2>
+        <p>
+          The tracking script sets no cookies. It writes one value into your browser's local
+          storage, <code>mf-opt-out</code>, and only if the site gives you an opt-out control and
+          you use it. That value stays in your browser and is never sent anywhere.
+        </p>
+        <p>
+          The dashboard we use to read the statistics sets a session cookie for the people who
+          log into it. That is us, not you.
+        </p>
+
+        <h2 id="machines">5. Records of machines</h2>
+        <p>
+          Micaforge also records requests from software rather than people: search crawlers, AI
+          agents, link previews, monitoring tools. Those records are kept in separate tables and
+          carry more detail than a person's record does, including the full client string and a
+          salted hash of the source address, because none of it describes a human being.
+        </p>
+        <p>
+          If a request of yours is misclassified as a machine, the effect is that it appears in
+          a table of machine traffic rather than in the visitor statistics. It is still not
+          linked to you, and no further data is collected about it.
+        </p>
+
+        <h2 id="basis">6. Why it is lawful to collect</h2>
+        <p>
+          <strong>[This section needs your own decision and your lawyer's.]</strong> The usual
+          position for cookieless, aggregate measurement in the EU and the UK is legitimate
+          interests under Article 6(1)(f) of the GDPR: understanding how a site is used, with no
+          profiling, no personal identifiers and no cookie requiring consent under PECR.
+        </p>
+        <p>
+          That position depends on facts about your site and not only on the software. If you
+          have enabled replay, if you call <code>identify()</code>, or if your page addresses
+          themselves carry personal data, the analysis changes and you may need consent. Decide
+          it deliberately and write the answer here.
+        </p>
+
+        <h2 id="kept">7. How long it is kept</h2>
+        <p>
+          <strong>[State your retention period.]</strong> By default Micaforge keeps event
+          history indefinitely and session replays for thirty days. An operator can set a
+          retention period, after which whole months of history are dropped.
+        </p>
+        <p>
+          The daily secret used to build visitor identifiers is never kept beyond forty-eight
+          hours, which is what makes yesterday's identifier permanently unlinkable to today's.
+        </p>
+
+        <h2 id="shared">8. Who else sees it</h2>
+        <p>
+          <strong>[List anybody who does. If nobody does, say so.]</strong> On a standard
+          self-hosted install the data sits on our own machine at{" "}
+          <strong>[HOSTING PROVIDER, COUNTRY]</strong> and is shared with nobody. There is no
+          third-party analytics service behind this, no advertising network, and no data broker.
+        </p>
+        <p>
+          We may publish aggregate statistics, and we may share data where the law requires it.
+        </p>
+
+        <h2 id="rights">9. Your rights, and their limits</h2>
+        <p>
+          Where the GDPR or a similar law applies to you, you have rights of access, correction,
+          erasure, restriction, portability and objection.
+        </p>
+        <p>
+          There is a real limit worth stating rather than hiding. Because no cookie is set, no
+          address is stored and the visitor identifier changes every day and cannot be reversed,
+          we usually <strong>cannot find your data</strong> in order to show it to you or delete
+          it. Nothing in the store points at a person. That is a consequence of collecting
+          less, not a refusal to help, and under Article 11 of the GDPR we are not required to
+          collect more data purely to be able to identify you.
+        </p>
+        <p>
+          Where an account identifier has been attached to events, that is different: tell us
+          the identifier and we can find and delete those rows. You can also stop collection
+          entirely by using the opt-out control at <strong>[LINK, IF YOU OFFER ONE]</strong>, or
+          by any browser setting or extension that blocks the script.
+        </p>
+
+        <h2 id="children">10. Children</h2>
+        <p>
+          The site is not directed at children, and nothing collected here identifies anybody of
+          any age. <strong>[Adjust if your site is aimed at children.]</strong>
+        </p>
+
+        <h2 id="changes">11. Changes</h2>
+        <p>
+          If this document changes materially we will change the date at the top and, where the
+          change affects what is collected, say so on the site.
+        </p>
+
+        <h2 id="contact">12. Contact</h2>
+        <p>
+          Write to <strong>[CONTACT ADDRESS]</strong>.{" "}
+          <strong>[If you have appointed a data protection officer or an EU or UK
+          representative, name them here.]</strong> You may also complain to your local
+          supervisory authority.
+        </p>
+      </Prose>
+
+      <div class="mf-next">
+        <a class="mf-link" href="/docs/privacy/what-we-store">Every column, listed<IconOut size={13} /></a>
+        <a class="mf-link" href="/docs/privacy/cookieless-identification">How the daily hash works<IconOut size={13} /></a>
+        <a class="mf-link" href="/dpa">Data processing template<IconOut size={13} /></a>
+        <a class="mf-link" href="/terms">Terms<IconOut size={13} /></a>
+      </div>
+    </article>
+  </main>
+
+  <SiteFooter />
+</Base>
+
+<style>
+  .lg-warn { margin-top: var(--mf-10); max-width: var(--mf-measure); }
+  .lg-body { margin-top: var(--mf-12); }
+</style>

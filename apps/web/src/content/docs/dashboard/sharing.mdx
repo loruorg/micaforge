@@ -1,0 +1,72 @@
+---
+title: "Sharing"
+description: "Public dashboards, private links, scopes, passwords and expiry."
+group: "dashboard"
+order: 7
+updated: 2026-08-22
+---
+
+Open-source projects routinely publish their own traffic as a trust signal, so sharing is
+a first-class screen rather than a hidden switch. Everything below says exactly what a
+reader of a link can see, because the failure mode of a share feature is finding out
+afterwards.
+
+## Two ways to share
+
+**Public.** The site gets a slug and anyone with the address can read it, no sign-in. The
+right choice when you want the numbers to be a fact about the project.
+
+**A private link.** A link with its own slug, optionally a password, optionally an expiry
+date, and a set of scopes. The right choice for an advisor, a client or a colleague who
+should see some of it and not all of it.
+
+```http
+GET  /api/share?site=1
+POST /api/share?site=1
+```
+
+Both are read at `/share/:slug`, which needs no account. The slug is the credential: it is
+carried as `?share=<slug>` on every request the shared view makes. A link with a password
+is opened with `POST /api/share/:slug/unlock`, which returns a token good for an hour; the
+view then carries that token instead. Unlock attempts are rate-limited per address and per
+link.
+
+## Scopes
+
+A private link carries only the screens you tick:
+
+| Scope | What it opens |
+| --- | --- |
+| `overview` | Totals, the record and both traces. |
+| `agents` | Which machines fetched what, and how often. |
+| `citation_gap` | What was taken against what came back. |
+| `pages` | Paths, entries, exits and time on page. |
+| `sources` | Channels, referrers and campaigns. |
+| `locations` | Reserved: accepted and stored, opens nothing yet. |
+| `devices` | Reserved: accepted and stored, opens nothing yet. |
+
+Anything not ticked is not merely hidden in the interface: the request is refused. The
+shared view does not draw location or device panels yet, so those two scopes open no
+endpoint today; ticking them now means the link carries them when it does.
+
+## What a shared link never exposes
+
+Settings, API keys, team members, goals configuration, the site's own ingest key, or any
+other site in the organisation. Nor session or visitor detail, which is where the closest
+thing to a person lives.
+
+## Passwords and expiry
+
+A password is stored as a hash, not as text. An expiry is a date after which the link stops
+answering. Both are optional and both are worth using on anything you would not publish.
+
+Revoking a link is immediate. There is no cache to wait out, and no signed URL that keeps
+working after you have removed it.
+
+## Before you make a site public
+
+- Check your paths. URLs are the content of the pages report, and a path can carry a
+  customer name, an invite token or an unreleased product.
+- Check your event names and properties for the same reason.
+- Remember that a public dashboard is public to crawlers too, which (on this product of
+  all products) is a fact you will end up measuring.

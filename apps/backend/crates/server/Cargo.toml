@@ -1,0 +1,70 @@
+[package]
+name = "micaforge-server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+description = "The Micaforge HTTP server: collection, analytics reads, management and the embedded job worker."
+
+# Two targets, one crate. The library is what the route modules compile into and
+# what the integration tests address; the binary is a thin `main` over it. The
+# split exists so that `micaforge_server::extract::SiteAccess` is a real path a
+# test can name, rather than something only reachable from inside `main.rs`.
+[lib]
+name = "micaforge_server"
+path = "src/lib.rs"
+
+[[bin]]
+name = "micaforge-server"
+path = "src/main.rs"
+
+[dependencies]
+micaforge-core = { workspace = true }
+micaforge-store = { workspace = true }
+micaforge-agents = { workspace = true }
+micaforge-enrich = { workspace = true }
+micaforge-query = { workspace = true }
+micaforge-jobs = { workspace = true }
+micaforge-mail = { workspace = true }
+
+# `multipart` on top of the workspace feature set, for the import upload in
+# `routes::imports`. It is enabled here rather than in the workspace table so
+# that no other crate pays for a body parser it never uses.
+axum = { workspace = true, features = ["multipart"] }
+axum-extra = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
+http = { workspace = true }
+
+tokio = { workspace = true }
+
+# Used directly by `routes::admin`, which reads a handful of instance-wide
+# aggregates that have no repository function because nothing else wants them.
+sqlx = { workspace = true }
+# Several route modules declare a `#[derive(clickhouse::Row)]` for a one-off
+# projection that is local to one endpoint and does not belong in
+# `micaforge_store::ch::rows`, which holds the shapes of the tables themselves.
+clickhouse = { workspace = true }
+reqwest = { workspace = true }
+
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+chrono-tz = { workspace = true }
+uuid = { workspace = true }
+url = { workspace = true }
+ipnet = { workspace = true }
+
+base64 = { workspace = true }
+blake3 = { workspace = true }
+hex = { workspace = true }
+hmac = { workspace = true }
+sha2 = { workspace = true }
+subtle = { workspace = true }
+totp-rs = { workspace = true }
+
+once_cell = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+dotenvy = { workspace = true }

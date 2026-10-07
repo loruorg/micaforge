@@ -1,0 +1,54 @@
+---
+title: "From Umami"
+description: "Importing an Umami event dump, and mapping its vocabulary onto this one."
+group: "migrating"
+order: 4
+updated: 2026-08-22
+---
+
+## Get the export
+
+Umami exports events. Take the event dump rather than a report: it is one row per event,
+which is the shape that imports cleanly and keeps the hour-of-day detail.
+
+## Import it
+
+Upload on the site's Imports screen, or point the importer at a URL. The importer resolves
+columns through a table of aliases, so Umami's naming is read without reshaping.
+
+Like every import, it is idempotent by replacement: every row carries an `import_id`, so
+re-running replaces rather than duplicates and undoing is a delete, and resumable through a
+staging table, so a job that died at row 400,000 resumes at 400,001.
+
+## Vocabulary
+
+| Umami | Micaforge |
+| --- | --- |
+| Event | An event with `kind` `custom` and an `event_name`. |
+| Event data | `props`, filterable as `props.<key>` |
+| Session | A session, with the same 30-minute inactivity rule. |
+| Visit | A session. |
+| Referrer | `referrer`, resolved into `referrer_host`, `channel` and `source`. |
+
+Umami's per-event data becomes `props` verbatim, so a property you were filtering on there
+is filterable here under the same name.
+
+## What changes
+
+**Bots.** Umami filters them. Micaforge names them and counts them separately, so nothing
+disappears and nothing is folded into the human numbers.
+
+**Answer engines.** A top-level channel here, rather than a referrer among referrers.
+
+**Web Vitals and performance.** Collected by the tracker from the first pageview after
+install. Nothing to import; it starts from the day you install.
+
+## After the import
+
+Recreate your goals (they are not in an event dump) and check a week where both tools have
+data. Pageviews and sessions should agree closely, because both count the same things the
+same way. Where they differ, it is almost always bot filtering, and Micaforge can now show
+you exactly which agents made the difference.
+
+Then turn on the [server log feed](/docs/agents/shipping-server-logs), which is the half
+neither tool had.

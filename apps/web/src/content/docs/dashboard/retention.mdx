@@ -1,0 +1,48 @@
+---
+title: "Retention"
+description: "Cohorts by week or month, and what a cookieless tool can honestly claim about them."
+group: "dashboard"
+order: 5
+updated: 2026-08-22
+---
+
+```http
+GET /api/stats/retention?site=1&range=90d&granularity=week
+```
+
+A grid: each row is a cohort of visitors first seen in one week or month, each column is
+how many of them came back in the periods after. Read across a row for one cohort's decay;
+read down a column to compare cohorts at the same age.
+
+`granularity` takes `week` or `month`. The grid can show a share or a count.
+
+## Read this before you trust the numbers
+
+Micaforge is cookieless. A visitor is a daily-rotating salted hash of a per-site salt, the
+site id, the address and the user agent. The salt rotates at midnight in the site's own
+timezone and is never kept beyond 48 hours.
+
+The consequence is unavoidable and worth stating plainly: **a returning visitor tomorrow
+is a new visitor.** Daily uniques are exact. Anything measured across days (retention
+above all) is an estimate built from a hash that was designed not to persist.
+
+So the grid is honest about what it is:
+
+- **Signed-in products should use `identify()`.** With an id attached, cohorts join across
+  days and devices properly, and the grid becomes a real measurement. See
+  [identify()](/docs/tracking/identify).
+- **Anonymous sites should read shape, not level.** Whether cohort-over-cohort retention
+  is improving is a fair question. "17% of March came back in week four" is not a number to
+  put in a board pack.
+
+A tool that hid this would show you a prettier grid. It would be the same grid.
+
+## Retention and agents
+
+Switch the audience and the grid answers a different question: does a crawler that found
+your site keep coming back? Crawl retention is a real thing to want: an operator whose
+agent visited once in March and never again has a stale copy of your documentation, and
+[crawl coverage](/docs/agents/the-citation-gap) tells you the same story per URL.
+
+Agent identity is not a hash of an address, it is a named agent from the catalog, so the
+cohort question is sound in a way the human one is not.

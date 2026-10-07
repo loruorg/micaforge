@@ -1,0 +1,145 @@
+---
+title: "Troubleshooting"
+description: "The faults that actually happen, in the order they happen."
+group: "self-hosting"
+order: 6
+updated: 2026-08-22
+---
+
+## Start here
+
+```sh
+docker compose ps                    # what is running, and what is healthy
+docker compose logs -f micaforge     # what the server is doing
+curl -s https://analytics.example.com/api/health/ready
+```
+
+Two health routes, for two questions. `/api/health/live` answers `200` whenever the process
+can serve requests, and is what the container healthcheck uses: while ClickHouse restarts
+the server keeps its event buffer, and restarting it then would throw that buffer away.
+`/api/health/ready` probes every store and names the one that is down; point a load
+balancer at that one. It answers `503` only when Postgres is down. ClickHouse or Valkey
+down is `200` with `"status": "degraded"`, because collection carries on through both and
+pulling the server out of rotation would only lose hits. Each store is probed with its own
+short timeout, so a hung Valkey cannot make the check itself hang.
+
+**The dashboard says the server could not be reached.** Caddy is up and the server is not.
+`docker compose ps` shows which, and `docker compose logs micaforge` says why.
+
+## No data at all
+
+In order of how often it is each one:
+
+**The tracker is suppressed on localhost.** By design: a developer's refreshes are not data.
+Add `data-debug` to the script tag and reload.
+
+**`data-host` is wrong.** It must be the origin, with no path and no trailing slash. Open
+the network tab and look for a `POST` to `/api/track`; a 404 or a CORS error means the host
+is not a Micaforge server.
+
+**The site id is wrong.** A payload for an unknown site is refused with `403`, and a payload
+whose page hostname is not one of the site's is refused the same way: one verdict for both,
+so the answer says nothing about which.
+
+**A content blocker.** `net::ERR_BLOCKED_BY_CLIENT` in the network tab.
+[Proxying the script](/docs/tracking/proxying-the-script) is the answer if the loss matters.
+
+## No agent data
+
+Expected until you ship a log. Crawlers do not run JavaScript, so the script tag will never
+produce an agent row. Run the shipper's dry run:
+
+```sh
+npx --package=@micaforge/sdk-server micaforge-shipper \
+  --dry-run --no-follow --from-beginning /var/log/nginx/access.log
+```
+
+It prints what it found and how many lines it could not read. Two common causes: the log
+format has no user agent: nginx's `common` format does not, and there is nothing to
+classify, or the shipper is following a file your server rotated out from under it.
+
+## Signature rejected
+
+```json
+{ "error": { "code": "unauthorized", "message": "the signature did not verify for this site" } }
+```
+
+- The ingest key does not match the site. Read the current one from
+  `GET /api/sites/:site/tracking`.
+- The key was rotated and the shipper was not restarted.
+- The clock is off. A signature more than five minutes old is refused; check NTP on the
+  shipping machine.
+- The signed bytes are not the sent bytes. Sign the serialised body, not a re-serialisation
+  of the object.
+
+## 429 on the edge endpoint
+
+600 hits per minute per site per address, with `Retry-After: 60`. Both shipped clients back
+off on their own. A shipper hitting this while catching up on a backfill is normal; one
+hitting it continuously is usually shipping the same lines twice, so check for two shippers
+on one file, or a state file that keeps being deleted.
+
+## The certificate will not issue
+
+Caddy orders it during `install.sh`. ACME's HTTP-01 challenge needs port 80 reachable from
+the internet **on the standard port**, so a moved `HTTP_PORT` cannot work. Check that the
+domain's DNS resolves to this machine and that nothing else holds port 80.
+
+```sh
+docker compose logs -f caddy
+```
+
+Caddy retries with a backoff, so a fixed DNS record heals itself without a restart.
+
+## The server will not become healthy
+
+```sh
+docker compose logs --tail 40 micaforge
+```
+
+- `MICAFORGE_SECRET_KEY_BASE` shorter than 32 characters is refused at boot, by name.
+- A store password with characters that need percent-encoding breaks the connection URL.
+  Regenerate with `openssl rand -hex 24`.
+- ClickHouse takes longer than the others on a first start while it creates its database.
+  The healthcheck waits; five minutes is the limit before the installer stops and shows you
+  the logs.
+
+## Geography is empty
+
+Expected. No `.mmdb` on disk means no geography, because a self-hosted install makes no
+outbound call to resolve an address. See
+[configuration](/docs/self-hosting/configuration).
+
+Country may still be present without the city database, because most hosts pass it in a
+request header.
+
+## Emails never arrive
+
+Expected with no `MICAFORGE_SMTP_URL`. Every email path degrades rather than failing:
+invitations become links you copy from the dashboard and scheduled reports do not run. For a
+forgotten password, print a reset link on the host:
+
+```sh
+docker compose exec micaforge micaforge-server reset-link you@example.com
+```
+
+## Numbers look wrong
+
+- **Duplicated pageviews:** the script tag and `init()` are both on the page, or a
+  middleware is reporting humans while the tracker is too. Set `humans: false` on the
+  middleware.
+- **Everyone is in one country, or visitors are far too few:** your proxy's address is
+  being recorded rather than the client's. Set `MICAFORGE_TRUSTED_PROXIES` in `.env` to
+  your proxy's ranges (`private_ranges` for a proxy on the same network) and run
+  `docker compose up -d caddy`. See [configuration](/docs/self-hosting/configuration).
+- **Every agent fails verification:** the same fault. The published-range check is being run
+  against your proxy.
+- **Visitors look low across days:** that is the cookieless design, not a bug. A returning
+  visitor tomorrow is a new visitor. See
+  [cookieless identification](/docs/privacy/cookieless-identification).
+
+## Asking for help
+
+Include the output of `docker compose ps`, the last forty lines of
+`docker compose logs micaforge`, and what `/api/health` returns. Never include your `.env`:
+it holds the key everything else is sealed with.

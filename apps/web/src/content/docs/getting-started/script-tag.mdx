@@ -1,0 +1,134 @@
+---
+title: "The script tag"
+description: "Every data attribute the tracker reads, and what each one turns off."
+group: "getting-started"
+order: 2
+updated: 2026-08-22
+---
+
+The tracker configures itself entirely from the attributes on its own script tag. There
+is nothing to call, no init step, and no second file.
+
+```html
+<script
+  defer
+  data-site="1"
+  data-host="https://analytics.example.com"
+  src="https://analytics.example.com/mf.js"
+></script>
+```
+
+`/mf.min.js` is an alias for the same file. Both are served immutable and ETagged.
+
+## The two that matter
+
+`data-site` is the numeric site id. Without it the tracker starts, wires nothing up and
+sends nothing: that is deliberate, so a snippet pasted onto the wrong property is inert
+rather than noisy.
+
+`data-host` is where hits are sent. Leave it out and the tracker uses the origin the
+script itself was served from, which is right whenever the two are the same host. Set it
+explicitly when you [proxy the script](/docs/tracking/proxying-the-script) through your
+own domain.
+
+## Every attribute
+
+Booleans read as false when the value is `false`, `0`, `off` or `no`. A present but empty
+attribute reads as true, so `data-forms` and `data-forms="true"` mean the same thing.
+
+| Attribute | Default | What it does |
+| --- | --- | --- |
+| `data-site` | none | Numeric site id. Required. |
+| `data-host` | the script's own origin | Where `POST /api/track` is sent. |
+| `data-auto-pageview` | on | Send a pageview when the tracker starts. |
+| `data-spa` | on | Follow `pushState`, `replaceState`, `popstate` and `hashchange`. |
+| `data-outbound` | on | Report clicks on links that leave the site. |
+| `data-downloads` | on | Report clicks on file links. Also accepts a list. |
+| `data-forms` | off | Report form submissions, by id or name only. |
+| `data-hash` | off | Treat the URL hash as part of the page identity. |
+| `data-respect-dnt` | off | Send nothing when the browser sets `doNotTrack`. |
+| `data-vitals` | on | Collect LCP, CLS, INP, FCP and TTFB. |
+| `data-scroll` | on | Track how far down the page the reader got. |
+| `data-engagement` | on | Track time the page was actually visible. |
+| `data-exclude` | none | Comma-separated path globs that are never reported. |
+| `data-404` | off | Report a `404` when the page carries the marker element. |
+| `data-debug` | off | Log every payload, and report from localhost too. |
+
+### Excluding paths
+
+`*` matches one path segment, `**` matches any depth, `?` matches one character.
+
+```html
+<script
+  defer
+  data-site="1"
+  data-exclude="/admin/**,/preview/*,/internal"
+  src="https://analytics.example.com/mf.js"
+></script>
+```
+
+An excluded path is dropped in the browser, before anything is sent.
+
+### Changing what counts as a download
+
+`data-downloads` doubles as the extension list when it contains a comma or a dot.
+
+```html
+<script defer data-site="1" data-downloads="pdf,epub,stl" src="/mf.js"></script>
+```
+
+The default list is `pdf, csv, txt, docx, xlsx, pptx, zip, gz, rar, 7z, dmg, pkg, exe,
+msi, deb, rpm, apk, mp3, mp4, mov, wav, webm`.
+
+### Reporting your 404 page
+
+Set `data-404` and put the marker on the page your server renders for a miss:
+
+```html
+<body data-mf-404>
+```
+
+The hit arrives as an `error` event named `404`, so a broken inbound link shows up in
+Events rather than as a phantom pageview.
+
+## Calling it before it loads
+
+The tag is deferred, so the tracker is not there when your own scripts run. The queue
+snippet takes calls in the meantime and the tracker replays them the moment it arrives.
+
+```html
+<script>
+  window.micaforge =
+    window.micaforge ||
+    function () {
+      (window.micaforge.q ||= []).push(arguments);
+    };
+</script>
+```
+
+```js
+micaforge("event", "signup", { plan: "pro" });
+micaforge("identify", "u_123");
+```
+
+Once the tracker has loaded, the same global is the real API and the queued form keeps
+working:
+
+```js
+micaforge.track("signup", { plan: "pro" });
+micaforge.pageview();
+micaforge.identify("u_123", { plan: "pro" });
+micaforge.setProps({ theme: "dark" });
+micaforge.optOut();
+micaforge.optIn();
+micaforge.isOptedOut();
+micaforge.flush();
+```
+
+## What it never does
+
+It sets no cookie and reads no cookie. The one thing it writes to storage is the opt-out
+key, `mf-opt-out`, and only when you call `optOut()`. It does not send
+`navigator.userAgent`: the server reads the request header it was going to receive
+anyway. And every entry point is wrapped, so a fault inside the tracker can never
+surface as an error in your page.

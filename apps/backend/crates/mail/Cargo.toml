@@ -1,0 +1,36 @@
+[package]
+name = "micaforge-mail"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+description = "Transactional and scheduled email for Micaforge."
+
+[lib]
+name = "micaforge_mail"
+path = "src/lib.rs"
+
+[dependencies]
+micaforge-core = { workspace = true }
+
+# SMTP and MIME. `default-features = false` in the workspace table drops the
+# connection pool and the native-tls stack, so this is rustls plus a builder and
+# nothing else. Mail is the lowest-traffic path in the process; a pool would buy
+# nothing and would hold a socket open for a message sent once a week.
+lettre = { workspace = true }
+
+# The two payload structs cross a job boundary: the report and alert jobs store
+# their computed numbers in `jobs.payload` (jsonb) and the worker reads them back
+# out, so both shapes have to survive a round trip through JSON.
+serde = { workspace = true }
+
+# A mailer with no SMTP URL is the documented default for a fresh self-host, and
+# the log line it writes instead is how the operator finishes a signup. That
+# makes tracing load-bearing here rather than decorative.
+tracing = { workspace = true }
+
+[dev-dependencies]
+# The logging-only path is an `async fn` that must be provably reachable without
+# a relay, so the tests need a runtime to drive it.
+tokio = { workspace = true }

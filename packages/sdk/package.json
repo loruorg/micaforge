@@ -1,0 +1,96 @@
+{
+  "name": "@micaforge/sdk",
+  "version": "0.1.0",
+  "description": "Micaforge browser tracker and typed SDK — cookieless analytics that counts machine readers as a first-class audience",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": [
+    "./dist/mf.js",
+    "./dist/mf.min.js",
+    "./src/tracker/index.ts",
+    "./src/tracker/iife.ts"
+  ],
+  "homepage": "https://github.com/micaforge/micaforge/tree/main/packages/sdk",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/micaforge/micaforge.git",
+    "directory": "packages/sdk"
+  },
+  "keywords": [
+    "analytics",
+    "cookieless",
+    "privacy",
+    "tracker",
+    "web-vitals",
+    "feature-flags",
+    "ai-agents",
+    "micaforge"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./react": {
+      "types": "./dist/react/index.d.ts",
+      "default": "./dist/react.js"
+    },
+    "./vue": {
+      "types": "./dist/vue/index.d.ts",
+      "default": "./dist/vue.js"
+    },
+    "./svelte": {
+      "types": "./dist/svelte/index.d.ts",
+      "default": "./dist/svelte.js"
+    },
+    "./next": {
+      "types": "./dist/next/index.d.ts",
+      "default": "./dist/next.js"
+    },
+    "./mf.js": "./dist/mf.js",
+    "./package.json": "./package.json"
+  },
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "unpkg": "./dist/mf.js",
+  "jsdelivr": "./dist/mf.js",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "node scripts/build.mjs && tsc -p tsconfig.build.json && node scripts/size.mjs",
+    "size": "node scripts/size.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.17",
+    "esbuild": "^0.25.0",
+    "react": "^19.2.7",
+    "typescript": "^6.0.3",
+    "vitest": "^3.2.4"
+  },
+  "peerDependencies": {
+    "next": ">=14",
+    "react": ">=18",
+    "svelte": ">=4",
+    "vue": ">=3"
+  },
+  "peerDependenciesMeta": {
+    "next": { "optional": true },
+    "react": { "optional": true },
+    "svelte": { "optional": true },
+    "vue": { "optional": true }
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

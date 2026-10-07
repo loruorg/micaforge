@@ -1,0 +1,108 @@
+---
+title: "Verify it works"
+description: "Thirty seconds to prove the tracker is reporting, and what to check when it is not."
+group: "getting-started"
+order: 4
+updated: 2026-08-22
+---
+
+Do this before you close the tab. The two most common install faults look exactly like
+"no traffic yet", and both take seconds to rule out.
+
+## 1. Turn on debug and reload
+
+```html
+<script defer data-site="1" data-debug src="https://analytics.example.com/mf.js"></script>
+```
+
+`data-debug` does two things: it logs every payload to the console, and it lifts the
+suppression that stops the tracker reporting from `localhost`, a `.local` host or a
+`file://` page. Reload, and the console prints the payload as it goes out:
+
+```js
+[micaforge] { s: 1, t: "pageview", u: "http://localhost:3000/", v: "0.1.0" }
+```
+
+If nothing is logged, the script did not load or `data-site` is missing. Check the
+network tab for `mf.js`.
+
+## 2. Watch the request
+
+In the network tab, filter for `track`. A pageview is a `POST` to
+`https://your-host/api/track`, usually sent through `sendBeacon`, with no response body
+to read.
+
+Two failures show up here and nowhere else:
+
+- **`net::ERR_BLOCKED_BY_CLIENT`**: a content blocker stopped it. Not a bug; it is what
+  those extensions do. [Proxying the script](/docs/tracking/proxying-the-script) through
+  your own domain is the answer if the loss matters to you.
+- **CORS or a 404**: `data-host` points somewhere that is not a Micaforge server. It
+  must be the origin, with no path and no trailing slash.
+
+## 3. Look at real time
+
+Open your site's dashboard. A live pageview appears within a few seconds; the realtime
+window is the last five minutes.
+
+```sh
+curl "https://analytics.example.com/api/stats/realtime?site=1" \
+  -H "Authorization: Bearer mfg_your_key"
+```
+
+The response carries the live visitor count, the live agent count and the pages
+currently open. If the dashboard is empty but the network tab showed a `POST` that
+succeeded, the hit went to a different site id.
+
+Take `data-debug` back off when you are done. With it on, your own refreshes count.
+
+## Two things that will stop a localhost test
+
+`data-debug` lifts the *tracker's* own suppression, but two server-side guards remain, and
+both answer `204` either way. An ingest endpoint that told you why it dropped a hit would
+also tell an attacker.
+
+**The origin has to match the site.** Micaforge only accepts a hit whose page origin is the
+site's domain or a subdomain of it. A page on `http://localhost:3000` writing into a site
+registered as `example.com` is refused. Add the development host to the site's extra
+domains to allow it:
+
+```sh
+curl -X PATCH "https://analytics.example.com/api/sites/1" \
+  -H "content-type: application/json" \
+  -b "mf_session=..." \
+  -d '{"settings":{"domains":["localhost"]}}'
+```
+
+That list is additive and the primary domain is always allowed, so it is also how you
+serve one site from a docs subdomain, a country domain or a staging host.
+
+**A headless browser is not a person.** If you are testing through Puppeteer, Playwright or
+`chrome --headless`, the hit is classified as a suspected bot and written to the bot table
+instead of the events table. That is deliberate: a browser tracker firing with a headless
+signature is either a spoof or an automation run, and neither is a reader. Test in a real
+browser window, or read the bot table to confirm the hit arrived.
+
+## 4. Prove the machine half
+
+The browser half tells you nothing about crawlers, so check the other feed separately.
+Run the shipper against your log without sending anything:
+
+```sh
+npx --package=@micaforge/sdk-server micaforge-shipper \
+  --dry-run --no-follow --from-beginning /var/log/nginx/access.log
+```
+
+It parses the file, classifies what it finds and prints the counts. Named agents are what
+would be shipped. If that number is zero on a site that has been live for a week, either
+the log format is not being read or the crawlers genuinely have not arrived: the dry run
+tells you which, because it also counts the lines it could not parse.
+
+## What "working" looks like on day one
+
+- Pageviews within seconds, and a session that ends after 30 minutes of inactivity.
+- Engagement time and scroll depth arriving when a page is hidden, not while it is open.
+- Web Vitals once per document, on the way out.
+- Agent fetches only after the server log is being shipped.
+- Empty screens where a capability is not built yet, saying so, rather than a zero
+  dressed up as a measurement.

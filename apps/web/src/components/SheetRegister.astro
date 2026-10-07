@@ -1,0 +1,110 @@
+---
+/**
+ * The sheet register.
+ *
+ * A filed sheet carries its own index. On a wide screen these documents were
+ * running a 68ch measure hard against the left margin with most of the right of
+ * the viewport left blank for whole screens at a time, so the register is what
+ * that margin is now for: the sections of this sheet, numbered, in the order
+ * they are written, with the one currently under the reading line marked.
+ *
+ * It is real navigation, not furniture. Every entry is a plain anchor to a
+ * heading that exists in the document, so it works with JavaScript switched off
+ * and every word of it is in the HTML the reader is served. The script only
+ * moves the pen mark. Under the breakpoint there is no margin to write in, so
+ * the register is not rendered rather than stacked somewhere it does not
+ * belong; the headings themselves are still the structure.
+ */
+interface Section {
+  /** The id of the heading this entry points at. It must exist on the page. */
+  id: string;
+  /** What the register calls it. Shorter than the heading where that reads better. */
+  label: string;
+}
+
+interface Props {
+  sections: Section[];
+}
+
+const { sections } = Astro.props;
+---
+
+{
+  sections.length > 1 && (
+    <nav class="mf-reg" aria-labelledby="mf-reg-title">
+      <p class="mf-reg__title" id="mf-reg-title">On this sheet</p>
+      <ol class="mf-reg__list">
+        {sections.map((s, i) => (
+          <li>
+            <a class="mf-reg__link" href={`#${s.id}`}>
+              <span class="mf-reg__n mf-data" aria-hidden="true">
+                {String(i + 1).padStart(2, "0")}
+              </span>
+              <span class="mf-reg__text">{s.label}</span>
+            </a>
+          </li>
+        ))}
+      </ol>
+    </nav>
+  )
+}
+
+<script>
+  // The pen follows the reader. Everything it touches is already on the page and
+  // legible; all this does is say which section is under the reading line.
+  const reg = document.querySelector(".mf-reg");
+  if (reg) {
+    const links = new Map<string, HTMLAnchorElement>();
+    reg.querySelectorAll<HTMLAnchorElement>(".mf-reg__link").forEach((a) => {
+      links.set(decodeURIComponent(a.hash.slice(1)), a);
+    });
+
+    const targets = Array.from(links.keys())
+      .map((id) => document.getElementById(id))
+      .filter((el): el is HTMLElement => el !== null);
+
+    let current: HTMLAnchorElement | null = null;
+    const mark = (next: HTMLAnchorElement | null) => {
+      if (next === current) return;
+      current?.removeAttribute("aria-current");
+      next?.setAttribute("aria-current", "true");
+      current = next;
+    };
+
+    // Just below the sheet head, where a heading stops being the one coming up
+    // and becomes the one being read.
+    const LINE = 120;
+
+    const read = () => {
+      let active: HTMLElement | null = null;
+      for (const t of targets) {
+        if (t.getBoundingClientRect().top <= LINE) active = t;
+        else break;
+      }
+      // At the foot of the sheet the reading line has run out of page, so the
+      // last heading actually on screen is the one being read.
+      if (window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 4) {
+        for (const t of targets) {
+          if (t.getBoundingClientRect().top < window.innerHeight) active = t;
+        }
+      }
+      mark(active ? (links.get(active.id) ?? null) : null);
+    };
+
+    let ticking = false;
+    const onScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        ticking = false;
+        read();
+      });
+    };
+
+    if (targets.length) {
+      read();
+      window.addEventListener("scroll", onScroll, { passive: true });
+      window.addEventListener("resize", onScroll, { passive: true });
+    }
+  }
+</script>

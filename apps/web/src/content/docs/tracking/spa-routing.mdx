@@ -1,0 +1,101 @@
+---
+title: "Single-page routing"
+description: "How client-side navigation becomes pageviews, and when to drive it yourself."
+group: "tracking"
+order: 5
+updated: 2026-08-22
+---
+
+The tracker follows client-side navigation out of the box. It patches `pushState` and
+`replaceState`, and listens for `popstate` and `hashchange`.
+
+Three details make that reliable rather than merely present:
+
+- **Bursts are collapsed.** Routers commonly call `replaceState` two or three times in
+  one navigation. The tracker defers to the end of the task and reports once.
+- **A repeat is never sent.** If the URL after a history call is the one already
+  reported, nothing goes out.
+- **Engagement rides along.** The time and scroll depth for the page you are leaving are
+  attached to the pageview for the page you are arriving at.
+
+## Hash routers
+
+By default the hash is not part of a page's identity, so `#pricing` and `#faq` on one
+page are one page. If your router puts the route in the hash, tell it:
+
+```html
+<script defer data-site="1" data-hash src="/mf.js"></script>
+```
+
+Now `/#/settings` and `/#/billing` are two pages.
+
+## Driving it yourself
+
+Turn the listener off and report from your router when you want exact control over the
+moment: after a data fetch settles, say, rather than when the URL changes.
+
+```html
+<script defer data-site="1" data-spa="false" src="/mf.js"></script>
+```
+
+```js
+router.afterEach((to) => micaforge.pageview({ url: location.origin + to.fullPath }));
+```
+
+### React Router
+
+```tsx
+import { useLocation } from "react-router";
+import { usePageviews } from "@micaforge/sdk/react";
+
+function Analytics() {
+  usePageviews(useLocation().pathname);
+  return null;
+}
+```
+
+### Next.js App Router
+
+```tsx
+"use client";
+import { usePathname, useSearchParams } from "next/navigation";
+import { useNextPageviews } from "@micaforge/sdk/next";
+
+export function Pageviews() {
+  useNextPageviews(usePathname(), useSearchParams()?.toString());
+  return null;
+}
+```
+
+By default this hook and the tracker's own listener would both fire on a route change,
+and the tracker would drop the second as a repeat. Pass `spa: false` to `init()` if you
+would rather there be only one source of truth.
+
+### Vue Router
+
+```ts
+router.afterEach((to) => {
+  micaforge.pageview({ url: window.location.origin + to.fullPath });
+});
+```
+
+### Svelte
+
+```ts
+import { pageviewOn } from "@micaforge/sdk/svelte";
+```
+
+`pageviewOn` takes the location string your app already has and sends a pageview when it
+changes.
+
+## Astro, and other multi-page frameworks
+
+A full page load needs nothing. If you use view transitions or a client-side router that
+swaps the document, the history patch covers it, because those routers push state like
+any other.
+
+## What to check
+
+Navigate twice inside your app with `data-debug` on. You should see exactly one payload
+per navigation, each with the new URL, and from the second one onward a `d` value: the
+engagement time on the page you just left.

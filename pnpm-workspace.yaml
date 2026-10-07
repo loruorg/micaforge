@@ -1,0 +1,9 @@
+packages:
+  - "apps/web"
+  - "packages/*"
+
+# esbuild ships its platform binary through a postinstall script. Astro's Vite
+# build and the SDK bundler both need it, so it is allowed by name rather than
+# blanket-approving every dependency's install script.
+allowBuilds:
+  esbuild: true

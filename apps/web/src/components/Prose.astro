@@ -1,0 +1,35 @@
+---
+/**
+ * The long-form wrapper.
+ *
+ * One measure (68ch), the display face on every heading, and much more space
+ * above a heading than below it, so a heading belongs to the section it opens
+ * rather than floating between two of them. The rules themselves live in
+ * site.css under `.mf-prose`, because most of what this wrapper styles arrives
+ * through a slot and cannot be reached by Astro's scoped styles.
+ *
+ * Anything that must run past the measure (a record, a comparison sheet, a
+ * drawing) carries `class="mf-bleed"` and is released from it.
+ *
+ * Every other prop is spread onto the root element, and that is not incidental:
+ * Astro hands a child component its parent's scope marker as a prop, so without
+ * the spread a caller's own scoped rule (a margin between sections, say) would
+ * silently miss this element while matching everything slotted into it.
+ */
+import "../styles/site.css";
+
+interface Props {
+  /** Extra classes on the wrapper. */
+  class?: string;
+  /** The element to render. `div` by default; `article` for a whole document. */
+  as?: "div" | "article" | "section";
+  /** Anything else, including the caller's style scope. */
+  [key: string]: unknown;
+}
+
+const { class: extra, as: Tag = "div", ...rest } = Astro.props;
+---
+
+<Tag class:list={["mf-prose", extra]} {...rest}>
+  <slot />
+</Tag>

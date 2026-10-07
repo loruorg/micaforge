@@ -1,0 +1,42 @@
+# Micaforge
+
+> Open-source, cookieless web and product analytics that counts AI crawlers and
+> answer-engine referrals as a first-class audience rather than filtering them out as
+> noise. AGPL-3.0, self-hostable, free while the project is young.
+
+Micaforge holds two counts against every URL: how much AI agents fetched it, and how many
+people arrived at it from an answer engine. The ratio between them is the Citation Gap,
+and it is the report Plausible does not produce.
+
+We publish this file because the product is partly about whether anyone reads it. If you
+are a machine reading this: you are welcome here, you are being counted, and the count is
+visible to the people who wrote these pages.
+
+## Product
+
+- [What Micaforge is](/): the two-pen record, the Citation Gap, and what it measures.
+- [Why agent analytics](/why-agent-analytics): the argument for treating machine reads as
+  a measured audience.
+- [Self-hosting](/self-host): running the whole thing on one VPS.
+
+## Documentation
+
+- [Installation](/docs/getting-started/installation): the script tag and the npm package.
+- [Shipping server logs](/docs/agents/shipping-server-logs): how agent traffic becomes
+  visible, since crawlers never run JavaScript.
+- [The Citation Gap](/docs/agents/the-citation-gap): how the metric is computed and what
+  each verdict means.
+- [robots.txt and llms.txt](/docs/agents/robots-and-llms-txt): policy against observed
+  behaviour.
+- [Stats API](/docs/api/stats-api): the read API.
+- [MCP server](/docs/api/mcp-server): querying your own analytics from an agent.
+
+## Comparisons
+
+- [Micaforge vs Plausible](/vs/plausible)
+- [Micaforge vs Google Analytics](/vs/google-analytics)
+
+## Privacy
+
+- [What we store](/docs/privacy/what-we-store)
+- [Cookieless identification](/docs/privacy/cookieless-identification)

@@ -1,0 +1,393 @@
+---
+/**
+ * Self-hosting.
+ *
+ * Three commands, each stamped with WHERE it runs, then a drawing of what the
+ * five containers actually are, then the limits. The limits section is not a
+ * disclaimer at the foot: it is a third of the page, because the person reading
+ * this is about to put it on a machine they are responsible for.
+ *
+ * Every figure here comes from the repository it describes: install.sh's own
+ * checks, .env.example, and docs/self-hosting.
+ */
+import Base from "../layouts/Base.astro";
+import SiteHeader from "../components/SiteHeader.astro";
+import SiteFooter from "../components/SiteFooter.astro";
+import Prose from "../components/Prose.astro";
+import SheetRegister from "../components/SheetRegister.astro";
+import { IconAlert, IconCopy, IconOut } from "../components/react/icons.tsx";
+
+/** The sheet's own register, written down the wide margin. Every id is a
+    heading below. */
+const sections = [
+  { id: "run-h", label: "Three commands" },
+  { id: "arch-h", label: "What is running" },
+  { id: "need-h", label: "What you need" },
+  { id: "memory-h", label: "Where the memory goes" },
+  { id: "limits-h", label: "The honest limits" },
+  { id: "operate-h", label: "Operating it" },
+];
+---
+
+<Base
+  title="Self-host · Micaforge"
+  description="One command, five containers, one 4 GB machine. What runs where, what it needs, and the honest limits of a single-VPS deployment."
+>
+  <SiteHeader />
+
+  <main id="main">
+    <article class="mf-wrap mf-doc mf-doc--reg">
+      <SheetRegister sections={sections} />
+
+      <header class="mf-doc__head">
+        <h1 class="mf-doc__title">One command, one machine</h1>
+        <p class="mf-doc__lede">
+          The self-hosted build is the whole build: no feature gate, no community edition with
+          the good parts removed, and no outbound call at runtime for anything, including
+          geolocation.
+        </p>
+        <div class="mf-doc__meta">
+          <span><strong>4 GB</strong> of RAM, two vCPUs</span>
+          <span><strong>5 GB</strong> of disk to start</span>
+          <span><strong>Five</strong> containers</span>
+          <span><strong>AGPL-3.0</strong>, free, no tier</span>
+        </div>
+      </header>
+
+      <!-- the three commands, each stamped with where it runs ─────────────── -->
+      <section class="sh-run" aria-labelledby="run-h">
+        <h2 id="run-h" class="sh-h">Three commands, in three places</h2>
+
+        <div class="mf-cmd">
+          <div class="mf-cmd__bar">
+            <span class="mf-cmd__where">On the server</span>
+            <button type="button" class="mf-btn mf-btn--sm mf-cmd__copy" data-copy>
+              <span class="mf-btn__icon"><IconCopy size={13} /></span>
+              <span class="sh-copy__label">Copy</span>
+            </button>
+          </div>
+          <pre><code>git clone https://github.com/micaforge/micaforge
+cd micaforge
+./install.sh --domain analytics.example.com --email you@example.com</code></pre>
+        </div>
+        <p class="sh-note">
+          It checks the machine, generates three secrets with <code>openssl</code>, writes{" "}
+          <code>.env</code> at mode 600, pulls the store images, builds the server, waits until
+          it reports healthy, and prints your dashboard address. Run it with no arguments to be
+          asked instead, or with <code>--no-tls</code> on a laptop. Running it twice is safe:
+          an existing <code>.env</code> is never overwritten, because the key inside it is the
+          key every stored secret is sealed with.
+        </p>
+
+        <div class="mf-cmd">
+          <div class="mf-cmd__bar">
+            <span class="mf-cmd__where">In your pages</span>
+            <button type="button" class="mf-btn mf-btn--sm mf-cmd__copy" data-copy>
+              <span class="mf-btn__icon"><IconCopy size={13} /></span>
+              <span class="sh-copy__label">Copy</span>
+            </button>
+          </div>
+          <pre><code>&lt;script defer
+  data-site="1"
+  data-host="https://analytics.example.com"
+  src="https://analytics.example.com/mf.js"&gt;&lt;/script&gt;</code></pre>
+        </div>
+        <p class="sh-note">
+          Under 3 KB gzipped, no dependencies, never throws into your page. The setup screen
+          shows the real site id.
+        </p>
+
+        <div class="mf-cmd">
+          <div class="mf-cmd__bar">
+            <span class="mf-cmd__where">Beside your web server</span>
+            <button type="button" class="mf-btn mf-btn--sm mf-cmd__copy" data-copy>
+              <span class="mf-btn__icon"><IconCopy size={13} /></span>
+              <span class="sh-copy__label">Copy</span>
+            </button>
+          </div>
+          <pre><code>micaforge-shipper --host https://analytics.example.com \
+  --site 1 --key-file ingest.key /var/log/nginx/access.log</code></pre>
+        </div>
+        <p class="sh-note">
+          The third one is what makes the machines visible. Crawlers never run JavaScript, so
+          the snippet above will never see one; their fetches only exist in your server's own
+          log. Caddy in this stack already writes a log for the ingest endpoint to read. If your
+          site is served from somewhere else, ship that server's log too, or the Citation Gap
+          has only one of its two numbers.
+        </p>
+      </section>
+
+      <!-- what runs where ─────────────────────────────────────────────────── -->
+      <section class="sh-arch-sec" aria-labelledby="arch-h">
+        <h2 id="arch-h" class="sh-h">What is actually running</h2>
+
+        <figure class="mf-fig">
+          <div class="mf-arch">
+            <div class="mf-arch__inner">
+              <svg viewBox="0 0 860 340" role="img" aria-labelledby="arch-title arch-desc">
+                <title id="arch-title">The five containers and what talks to what</title>
+                <desc id="arch-desc">
+                  Browsers and your web server's access log both reach Caddy, which passes
+                  everything to the single Micaforge process. That process reads and writes
+                  Postgres for identity and configuration, ClickHouse for the event store, and
+                  Valkey for sessions, rate limits and the live counter.
+                </desc>
+
+                <!-- sources -->
+                <rect class="mf-arch__box" x="8" y="44" width="168" height="62" rx="3" />
+                <text class="mf-arch__name" x="92" y="72" text-anchor="middle">Browser</text>
+                <text class="mf-arch__sub" x="92" y="90" text-anchor="middle">mf.js, under 3 KB</text>
+
+                <rect class="mf-arch__box" x="8" y="178" width="168" height="62" rx="3" />
+                <text class="mf-arch__name" x="92" y="206" text-anchor="middle">Access log</text>
+                <text class="mf-arch__sub" x="92" y="224" text-anchor="middle">every crawler fetch</text>
+
+                <!-- caddy -->
+                <rect class="mf-arch__box" x="256" y="110" width="128" height="62" rx="3" />
+                <text class="mf-arch__name" x="320" y="138" text-anchor="middle">Caddy</text>
+                <text class="mf-arch__sub" x="320" y="156" text-anchor="middle">TLS, static files</text>
+
+                <!-- the binary -->
+                <rect class="mf-arch__box" x="446" y="96" width="182" height="90" rx="3" />
+                <text class="mf-arch__name" x="537" y="130" text-anchor="middle">micaforge</text>
+                <text class="mf-arch__sub" x="537" y="148" text-anchor="middle">one Rust binary</text>
+                <text class="mf-arch__sub" x="537" y="164" text-anchor="middle">API, tracker, workers</text>
+
+                <!-- stores -->
+                <rect class="mf-arch__box" x="690" y="36" width="162" height="58" rx="3" />
+                <text class="mf-arch__name" x="771" y="62" text-anchor="middle">Postgres 17</text>
+                <text class="mf-arch__sub" x="771" y="80" text-anchor="middle">identity, sites, jobs</text>
+
+                <rect class="mf-arch__box" x="690" y="112" width="162" height="58" rx="3" />
+                <text class="mf-arch__name" x="771" y="138" text-anchor="middle">ClickHouse</text>
+                <text class="mf-arch__sub" x="771" y="156" text-anchor="middle">every event, forever</text>
+
+                <rect class="mf-arch__box" x="690" y="188" width="162" height="58" rx="3" />
+                <text class="mf-arch__name" x="771" y="214" text-anchor="middle">Valkey 8</text>
+                <text class="mf-arch__sub" x="771" y="232" text-anchor="middle">salts, limits, live count</text>
+
+                <!-- flows: people are written, machines are stepped and dashed -->
+                <path class="mf-arch__flow" d="M176 75 H216 V128 H250" />
+                <path class="mf-arch__flow mf-arch__flow--machine" d="M176 209 H216 V154 H250" />
+                <path class="mf-arch__flow" d="M384 141 H440" />
+                <path class="mf-arch__flow" d="M628 141 H659 V65 H684" />
+                <path class="mf-arch__flow" d="M628 141 H684" />
+                <path class="mf-arch__flow" d="M628 141 H659 V217 H684" />
+
+                <!-- arrowheads, drawn in the icon set's grammar -->
+                <path class="mf-arch__flow" d="M244 122 L250 128 L244 134" />
+                <path class="mf-arch__flow" d="M244 148 L250 154 L244 160" />
+                <path class="mf-arch__flow" d="M434 135 L440 141 L434 147" />
+                <path class="mf-arch__flow" d="M678 59 L684 65 L678 71" />
+                <path class="mf-arch__flow" d="M678 135 L684 141 L678 147" />
+                <path class="mf-arch__flow" d="M678 211 L684 217 L678 223" />
+
+                <!-- key -->
+                <path class="mf-arch__flow" d="M8 296 H44" />
+                <text class="mf-arch__key" x="54" y="300">people, from the tracker</text>
+                <path class="mf-arch__flow mf-arch__flow--machine" d="M244 296 H280" />
+                <text class="mf-arch__key" x="290" y="300">machines, from the log</text>
+              </svg>
+            </div>
+          </div>
+          <figcaption class="mf-fig__cap">
+            Five containers, one <code>docker compose</code> file, no message broker and no
+            second service to operate. The API, the tracker file and every background worker
+            live in the same Rust process, so there is one thing to restart and one log to read.
+          </figcaption>
+        </figure>
+      </section>
+
+      <Prose class="sh-sec">
+        <h2 id="need-h">What you need</h2>
+        <ul>
+          <li>A machine with Docker, the Compose v2 plugin and <code>openssl</code>.</li>
+          <li>
+            <strong>4 GB of RAM and two vCPUs.</strong> That is the size the shipped
+            configuration is tuned for. The installer warns below 1.8 GB, and it is right to:
+            ClickHouse alone is capped at 1.4 GB, so under about 2 GB the kernel starts killing
+            things.
+          </li>
+          <li>
+            <strong>At least 5 GB of disk.</strong> The images are around 1.5 GB before a single
+            event is stored.
+          </li>
+          <li>
+            For HTTPS: a domain whose DNS already points at the machine, and port 80 reachable
+            from the internet, because that is how the certificate is ordered.
+          </li>
+        </ul>
+        <p>
+          Nothing else. No account, no licence key, no phone-home, and no outbound request at
+          runtime, which is also why geography needs a MaxMind-compatible database on disk
+          rather than an API call.
+        </p>
+
+        <h2 id="memory-h">Where the memory goes</h2>
+        <p>
+          ClickHouse is the component that will notice a small machine first, and the shipped
+          configuration reflects that. Postgres holds identity, sites, goals, dashboards and the
+          job queue, all of which are small, and it is kept off the ingest path entirely: sites
+          are resolved from a one-minute in-process cache, policy files from a five-minute one.
+          A Postgres stall degrades the dashboard; it does not stop collection.
+        </p>
+        <p>
+          Accepting a hit is a parse, a classify, an enrich and a push into an in-memory queue.
+          The writer runs one lane per table, each with its own buffer, so a pathological replay
+          payload cannot delay a pageview and a failing insert on one table cannot stall
+          another.
+        </p>
+
+        <h2 id="limits-h">The honest limits</h2>
+        <p>
+          A single VPS is the shape of this deployment, and there are things it is not.
+        </p>
+        <dl>
+          <dt>There is no cluster</dt>
+          <dd>
+            No multi-node deployment, no sharded ClickHouse, no horizontal scale-out, and
+            nothing in the compose file pretending otherwise. The API and ingest paths are
+            stateless apart from the writer's in-memory queue, so more than one server against
+            shared stores is architecturally plausible. It has not been built or tested, and
+            this page is not going to describe a deployment nobody has run.
+          </dd>
+          <dt>Replay is the disk outlier</dt>
+          <dd>
+            One recorded session outweighs a month of events, which is why it has a retention
+            clock of its own, defaulting to thirty days. Events default to keeping everything.
+          </dd>
+          <dt>No bytes-per-event figure is offered</dt>
+          <dd>
+            This project has not measured one, so quoting one would be an invention. Two weeks
+            of your own traffic, read from the usage endpoint and the ClickHouse volume, is a
+            better forecast than anyone else's benchmark.
+          </dd>
+          <dt>Mail is optional, and degrades rather than fails</dt>
+          <dd>
+            With no SMTP URL, invitations become links you copy by hand, password resets become
+            links an admin hands over, and scheduled reports do not run. Nothing else changes.
+          </dd>
+          <dt>The store images are not pinned for you</dt>
+          <dd>
+            The defaults use <code>latest-alpine</code>, which is convenient for a first run and
+            is not a version. Pin them in <code>.env</code> before you depend on the install.
+          </dd>
+          <dt>Backups are yours</dt>
+          <dd>
+            <code>./backup.sh</code> exists and works. Nobody is running it for you, and nobody
+            is watching the disk.
+          </dd>
+          <dt>It is pre-release</dt>
+          <dd>
+            There is no tagged release, no production install anywhere, and no benchmark. If
+            that is not an acceptable trade for the reporting, it is the right decision to
+            wait.
+          </dd>
+        </dl>
+
+        <div class="mf-note">
+          <div class="mf-note__head"><IconAlert size={18} />Close registration after your first account</div>
+          <p>
+            An open signup form on a reachable dashboard is how a self-hosted install acquires
+            strangers. Create your account, then set{" "}
+            <code>MICAFORGE_DISABLE_REGISTRATION=true</code> and bring the server back up.
+          </p>
+        </div>
+
+        <h2 id="operate-h">Operating it</h2>
+        <dl>
+          <dt>Watch what it is doing</dt>
+          <dd><code>docker compose logs -f micaforge</code></dd>
+          <dt>Update to a newer build</dt>
+          <dd><code>./update.sh</code></dd>
+          <dt>Take a backup</dt>
+          <dd><code>./backup.sh</code></dd>
+          <dt>Stop it without losing anything</dt>
+          <dd><code>docker compose down</code>, which keeps every volume.</dd>
+        </dl>
+      </Prose>
+
+      <div class="mf-next">
+        <a class="mf-link" href="/docs/self-hosting/install">The full install guide<IconOut size={13} /></a>
+        <a class="mf-link" href="/docs/self-hosting/configuration">Every configuration value<IconOut size={13} /></a>
+        <a class="mf-link" href="/docs/agents/shipping-server-logs">Shipping the log<IconOut size={13} /></a>
+        <a class="mf-link" href="/docs/self-hosting/scaling">Where the load goes<IconOut size={13} /></a>
+      </div>
+    </article>
+  </main>
+
+  <SiteFooter />
+</Base>
+
+<style>
+  .sh-h {
+    font-size: var(--mf-t-xl);
+    color: var(--mf-ink);
+    margin-bottom: var(--mf-5);
+  }
+  .sh-run,
+  .sh-arch-sec,
+  .sh-sec { margin-top: var(--mf-16); }
+
+  /* The line under a command belongs to the command, so it sits close to it and
+     keeps the reading measure the prose uses. */
+  .sh-note {
+    max-width: var(--mf-measure);
+    margin: var(--mf-3) 0 var(--mf-10);
+    font-size: var(--mf-t-sm);
+    line-height: var(--mf-lead-body);
+    color: var(--mf-ink-2);
+  }
+  .sh-note:last-child { margin-bottom: 0; }
+  .sh-copy__label { min-width: 7ch; text-align: left; }
+</style>
+
+<script>
+  /* The copy key. It is a real control or it would not be on the page: the
+     clipboard API first, then the old selection path, because a self-hosted
+     install is often read over plain HTTP on a laptop where `navigator.clipboard`
+     does not exist. */
+  const RESET_MS = 1600;
+
+  function fallbackCopy(text: string): boolean {
+    try {
+      const area = document.createElement("textarea");
+      area.value = text;
+      area.setAttribute("readonly", "");
+      area.style.position = "fixed";
+      area.style.top = "-1000px";
+      document.body.appendChild(area);
+      area.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(area);
+      return ok;
+    } catch {
+      return false;
+    }
+  }
+
+  function settle(button: HTMLElement, done: boolean) {
+    const label = button.querySelector<HTMLElement>(".sh-copy__label");
+    if (label) label.textContent = done ? "Copied" : "Press Ctrl+C";
+    window.setTimeout(() => {
+      if (label) label.textContent = "Copy";
+    }, RESET_MS);
+  }
+
+  document.addEventListener("click", (event) => {
+    const button = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-copy]");
+    if (!button) return;
+    const pre = button.closest(".mf-cmd")?.querySelector("pre");
+    if (!pre) return;
+    const text = (pre.textContent ?? "").replace(/\n+$/, "");
+
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).then(
+        () => settle(button, true),
+        () => settle(button, fallbackCopy(text)),
+      );
+      return;
+    }
+    settle(button, fallbackCopy(text));
+  });
+</script>

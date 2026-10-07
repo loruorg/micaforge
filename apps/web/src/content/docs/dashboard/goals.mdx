@@ -1,0 +1,71 @@
+---
+title: "Goals"
+description: "Five kinds of conversion, what each one matches, and how value is attached."
+group: "dashboard"
+order: 2
+updated: 2026-08-22
+---
+
+A goal names something worth counting. Pick what counts, then state the condition.
+
+| Kind | Matches |
+| --- | --- |
+| `path` | A pageview whose path matches. |
+| `event` | A named custom event. |
+| `outbound` | A click on a link leaving the site. |
+| `file` | A download of a matching file. |
+| `revenue` | An event carrying an amount. |
+
+The kind is not decoration: it decides which rows are even looked at, which is why a
+"page reached" goal cannot accidentally match an outbound click to a URL of the same
+shape.
+
+## Conditions
+
+Each kind takes an operator and a value, using the same operators as
+[filters](/docs/dashboard/filters-and-segments): `is`, `contains`, `starts_with`,
+`matches` and the rest.
+
+```text
+Page reached      path starts_with /pricing/success
+Event fired       event_name is signup
+Link followed     url contains github.com
+File downloaded   url ends_with .pdf
+Revenue booked    any event with revenue, optionally over a minimum
+```
+
+An `event` goal can also require properties, so "signup on the pro plan" is one goal
+rather than a filter you remember to apply.
+
+## Value
+
+A goal can carry a fixed worth. That is the honest way to price a conversion whose value
+you know but whose amount is not in the event: a newsletter signup is worth what you say
+it is worth.
+
+Real money belongs in `revenue` on the event itself, sent from your server after the
+payment settled. See [custom events](/docs/tracking/custom-events).
+
+## Reading them
+
+```http
+GET /api/stats/goals?site=1&range=30d
+```
+
+Each goal comes back with conversions, conversion rate and revenue for the window. The
+rate is conversions over sessions in the same window with the same filters, so filtering
+the screen to one channel gives you that channel's rate rather than a site-wide number
+next to a filtered count.
+
+`goal` is also a filter dimension. Filtering everything else by a goal (the pages, the
+sources, the countries of the sessions that converted) is usually more useful than the
+goal's own row.
+
+## Goals and agents
+
+Goals are measured on human events. A crawler cannot convert, and the goals screen does
+not pretend otherwise: switch the audience to agents and the goal report has nothing to
+say.
+
+The equivalent question for machines is [the Citation Gap](/docs/agents/the-citation-gap):
+not "did this fetch convert", but "did any of this crawling ever send a reader back".

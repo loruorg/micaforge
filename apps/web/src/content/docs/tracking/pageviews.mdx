@@ -1,0 +1,93 @@
+---
+title: "Pageviews"
+description: "What a pageview carries, when it is sent, and how engagement time is measured."
+group: "tracking"
+order: 1
+updated: 2026-08-22
+---
+
+A pageview is sent when the tracker starts and again on every client-side navigation. It
+is the only event most sites ever need.
+
+## What goes out
+
+The payload is deliberately tiny (one and two character keys) because it rides inside a
+`sendBeacon` and the tracker's whole job is to be small.
+
+```json
+{
+  "s": 1,
+  "t": "pageview",
+  "u": "https://example.com/docs/x?ref=hn",
+  "r": "https://news.ycombinator.com/",
+  "w": 1512, "h": 982,
+  "vw": 1280, "vh": 720,
+  "l": "en-GB",
+  "tz": "Europe/Lisbon",
+  "d": 4210,
+  "sc": 68,
+  "v": "0.1.0"
+}
+```
+
+Everything empty is left out rather than sent, because every column it maps to already
+carries that default.
+
+The user agent is **not** in there. The server reads the request header it was going to
+receive anyway, and derives browser, OS and device type from it. Nor is the IP: the
+server resolves it to country, region, city and ASN, folds it into the visitor hash and
+then drops it. No raw address is ever stored on a human event row.
+
+## How the URL is read
+
+The full URL goes up; the server splits it. The hash is stripped unless you set
+`data-hash`, because `#section` is usually a position on a page rather than a different
+page. The query string is kept whole, and its parameters are also stored as a map, so
+`utm_source` and friends can be filtered on by name.
+
+Campaign parameters (`utm_source`, `utm_medium`, `utm_campaign`, `utm_term`,
+`utm_content`) and click ids (`gclid`, `fbclid`, `msclkid`, `ttclid`) are lifted into
+their own columns.
+
+## Sending one by hand
+
+```js
+micaforge.pageview();
+micaforge.pageview({ url: "https://example.com/checkout/step-2" });
+micaforge.pageview({ referrer: "https://partner.example/", props: { variant: "b" } });
+```
+
+A URL you pass does not have to exist. Reporting a step in a dialog as a virtual page is
+a legitimate use, and it keeps funnels readable.
+
+To stop the automatic one and send every pageview yourself, set
+`data-auto-pageview="false"`.
+
+## Engagement time and scroll depth
+
+Neither is sent with the pageview it belongs to, because neither is known yet.
+
+The tracker runs a clock while the page is visible and stops it when the tab is hidden.
+It records the furthest point down the page the reader reached. When the page is hidden
+or unloaded, both go out as one `engagement` event; when the reader navigates inside a
+single-page app, they ride along on the *next* pageview as `d` and `sc`.
+
+So `duration_ms` on a pageview row is the engagement time on the page **before** it. That
+is the only way to measure it without a second request per page, and it is why the last
+page of a session has a duration and the first does not.
+
+Time in a background tab does not count. A reader who opens twelve tabs and reads one has
+one page with a duration.
+
+## Sessions
+
+A session is a visitor's activity with less than 30 minutes between hits. The window is a
+constant, not a setting: a site that quietly redefined a session would report numbers
+that could not be compared with anyone else's, including its own from last month.
+
+## What is never reported
+
+Paths matched by `data-exclude` are dropped in the browser, before anything is sent.
+`localhost`, `127.0.0.1`, `::1` and any `.local` host are suppressed unless `data-debug`
+is on, because a developer's own refreshes are not data. And a browser that has called
+`optOut()` sends nothing at all until `optIn()`.

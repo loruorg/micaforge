@@ -1,0 +1,287 @@
+# Micaforge CI.
+#
+# Five jobs, run in parallel, each one owning a piece of the repository:
+# the Rust workspace, the SDK packages, the web app, the self-hosting stack, and
+# the images plus a smoke test of the whole stack built from them.
+#
+# The stack job is the one that is easy to leave out and expensive to leave out.
+# A compose file, a Caddyfile and a ClickHouse config are code, and all three
+# fail in ways nobody notices until an operator's install will not start.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A second push to the same branch makes the first run's answer worthless.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  # A backtrace costs nothing here and turns a failed test into a fixed test.
+  RUST_BACKTRACE: 1
+
+jobs:
+  # ---------------------------------------------------------------------
+  rust:
+    name: Rust workspace
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install the toolchain
+        run: |
+          rustup toolchain install stable --profile minimal \
+            --component rustfmt --component clippy
+          rustup default stable
+          rustc --version
+
+      # Three caches in one entry: the downloaded crates, the git checkouts of
+      # any git dependency, and the build output. Keyed on the manifests, so a
+      # dependency change invalidates it and a source change does not.
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            apps/backend/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('apps/backend/Cargo.lock', 'apps/backend/**/Cargo.toml') }}
+          restore-keys: |
+            cargo-${{ runner.os }}-
+
+      - name: Formatting
+        working-directory: apps/backend
+        run: cargo fmt --all --check
+
+      - name: Clippy
+        working-directory: apps/backend
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Build
+        working-directory: apps/backend
+        run: cargo build --workspace --all-targets
+
+      - name: Test
+        working-directory: apps/backend
+        run: cargo test --workspace --no-fail-fast
+
+      # Known advisories. The policy, and the reason for every ignore, is in
+      # apps/backend/.cargo/audit.toml.
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+
+      - name: Audit dependencies
+        working-directory: apps/backend
+        run: cargo audit
+
+  # ---------------------------------------------------------------------
+  sdk:
+    name: SDK packages
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # pnpm before setup-node: setup-node's pnpm cache needs the binary to
+      # exist so it can ask it where its store is. The version comes from the
+      # packageManager field in package.json.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # The build script bundles, emits the types, and then measures. It is the
+      # step that would catch a tracker that grew past its budget.
+      - name: Build
+        run: pnpm --filter @micaforge/sdk build
+
+      # Run again on its own so the number is a line in the log with its own
+      # name, rather than buried in the build output.
+      - name: Size budget
+        run: pnpm --filter @micaforge/sdk size
+
+      # Includes src/tracker/tracker.test.ts, which is the tracker's own suite:
+      # the queue, the transports, SPA navigation, opt-out and DNT.
+      - name: Test
+        run: pnpm --filter @micaforge/sdk test
+
+      - name: Typecheck
+        run: pnpm --filter @micaforge/sdk typecheck
+
+      # The server SDK and the log shipper. The shipper signs what it sends, so
+      # a drift between it and the server's edge intake is a silent data loss.
+      - name: Server SDK build
+        run: pnpm --filter @micaforge/sdk-server build
+
+      - name: Server SDK test
+        run: pnpm --filter @micaforge/sdk-server test
+
+      - name: Server SDK typecheck
+        run: pnpm --filter @micaforge/sdk-server typecheck
+
+  # ---------------------------------------------------------------------
+  web:
+    name: Web app
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm --filter @micaforge/web typecheck
+
+      # PUBLIC_API_URL is baked in at build time, so the build has to be given
+      # one. This value is never deployed; it only has to parse.
+      - name: Build
+        env:
+          PUBLIC_API_URL: http://localhost:8330
+          PUBLIC_SITE_URL: http://localhost:4330
+        run: pnpm --filter @micaforge/web build
+
+  # ---------------------------------------------------------------------
+  stack:
+    name: Self-hosting stack
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Pre-installed on the GitHub runner images. Asking for the version first
+      # means a missing binary fails loudly instead of skipping the check.
+      - name: Shell scripts
+        run: |
+          shellcheck --version
+          shellcheck install.sh update.sh backup.sh
+
+      # The production file is full of required variables with no defaults,
+      # which is the point of it. Shell variables win over --env-file, so these
+      # stand in for the ones install.sh would generate.
+      - name: Compose files parse
+        env:
+          MICAFORGE_SECRET_KEY_BASE: ci_only_not_a_secret_000000000000000000
+          POSTGRES_PASSWORD: ci_only
+          CLICKHOUSE_PASSWORD: ci_only
+          ACME_EMAIL: ci@example.com
+        run: |
+          docker compose --env-file .env.example config --quiet
+          docker compose -f docker-compose.dev.yml config --quiet
+
+      # Caddy's own adapter is the only thing that knows whether a Caddyfile is
+      # valid. It is worth the pull: a broken one means no TLS and no proxy.
+      - name: Caddyfile is valid
+        run: |
+          docker run --rm \
+            -e MICAFORGE_DOMAIN=analytics.example.com \
+            -e ACME_EMAIL=ci@example.com \
+            -v "$PWD/infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro" \
+            caddy:2.11-alpine \
+            caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+
+      # The one check that cannot be done by reading. ClickHouse validates its
+      # configuration at start-up and refuses to run on a contradiction: a
+      # background pool too small for the mutation threshold, for instance,
+      # exits with a message and nothing else. `--wait` fails the job unless
+      # every container reports healthy, so this also tests the healthchecks.
+      - name: Data stores start and report healthy
+        run: docker compose -f docker-compose.dev.yml up -d --wait --wait-timeout 180
+
+      - name: Store logs on failure
+        if: failure()
+        run: docker compose -f docker-compose.dev.yml logs --tail 60
+
+      - name: Stop
+        if: always()
+        run: docker compose -f docker-compose.dev.yml down -v
+
+  # ---------------------------------------------------------------------
+  # The images, and the whole stack built from them, smoke tested through
+  # Caddy exactly as an operator's install would be: the tracker must be the
+  # real one, a pageview must go in through /api/track and come back out of the
+  # stats API. Everything else in CI tests a part; this tests the product.
+  e2e:
+    name: Images and stack smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build the server image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: server
+          tags: micaforge:local
+          load: true
+          cache-from: type=gha,scope=ci-server
+          cache-to: type=gha,mode=max,scope=ci-server
+
+      - name: Build the web image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: web
+          tags: micaforge-web:local
+          load: true
+          cache-from: type=gha,scope=ci-web
+          cache-to: type=gha,mode=max,scope=ci-web
+
+      # The same steps install.sh takes, minus the prompts: .env from the
+      # inventory, three generated secrets, plain HTTP on port 80.
+      - name: Write .env
+        run: |
+          cp .env.example .env
+          {
+            echo "MICAFORGE_SECRET_KEY_BASE=$(openssl rand -base64 48 | tr -d '\n')"
+            echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)"
+            echo "CLICKHOUSE_PASSWORD=$(openssl rand -hex 24)"
+            echo "ACME_EMAIL=ci@example.com"
+          } >>.env
+
+      - name: Start the stack
+        run: docker compose up -d --no-build --wait --wait-timeout 300
+
+      - name: Smoke test
+        run: scripts/smoke.sh http://localhost
+
+      - name: Logs on failure
+        if: failure()
+        run: docker compose logs --tail 120
+
+      - name: Stop
+        if: always()
+        run: docker compose down -v

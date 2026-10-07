@@ -1,0 +1,999 @@
+/* ===========================================================================
+   Micaforge: BEHAVIOUR area
+   Events · Goals · Funnels · Journeys · Retention
+
+   Everything here is drawn in the recording-station vocabulary already set by
+   global.css. Three rules govern the file:
+
+     1. Only var(--mf-*). No literal colour, size, radius or duration.
+     2. Depth is the scratch ridge (--mf-burr / --mf-press), never a bloom.
+     3. Ruling, hatching and perforation are the instrument's own marks. They
+        live inside a panel, clipped to it, and never wash across the page.
+
+   Left deliberately unlayered so an area rule can correct a base component
+   rule without a specificity fight.
+   ======================================================================== */
+
+/* ── page stack ─────────────────────────────────────────────────────────── */
+
+.mfb-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mf-5);
+  min-width: 0;
+}
+
+.mfb-note {
+  margin: 0;
+  padding: var(--mf-4) var(--mf-5);
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink-3);
+  border-top: 1px solid var(--mf-rule);
+}
+
+/* ── bench controls: fields, selects, key banks ─────────────────────────── */
+
+.mfb-tools {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--mf-4);
+  flex-wrap: wrap;
+}
+
+.mfb-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mf-2);
+  min-width: 0;
+}
+
+.mfb-field__label {
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-2);
+  line-height: 1.3;
+}
+.mfb-field__hint {
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+  line-height: 1.4;
+}
+.mfb-field__err {
+  font-size: var(--mf-t-xs);
+  color: var(--mf-oxide);
+  line-height: 1.4;
+}
+
+.mfb-input,
+.mfb-select {
+  width: 100%;
+  min-width: 0;
+  font: inherit;
+  font-size: var(--mf-t-sm);
+  line-height: 1.3;
+  color: var(--mf-ink);
+  background: var(--mf-well);
+  border: 1px solid var(--mf-rule-strong);
+  border-radius: var(--mf-r-sm);
+  padding: 7px var(--mf-3);
+  box-shadow: var(--mf-press);
+  transition: border-color var(--mf-dur-1) linear, background-color var(--mf-dur-1) linear;
+}
+.mfb-input--data { font-family: var(--mf-font-data); }
+
+/* Everything in this file obeys one contrast rule: --mf-ink-3 is the dimmest
+   ink allowed, and it only clears 4.5:1 against a BARE panel. Anywhere a share
+   wash, a sunken well or a fresh-sample wash sits behind the type, the dimmest
+   step available is --mf-ink-2. Every pair below was measured in both media. */
+.mfb-input::placeholder { color: var(--mf-ink-2); }
+
+.mfb-input:hover,
+.mfb-select:hover { border-color: var(--mf-ink-3); }
+
+.mfb-input[aria-invalid="true"],
+.mfb-select[aria-invalid="true"] { border-color: var(--mf-oxide); }
+
+.mfb-input[disabled],
+.mfb-select[disabled] { opacity: 0.45; cursor: not-allowed; }
+
+/* The caret is drawn from the icon set, so the control matches the bench in
+   both media rather than inheriting whatever the platform paints. */
+.mfb-selectwrap { position: relative; display: block; min-width: 0; }
+.mfb-select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: calc(var(--mf-6) + var(--mf-1));
+}
+.mfb-selectwrap__caret {
+  position: absolute;
+  right: var(--mf-3);
+  top: 50%;
+  margin-top: -7px;
+  color: var(--mf-ink-3);
+  pointer-events: none;
+}
+
+/* A segmented bank of keys: same grammar as the audience switch, used for the
+   small mode choices (weekly/monthly, share/count). */
+.mfb-bank {
+  display: inline-flex;
+  background: var(--mf-well);
+  border: 1px solid var(--mf-rule);
+  border-radius: var(--mf-r-sm);
+  padding: 2px;
+  gap: 2px;
+}
+.mfb-bank__key {
+  padding: 4px var(--mf-3);
+  font: inherit;
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-2);
+  background: none;
+  border: 0;
+  border-radius: 1px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color var(--mf-dur-1) linear, color var(--mf-dur-1) linear;
+}
+.mfb-bank__key:hover { color: var(--mf-ink); }
+.mfb-bank__key[aria-pressed="true"] { background: var(--mf-ground-3); color: var(--mf-ink); }
+
+/* ── the register: an expandable ruled list (events, goals) ─────────────── */
+
+.mfb-reg { display: block; }
+
+/* Head and rows read their columns from one custom property set on the
+   register itself, so a column can never drift out of step with its heading.
+   Narrow widths drop whole columns (head cell and body cell together) rather
+   than letting a figure crush into an unreadable sliver. */
+.mfb-reg__head,
+.mfb-reg__row { grid-template-columns: var(--mfb-cols); }
+
+.mfb-reg--events { --mfb-cols: 14px minmax(0, 1fr) 6rem 6rem 4.5rem; }
+.mfb-reg--goals  { --mfb-cols: 14px minmax(0, 1fr) 7rem 6rem 5rem 6.5rem; }
+
+.mfb-reg__head {
+  display: grid;
+  align-items: center;
+  gap: var(--mf-4);
+  padding: var(--mf-2) var(--mf-5);
+  border-bottom: 1px solid var(--mf-rule-strong);
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+}
+.mfb-reg__h { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mfb-reg__h--num { text-align: right; white-space: nowrap; }
+
+.mfb-reg__row {
+  position: relative;
+  display: grid;
+  align-items: center;
+  gap: var(--mf-4);
+  width: 100%;
+  padding: var(--mf-3) var(--mf-5);
+  font: inherit;
+  text-align: left;
+  color: var(--mf-ink-2);
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--mf-rule);
+  cursor: pointer;
+  transition: background-color var(--mf-dur-1) linear;
+}
+.mfb-reg__row:hover { background: var(--mf-ground-3); }
+.mfb-reg__row[aria-expanded="true"] { background: var(--mf-ground-3); }
+
+/* The rows drawn while the register is still being read are not controls and
+   must not offer themselves as ones. */
+.mfb-reg__row--wait { cursor: default; pointer-events: none; }
+.mfb-reg__row--wait:hover { background: none; }
+
+/* Share drawn as ink laid down under the row, not a bar bolted beside it. */
+.mfb-reg__ink {
+  position: absolute;
+  inset: 1px auto 1px 0;
+  background: color-mix(in srgb, var(--mf-shellac) 9%, transparent);
+  pointer-events: none;
+}
+
+.mfb-reg__caret {
+  position: relative;
+  color: var(--mf-ink-3);
+  transform: rotate(-90deg);
+  transition: transform var(--mf-dur-1) var(--mf-ease-snap);
+}
+.mfb-reg__row[aria-expanded="true"] .mfb-reg__caret { transform: rotate(0deg); }
+
+.mfb-reg__name {
+  position: relative;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.mfb-reg__title {
+  font-size: var(--mf-t-base);
+  color: var(--mf-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Over the share wash, not on the bare panel: ink-2 is the dimmest step that
+   still clears 4.5:1 there. */
+.mfb-reg__sub {
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mfb-reg__fig {
+  position: relative;
+  text-align: right;
+  font-family: var(--mf-font-data);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink);
+  white-space: nowrap;
+}
+.mfb-reg__fig--dim { color: var(--mf-ink-2); }
+
+.mfb-reg__body {
+  padding: var(--mf-2) var(--mf-5) var(--mf-5) calc(var(--mf-5) + 14px + var(--mf-4));
+  border-bottom: 1px solid var(--mf-rule);
+  background: var(--mf-ground);
+}
+
+/* ── property breakdown inside an expanded event ────────────────────────── */
+
+.mfb-props { display: flex; flex-direction: column; }
+
+.mfb-prop {
+  padding: var(--mf-4) 0 var(--mf-3);
+  border-top: 1px dashed var(--mf-rule);
+}
+.mfb-prop:first-child { border-top: 0; padding-top: var(--mf-3); }
+
+.mfb-prop__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--mf-3);
+  margin-bottom: var(--mf-2);
+}
+.mfb-prop__key {
+  font-family: var(--mf-font-data);
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink);
+  word-break: break-all;
+}
+.mfb-prop__distinct { font-size: var(--mf-t-xs); color: var(--mf-ink-3); white-space: nowrap; }
+
+.mfb-prop__val {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 5rem 3.5rem;
+  gap: var(--mf-3);
+  align-items: center;
+  padding: 3px var(--mf-2);
+}
+.mfb-prop__ink {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--mf-shellac-wash);
+  pointer-events: none;
+}
+.mfb-prop__vname {
+  position: relative;
+  font-family: var(--mf-font-data);
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mfb-prop__vfig {
+  position: relative;
+  text-align: right;
+  font-family: var(--mf-font-data);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-2);
+}
+.mfb-prop__vfig--dim { color: var(--mf-ink-2); }
+
+/* ── the tape: the live event log ───────────────────────────────────────── */
+
+.mfb-tape { display: flex; flex-direction: column; }
+
+.mfb-tape__row {
+  display: grid;
+  grid-template-columns: 4.75rem 14px 7rem minmax(0, 1fr) 8.5rem 14px;
+  gap: var(--mf-3);
+  align-items: center;
+  width: 100%;
+  padding: var(--mf-2) var(--mf-5);
+  font: inherit;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--mf-rule);
+  cursor: pointer;
+  transition: background-color var(--mf-dur-1) linear;
+}
+.mfb-tape__row:hover { background: var(--mf-ground-3); }
+
+/* A fresh sample lands already legible and the wash retreats from it. Nothing
+   here is ever hidden waiting for an animation to run. */
+@keyframes mfb-fresh {
+  from { background-color: var(--mf-shellac-wash); }
+  to   { background-color: transparent; }
+}
+.mfb-tape__row[data-fresh="true"] {
+  animation: mfb-fresh var(--mf-dur-drum) var(--mf-ease-pen) 1;
+}
+
+.mfb-tape__penbox { display: inline-flex; align-items: center; }
+
+/* A newly arrived row carries the shellac wash while it settles, so the two
+   quietest columns on the tape sit one step up from the dimmest ink. */
+.mfb-tape__t {
+  font-family: var(--mf-font-data);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums lining-nums;
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-2);
+}
+.mfb-tape__kind {
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-2);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mfb-tape__path {
+  font-family: var(--mf-font-data);
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mfb-tape__from {
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-2);
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mfb-tape__caret {
+  color: var(--mf-ink-3);
+  transform: rotate(-90deg);
+  transition: transform var(--mf-dur-1) var(--mf-ease-snap);
+}
+.mfb-tape__row[aria-expanded="true"] .mfb-tape__caret { transform: rotate(0deg); }
+
+/* The pen mark: the same two-pen grammar the drum and the shell use. */
+.mfb-pen {
+  flex: none;
+  display: inline-block;
+  width: 14px;
+  height: 2px;
+  background: var(--mf-trace-human);
+}
+.mfb-pen[data-pen="stepped"] {
+  height: 7px;
+  width: 7px;
+  background: none;
+  border-top: 2px solid var(--mf-trace-agent);
+  border-right: 2px solid var(--mf-trace-agent);
+}
+
+.mfb-tape__props {
+  margin: 0;
+  padding: var(--mf-3) var(--mf-5) var(--mf-4);
+  background: var(--mf-well);
+  border-bottom: 1px solid var(--mf-rule);
+  box-shadow: var(--mf-press);
+  overflow-x: auto;
+}
+.mfb-tape__props pre {
+  margin: 0;
+  font-family: var(--mf-font-data);
+  font-size: var(--mf-t-xs);
+  line-height: var(--mf-lead-snug);
+  color: var(--mf-ink-2);
+  white-space: pre;
+}
+
+/* ── the funnel: a descending series of ruled bands ─────────────────────── */
+
+.mfb-funnel { display: block; }
+
+.mfb-fstep {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 10.5rem;
+  gap: var(--mf-6);
+  align-items: end;
+  width: 100%;
+  padding: var(--mf-4) var(--mf-5);
+  font: inherit;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-top: 1px solid var(--mf-rule);
+  cursor: pointer;
+  transition: background-color var(--mf-dur-1) linear;
+}
+.mfb-fstep:first-child { border-top: 0; }
+.mfb-fstep:hover { background: var(--mf-ground-3); }
+.mfb-fstep[aria-pressed="true"] { background: var(--mf-ground-3); }
+
+.mfb-fstep__lead { min-width: 0; }
+.mfb-fstep__name {
+  display: block;
+  font-size: var(--mf-t-base);
+  color: var(--mf-ink);
+  margin-bottom: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mfb-fstep__rule {
+  display: block;
+  font-family: var(--mf-font-data);
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+  margin-bottom: var(--mf-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The track is the extent the step before it reached. The band is what
+   survived; the hatched remainder is the debt between them. */
+.mfb-fstep__track {
+  display: block;
+  position: relative;
+  height: var(--mf-6);
+  background: var(--mf-well);
+  border-radius: var(--mf-r-sm);
+  box-shadow: var(--mf-press);
+  overflow: hidden;
+}
+.mfb-fstep__band {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: var(--mf-r-sm) 0 0 var(--mf-r-sm);
+  /* Where the pen stopped, drawn: one hairline at the band's leading edge, and
+     nowhere else. It is what makes the band's extent readable at the far end
+     of the ramp, where the tone sits close to the track's own. The figure
+     beside it is the true reading, but the band should never have to be
+     hunted for. Not a halo round the shape; one edge, on one side. */
+  box-shadow: 1px 0 0 var(--mf-rule-strong);
+  /* The paper's own ruling, printed under the ink, so it reads on the light
+     end of the ramp exactly where the band is widest. */
+  background-image: repeating-linear-gradient(
+    to right,
+    color-mix(in srgb, var(--mf-well) 15%, transparent) 0 1px,
+    transparent 1px 21px
+  );
+  background-color: var(--mf-s3);
+  min-width: 2px;
+}
+.mfb-fstep__band[data-ramp="1"] { background-color: var(--mf-s1); }
+.mfb-fstep__band[data-ramp="2"] { background-color: var(--mf-s2); }
+.mfb-fstep__band[data-ramp="3"] { background-color: var(--mf-s3); }
+.mfb-fstep__band[data-ramp="4"] { background-color: var(--mf-s4); }
+.mfb-fstep__band[data-ramp="5"] { background-color: var(--mf-s5); }
+
+/* The hatched remainder needs no edge of its own: the band's drawn stop is
+   already sitting on that boundary, and two hairlines on one line read as a
+   2px rule nobody asked for. */
+.mfb-fstep__lost {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background-image: repeating-linear-gradient(
+    45deg,
+    var(--mf-rule-strong) 0 1px,
+    transparent 1px 5px
+  );
+}
+
+.mfb-fstep__figs {
+  text-align: right;
+  display: grid;
+  gap: 1px;
+  align-content: end;
+}
+.mfb-fstep__count {
+  font-family: var(--mf-font-display);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-size: var(--mf-t-lg);
+  line-height: var(--mf-lead-tight);
+  letter-spacing: var(--mf-track-display);
+  color: var(--mf-ink);
+}
+.mfb-fstep__share {
+  font-family: var(--mf-font-data);
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+}
+
+/* The drop is written in the margin between two steps, on the same right-hand
+   axis every figure in this panel shares. */
+.mfb-fdrop {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 10.5rem;
+  gap: var(--mf-6);
+  padding: 0 var(--mf-5) var(--mf-1);
+}
+.mfb-fdrop__leader {
+  align-self: center;
+  height: 1px;
+  background-image: repeating-linear-gradient(
+    to right,
+    var(--mf-rule-strong) 0 3px,
+    transparent 3px 7px
+  );
+}
+.mfb-fdrop__note {
+  text-align: right;
+  font-family: var(--mf-font-data);
+  font-size: var(--mf-t-xs);
+  color: var(--mf-oxide);
+  white-space: nowrap;
+}
+.mfb-fdrop__note[data-tone="none"] { color: var(--mf-ink-3); }
+
+/* ── the sankey ─────────────────────────────────────────────────────────── */
+
+/* Wide content scrolls INSIDE its own container. `contain: paint` states that
+   nothing here paints outside the box, which is what keeps the overflow from
+   leaking into the document's own scroll width and taking the page sideways
+   with it. */
+.mfb-sankey-wrap { width: 100%; overflow-x: auto; contain: paint; }
+.mfb-sankey { display: block; min-width: 100%; }
+.mfb-sankey svg { display: block; }
+
+.mfb-sankey__label,
+.mfb-sankey__val {
+  /* The label is scratched clear of the ribbon beneath it: the ground is laid
+     back in as an underlay stroke so every label keeps its contrast whatever
+     it crosses. */
+  paint-order: stroke;
+  stroke: var(--mf-ground-2);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+.mfb-sankey__label {
+  font-family: var(--mf-font-ui);
+  font-size: var(--mf-t-xs);
+  fill: var(--mf-ink);
+}
+.mfb-sankey__label--strong { fill: var(--mf-stylus); }
+.mfb-sankey__val {
+  font-family: var(--mf-font-data);
+  font-size: var(--mf-t-2xs);
+  font-variant-numeric: tabular-nums lining-nums;
+  fill: var(--mf-ink-2);
+}
+.mfb-sankey__col {
+  font-family: var(--mf-font-data);
+  font-size: var(--mf-t-2xs);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  fill: var(--mf-ink-3);
+}
+.mfb-sankey__link { transition: opacity var(--mf-dur-1) linear; cursor: pointer; }
+.mfb-sankey__node { cursor: pointer; }
+.mfb-sankey__node:focus-visible { outline: 2px solid var(--mf-focus); outline-offset: 2px; }
+
+.mfb-routes { display: flex; flex-direction: column; }
+.mfb-route {
+  position: relative;
+  display: grid;
+  grid-template-columns: 2.75rem minmax(0, 1fr) 5.5rem 4rem;
+  gap: var(--mf-3);
+  align-items: center;
+  width: 100%;
+  padding: var(--mf-2) var(--mf-5);
+  font: inherit;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--mf-rule);
+  cursor: pointer;
+  transition: background-color var(--mf-dur-1) linear;
+}
+.mfb-route:hover,
+.mfb-route[data-active="true"] { background: var(--mf-ground-3); }
+.mfb-route__step {
+  position: relative;
+  font-family: var(--mf-font-data);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-size: var(--mf-t-2xs);
+  color: var(--mf-ink-2);
+  white-space: nowrap;
+}
+.mfb-route__hop {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--mf-2);
+  font-family: var(--mf-font-data);
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-2);
+  overflow: hidden;
+}
+.mfb-route__hop span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mfb-route__arrow { flex: none; color: var(--mf-ink-3); }
+.mfb-route__fig {
+  text-align: right;
+  font-family: var(--mf-font-data);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink);
+}
+.mfb-route__fig--dim { color: var(--mf-ink-2); }
+
+/* ── the cohort grid ────────────────────────────────────────────────────── */
+
+.mfb-cohort-wrap { width: 100%; overflow-x: auto; contain: paint; }
+
+.mfb-cohort {
+  border-collapse: collapse;
+  /* Fixed layout, so a long period run cannot hand one column all the slack. */
+  table-layout: fixed;
+  width: 100%;
+  font-size: var(--mf-t-sm);
+}
+.mfb-cohort th,
+.mfb-cohort td {
+  padding: var(--mf-2) var(--mf-3);
+  text-align: right;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--mf-rule);
+}
+.mfb-cohort th {
+  font-family: var(--mf-font-ui);
+  font-weight: 500;
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+  border-bottom: 1px solid var(--mf-rule-strong);
+}
+.mfb-cohort th.is-period { font-family: var(--mf-font-data); }
+
+/* The two fixed columns; every period column shares what is left equally. */
+.mfb-cohort col:first-child { width: 9rem; }
+.mfb-cohort col:nth-child(2) { width: 5rem; }
+.mfb-cohort tbody tr:last-child td { border-bottom: 0; }
+
+/* Only the cohort's own name is a label; everything else is a measured figure
+   and is read down the column, so it is right-aligned. */
+.mfb-cohort th:first-child,
+.mfb-cohort td:first-child { text-align: left; }
+
+/* The cohort's own name stays on the sheet while the periods scroll under it.
+   Scoped by section on purpose: a bare th:first-child would also catch every
+   row's own header and set the cohort's name in the wrong face at the wrong
+   weight of ink, which is exactly the label a reader is scanning for. */
+.mfb-cohort th:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--mf-ground-2);
+  border-right: 1px solid var(--mf-rule-strong);
+}
+.mfb-cohort tbody th:first-child,
+.mfb-cohort tfoot th:first-child {
+  font-family: var(--mf-font-data);
+  color: var(--mf-ink);
+}
+.mfb-cohort thead th:first-child { font-family: var(--mf-font-ui); color: var(--mf-ink-3); }
+
+.mfb-cohort tfoot td,
+.mfb-cohort tfoot th {
+  border-top: 1px solid var(--mf-rule-strong);
+  border-bottom: 0;
+}
+
+/* Ink density. The figure is printed in every cell, so the ramp is a second
+   reading of the same number and never the only one. */
+.mfb-cell {
+  font-family: var(--mf-font-data);
+  font-variant-numeric: tabular-nums lining-nums;
+  color: var(--mf-ink);
+}
+.mfb-cell[data-bin="0"] { color: var(--mf-ink-3); }
+/* The cohort's starting size is the figure every percentage in the row is
+   measured against, so it is never the faintest thing in the row. */
+.mfb-cell--size { color: var(--mf-ink-2); }
+.mfb-cell[data-bin="1"] { background-color: color-mix(in srgb, var(--mf-s5) 18%, transparent); }
+.mfb-cell[data-bin="2"] { background-color: color-mix(in srgb, var(--mf-s4) 22%, transparent); }
+.mfb-cell[data-bin="3"] { background-color: color-mix(in srgb, var(--mf-s3) 26%, transparent); }
+.mfb-cell[data-bin="4"] { background-color: color-mix(in srgb, var(--mf-s2) 28%, transparent); }
+.mfb-cell[data-bin="5"] { background-color: color-mix(in srgb, var(--mf-s1) 30%, transparent); }
+.mfb-cell--void { color: var(--mf-ink-3); }
+
+.mfb-legend {
+  display: flex;
+  align-items: center;
+  gap: var(--mf-3);
+  flex-wrap: wrap;
+  padding: var(--mf-3) var(--mf-5) var(--mf-4);
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+}
+.mfb-legend__ramp { display: inline-flex; align-items: center; gap: 2px; }
+.mfb-legend__step {
+  display: inline-block;
+  width: var(--mf-6);
+  height: var(--mf-3);
+  border: 1px solid var(--mf-rule);
+}
+.mfb-legend__step[data-bin="1"] { background-color: color-mix(in srgb, var(--mf-s5) 18%, transparent); }
+.mfb-legend__step[data-bin="2"] { background-color: color-mix(in srgb, var(--mf-s4) 22%, transparent); }
+.mfb-legend__step[data-bin="3"] { background-color: color-mix(in srgb, var(--mf-s3) 26%, transparent); }
+.mfb-legend__step[data-bin="4"] { background-color: color-mix(in srgb, var(--mf-s2) 28%, transparent); }
+.mfb-legend__step[data-bin="5"] { background-color: color-mix(in srgb, var(--mf-s1) 30%, transparent); }
+
+/* ── the trend trace (goals) ────────────────────────────────────────────── */
+
+.mfb-trace { display: block; width: 100%; height: var(--mf-6); }
+.mfb-trace__ridge { stroke: var(--mf-well); }
+
+/* The destructive key sits SUNKEN and lifts when you reach for it.
+   ----------------------------------------------------------------------
+   This is a correction to the bench, not a new component: --mf-oxide on the
+   key's default raised surface measures 4.42:1 in the smoked medium, and its
+   hover fill takes it to 3.86:1, both under the 4.5:1 floor. Dropping the key
+   to the sunken surface and lifting it to the ground on hover clears the floor
+   in both media (5.13 / 4.92 smoked, 4.79 / 5.39 paper) while keeping the
+   oxide label and the oxide edge that say what the key does.
+   This belongs in global.css with the rest of .mf-btn; it is scoped here only
+   because that file is not this area's to write. Delete these two rules the
+   moment the bench carries the fix. */
+.mfb-tools .mf-btn--danger { background: var(--mf-well); }
+.mfb-tools .mf-btn--danger:hover {
+  background: var(--mf-ground);
+  border-color: var(--mf-oxide);
+}
+
+/* ── editors ────────────────────────────────────────────────────────────── */
+
+.mfb-form { display: block; }
+
+/* A section is a plain <div role="group"> rather than a <fieldset>: a fieldset
+   lifts its <legend> onto its own top border and cuts a hole in that border to
+   seat it, which puts a rule straight through the heading; the two usual
+   workarounds (floating the legend, or shrinking the fieldset) each break the
+   grid that sits inside it. A group with aria-labelledby carries the same
+   semantics with none of that.
+   The section's ruling runs the full width of the sheet; it is the CONTENT
+   inside it that is held to a measure. */
+.mfb-form__section {
+  border: 0;
+  border-top: 1px solid var(--mf-rule);
+  margin: 0;
+  padding: var(--mf-5);
+  min-width: 0;
+}
+.mfb-form__section:first-child { border-top: 0; }
+.mfb-form__section > .mfb-field { max-width: 26rem; }
+
+.mfb-form__sub { margin-top: var(--mf-4); }
+.mfb-form__subhint { margin-bottom: var(--mf-3); }
+.mfb-form__blockerr { margin-bottom: var(--mf-3); }
+.mfb-form__add { margin-top: var(--mf-3); }
+.mfb-form__addhint { margin-top: var(--mf-2); }
+.mfb-steps--spaced { margin-bottom: var(--mf-3); }
+.mfb-estep__err { grid-column: 1 / -1; }
+.mfb-icon-flip { transform: rotate(180deg); }
+.mfb-picker { min-width: 12rem; }
+.mfb-inset { padding: 0 var(--mf-5) var(--mf-4); }
+.mfb-caption { margin-bottom: var(--mf-1); }
+.mfb-rule-text { margin-bottom: var(--mf-4); }
+
+.mfb-form__legend {
+  display: block;
+  margin: 0;
+  padding: 0 0 var(--mf-3);
+  font-family: var(--mf-font-display);
+  font-size: var(--mf-t-md);
+  font-weight: 600;
+  line-height: var(--mf-lead-tight);
+  letter-spacing: var(--mf-track-display);
+  color: var(--mf-ink);
+}
+
+.mfb-form__grid {
+  display: grid;
+  /* Tracks stop growing at a readable field width instead of stretching to
+     whatever the panel happens to be. */
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 22rem));
+  gap: var(--mf-4);
+  align-items: start;
+}
+
+.mfb-form__foot {
+  display: flex;
+  align-items: center;
+  gap: var(--mf-3);
+  flex-wrap: wrap;
+  padding: var(--mf-4) var(--mf-5);
+  border-top: 1px solid var(--mf-rule-strong);
+}
+/* The note sits with the keys it explains. Splitting a footer's pieces to
+   opposite rims leaves a dead gulf down the middle of a wide panel. */
+.mfb-form__foot-spacer { margin-left: var(--mf-3); }
+
+/* The sentence is set in ink, not in the annotation colour: oxide on its own
+   wash does not clear 4.5:1, and a failure notice is the last text on a page
+   that should be hard to read. The oxide carries on the mark and the edge,
+   where 3:1 is the bar and it passes. */
+.mfb-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--mf-2);
+  margin: 0 var(--mf-5) var(--mf-4);
+  padding: var(--mf-3);
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink);
+  background: var(--mf-oxide-wash);
+  /* Edged all round in its own ink rather than tabbed with a thick bar down one
+     side: the coloured left border is a component-kit tell, and the wash plus
+     the oxide glyph already carry the tone. */
+  border: 1px solid var(--mf-oxide-deep);
+  border-radius: var(--mf-r-sm);
+}
+.mfb-alert svg { flex: none; margin-top: 2px; color: var(--mf-oxide); }
+
+/* The kind chooser: five keys on ONE bank, divided by the instrument's own
+   ruling, exactly like the caliper's stops. Five separate bordered boxes would
+   read as a card grid, which this product does not use. */
+.mfb-kinds {
+  display: grid;
+  max-width: 74rem;
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+  background: var(--mf-ground-2);
+  border: 1px solid var(--mf-rule);
+  border-radius: var(--mf-r-sm);
+  overflow: hidden;
+}
+.mfb-kind {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--mf-3) var(--mf-4);
+  font: inherit;
+  text-align: left;
+  color: var(--mf-ink-2);
+  background: none;
+  border: 0;
+  border-left: 1px solid var(--mf-rule);
+  cursor: pointer;
+  transition: background-color var(--mf-dur-1) linear, color var(--mf-dur-1) linear;
+}
+.mfb-kind:first-child { border-left: 0; }
+.mfb-kind:hover { background: var(--mf-ground-3); color: var(--mf-ink); }
+/* A key that has been chosen is a key that has been pushed IN: it drops to the
+   sunken surface and takes the press. The chosen one is marked at its own
+   foot, in the accent, so the mark reads as a setting on the bank rather than
+   an outline drawn round a card. */
+.mfb-kind[aria-pressed="true"] {
+  background: var(--mf-well);
+  color: var(--mf-ink);
+  box-shadow: var(--mf-press), inset 0 -2px 0 var(--mf-shellac);
+}
+.mfb-kind[aria-pressed="true"] .mfb-kind__what { color: var(--mf-ink-2); }
+.mfb-kind:hover .mfb-kind__what { color: var(--mf-ink-2); }
+.mfb-kind__name { font-size: var(--mf-t-sm); }
+.mfb-kind__what { font-size: var(--mf-t-xs); color: var(--mf-ink-3); }
+
+/* Step rows in the funnel editor. Ordered by real controls, not by dragging,
+   so the order can be changed from a keyboard. */
+.mfb-steps { display: flex; flex-direction: column; gap: var(--mf-3); max-width: 74rem; }
+
+.mfb-estep {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr) auto;
+  gap: var(--mf-3);
+  align-items: start;
+  padding: var(--mf-3);
+  background: var(--mf-well);
+  border: 1px solid var(--mf-rule);
+  border-radius: var(--mf-r-sm);
+}
+.mfb-estep__ord {
+  font-family: var(--mf-font-data);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink-2);
+  /* Sits on the first field's own text line: the control's border plus its
+     top padding come to exactly this. */
+  padding-top: var(--mf-2);
+}
+.mfb-estep__fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: var(--mf-2);
+  min-width: 0;
+}
+.mfb-estep__keys { display: inline-flex; gap: var(--mf-1); padding-top: 2px; }
+
+/* ── responsive ─────────────────────────────────────────────────────────── */
+
+@media (max-width: 900px) {
+  /* The pen mark stays: which audience wrote the row is the one thing this
+     product will not drop to save space. */
+  .mfb-tape__row { grid-template-columns: 4.75rem 14px minmax(0, 1fr) 14px; }
+  .mfb-tape__kind { display: none; }
+  .mfb-tape__from { display: none; }
+}
+
+@media (max-width: 860px) {
+  /* Optional columns come out head and body together, and every grid that
+     carried one is restated so no empty track is left behind. */
+  .mfb-col-2 { display: none; }
+  .mfb-route { grid-template-columns: 2.25rem minmax(0, 1fr) 4.5rem; }
+  .mfb-reg--events { --mfb-cols: 14px minmax(0, 1fr) 6rem 6rem; }
+  .mfb-reg--goals  { --mfb-cols: 14px minmax(0, 1fr) 6rem 5rem; }
+}
+
+@media (max-width: 760px) {
+  .mfb-fstep,
+  .mfb-fdrop { grid-template-columns: minmax(0, 1fr) 7.5rem; gap: var(--mf-4); }
+  .mfb-prop__val { grid-template-columns: minmax(0, 1fr) 4rem 3rem; }
+  .mfb-estep { grid-template-columns: 1.5rem minmax(0, 1fr); }
+  .mfb-estep__keys { grid-column: 2; justify-content: flex-end; }
+}
+
+@media (max-width: 620px) {
+  .mfb-col-3 { display: none; }
+  /* The bank stacks, so its dividers turn with it: a vertical rule between
+     rows separates nothing. */
+  .mfb-kinds { grid-template-columns: minmax(0, 1fr); }
+  .mfb-kind { border-left: 0; border-top: 1px solid var(--mf-rule); }
+  .mfb-kind:first-child { border-top: 0; }
+  .mfb-reg--events { --mfb-cols: 14px minmax(0, 1fr) 5.5rem; }
+  .mfb-reg--goals  { --mfb-cols: 14px minmax(0, 1fr) 5.5rem; }
+}
+
+@media (max-width: 560px) {
+  /* Below this there is no margin left to write the figures in, so the step
+     stops being two columns and becomes one reading run: what the step is,
+     the band it held, then the figures on one line under it. Held in two
+     columns they wrap to three lines each and the drop note runs straight off
+     the sheet. */
+  .mfb-fstep { grid-template-columns: minmax(0, 1fr); gap: var(--mf-2); }
+  .mfb-fstep__figs {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0 var(--mf-3);
+    text-align: left;
+  }
+  .mfb-fstep__count { font-size: var(--mf-t-md); }
+
+  /* The margin shrinks to a short leader rather than vanishing, so the note
+     still reads as an annotation on the gap and not as a caption for the band
+     above it. */
+  .mfb-fdrop { grid-template-columns: var(--mf-10) minmax(0, 1fr); gap: var(--mf-3); }
+  .mfb-fdrop__note { text-align: left; }
+
+  .mfb-reg__row,
+  .mfb-reg__head,
+  .mfb-reg__body,
+  .mfb-tape__row,
+  .mfb-fstep,
+  .mfb-fdrop,
+  .mfb-route { padding-left: var(--mf-4); padding-right: var(--mf-4); }
+}

@@ -1,0 +1,389 @@
+---
+/**
+ * The argument.
+ *
+ * A long-form technical report, composed as numbered movements with the section
+ * number written in the register margin the way a report numbers its parts. Not
+ * a stack of feature cards, and not a headline with a kicker over it.
+ *
+ * The one figure is a live record fed demonstration data. It is here because the
+ * argument turns on a SHAPE (bursts of machine fetches against a weekly human
+ * rhythm) and not on a percentage. This project has measured nobody's site, so
+ * it quotes nobody's percentage.
+ */
+import Base from "../layouts/Base.astro";
+import SiteHeader from "../components/SiteHeader.astro";
+import SiteFooter from "../components/SiteFooter.astro";
+import Prose from "../components/Prose.astro";
+import { Drum } from "../components/react/Drum.tsx";
+import { IconAlert, IconInfo, IconOut } from "../components/react/icons.tsx";
+import { demoRecord } from "../lib/demo";
+
+const rec = demoRecord(60);
+
+/**
+ * Only serialisable props cross into the island, so the readout formats numbers
+ * with the Drum's own compact default rather than a function passed from here.
+ */
+const channels = [
+  {
+    id: "machines",
+    label: "Fetches by named AI agents",
+    color: "var(--mf-trace-agent)",
+    pen: "stepped" as const,
+    values: rec.machines,
+  },
+  {
+    id: "answers",
+    label: "Readers arriving from an answer engine",
+    color: "var(--mf-trace-human)",
+    pen: "written" as const,
+    values: rec.answers,
+  },
+];
+
+const verdicts = [
+  {
+    key: "extracted",
+    name: "Extracted",
+    means: "Crawled hard, and either never cited or cited far less than it is taken.",
+    act: "Decide the trade deliberately: price it, gate it, or rewrite the page so an answer has to link out to be useful. Keeping it open is also a decision, and a reasonable one.",
+  },
+  {
+    key: "compounding",
+    name: "Compounding",
+    means: "Crawled and cited. The exchange is working.",
+    act: "This is the shape that pays. Look at what the page does differently, and write more like it.",
+  },
+  {
+    key: "invisible",
+    name: "Invisible",
+    means: "Cited, but barely crawled. Earning readers on a trace too thin to explain them.",
+    act: "Usually a sitemap, a robots rule or an internal link that is missing. Cheap to fix, and the cheapest win on the report.",
+  },
+  {
+    key: "quiet",
+    name: "Quiet",
+    means: "Neither crawled nor cited enough to say anything.",
+    act: "Nothing. Thin data gets a shrug, not a verdict.",
+  },
+];
+---
+
+<Base
+  title="Why agent analytics · Micaforge"
+  description="A growing share of what reads a content site is a machine. This is the argument for counting it: what an answer-engine referral is, why filtering bots is the wrong default, and what the Citation Gap tells an operator."
+>
+  <SiteHeader />
+
+  <main id="main">
+    <article class="mf-wrap mf-doc">
+      <header class="mf-doc__head">
+        <h1 class="mf-doc__title">The readers you are not counting</h1>
+        <p class="mf-doc__lede">
+          A named client fetches your page. Your analytics calls it a bot and drops it. Later
+          a person arrives from an answer written out of that same page, and that gets filed
+          under referrals. Two measurement errors, one cause.
+        </p>
+        <div class="mf-doc__meta">
+          <span><strong>Argument</strong>, not a feature list</span>
+          <span>Written against the build in this repository</span>
+          <span>No figure on this page is a measurement of your site</span>
+        </div>
+      </header>
+
+      <!-- 01 ─────────────────────────────────────────────────────────────── -->
+      <section class="mf-mv" aria-labelledby="mv-1">
+        <span class="mf-mv__n" aria-hidden="true">01</span>
+        <Prose class="mf-mv__body">
+          <h2 id="mv-1">What actually arrives at your server</h2>
+          <p>
+            Three kinds of client knock on a web server, not two. Micaforge keeps each in its
+            own table, because they are answers to different questions.
+          </p>
+          <dl>
+            <dt>A person</dt>
+            <dd>
+              A human in a browser, as far as one request can show. Written to <code>events</code>.
+            </dd>
+            <dt>An agent</dt>
+            <dd>
+              A non-human client that <strong>names itself</strong>: a product token its
+              operator published, an operator you can look up, and a purpose. Written to{" "}
+              <code>agent_events</code>.
+            </dd>
+            <dt>A suspected bot</dt>
+            <dd>
+              Non-human, and not nameable. Scored against header signals, with the signals that
+              fired stored beside the row so the judgement can be audited. Written to{" "}
+              <code>bot_events</code>.
+            </dd>
+          </dl>
+          <p>
+            Almost every analytics tool recognises the first and bins the other two together.
+            That was reasonable while the second bin held search crawlers, because the trade
+            was legible: a crawler took a page, a results list carried a link to it, some
+            readers followed the link. Both ends of the exchange showed up in the same
+            dashboard.
+          </p>
+          <p>
+            The new occupant of that bin does not make the same trade. It takes the page for a
+            training corpus, or to ground an answer somebody is waiting on right now, and that
+            answer can be complete enough that nobody needs to arrive at all.
+          </p>
+
+          <h3>What share of your traffic is it?</h3>
+          <p>
+            This page will not tell you, and you should distrust a page that does. Micaforge
+            has never measured your site, and the percentages in circulation are other
+            people's sites, measured other people's ways, quoted without the method.
+          </p>
+          <p>
+            What can be said is where your own number is written down. It is in your web
+            server's access log, it has been all along, and nothing in your analytics is
+            reading it.
+          </p>
+        </Prose>
+      </section>
+
+      <!-- the record ─────────────────────────────────────────────────────── -->
+      <figure class="mf-fig">
+        <div class="mf-panel mf-panel--feed arg-record">
+          <Drum
+            client:visible
+            times={rec.times}
+            channels={channels}
+            annotations={rec.annotations}
+            mode="mirrored"
+            height={300}
+            demo={true}
+          />
+        </div>
+        <figcaption class="mf-fig__cap">
+          <strong>Demonstration record. Illustrative figures, not measured traffic.</strong>{" "}
+          Two audiences over sixty days, written from the same centre rule: machine fetches
+          upward, readers arriving from an answer downward. Read the shape, not the totals.
+          The machine pen steps, because a crawl arrives in bursts around a publish. The human
+          pen is written, because reading is continuous. Each pen has its own gain and prints
+          its full-scale value, because the two differ by about two orders of magnitude. That
+          difference is the finding, so it is stated as a number rather than left to the eye.
+        </figcaption>
+      </figure>
+
+      <!-- 02 ─────────────────────────────────────────────────────────────── -->
+      <section class="mf-mv" aria-labelledby="mv-2">
+        <span class="mf-mv__n" aria-hidden="true">02</span>
+        <Prose class="mf-mv__body">
+          <h2 id="mv-2">What an answer-engine referral is</h2>
+          <p>The path from your page to a reader now has a step in the middle.</p>
+          <ol>
+            <li>Somebody asks a question of an answer surface rather than a search box.</li>
+            <li>
+              The surface consults an index built by an earlier crawl, or fetches your page
+              there and then to ground the reply. Both fetches are in your log; neither is in
+              your analytics.
+            </li>
+            <li>An answer is written. Your page may be cited under it, or may not.</li>
+            <li>
+              A fraction of those readers click the citation. They land on your site with a
+              referrer host of <code>chatgpt.com</code>, <code>perplexity.ai</code>,{" "}
+              <code>claude.ai</code> or a peer.
+            </li>
+          </ol>
+          <p>
+            Step four is an acquisition channel. To a tool with no such channel it is a
+            referral, filed beside a link somebody left in a forum, and the fact that it came
+            from an answer built out of step two is nowhere on the screen.
+          </p>
+          <p>
+            Micaforge makes <code>answer_engine</code> a top-level channel next to{" "}
+            <code>search</code>, <code>social</code> and <code>direct</code>, with the same
+            conversion and quality reporting as any other. That is the smaller half of the
+            idea. The larger half is that it can be read against the crawl that produced it.
+          </p>
+
+          <div class="mf-note">
+            <div class="mf-note__head"><IconAlert size={18} />The returned half is a floor</div>
+            <p>
+              Browsers default to <code>strict-origin-when-cross-origin</code>, so a
+              cross-origin referrer usually carries a host and nothing else. An answer surface
+              that shares a host with an ordinary search page cannot be told apart from that
+              site's own results in the common case, and Micaforge does not guess: counting
+              every search on such a host as an answer arrival would be a fabricated number.
+            </p>
+            <p>
+              An answer rendered inside a search results page is invisible by construction. A
+              reader who clicks a citation in one arrives with the search engine as the
+              referrer, indistinguishable from an ordinary click. So the returned count is at
+              best a floor. Your real gap is no better than the one on the screen, and may be
+              worse.
+            </p>
+          </div>
+        </Prose>
+      </section>
+
+      <!-- 03 ─────────────────────────────────────────────────────────────── -->
+      <section class="mf-mv" aria-labelledby="mv-3">
+        <span class="mf-mv__n" aria-hidden="true">03</span>
+        <Prose class="mf-mv__body">
+          <h2 id="mv-3">Why filtering the bots is the wrong default</h2>
+          <p>
+            Start with the concession: filtering is right for the human report. A pageview
+            count with crawler fetches folded into it is worthless, and Micaforge defaults
+            every screen to <code>audience=human</code> for exactly that reason.
+          </p>
+          <p>
+            The mistake is not the filter. It is the bin. Discarding is not the same as
+            excluding, and three things go with the rubbish.
+          </p>
+
+          <dl>
+            <dt>You lose the supply chain</dt>
+            <dd>
+              The crawl is upstream of the answer that sends you a reader. Delete the crawl and
+              the arrival has no cause: you can see that answer engines send you fifty sessions
+              a week, and never that they took eight thousand pages to do it, or which pages.
+            </dd>
+            <dt>You lose cost and policy</dt>
+            <dd>
+              Fetches are bandwidth, cache pressure and origin load. A rule in your{" "}
+              <code>robots.txt</code> is a claim about behaviour that either held or did not.
+              Neither question can be asked of a bin.
+            </dd>
+            <dt>You lose the difference between a claim and a fact</dt>
+            <dd>
+              A user-agent string is an assertion, and anyone can type one. Where an operator
+              publishes address ranges or reverse-DNS suffixes, Micaforge checks the source
+              against them and marks the row verified, unverified or failed. A spoofed crawler
+              reported as the company it named would be worse than not reporting it at all.
+            </dd>
+          </dl>
+
+          <p>
+            A filter is a view. A tool that offers only the filtered view has decided the
+            question on your behalf, and it decided it in an era when the answer did not
+            matter much.
+          </p>
+        </Prose>
+      </section>
+
+      <!-- 04 ─────────────────────────────────────────────────────────────── -->
+      <section class="mf-mv" id="citation-gap" aria-labelledby="mv-4">
+        <span class="mf-mv__n" aria-hidden="true">04</span>
+        <Prose class="mf-mv__body">
+          <h2 id="mv-4">What the Citation Gap tells an operator</h2>
+          <p>
+            For every URL, Micaforge holds two counts side by side: how often named non-human
+            clients fetched it, and how many sessions arrived at it from an answer engine. The
+            ratio between them is the Citation Gap.
+          </p>
+          <p>
+            It is one number because a decision is one decision. Not "crawl volume is up" on
+            one screen and "referrals are flat" on another, but a single line per page saying
+            what was taken and what came back.
+          </p>
+          <p>
+            With no arrivals at all, the ratio is the fetch count itself. That is the reading a
+            person makes anyway, and it keeps the value finite: JSON cannot spell infinity, and
+            a serialiser would quietly turn it into nothing.
+          </p>
+          <p>
+            The thresholds are constants, and they are published so a verdict can be checked
+            instead of believed. <strong>Cited</strong> means at least three answer-engine
+            arrivals in the window. <strong>Heavily crawled</strong> means at least twenty
+            agent fetches. A cited, heavily crawled page is <strong>extracted</strong> when the
+            ratio passes twenty-five. A page with two arrivals and nineteen fetches is quiet,
+            not extracted.
+          </p>
+
+          <div class="mf-verdicts">
+            {
+              verdicts.map((v) => (
+                <div class="mf-verdicts__row">
+                  <div class="mf-verdicts__name" data-verdict={v.key}>{v.name}</div>
+                  <div>
+                    <p class="mf-verdicts__means">{v.means}</p>
+                    <p class="mf-verdicts__do">{v.act}</p>
+                  </div>
+                </div>
+              ))
+            }
+          </div>
+
+          <p>
+            Both halves are joined against the content register, the table of pages the site is
+            known to have, so a page nothing has crawled and nobody has read still appears with
+            zeroes. Joining the other way round would filter away exactly the rows the screen
+            was opened to find.
+          </p>
+          <p>
+            <em>Extracted</em> is a measurement, not an instruction. Blocking the crawler is one
+            response. Writing the page so an answer has to link out is another. Deciding the
+            reach is worth the trade is a third, and often the right one. The report's job is to
+            let you make that choice on evidence.
+          </p>
+        </Prose>
+      </section>
+
+      <!-- 05 ─────────────────────────────────────────────────────────────── -->
+      <section class="mf-mv" aria-labelledby="mv-5">
+        <span class="mf-mv__n" aria-hidden="true">05</span>
+        <Prose class="mf-mv__body">
+          <h2 id="mv-5">What it costs to see it</h2>
+          <p>
+            Agents do not run JavaScript. A script tag has never seen one and never will, which
+            is why no tool that only ships a script tag can report this, however it is
+            configured.
+          </p>
+          <p>
+            The agent half of Micaforge is fed from the access log your web server already
+            writes. One shipper process reads it and posts signed batches to the ingest
+            endpoint. Nothing about your pages changes.
+          </p>
+          <pre><code>micaforge-shipper --host https://analytics.example.com \
+  --site 1 --key-file ingest.key /var/log/nginx/access.log</code></pre>
+
+          <div class="mf-note mf-note--plain">
+            <div class="mf-note__head"><IconInfo size={18} />Know this before you install</div>
+            <p>
+              If your site sits somewhere you cannot get an access log from, this half of the
+              product stays dark. The human analytics still work in full, every page reads{" "}
+              <em>quiet</em> on the Citation Gap, and the report will say so rather than
+              inventing the other number.
+            </p>
+          </div>
+        </Prose>
+      </section>
+
+      <div class="mf-next">
+        <a class="mf-link" href="/docs/agents/what-micaforge-counts-as-an-agent">
+          How an agent is named and verified<IconOut size={13} />
+        </a>
+        <a class="mf-link" href="/docs/agents/shipping-server-logs">
+          Shipping the log<IconOut size={13} />
+        </a>
+        <a class="mf-link" href="/self-host">Install it on one machine<IconOut size={13} /></a>
+      </div>
+    </article>
+  </main>
+
+  <SiteFooter />
+</Base>
+
+<style>
+  /* The record sits on a sheet of the instrument's own paper, pin-fed down the
+     left gutter. Padding is set per side so the gutter padding that
+     `.mf-panel--feed` establishes survives: a shorthand here would overwrite it
+     and the perforations would run under the trace. */
+  .arg-record {
+    padding-block: var(--mf-6) var(--mf-5);
+    padding-right: var(--mf-6);
+  }
+
+  @media (max-width: 700px) {
+    .arg-record {
+      padding-block: var(--mf-4) var(--mf-3);
+      padding-right: var(--mf-4);
+    }
+  }
+</style>

@@ -1,0 +1,58 @@
+---
+/**
+ * Notes: the argument, as opposed to the manual.
+ *
+ * A dated register rather than a grid of cards. Each row is one entry on one rule, which is
+ * how a list of writing is read.
+ */
+import { getCollection } from "astro:content";
+import Docs from "../../layouts/Docs.astro";
+import { isoDay } from "../../lib/docs";
+
+const posts = (await getCollection("blog"))
+  .filter((p) => !p.data.draft)
+  .sort(
+    (a, b) =>
+      b.data.updated.getTime() - a.data.updated.getTime() || a.data.order - b.data.order,
+  );
+---
+
+<Docs
+  title="Notes · Micaforge"
+  description="Writing about machine readers, the Citation Gap, and measuring an audience that does not run JavaScript."
+  section="blog"
+  index={false}
+  rail={false}
+  prose={false}
+>
+  <header class="doc-open__head">
+    <h1 class="doc-open__title">Notes</h1>
+    <p class="doc-open__lead">
+      Why this product is shaped the way it is: what a machine reader is, what the Citation
+      Gap measures, and where the measurement stops. No customers, no benchmarks, no
+      invented numbers.
+    </p>
+  </header>
+
+  {
+    posts.length > 0 ? (
+      <ul class="doc-posts">
+        {posts.map((post) => (
+          <li class="doc-posts__item">
+            <a class="doc-posts__link" href={`/blog/${post.id}`}>
+              <time class="doc-posts__date" datetime={isoDay(post.data.updated)}>
+                {isoDay(post.data.updated)}
+              </time>
+              <div>
+                <h2 class="doc-posts__title">{post.data.title}</h2>
+                <p class="doc-posts__sub">{post.data.description}</p>
+              </div>
+            </a>
+          </li>
+        ))}
+      </ul>
+    ) : (
+      <p class="doc-open__lead">Nothing published yet.</p>
+    )
+  }
+</Docs>

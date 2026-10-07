@@ -1,0 +1,40 @@
+---
+/** One note. */
+import { getCollection, render } from "astro:content";
+import type { GetStaticPaths } from "astro";
+import Docs from "../../layouts/Docs.astro";
+import CodeBlock from "../../components/CodeBlock.astro";
+import OnThisPage from "../../components/OnThisPage.astro";
+import { longDay } from "../../lib/docs";
+
+export const getStaticPaths = (async () => {
+  const posts = (await getCollection("blog")).filter((p) => !p.data.draft);
+  return posts.map((entry) => ({ params: { slug: entry.id }, props: { entry } }));
+}) satisfies GetStaticPaths;
+
+const { entry } = Astro.props;
+const { Content, headings } = await render(entry);
+---
+
+<Docs
+  title={`${entry.data.title} · Micaforge`}
+  description={entry.data.description}
+  section="blog"
+  heading={entry.data.title}
+  standfirst={entry.data.description}
+  stamp={longDay(entry.data.updated)}
+  index={false}
+>
+  <OnThisPage slot="rail" headings={headings} />
+  <Content components={{ pre: CodeBlock }} />
+  <nav class="doc-turn" aria-label="Notes">
+    <a class="doc-turn__link" href="/blog">
+      <span class="doc-turn__dir">Back</span>
+      <span class="doc-turn__title">All notes</span>
+    </a>
+    <a class="doc-turn__link doc-turn__link--next" href="/docs">
+      <span class="doc-turn__dir">Next</span>
+      <span class="doc-turn__title">The manual</span>
+    </a>
+  </nav>
+</Docs>

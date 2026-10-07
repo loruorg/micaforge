@@ -1,0 +1,760 @@
+---
+import Base from "../layouts/Base.astro";
+import SiteHeader from "../components/SiteHeader.astro";
+import SiteFooter from "../components/SiteFooter.astro";
+import Spark from "../components/Spark.astro";
+import HeroRecord from "../components/react/HeroRecord.tsx";
+import { demoAgents, demoGapPages } from "../lib/demo";
+import { gapRatio } from "../lib/format";
+
+const gapPages = demoGapPages();
+const agents = demoAgents();
+
+// Fetches against a Disallow rule that cannot be attributed to anyone. Stated as
+// one unattributed total under the table rather than as a number on a row, which
+// would put a company's name beside a violation it has not been shown to have
+// committed.
+const unattributed = agents
+  .filter((a) => a.verified !== "verified" && a.robots === "disallowed")
+  .reduce((total, a) => total + a.fetches, 0);
+
+// The one row the report is willing to charge: identity verified, and fetches
+// against a rule. Read from the record rather than typed into the sentence, so
+// the prose under the table cannot drift away from the table.
+const charged = agents.find((a) => a.verified === "verified" && (a.violations ?? 0) > 0);
+const chargedCount = charged?.violations ?? 0;
+
+/** Deterministic miniature shapes for the verdict table. */
+function shape(seedA: number, seedB: number, n = 16) {
+  const m: number[] = [];
+  const r: number[] = [];
+  for (let i = 0; i < n; i++) {
+    m.push(0.35 + 0.55 * Math.abs(Math.sin(i * 0.7 + seedA)));
+    r.push(0.2 + 0.5 * Math.abs(Math.sin(i * 0.41 + seedB)));
+  }
+  return { m, r };
+}
+
+const verdicts = [
+  {
+    key: "extracted",
+    name: "Extracted",
+    line: "Crawled hard. Almost never cited.",
+    body: "Your work is in the corpus and none of the traffic is coming back. These are the pages to price, gate, or rewrite so the answer has to link out.",
+    mult: [1, 0.06],
+  },
+  {
+    key: "compounding",
+    name: "Compounding",
+    line: "Crawled and cited.",
+    body: "The machines read it and readers arrive because of it. This is the shape that works. Write more of these.",
+    mult: [0.7, 0.62],
+  },
+  {
+    key: "invisible",
+    name: "Invisible",
+    line: "Cited, but barely crawled.",
+    body: "Answer engines are sending people to a page the crawlers keep skipping. Usually a sitemap, robots or internal-linking problem, and a cheap fix.",
+    mult: [0.16, 0.7],
+  },
+  {
+    key: "quiet",
+    name: "Quiet",
+    line: "Neither crawled nor cited enough to say anything.",
+    body: "Not a failure. An absence of signal: too little of either count to draw a verdict from. Leave it alone and read it again when there is more of it.",
+    mult: [0.2, 0.16],
+  },
+] as const;
+---
+
+<Base
+  title="Micaforge: analytics that counts the machines reading you"
+  description="Open-source, cookieless web and product analytics. Full parity with Plausible, plus the one report it does not have: what AI agents took from your site, and what came back."
+>
+  <SiteHeader />
+
+  <main id="main">
+    <HeroRecord client:load />
+
+    <!-- ── the two ledgers ─────────────────────────────────────────────── -->
+    <section class="mf-sec mf-sec--ledger" aria-labelledby="ledger-h">
+      <div class="mf-sec__inner">
+        <h2 id="ledger-h" class="mf-sec__head">
+          Everything the others measure. One thing they cannot.
+        </h2>
+
+        <div class="mf-ledger">
+          <div class="mf-ledger__col">
+            <h3 class="mf-ledger__title">Parity</h3>
+            <p class="mf-ledger__note">
+              The measurements you would refuse to switch without. All of it in the
+              self-hosted build, none of it behind a tier.
+            </p>
+            <ul class="mf-ledger__list">
+              <li>Visitors, sessions, pageviews, bounce rate, time on page</li>
+              <li>Real-time, to the second</li>
+              <li>Pages, entries, exits, scroll depth</li>
+              <li>Channels, referrers, UTM campaigns, paid click IDs</li>
+              <li>Country, region and city, with maps</li>
+              <li>Browser, OS, device and screen class</li>
+              <li>Custom events with JSON properties</li>
+              <li>Goals, funnels, journeys, retention cohorts</li>
+              <li>Session replay and error tracking</li>
+              <li>Core Web Vitals by page, device and country</li>
+              <li>Visitor profiles and <code>identify()</code></li>
+              <li>Forty-plus filter dimensions, saved segments</li>
+              <li>Feature flags and A/B experiments</li>
+              <li>Organisations, teams, roles, per-site access</li>
+              <li>Public dashboards and private share links</li>
+              <li>Stats API, CSV export, scheduled reports, alerts</li>
+              <li>Imports from Google Analytics, Plausible and Umami</li>
+            </ul>
+          </div>
+
+          <div class="mf-ledger__col mf-ledger__col--wedge">
+            <h3 class="mf-ledger__title">Only here</h3>
+            <p class="mf-ledger__note">
+              A growing share of what reads your site is not a person. Micaforge
+              measures that share instead of discarding it.
+            </p>
+            <ul class="mf-ledger__list mf-ledger__list--wedge">
+              <li>
+                <strong>Agent traffic as a channel.</strong> Every named AI crawler,
+                grouped by operator and by what it is collecting for: training corpus,
+                answering a question now, search index.
+              </li>
+              <li>
+                <strong>Verified, or honestly unverified.</strong> Source addresses checked
+                against the operator's published ranges. A spoofed <code>ClaudeBot</code>{" "}
+                is reported as failed verification, not as Anthropic.
+              </li>
+              <li>
+                <strong>Crawl coverage per URL.</strong> First fetch, last fetch, how
+                often, and how stale the machines' copy of a page has become.
+              </li>
+              <li>
+                <strong>Answer engines as an acquisition channel.</strong> ChatGPT,
+                Perplexity, Claude, Gemini and Copilot sit beside Search, not buried in
+                Referrals.
+              </li>
+              <li>
+                <strong>The Citation Gap.</strong> Per page: taken versus returned. The
+                one number that says whether writing more of this is worth it.
+              </li>
+              <li>
+                <strong>Policy versus behaviour.</strong> Your <code>robots.txt</code> and{" "}
+                <code>llms.txt</code>, read back to you against what actually fetched.
+              </li>
+              <li>
+                <strong>Content decay.</strong> Pages whose readers fell away while the
+                crawlers kept coming.
+              </li>
+              <li>
+                <strong>An MCP server.</strong> Point an agent at your own analytics and
+                let it answer the question itself.
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── the verdicts: prove the mechanism ──────────────────────────── -->
+    <section class="mf-sec mf-sec--verdicts" aria-labelledby="verdict-h">
+      <div class="mf-sec__inner">
+        <h2 id="verdict-h" class="mf-sec__head">Four things a page can be doing</h2>
+        <p class="mf-sec__lede">
+          Micaforge holds two counts against every URL. How much the machines fetched it,
+          and how many people arrived at it from an answer. The relationship between them
+          is the whole report.
+        </p>
+
+        <ul class="mf-verdicts">
+          {
+            verdicts.map((v) => {
+              const s = shape(v.mult[0] * 4, v.mult[1] * 7);
+              return (
+                <li class="mf-verdict-row" data-verdict={v.key}>
+                  <div class="mf-verdict-row__trace">
+                    <Spark
+                      machines={s.m.map((x) => x * v.mult[0])}
+                      readers={s.r.map((x) => x * v.mult[1])}
+                      width={132}
+                      height={44}
+                      label={`${v.name}: machine fetches against reader arrivals`}
+                    />
+                  </div>
+                  <div class="mf-verdict-row__text">
+                    <h3 class="mf-verdict-row__name">{v.name}</h3>
+                    <p class="mf-verdict-row__line">{v.line}</p>
+                    <p class="mf-verdict-row__body">{v.body}</p>
+                  </div>
+                </li>
+              );
+            })
+          }
+        </ul>
+
+        <div class="mf-sheet-wrap mf-gap-table">
+          <table class="mf-sheet">
+            <caption class="mf-table-caption">
+              A Citation Gap report. Demonstration record, illustrative figures, not
+              measured traffic.
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Page</th>
+                <th scope="col" class="is-num">Machine fetches</th>
+                <th scope="col" class="is-num">Answer arrivals</th>
+                <th scope="col" class="is-num">Gap</th>
+                <th scope="col">Verdict</th>
+              </tr>
+            </thead>
+            <tbody>
+              {
+                gapPages.map((p) => (
+                  <tr>
+                    <td>
+                      <span class="mf-sheet__cell">
+                        <span class="mf-gap-path mf-data">{p.path}</span>
+                      </span>
+                    </td>
+                    <td class="is-num mf-data">{p.agent_fetches.toLocaleString()}</td>
+                    <td class="is-num mf-data">{p.answer_arrivals.toLocaleString()}</td>
+                    <td class="is-num mf-data">
+                      {gapRatio(p.agent_fetches, p.answer_arrivals)}
+                    </td>
+                    <td>
+                      <span class="mf-verdict" data-verdict={p.verdict}>
+                        <svg viewBox="0 0 14 14" width="12" height="12" aria-hidden="true">
+                          <path
+                            d="M1 3h12"
+                            stroke="currentColor"
+                            stroke-width="1.6"
+                            opacity={p.verdict === "invisible" || p.verdict === "quiet" ? 0.45 : 1}
+                          />
+                          <path
+                            d={
+                              p.verdict === "extracted"
+                                ? "M1 11h4"
+                                : p.verdict === "quiet"
+                                  ? "M1 11h3"
+                                  : "M1 11h11"
+                            }
+                            stroke="currentColor"
+                            stroke-width="1.6"
+                          />
+                        </svg>
+                        {p.verdict.charAt(0).toUpperCase() + p.verdict.slice(1)}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── policy vs observed ──────────────────────────────────────────── -->
+    <section class="mf-sec mf-sec--policy" aria-labelledby="policy-h">
+      <div class="mf-sec__inner">
+        <h2 id="policy-h" class="mf-sec__head">You wrote a rule. Did anyone follow it?</h2>
+        <p class="mf-sec__lede">
+          Micaforge reads your own <code>robots.txt</code> and <code>llms.txt</code>, then
+          checks every fetch against them. Where an agent publishes its address ranges, the
+          claim is verified. Where it does not, the row says so rather than guessing, and a
+          fetch nobody can be identified as making is charged to nobody.
+        </p>
+
+        <div class="mf-policy">
+          <figure class="mf-policy__file mf-panel">
+            <figcaption class="mf-policy__cap mf-data">robots.txt</figcaption>
+            <pre class="mf-policy__code mf-data"><code>User-agent: GPTBot
+Allow: /
+Disallow: /docs/api/
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Google-Extended
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+User-agent: Bytespider
+Disallow: /</code></pre>
+          </figure>
+
+          <div class="mf-policy__obs mf-sheet-wrap">
+            <table class="mf-sheet">
+              <caption class="mf-table-caption">
+                Observed against that policy. Demonstration record.
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Agent</th>
+                  <th scope="col">Collecting for</th>
+                  <th scope="col" class="is-num">Fetches</th>
+                  <th scope="col">Verified</th>
+                  <th scope="col" class="is-num">Fetched anyway</th>
+                </tr>
+              </thead>
+              <tbody>
+                {
+                  agents.map((a) => (
+                    <tr>
+                      <td>
+                        <span class="mf-sheet__cell">
+                          <span class="mf-data">{a.name}</span>
+                          {/* The company is named only where the address matched its
+                              published ranges. Everywhere else the cell says so, because
+                              a user-agent string is a claim and this table is the one
+                              place that difference has to hold. */}
+                          <span class="mf-policy__op" data-attributed={a.operator ? "true" : "false"}>
+                            {a.operator ?? "Not attributed"}
+                          </span>
+                        </span>
+                      </td>
+                      <td>
+                        {a.purpose === "training"
+                          ? "Training corpus"
+                          : a.purpose === "search"
+                            ? "Search index"
+                            : "Answering now"}
+                      </td>
+                      <td class="is-num mf-data">{a.fetches.toLocaleString()}</td>
+                      <td>
+                        <span class="mf-verified" data-state={a.verified}>
+                          {a.verified === "verified" ? "✓" : a.verified === "failed" ? "✕" : "—"}
+                          <span class="mf-sr">
+                            {a.verified === "verified"
+                              ? "Verified against published address ranges"
+                              : a.verified === "failed"
+                                ? "Claimed this agent; the address did not match"
+                                : "No published ranges to check against"}
+                          </span>
+                        </span>
+                      </td>
+                      {/* A count here charges a company with ignoring your policy, so it
+                          is printed only on a verified identity. An unverified row's
+                          fetches are counted and reported under the table instead. */}
+                      <td
+                        class="is-num mf-data"
+                        data-violation={a.verified === "verified" && (a.violations ?? 0) > 0 ? "true" : "false"}
+                      >
+                        {a.verified === "verified" && a.violations
+                          ? a.violations.toLocaleString()
+                          : "—"}
+                      </td>
+                    </tr>
+                  ))
+                }
+              </tbody>
+            </table>
+            {
+              charged && (
+                <p class="mf-policy__rule">
+                  The {chargedCount.toLocaleString()} is fetches of <code>/docs/api/</code>,
+                  disallowed for {charged.name} in the policy beside this table, from an
+                  address that verified as {charged.operator}'s. The other{" "}
+                  {unattributed.toLocaleString()} fetches against a Disallow rule came from
+                  clients that did not verify: counted, held under the user-agent string they
+                  claimed, and charged to nobody.
+                </p>
+              )
+            }
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── install ─────────────────────────────────────────────────────── -->
+    <section class="mf-sec mf-sec--install" aria-labelledby="install-h">
+      <div class="mf-sec__inner mf-install">
+        <div class="mf-install__text">
+          <h2 id="install-h" class="mf-sec__head">Free while it is young. AGPL forever.</h2>
+          <p class="mf-sec__lede">
+            There is no community edition with the good parts removed. The self-hosted
+            build is the whole build. One command puts it on a small VPS with Postgres,
+            ClickHouse and Valkey beside it.
+          </p>
+          <p class="mf-install__caveat">
+            Micaforge is early. Some of what is listed above is newer than the rest, and the
+            comparison pages say plainly where Plausible and Google Analytics are still ahead.
+          </p>
+          <a class="mf-btn mf-btn--primary mf-btn--md" href="/docs/self-hosting/install">
+            <span class="mf-btn__label">Read the install</span>
+          </a>
+        </div>
+
+        <div class="mf-install__code">
+          <div class="mf-install__step">
+            <span class="mf-install__n mf-data">01</span>
+            <pre class="mf-policy__code mf-data"><code>git clone https://github.com/micaforge/micaforge
+cd micaforge && ./install.sh</code></pre>
+          </div>
+          <div class="mf-install__step">
+            <span class="mf-install__n mf-data">02</span>
+            <pre
+              class="mf-policy__code mf-data"><code>&lt;script defer data-site="1"
+  src="https://analytics.example.com/mf.js"&gt;&lt;/script&gt;</code></pre>
+          </div>
+          <div class="mf-install__step">
+            <span class="mf-install__n mf-data">03</span>
+            <pre class="mf-policy__code mf-data"><code>micaforge-shipper --host https://analytics.example.com \
+  --site 1 --key-file ingest.key /var/log/nginx/access.log</code></pre>
+            <p class="mf-install__hint">
+              Step three is what makes the machines visible: crawlers never run JavaScript,
+              so their fetches come from your server's own log.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <SiteFooter />
+</Base>
+
+<style is:global>
+  /* ── the hero's action row ───────────────────────────────────────────────
+     The record is drawn by a client island, so its markup is out of reach of
+     this page's scoped styles and these rules have to be global. They live here
+     rather than in site.css because this strip exists on this one page.
+
+     What it replaces: a filled amber key beside an underlined text link. That
+     pair is the category's stock call to action wearing this palette, and the
+     rest of the first viewport does not deserve to end on it.
+
+     What it is instead: the instrument's key row. One ruled strip carrying two
+     keys of equal height, divided by a rule, with no fill and no underline
+     anywhere. The install path leads because it is set in the first ink and
+     carries the shellac pen mark the station rail uses for the channel that is
+     currently writing, not because it has been filled in. The explanation path
+     keeps its full weight beside it: both are ways into the product, and one of
+     them is not a footnote. Nothing lifts, grows or glows under the pointer; a
+     key takes ink, the way a pressed key does. */
+  .mf-hero__act {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 0;
+    margin-top: var(--mf-2);
+    border-top: 1px solid var(--mf-rule-strong);
+    border-bottom: 1px solid var(--mf-rule);
+  }
+
+  .mf-hero__act > a {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    /* Stacked, a key fills the strip's width. Its label reads from the left
+       edge beside the pen mark, never centred in a box it happens to fill. */
+    justify-content: flex-start;
+    gap: var(--mf-3);
+    padding: var(--mf-4) var(--mf-6) var(--mf-4) var(--mf-5);
+    font-family: var(--mf-font-ui);
+    font-size: var(--mf-t-base);
+    line-height: 1.25;
+    text-decoration: none;
+    background: none;
+    border: 0;
+    border-radius: var(--mf-r-none);
+    box-shadow: none;
+    transition:
+      background-color var(--mf-dur-1) linear,
+      color var(--mf-dur-1) linear;
+  }
+  .mf-hero__act > a:hover { background: var(--mf-ground-3); }
+
+  .mf-hero__act > .mf-btn {
+    color: var(--mf-ink);
+    font-weight: 600;
+  }
+  /* The pen mark: the same 3px shellac bar the rail draws beside the channel
+     that is writing. It is a state mark from this product's own vocabulary,
+     not an ornament parked next to a label. */
+  .mf-hero__act > .mf-btn::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 50%;
+    width: 3px;
+    height: 18px;
+    transform: translateY(-50%);
+    background: var(--mf-shellac);
+    border-radius: 1px;
+  }
+
+  .mf-hero__act > .mf-hero__link {
+    color: var(--mf-ink-2);
+    border-left: 1px solid var(--mf-rule);
+    padding-bottom: var(--mf-4);
+  }
+  .mf-hero__act > .mf-hero__link:hover {
+    color: var(--mf-ink);
+    border-left-color: var(--mf-rule);
+  }
+  .mf-hero__act > .mf-hero__link svg {
+    flex: none;
+    color: var(--mf-ink-3);
+    transition: color var(--mf-dur-1) linear;
+  }
+  .mf-hero__act > .mf-hero__link:hover svg { color: var(--mf-shellac); }
+
+  /* Wrapped, the two keys stack, so the divider turns through ninety degrees
+     with them rather than hanging off the side of nothing. */
+  @media (max-width: 620px) {
+    .mf-hero__act { display: grid; grid-template-columns: minmax(0, 1fr); }
+    .mf-hero__act > .mf-hero__link {
+      border-left: 0;
+      border-top: 1px solid var(--mf-rule);
+    }
+  }
+</style>
+
+<style>
+  /* ── section rhythm ────────────────────────────────────────────────────
+     One spacing scale throughout, with more space above a heading than below
+     it. Density alternates: the dense ledger is followed by the airier verdict
+     rows, then a dense table again. */
+  .mf-sec {
+    padding: var(--mf-24) var(--mf-6) 0;
+  }
+  .mf-sec__inner {
+    max-width: var(--mf-shell-max);
+    margin: 0 auto;
+  }
+  .mf-sec__head {
+    font-size: clamp(1.8rem, 3.2vw, var(--mf-t-3xl));
+    font-weight: 600;
+    line-height: 1.04;
+    letter-spacing: -0.022em;
+    max-width: 26ch;
+    color: var(--mf-ink);
+  }
+  .mf-sec__lede {
+    margin-top: var(--mf-5);
+    max-width: 62ch;
+    font-size: var(--mf-t-md);
+    line-height: 1.55;
+    color: var(--mf-ink-2);
+  }
+  .mf-sec code {
+    font-family: var(--mf-font-data);
+    font-size: 0.92em;
+    color: var(--mf-ink);
+  }
+
+  /* ── ledger ────────────────────────────────────────────────────────────
+     Two columns on ONE grid. The three rows (title, note, list) are declared on
+     the parent and each column adopts them with subgrid, so the two titles sit
+     on one line and both lists start on one line however long either note runs.
+     Reserving a fixed height for the note would only hold until a note outgrew
+     the reserve; this holds because there is a single grid, not two. */
+  .mf-ledger {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.22fr);
+    grid-template-rows: auto auto minmax(0, 1fr);
+    gap: 0;
+    margin-top: var(--mf-10);
+    border-top: 1px solid var(--mf-rule-strong);
+  }
+  .mf-ledger__col {
+    display: grid;
+    grid-row: 1 / -1;
+    grid-template-rows: subgrid;
+    gap: var(--mf-3);
+    padding: var(--mf-8) var(--mf-8) var(--mf-10) 0;
+  }
+  .mf-ledger__col--wedge {
+    padding-left: var(--mf-8);
+    padding-right: 0;
+    border-left: 1px solid var(--mf-rule);
+  }
+  .mf-ledger__title {
+    font-size: var(--mf-t-xl);
+    font-weight: 600;
+    color: var(--mf-ink);
+  }
+  .mf-ledger__col--wedge .mf-ledger__title { color: var(--mf-shellac); }
+  .mf-ledger__note {
+    font-size: var(--mf-t-sm);
+    color: var(--mf-ink-3);
+    max-width: 44ch;
+    line-height: 1.5;
+  }
+  .mf-ledger__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    font-size: var(--mf-t-sm);
+    color: var(--mf-ink-2);
+  }
+  .mf-ledger__list li {
+    padding: var(--mf-2) 0;
+    border-bottom: 1px solid var(--mf-rule);
+    line-height: 1.45;
+  }
+  .mf-ledger__list li:last-child { border-bottom: 0; }
+  .mf-ledger__list--wedge li { padding: var(--mf-3) 0; }
+  .mf-ledger__list--wedge strong { color: var(--mf-ink); font-weight: 600; }
+
+  /* ── verdict rows ──────────────────────────────────────────────────── */
+  .mf-verdicts {
+    list-style: none;
+    margin: var(--mf-12) 0 0;
+    padding: 0;
+    border-top: 1px solid var(--mf-rule-strong);
+  }
+  .mf-verdict-row {
+    display: grid;
+    grid-template-columns: 148px minmax(0, 1fr);
+    align-items: start;
+    gap: var(--mf-8);
+    padding: var(--mf-7) 0;
+    border-bottom: 1px solid var(--mf-rule);
+  }
+  .mf-verdict-row__trace {
+    /* The spark's baseline is its vertical centre, so it is nudged up to sit
+       on the heading's optical centre rather than on the row's top edge. */
+    margin-top: -9px;
+  }
+  .mf-verdict-row__name {
+    font-size: var(--mf-t-lg);
+    font-weight: 600;
+  }
+  .mf-verdict-row[data-verdict="extracted"] .mf-verdict-row__name { color: var(--mf-oxide); }
+  .mf-verdict-row[data-verdict="compounding"] .mf-verdict-row__name { color: var(--mf-verdigris); }
+  .mf-verdict-row[data-verdict="invisible"] .mf-verdict-row__name { color: var(--mf-shellac); }
+  .mf-verdict-row[data-verdict="quiet"] .mf-verdict-row__name { color: var(--mf-ink-2); }
+  .mf-verdict-row__line {
+    margin-top: var(--mf-1);
+    font-size: var(--mf-t-md);
+    color: var(--mf-ink);
+  }
+  .mf-verdict-row__body {
+    margin-top: var(--mf-2);
+    font-size: var(--mf-t-sm);
+    color: var(--mf-ink-3);
+    max-width: 68ch;
+    line-height: 1.55;
+  }
+
+  .mf-gap-table { margin-top: var(--mf-10); }
+  .mf-table-caption {
+    caption-side: top;
+    text-align: left;
+    font-family: var(--mf-font-data);
+    font-size: var(--mf-t-2xs);
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--mf-ink-3);
+    padding-bottom: var(--mf-3);
+  }
+  .mf-gap-path { color: var(--mf-ink); }
+
+  /* ── policy proof ──────────────────────────────────────────────────── */
+  .mf-policy {
+    display: grid;
+    grid-template-columns: minmax(240px, 0.62fr) minmax(0, 1.38fr);
+    gap: var(--mf-8);
+    margin-top: var(--mf-10);
+    align-items: start;
+  }
+  .mf-policy__file { padding: var(--mf-5); margin: 0; }
+  .mf-policy__cap {
+    font-size: var(--mf-t-2xs);
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--mf-ink-3);
+    padding-bottom: var(--mf-3);
+    border-bottom: 1px solid var(--mf-rule);
+    margin-bottom: var(--mf-4);
+  }
+  .mf-policy__code {
+    margin: 0;
+    font-size: var(--mf-t-sm);
+    line-height: 1.62;
+    color: var(--mf-ink-2);
+    white-space: pre;
+    overflow-x: auto;
+  }
+  .mf-policy__op {
+    color: var(--mf-ink-3);
+    font-size: var(--mf-t-xs);
+    font-family: var(--mf-font-ui);
+  }
+  .mf-policy__obs td[data-violation="true"] { color: var(--mf-oxide); }
+  .mf-policy__op[data-attributed="false"] { font-style: italic; }
+  .mf-policy__rule {
+    margin-top: var(--mf-4);
+    padding-top: var(--mf-3);
+    border-top: 1px solid var(--mf-rule);
+    font-size: var(--mf-t-xs);
+    line-height: 1.55;
+    color: var(--mf-ink-3);
+    max-width: 68ch;
+  }
+
+  /* ── install ───────────────────────────────────────────────────────── */
+  .mf-install {
+    display: grid;
+    grid-template-columns: minmax(0, 0.86fr) minmax(0, 1.14fr);
+    gap: var(--mf-12);
+    align-items: start;
+    padding-bottom: var(--mf-14);
+  }
+  .mf-install__caveat {
+    margin-top: var(--mf-5);
+    font-size: var(--mf-t-sm);
+    color: var(--mf-ink-3);
+    max-width: 56ch;
+    line-height: 1.55;
+  }
+  .mf-install .mf-btn { margin-top: var(--mf-7); }
+  .mf-install__code { display: grid; gap: var(--mf-5); }
+  .mf-install__step {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr);
+    gap: var(--mf-4);
+    align-items: start;
+    padding: var(--mf-5);
+    background: var(--mf-ground-2);
+    border: 1px solid var(--mf-rule);
+    border-radius: var(--mf-r-md);
+    box-shadow: inset 0 1px 0 var(--mf-lip);
+  }
+  /* These numbers carry information: they are the order of the three commands,
+     not decoration bolted onto a feature list. */
+  .mf-install__n { font-size: var(--mf-t-xs); color: var(--mf-ink-3); padding-top: 3px; }
+  .mf-install__hint {
+    grid-column: 2;
+    margin-top: var(--mf-3);
+    font-size: var(--mf-t-xs);
+    color: var(--mf-ink-3);
+    line-height: 1.5;
+  }
+
+  @media (max-width: 1000px) {
+    .mf-ledger { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; }
+    .mf-ledger__col { grid-row: auto; grid-template-rows: none; padding-right: 0; }
+    .mf-ledger__col--wedge {
+      padding-left: 0;
+      border-left: 0;
+      border-top: 1px solid var(--mf-rule-strong);
+      padding-top: var(--mf-8);
+    }
+    .mf-policy { grid-template-columns: minmax(0, 1fr); }
+    .mf-install { grid-template-columns: minmax(0, 1fr); gap: var(--mf-8); }
+  }
+
+  @media (max-width: 700px) {
+    .mf-sec { padding: var(--mf-16) var(--mf-4) 0; }
+    .mf-verdict-row { grid-template-columns: minmax(0, 1fr); gap: var(--mf-4); }
+    .mf-install__step { padding: var(--mf-4); }
+  }
+</style>

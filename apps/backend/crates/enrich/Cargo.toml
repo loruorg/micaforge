@@ -1,0 +1,43 @@
+[package]
+name = "micaforge-enrich"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+description = "Turns one raw hit into the columns Micaforge stores: client, location, attribution, identity, path."
+
+[lib]
+name = "micaforge_enrich"
+path = "src/lib.rs"
+
+[dependencies]
+# The shared vocabulary. `Channel` is decided here and read everywhere else, and
+# the visitor hash has exactly one implementation, which lives in core.
+micaforge-core = { workspace = true }
+
+# `Client`, `Location`, `Attribution` and `Utm` all cross into the ingest
+# payload log and into test fixtures, so they serialise.
+serde = { workspace = true }
+
+# Referrers and page URLs are parsed, never string-matched.
+url = { workspace = true }
+
+# Session ids are a sortable base32 rendering of a UUIDv7.
+uuid = { workspace = true }
+
+# User agents. woothee carries the long tail of historic and Japanese-carrier
+# strings that is not worth re-deriving; this crate corrects the modern
+# Chromium-derived browsers it predates.
+woothee = { workspace = true }
+
+# GeoIP. The reader is opened once at startup and shared; a self-hosted install
+# runs with no outbound call, so the database is a local file or nothing.
+maxminddb = { workspace = true }
+
+# Host tables are built once and then hit twice per event.
+once_cell = { workspace = true }
+
+# A missing GeoIP database is an operator-visible condition, not an error the
+# ingest path can act on, so it is logged rather than returned.
+tracing = { workspace = true }

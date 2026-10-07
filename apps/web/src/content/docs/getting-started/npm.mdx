@@ -1,0 +1,165 @@
+---
+title: "The npm package"
+description: "@micaforge/sdk, its framework wrappers, and when to use it instead of the tag."
+group: "getting-started"
+order: 3
+updated: 2026-08-22
+---
+
+The package is the same tracker with a typed surface around it. Use it when your build
+already bundles your JavaScript, when you want type checking on event names and
+properties, or when your framework has a router the tracker should follow explicitly.
+
+```sh
+npm install @micaforge/sdk
+```
+
+MIT licensed, deliberately: the tracker is the part you embed in your own site, and
+embedding it must not reach into your code. The server is AGPL-3.0.
+
+## Starting it
+
+```ts
+import { init } from "@micaforge/sdk";
+
+init({
+  site: 1,
+  host: "https://analytics.example.com",
+});
+```
+
+`init()` returns the tracker and is idempotent. Calling it twice returns the first
+instance, and calling it on a page that already loaded `/mf.js` adopts that one, so a
+page reports once however many times the call is made.
+
+It is safe on a server. With no `window` to read, every call is a no-op rather than a
+crash, so the same module can be imported from code that renders in both places.
+
+## The functions
+
+```ts
+import { track, pageview, identify, setProps, optOut, optIn, flush } from "@micaforge/sdk";
+
+track("signup", { plan: "pro" });
+pageview({ url: "https://example.com/virtual/step-2" });
+identify("u_123", { plan: "pro" });
+setProps({ theme: "dark" });
+flush();
+```
+
+Every one of them takes the same arguments as its counterpart on the global. `init()`
+accepts everything the [script tag attributes](/docs/getting-started/script-tag) accept,
+in camelCase, plus two the tag has no need for:
+
+- `autoStart: false`: build the tracker and wire nothing up until you call `start()`
+- `enabled: false`: build it and send nothing, which is the switch to use in tests
+
+## React
+
+```tsx
+import { MicaforgeProvider, usePageviews, useTrackEvent } from "@micaforge/sdk/react";
+
+export function App() {
+  return (
+    <MicaforgeProvider config={{ site: 1, host: "https://analytics.example.com" }}>
+      <Routes />
+    </MicaforgeProvider>
+  );
+}
+```
+
+`usePageviews(location)` sends a pageview whenever the string you pass changes: hand it
+whatever your router calls the current location. Pass nothing and the tracker's own
+history listener does the work instead.
+
+```tsx
+import { useLocation } from "react-router";
+import { usePageviews, useTrackEvent } from "@micaforge/sdk/react";
+
+function Analytics() {
+  usePageviews(useLocation().pathname);
+  return null;
+}
+
+function SignupButton() {
+  const track = useTrackEvent();
+  return <button onClick={() => track("signup", { plan: "pro" })}>Sign up</button>;
+}
+```
+
+`TrackClick` wraps any clickable element and keeps its own `onClick`:
+
+```tsx
+import { TrackClick } from "@micaforge/sdk/react";
+
+<TrackClick event="cta_click" props={{ position: "hero" }}>
+  <button onClick={openDialog}>Get started</button>
+</TrackClick>;
+```
+
+## Next.js
+
+```tsx
+// app/layout.tsx
+import { MicaforgeAnalytics } from "@micaforge/sdk/next";
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <body>
+        {children}
+        <MicaforgeAnalytics site={1} host="https://analytics.example.com" />
+      </body>
+    </html>
+  );
+}
+```
+
+It renders nothing and starts the tracker once for the life of the document. For a
+pageview per search-param change, or when you have turned the built-in SPA listener off:
+
+```tsx
+"use client";
+import { usePathname, useSearchParams } from "next/navigation";
+import { useNextPageviews } from "@micaforge/sdk/next";
+
+export function Pageviews() {
+  useNextPageviews(usePathname(), useSearchParams()?.toString());
+  return null;
+}
+```
+
+## Vue
+
+```ts
+import { createApp } from "vue";
+import { micaforge } from "@micaforge/sdk/vue";
+
+createApp(App).use(micaforge, { site: 1, host: "https://analytics.example.com" });
+```
+
+Inside a component the tracker is available as `this.$micaforge`, by `inject("micaforge")`,
+or from `useMicaforge()`. The `v-mf` directive tracks a click on any element, and takes
+either an event name or an `{ event, props }` object.
+
+```vue
+<button v-mf="'cta_clicked'">Start</button>
+<button v-mf="{ event: 'checkout_started', props: { plan: 'pro' } }">Buy</button>
+```
+
+## Svelte
+
+```ts
+import { micaforge } from "@micaforge/sdk/svelte";
+
+micaforge.init({ site: 1, host: "https://analytics.example.com" });
+```
+
+`use:trackClick` is the action form, and `pageviewOn` sends a pageview when the location
+you hand it changes.
+
+## Do not run both
+
+If a page has the script tag, it does not also need `init()`. The SDK adopts the running
+tracker rather than starting a second one, so nothing breaks, but a second script tag
+genuinely would double every pageview. Pick one door.

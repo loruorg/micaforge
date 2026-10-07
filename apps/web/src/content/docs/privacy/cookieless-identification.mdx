@@ -1,0 +1,65 @@
+---
+title: "Cookieless identification"
+description: "How a visitor is counted without a cookie, and what that costs you."
+group: "privacy"
+order: 2
+updated: 2026-08-22
+---
+
+A visitor is a hash:
+
+```text
+visitor_id = blake3(daily_salt || site_id || ip || user_agent)
+```
+
+The salt is per site, rotates at **midnight in the site's own timezone**, and is never kept
+beyond 48 hours. That is what makes the digest un-reversible in practice: without the salt
+there is nothing to attack, and the salt is gone.
+
+A session is that visitor's activity with less than 30 minutes between hits. The window is a
+constant rather than a setting, because a site that quietly redefined a session would report
+numbers that could not be compared with anyone else's, including its own from last month.
+
+## The consequence, stated plainly
+
+**A returning visitor tomorrow is a new visitor.**
+
+- Daily uniques are exact.
+- Weekly and monthly uniques are estimates, and they read **high**, because the same person
+  on three days is three visitors.
+- [Retention](/docs/dashboard/retention) cohorts are estimates for the same reason.
+
+Micaforge would rather report that honestly than keep an identifier it promised not to keep.
+A tool that showed you a confident monthly-unique number without a cookie is either
+fingerprinting or guessing.
+
+## Why not a cookie
+
+Because the interesting questions do not need one. Which pages are read, where readers come
+from, what they do next, what converts, which machines took what: none of that requires
+knowing that today's reader is also last week's.
+
+And because the moment there is a persistent identifier, everything else changes: a consent
+banner, a data subject who can be identified, a retention argument, an export obligation.
+The absence is not a limitation that was worked around. It is the design.
+
+## When you do need continuity
+
+Call [`identify()`](/docs/tracking/identify) with your own id. That is the deliberate
+exception, for a signed-in product where you already know who the reader is, and it makes
+those rows personal data. Send an opaque id.
+
+## Is this fingerprinting?
+
+No, and the difference is the salt. A fingerprint is built to be stable, so the same device
+can be recognised later. This digest is built to expire: the inputs are ordinary
+(a rotating salt, the site, the address, the user agent), the salt changes every day, and
+the old salt is destroyed. What remains cannot be matched against tomorrow's, which is the
+opposite of what a fingerprint is for.
+
+## Agents are not hashed this way
+
+A named agent is identified by its catalog slug and verified against the operator's
+published addresses, not by a visitor hash. Its address is stored only as a salted rotating
+`ip_hash`. So questions that are estimates for humans (did this client come back, how often
+does it return) are exact for machines, because machines announce themselves.

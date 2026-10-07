@@ -1,0 +1,96 @@
+---
+title: "Installation"
+description: "Two halves: a script tag for the people, a server log for the machines."
+group: "getting-started"
+order: 1
+updated: 2026-08-22
+---
+
+A Micaforge install has two halves, and the second one is the reason this product
+exists.
+
+The first half is a script on your pages. It reports the people: pageviews, sessions,
+engagement, referrers, custom events. Every analytics tool has this half.
+
+The second half is your web server's access log. AI crawlers do not run JavaScript, so
+GPTBot, ClaudeBot and PerplexityBot will never execute the script above, below, or
+anywhere else. The only machine that saw those requests is the one that answered them.
+Ship its log and the agent side of the record fills in.
+
+Install the first half in a minute. Install the second half the same day, or the agent
+screens stay honestly empty.
+
+## What you need first
+
+A site, created in the dashboard, which gives you two things:
+
+- a numeric **site id**: `1` for the first site on a fresh install
+- the **host** your Micaforge server answers on, for example
+  `https://analytics.example.com`
+
+Self-hosting instead? [Install the stack first](/docs/self-hosting/install); it prints
+both values when it finishes.
+
+## Half one: the browser
+
+Paste this immediately before `</head>`, or anywhere in `<body>`. It is under 3 KB
+gzipped, has no dependencies, sets no cookie, and cannot throw an exception into your
+page.
+
+```html
+<script
+  defer
+  data-site="1"
+  data-host="https://analytics.example.com"
+  src="https://analytics.example.com/mf.js"
+></script>
+```
+
+Out of the box that sends a pageview on load, follows client-side navigation, records
+engagement time and scroll depth, reports outbound link clicks and file downloads, and
+collects Core Web Vitals. Every one of those is an attribute you can turn off: see
+[the script tag](/docs/getting-started/script-tag).
+
+If you would rather install from npm, or you are in React, Next, Vue or Svelte, use
+[the package](/docs/getting-started/npm) instead. Do not do both on one page: the SDK
+adopts an already-running tracker rather than starting a second one, but a second script
+tag would double-count.
+
+## Half two: the machines
+
+Your server already wrote down every crawl. Point the shipper at that file:
+
+```sh
+npx --package=@micaforge/sdk-server micaforge-shipper \
+  --host https://analytics.example.com \
+  --site 1 \
+  --key "$MICAFORGE_INGEST_KEY" \
+  /var/log/nginx/access.log
+```
+
+Or, if your site is a Node application, add the middleware for your framework and skip
+the log entirely. Both paths, the log formats they expect, and the ingest key are in
+[shipping server logs](/docs/agents/shipping-server-logs).
+
+## What each half can see
+
+|                     | Script tag | Server log |
+| ------------------- | ---------- | ---------- |
+| Human pageviews     | Yes        | Yes, without engagement or scroll |
+| Sessions, bounce, time on page | Yes | No |
+| Client-side navigation | Yes | No |
+| Custom events, `identify()` | Yes | Yes, from the server SDK |
+| Web Vitals          | Yes        | No |
+| AI crawler fetches  | Never      | Yes |
+| Status codes and bytes served | No | Yes |
+
+Run both. They do not double-count each other, because the middleware defaults to
+reporting agent hits only when the browser tracker is already on the page.
+
+## Then check it
+
+Load a page of your own site and open
+[verify it works](/docs/getting-started/verify-it-works). It takes about thirty seconds,
+and it is worth doing before you close the tab, because the two most common install
+faults (a wrong `data-host` and a tracker suppressed on localhost) both look exactly
+like "no traffic yet".

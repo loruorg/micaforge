@@ -1,0 +1,50 @@
+[package]
+name = "micaforge-query"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+description = "The analytical engine: safe ClickHouse query building, the stats reports, and the Citation Gap."
+
+[lib]
+name = "micaforge_query"
+path = "src/lib.rs"
+
+[dependencies]
+# The vocabulary. Every dimension, metric, filter and time range this crate
+# compiles into SQL is defined once in core, including the aggregate expressions
+# themselves, so the overview card and the CSV export cannot drift apart.
+micaforge-core = { workspace = true }
+
+# The ClickHouse handle. This crate builds its own SQL and binds its own
+# parameters, so it takes `Ch::client()` directly rather than going through a
+# wrapper that could only ever be a passthrough.
+micaforge-store = { workspace = true }
+# The agent catalog supplies the operator's own spelling of a crawler name, so
+# the crawl record shows "GPTBot" where the operator writes it that way.
+micaforge-agents = { workspace = true }
+
+# The driver. Reads are `client.query(sql).bind(..).fetch_all::<Row>()` with
+# positional `?` placeholders; nothing caller-supplied is ever formatted into
+# the SQL text.
+clickhouse = { workspace = true }
+
+# Every result type here is a response body.
+serde = { workspace = true }
+# Goal and funnel-step definitions arrive as the `conditions` / `steps` jsonb
+# columns from Postgres and are parsed into a `FilterGroup` here.
+serde_json = { workspace = true }
+
+# Record timestamps (first seen, last crawl, session start) travel as
+# `DateTime<Utc>`; chart axes travel as epoch milliseconds. See the crate docs.
+chrono = { workspace = true }
+# Bucket expressions name the site's own zone, which arrives on the range.
+chrono-tz = { workspace = true }
+
+# `GET /api/stats/export.csv`.
+csv = { workspace = true }
+
+# One line per slow report, with the report name and the row count. The SQL
+# itself is logged at debug only: it carries bound filter values.
+tracing = { workspace = true }

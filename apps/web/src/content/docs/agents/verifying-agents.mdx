@@ -1,0 +1,81 @@
+---
+title: "Verifying agents"
+description: "Named is a claim. Verified is a check against what the operator publishes."
+group: "agents"
+order: 3
+updated: 2026-08-22
+---
+
+A user agent is a claim anyone can type. `Mozilla/5.0 (compatible; GPTBot/1.2)` costs
+nothing, and a scraper that wants to be left alone by a rate limiter has every reason to
+type it.
+
+So the agent report separates **named** from **verified**, and `verified` is a column of
+its own with three values.
+
+| Value | Meaning |
+| --- | --- |
+| `verified` | The source address is inside a range the operator publishes, or its hostname matches a suffix they document. |
+| `failed` | The operator publishes ranges, and this address is not in them. Someone is using the name without the addresses. |
+| `unknown` | Nothing to check against: the operator publishes nothing, or the ranges have not been fetched. |
+
+`unknown` is a real answer, not a polite way of saying failed. Most operators publish
+nothing, and reporting their traffic as "failed verification" would be an accusation the
+data does not support.
+
+## The two proofs
+
+**Published ranges.** Several operators serve a machine-readable document listing the
+CIDRs their crawlers fetch from: OpenAI, Anthropic, Google, Microsoft and others do.
+A source address inside one of those ranges is proof. The catalog carries the URL of each
+document, so you can read the source rather than take our word for it.
+
+**Reverse DNS.** Where an operator documents a hostname suffix instead, the address is
+resolved and the suffix checked. This only counts with the forward-confirmation step: the
+hostname is resolved back, and the original address has to be in the answer. A PTR record
+is set by whoever controls the address, so an unconfirmed suffix match proves nothing.
+
+## Turning it on
+
+Verification is **off by default**, and this is the one place the product's own rules pull
+against each other.
+
+A self-hosted install must make no outbound call at runtime. Fetching an operator's range
+document is an outbound call. So the fetch lives in a job you turn on, never in the ingest
+path, and with the job off every fetch is recorded as `unknown`: accurate, and one column
+less useful.
+
+Turn the range refresh job on if outbound calls are acceptable in your deployment. It
+fetches each operator's published document on a schedule and keeps the CIDR sets in
+memory. Nothing about your traffic leaves the machine either way: the requests go to the
+operators' own documentation endpoints and carry no data.
+
+## Reading it
+
+`GET /api/agents/overview` returns `verified_pct`: the share of fetches whose address
+matched. Filter any agent report with `verified is 1`, or break down by `verified` to see
+the split.
+
+A useful first question on a new install, which agents are claiming a name they cannot
+back up? Break down by `agent_id`, filter to `verified is 0`, and compare against
+`robots_allowed`.
+
+## What a failed check actually means
+
+It means the address is outside the ranges that operator published at the time of the
+check. That can be a scraper wearing a crawler's name. It can also be:
+
+- a range the operator added and has not published yet
+- a fetch through a proxy or a CDN that rewrote the source address
+- your own log recording your proxy's address rather than the client's, in which case
+  every check fails and the fault is one `X-Forwarded-For` away from fixed
+
+Look at the whole picture before treating it as an accusation. A single failed check is a
+data point; a whole operator failing at once is usually your proxy configuration.
+
+## Why it matters for the Citation Gap
+
+The [Citation Gap](/docs/agents/the-citation-gap) counts what was taken. If a third of
+those fetches are someone impersonating a crawler, the number is wrong in a direction that
+flatters the story this product is telling. Verification is how that stays honest: which
+is also why the unverified share is shown next to the total rather than folded into it.

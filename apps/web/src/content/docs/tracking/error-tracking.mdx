@@ -1,0 +1,78 @@
+---
+title: "Error tracking"
+description: "What the store and the report already do, and the recorder that is not written yet."
+group: "tracking"
+order: 7
+updated: 2026-08-22
+---
+
+<aside class="doc-annot" data-tone="gap">
+
+**Not built yet.** The browser tracker does not capture exceptions. It installs no
+`window.onerror` handler and no `unhandledrejection` listener, so nothing arrives in the
+errors report on its own. The storage and the report below are real and finished; the
+recorder that would feed them is not written.
+
+</aside>
+
+## What exists
+
+The `errors` table holds one row per client-side exception: name, message, stack,
+filename, line and column, the path it happened on, browser, OS, release, whether it was
+handled, and a fingerprint.
+
+`GET /api/stats/errors` groups those rows by fingerprint and returns each group with a
+sparkline, so a spike after a deploy is visible as a shape rather than as a count. The
+Errors screen reads that endpoint.
+
+None of it invents anything: with no recorder the report is empty, and says so.
+
+## What the tracker does report today
+
+One thing, and only when you ask for it. With `data-404` set, a page carrying the marker
+element reports an `error` event named `404`:
+
+```html
+<script defer data-site="1" data-404 src="/mf.js"></script>
+```
+
+```html
+<body data-mf-404>
+```
+
+That is a broken inbound link, not an exception. It lands under Events.
+
+## Until the recorder ships
+
+Report the errors you already catch as custom events:
+
+```js
+try {
+  await checkout();
+} catch (err) {
+  micaforge.track("checkout_failed", {
+    name: err.name,
+    message: String(err.message).slice(0, 200),
+    step: "payment",
+  });
+  throw err;
+}
+```
+
+They appear under Events, not under Errors: no fingerprinting, no grouping, no stack. It
+is a count of a known failure rather than a crash report, which is honest about what it
+is.
+
+Two things to hold to if you do this:
+
+- **Truncate the message.** An error message can contain anything, including a URL with a
+  token in it.
+- **Never send the stack.** A minified stack is not readable in a property, and an
+  unminified one can carry source paths you would rather not store.
+
+## Why it is not shipped
+
+The tracker has a hard budget of 3 KB gzipped for the core, enforced by its own build.
+A correct error recorder is not small: it needs source-map-aware fingerprinting, sampling,
+de-duplication and a promise-rejection path, and half of one would produce grouped
+nonsense. It will ship as an optional build, not by quietly making the core bigger.

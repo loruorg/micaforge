@@ -1,0 +1,57 @@
+---
+title: "Funnels"
+description: "Ordered steps, a completion window, and where people leave."
+group: "dashboard"
+order: 3
+updated: 2026-08-22
+---
+
+A funnel is an ordered list of steps and a window to complete them in. Two steps minimum,
+because a funnel with one step is a count.
+
+```json
+{
+  "name": "Docs to install",
+  "window_hours": 24,
+  "steps": [
+    { "kind": "path", "op": "starts_with", "value": "/docs" },
+    { "kind": "path", "op": "is", "value": "/docs/getting-started/installation" },
+    { "kind": "event", "op": "is", "value": "install_verified" }
+  ]
+}
+```
+
+Steps use the same kinds and operators as [goals](/docs/dashboard/goals), and an existing
+goal can be dropped in as a step.
+
+## The window
+
+`window_hours` is how long a session has to get from the first step to the last. 24 hours
+is the default. Set it to the shape of the thing you are measuring: a checkout is minutes,
+an evaluation is days.
+
+## Reading it
+
+```http
+GET /api/stats/funnel/:id?site=1&range=30d
+```
+
+Each step comes back with the count that reached it, the drop from the step before, and
+the sessions that made it, so you can go from "we lose 60% here" to the actual sessions
+that stopped there.
+
+## Rules worth knowing before you read a number
+
+- **Order matters.** Steps are matched in sequence. Someone who did step three before step
+  two has not completed the funnel.
+- **One entry per session.** A session that loops back to step one does not enter twice.
+- **The filters apply to the whole funnel.** Filtering to one country filters every step,
+  which is what makes step-to-step comparison meaningful.
+- **Steps do not have to be adjacent.** Anything can happen between two steps; the funnel
+  only asks whether both happened, in order, inside the window.
+
+## Funnels and agents
+
+A funnel is a human path. A crawler fetching three pages in sequence is not moving through
+a funnel, it is enumerating your sitemap, and the funnel report is measured on human
+events only.

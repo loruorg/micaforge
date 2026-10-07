@@ -1,0 +1,221 @@
+---
+/**
+ * Terms, as a template.
+ *
+ * There is no hosted Micaforge, so a page of service terms for a service that
+ * does not exist would be theatre. This covers what actually exists: a licence
+ * on some software, and whatever the operator chooses to run with it.
+ */
+import Base from "../layouts/Base.astro";
+import SiteHeader from "../components/SiteHeader.astro";
+import SiteFooter from "../components/SiteFooter.astro";
+import Prose from "../components/Prose.astro";
+import { IconAlert, IconOut } from "../components/react/icons.tsx";
+
+const sections = [
+  { id: "covers", t: "1. What this covers" },
+  { id: "licence", t: "2. The licence" },
+  { id: "network", t: "3. The network clause, in plain words" },
+  { id: "warranty", t: "4. No warranty" },
+  { id: "service", t: "5. If you run a service on it" },
+  { id: "data", t: "6. Data you collect with it" },
+  { id: "liability", t: "7. Liability" },
+  { id: "marks", t: "8. Name and marks" },
+  { id: "contrib", t: "9. Contributions" },
+  { id: "changes", t: "10. Changes and ending" },
+  { id: "law", t: "11. Governing law" },
+  { id: "contact", t: "12. Contact" },
+];
+---
+
+<Base
+  title="Terms · Micaforge"
+  description="Plain-language terms for Micaforge: the AGPL-3.0 licence, the network clause explained, no warranty, and a template for an operator who runs a service on top of it."
+>
+  <SiteHeader />
+
+  <main id="main">
+    <article class="mf-wrap mf-doc">
+      <header class="mf-doc__head">
+        <h1 class="mf-doc__title">Terms</h1>
+        <p class="mf-doc__lede">
+          There is no hosted Micaforge to buy, subscribe to or be locked out of. What exists is
+          software under a licence, and whatever you decide to run with it.
+        </p>
+        <div class="mf-doc__meta">
+          <span><strong>Template</strong> version 1</span>
+          <span>Last changed <strong>22 August 2026</strong></span>
+          <span><strong>AGPL-3.0</strong> server · <strong>MIT</strong> tracker and SDK</span>
+        </div>
+      </header>
+
+      <div class="mf-note lg-warn">
+        <div class="mf-note__head"><IconAlert size={18} />This is a template, not advice</div>
+        <p>
+          Sections 1 to 4 and 8 to 9 describe the project and are true as written. Sections 5
+          to 7 and 11 are a starting point for an operator running something on top of
+          Micaforge, with the parts only you can decide marked <code>[LIKE THIS]</code>.
+        </p>
+        <p>
+          No lawyer has reviewed this page. If people are going to rely on your service, have
+          one read your version before you publish it. The licence text itself, which is the
+          part that legally binds anybody, is in the repository and is not a template.
+        </p>
+      </div>
+
+      <nav class="mf-toc" aria-label="Contents">
+        <ol>
+          {sections.map((s) => <li><a href={`#${s.id}`}>{s.t}</a></li>)}
+        </ol>
+      </nav>
+
+      <Prose class="lg-body" as="section">
+        <h2 id="covers">1. What this covers</h2>
+        <p>
+          Micaforge is an open-source project. Using it means downloading the source, building
+          it, and running it on a machine you control. There is no account with the project, no
+          subscription, no usage limit and nothing to cancel.
+        </p>
+        <p>
+          If <strong>[OPERATOR NAME]</strong> offers other people access to an installation,
+          sections 5 to 7 are the terms of that offer and the operator, not this project, stands
+          behind them.
+        </p>
+
+        <h2 id="licence">2. The licence</h2>
+        <p>
+          The server and the dashboard are licensed under the{" "}
+          <strong>GNU Affero General Public License, version 3</strong>. The browser tracker and
+          the SDK packages are licensed under the <strong>MIT licence</strong>, deliberately, so
+          that embedding them in your pages does not reach your own code.
+        </p>
+        <p>
+          You may run it for any purpose, commercial or not, for as many sites as you like. You
+          may read, modify and redistribute it. What you may not do is redistribute it without
+          the source, or under a licence that takes those freedoms away from the next person.
+        </p>
+
+        <h2 id="network">3. The network clause, in plain words</h2>
+        <p>
+          The AGPL has one obligation that surprises people, and it is worth stating before it
+          catches you.
+        </p>
+        <p>
+          If you <strong>modify</strong> Micaforge and then let people use your modified version{" "}
+          <strong>over a network</strong>, you must offer those users the source of your
+          modified version. Running the unmodified project is not affected. Modifying it for
+          your own internal use is not affected either, until other people are using it across a
+          network.
+        </p>
+        <p>
+          In practice, for a self-hoster: install it, configure it, use it, and nothing here
+          applies to you. Fork it and offer the fork as a service, and it does.
+        </p>
+
+        <h2 id="warranty">4. No warranty</h2>
+        <p>
+          The software is provided as is, with no warranty of any kind, express or implied,
+          including merchantability, fitness for a particular purpose and non-infringement. The
+          full text is in the licence, and this paragraph does not soften it.
+        </p>
+        <p>
+          Concretely: this is pre-release software with no tagged release and no production
+          track record. If you put it in front of something that matters, that is a decision you
+          are making with your eyes open.
+        </p>
+
+        <h2 id="service">5. If you run a service on it</h2>
+        <p>
+          <strong>[Delete this section if you do not.]</strong> When{" "}
+          <strong>[OPERATOR NAME]</strong> gives other people access to an installation at{" "}
+          <strong>[ANALYTICS DOMAIN]</strong>:
+        </p>
+        <ul>
+          <li>They must use it lawfully, and not to collect data they have no right to collect.</li>
+          <li>They must not attempt to break, overload or gain access beyond their account.</li>
+          <li>
+            They must have their own lawful basis for measuring their visitors, and their own
+            privacy notice. Yours does not cover their sites.
+          </li>
+          <li>
+            <strong>[State what happens on breach: suspension, notice period, appeal.]</strong>
+          </li>
+        </ul>
+
+        <h2 id="data">6. Data you collect with it</h2>
+        <p>
+          Data collected by an installation belongs to whoever runs it and is subject to their
+          own privacy policy and the law that applies to them. This project never receives it,
+          because a self-hosted build makes no outbound call at runtime.
+        </p>
+        <p>
+          If you are measuring other people's sites for them, you are probably a processor for
+          them. See the <a href="/dpa">data processing template</a>.
+        </p>
+
+        <h2 id="liability">7. Liability</h2>
+        <p>
+          <strong>[Your lawyer's wording goes here.]</strong> The project's authors accept no
+          liability of any kind for anything done with this software, to the fullest extent the
+          law allows. An operator offering a service will need their own limitation, and in many
+          places cannot exclude liability for death, personal injury or fraud, however the
+          clause is worded.
+        </p>
+
+        <h2 id="marks">8. Name and marks</h2>
+        <p>
+          The licence covers the code, not the name. You may say your product is built on
+          Micaforge, or is a fork of it. Do not name a fork in a way that suggests it is this
+          project, and do not imply endorsement that has not been given.
+        </p>
+
+        <h2 id="contrib">9. Contributions</h2>
+        <p>
+          Contributions are accepted under the same licence as the file they touch: AGPL-3.0 for
+          the server and dashboard, MIT for the tracker and the SDKs. By opening a pull request
+          you confirm you have the right to license your contribution that way. There is no
+          contributor licence agreement to sign, and no copyright assignment.
+        </p>
+
+        <h2 id="changes">10. Changes and ending</h2>
+        <p>
+          The project may change, stall or stop. It is open source, so a copy you have already
+          taken keeps working and can be maintained by anybody, which is a large part of why it
+          is licensed this way.
+        </p>
+        <p>
+          <strong>[If you run a service, say how a user ends it, how much notice you give, and
+          how they get their data out.]</strong> Micaforge exports to CSV and a self-hosted
+          install can be read directly from ClickHouse, so nobody's data need be trapped.
+        </p>
+
+        <h2 id="law">11. Governing law</h2>
+        <p>
+          <strong>[Name the jurisdiction whose law governs your terms and where disputes are
+          heard.]</strong> For the software licence itself, the AGPL text applies as written.
+        </p>
+
+        <h2 id="contact">12. Contact</h2>
+        <p>
+          For the project: the issue tracker in the repository. For an installation:{" "}
+          <strong>[CONTACT ADDRESS]</strong>.
+        </p>
+      </Prose>
+
+      <div class="mf-next">
+        <a class="mf-link" href="https://github.com/micaforge/micaforge/blob/main/LICENSE" rel="noopener">
+          The AGPL-3.0 text<IconOut size={13} />
+        </a>
+        <a class="mf-link" href="/privacy">Privacy<IconOut size={13} /></a>
+        <a class="mf-link" href="/dpa">Data processing<IconOut size={13} /></a>
+      </div>
+    </article>
+  </main>
+
+  <SiteFooter />
+</Base>
+
+<style>
+  .lg-warn { margin-top: var(--mf-10); max-width: var(--mf-measure); }
+  .lg-body { margin-top: var(--mf-12); }
+</style>

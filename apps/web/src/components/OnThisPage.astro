@@ -1,0 +1,104 @@
+---
+/**
+ * "On this page", built from the document's own headings.
+ *
+ * The marks to the left of each entry are a depth scale, not decoration: a long tick is
+ * a section, a short one a subsection, so the shape of the page is readable before a
+ * word of it is. The pen mark moves to whichever section is under the reader; colour
+ * is never the only cue, because the tick's length already carries the depth.
+ */
+interface Heading {
+  depth: number;
+  slug: string;
+  text: string;
+}
+
+interface Props {
+  headings: Heading[];
+}
+
+const { headings } = Astro.props;
+// h1 is the page title and is already at the top of the sheet; h4 and below are detail
+// inside a section rather than a place to navigate to.
+const marks = headings.filter((h) => h.depth === 2 || h.depth === 3);
+---
+
+{
+  marks.length > 1 && (
+    <nav class="doc-rail" aria-labelledby="doc-rail-title">
+      <p class="doc-rail__title" id="doc-rail-title">
+        On this page
+      </p>
+      <ul class="doc-rail__list">
+        {marks.map((h) => (
+          <li class="doc-rail__item" data-depth={h.depth}>
+            <a class="doc-rail__link" href={`#${h.slug}`}>
+              <span class="doc-rail__tick" aria-hidden="true" />
+              <span class="doc-rail__text">{h.text}</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  )
+}
+
+<script>
+  // The pen follows the reader. Every entry is in the document and legible before this
+  // runs; all it does is mark which section is currently under the reading line.
+  const rail = document.querySelector(".doc-rail");
+  if (rail) {
+    const links = new Map<string, HTMLAnchorElement>();
+    rail.querySelectorAll<HTMLAnchorElement>(".doc-rail__link").forEach((a) => {
+      links.set(decodeURIComponent(a.hash.slice(1)), a);
+    });
+
+    const targets = Array.from(links.keys())
+      .map((id) => document.getElementById(id))
+      .filter((el): el is HTMLElement => el !== null);
+
+    let current: HTMLAnchorElement | null = null;
+    const mark = (next: HTMLAnchorElement | null) => {
+      if (next === current) return;
+      current?.removeAttribute("aria-current");
+      next?.setAttribute("aria-current", "true");
+      current = next;
+    };
+
+    // The reading line: just below the sticky bar, where a heading becomes "the one
+    // you are in" rather than "the one coming up".
+    const LINE = 96;
+
+    const read = () => {
+      let active: HTMLElement | null = null;
+      for (const t of targets) {
+        if (t.getBoundingClientRect().top <= LINE) active = t;
+        else break;
+      }
+      // At the foot of the document the reading line has run out of page, so the
+      // last heading actually on screen is the one being read.
+      if (window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 4) {
+        for (const t of targets) {
+          if (t.getBoundingClientRect().top < window.innerHeight) active = t;
+        }
+      }
+      mark(active ? (links.get(active.id) ?? null) : null);
+    };
+
+    let ticking = false;
+    const onScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        ticking = false;
+        read();
+      });
+    };
+
+    if (targets.length) {
+      read();
+      window.addEventListener("scroll", onScroll, { passive: true });
+      window.addEventListener("resize", onScroll, { passive: true });
+    }
+  }
+</script>

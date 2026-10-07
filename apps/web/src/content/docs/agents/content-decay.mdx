@@ -1,0 +1,67 @@
+---
+title: "Content decay"
+description: "Pages people stopped reading while the machines did not."
+group: "agents"
+order: 6
+updated: 2026-08-22
+---
+
+A page that was doing well and is now doing badly is an old story. A page whose human
+traffic collapsed **while agent traffic held steady** is a newer one, and it usually means
+the page is still being read, through something else.
+
+```http
+GET /api/content/decay
+```
+
+## What it looks for
+
+The report compares this period against the one before it, over one statement, so the two
+halves cannot come from two different scans of a moving table. A page appears when all
+three hold:
+
+- human pageviews fell by at least **30%**
+- agent fetches held at **90%** or more of their previous level
+- the previous period had at least **20** human pageviews
+
+That last threshold is the one doing quiet work: without it, every page that had three
+visits last month and one this month would be a crisis.
+
+Each row carries both periods for both audiences, the percentage change in each, and the
+answer-engine arrivals for the current period, so you can see immediately whether the
+lost readers came back through an answer instead of not at all.
+
+| Field | What it is |
+| --- | --- |
+| `human_pageviews`, `human_pageviews_prev` | Both periods. |
+| `human_change_pct` | Negative by construction. |
+| `agent_fetches`, `agent_fetches_prev` | Both periods. |
+| `agent_change_pct` | Absent when the earlier period had none. |
+| `answer_arrivals` | This period, for context. |
+
+## Reading a row
+
+**Humans down, agents flat, arrivals up.** The page is working differently rather than
+failing. Readers are getting the answer somewhere else and some of them are coming through
+afterwards. Worth checking that what an answer would quote is still correct.
+
+**Humans down, agents flat, arrivals zero.** The page is being taken and returning nothing.
+This is the [Citation Gap](/docs/agents/the-citation-gap) verdict `extracted`, seen through
+time instead of through a ratio.
+
+**Humans down, agents down too.** Not decay in this sense: the report will not show it.
+That is an ordinary ranking or interest problem, and the pages screen is where to look.
+
+## What it is not
+
+It is not a ranking tool, and it does not know why. It cannot tell a page that lost search
+position from a page whose answer got absorbed, because the referrer of a reader who never
+arrived does not exist. What it can tell you is that the machines did not lose interest at
+the same moment your readers did, which is a fact worth having and one that no tool with a
+single audience can produce.
+
+## Requirements
+
+- A **previous period**. With a range that has nothing before it, the report is empty.
+- **Agent traffic**, which means a shipped server log. Without it, every page shows agents
+  at zero for both periods and nothing can pass the "held steady" test.

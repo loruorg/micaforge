@@ -1,0 +1,124 @@
+---
+title: "Feature flags"
+description: "A synchronous flag client that never flickers, and what it sends back."
+group: "tracking"
+order: 9
+updated: 2026-08-22
+---
+
+The flag client is part of the npm package and is tree-shakeable: it only lands in your
+bundle if you import it.
+
+```ts
+import { init, flags } from "@micaforge/sdk";
+
+init({ site: 1, host: "https://analytics.example.com" });
+
+if (flags().isEnabled("new-nav")) {
+  renderNewNav();
+}
+```
+
+Reads are **synchronous** and never throw. They answer in this order:
+
+1. the evaluated set from the server, once it has arrived
+2. the `bootstrap` payload your server rendered into the page
+3. a deterministic local rule, bucketed from the subject and the key
+
+Because step 3 is a pure function, a flag holds the same value on every render and does
+not flicker while the network is in flight.
+
+## The API
+
+```ts
+const f = flags({ visitor: "u_123" });
+
+await f.load();              // fetch and cache; never rejects
+f.isEnabled("new-nav");      // boolean
+f.variant("checkout", "a");  // string | undefined
+f.payload("banner");         // arbitrary JSON attached to the flag
+f.all();                     // every flag currently known
+f.bucket("new-nav");         // this subject's 0-99 bucket, no network
+f.onChange((all) => rerender(all));
+f.setVisitor("u_456");
+f.clearCache();
+```
+
+The client reads `GET /api/flags/evaluate` and caches the answer in memory for 60 seconds
+by default. It writes nothing to storage: the tracker's one storage key is the opt-out
+key, and that is all this SDK will ever write.
+
+## Bucketing
+
+Pass a `visitor`: a user id, an account id, anything durable. Without one, bucketing is
+stable for the page load and no longer, because there is no cookie to make it stable and
+Micaforge is not going to set one.
+
+The bucket is `FNV-1a(subject + ":" + key) % 100`, computed identically in every runtime,
+so a flag a user has can be reproduced from the id and the key alone.
+
+## No flicker on first paint
+
+Render the evaluated set into the page and hand it to the client:
+
+```html
+<script>
+  window.__FLAGS__ = { "new-nav": true, checkout: { enabled: true, variant: "b" } };
+</script>
+```
+
+```ts
+const f = flags({ visitor: userId, bootstrap: window.__FLAGS__ });
+```
+
+A bootstrap value is used until the network answers, which means the first frame is
+already correct.
+
+## When the network never answers
+
+Give the keys you care about a local rule. It is used before the first response and
+instead of it if the request fails.
+
+```ts
+const f = flags({
+  visitor: userId,
+  fallback: {
+    "new-nav": { rolloutPct: 25 },
+    checkout: { variants: [{ key: "a", weight: 1 }, { key: "b", weight: 1 }] },
+  },
+});
+```
+
+Weights are relative and need not sum to anything. `off` sets what a visitor outside the
+rollout gets.
+
+## Recording exposures
+
+Nothing is recorded automatically: reading a flag is not an event. The `events` table has
+a `flags` map for exposures, and the browser payload has no field for it, so a browser
+install records exposure as a property.
+
+```ts
+const f = flags({
+  visitor: userId,
+  onExposure: (key, record) =>
+    micaforge.track("flag_exposed", { flag: key, variant: record.variant ?? String(record.enabled) }),
+});
+```
+
+`onExposure` fires the first time each key is read, once per client.
+
+From a server, the map is a first-class field:
+
+```ts
+micaforge.track({ name: "checkout_started", url: req.url, flags: { checkout: "b" } });
+```
+
+Which is why server-side exposure is the more accurate path: `flag.<key>` is a filter
+dimension over that map, and a map is cheaper to group by than a property.
+
+## Managing them
+
+Flags live in Postgres (key, enabled, rollout percentage, variants, conditions) and are
+edited on the Flags screen or through `/api/flags/*`. A flag with variants is
+multivariate; a flag without them is a switch.

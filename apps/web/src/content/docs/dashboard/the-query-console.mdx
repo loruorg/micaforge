@@ -1,0 +1,53 @@
+---
+title: "The query console"
+description: "Building a read by hand, and seeing the exact request before it is sent."
+group: "dashboard"
+order: 8
+updated: 2026-08-22
+---
+
+The console is the patch bay. Patch a shape, a metric, a dimension and a set of conditions
+into one read, and the request that will actually go over the wire is written out beside it
+before anything is sent.
+
+It is at `/app/:site/query`. Nothing on it writes to your site.
+
+## What you are building
+
+The console composes the same [query envelope](/docs/api/stats-api) every screen uses:
+
+- **the endpoint**: overview, timeseries or breakdown
+- **the window**: a range or explicit start and end, plus a comparison
+- **the audience**: human, agent or all
+- **the dimension**, for a breakdown
+- **the conditions**, as [filters](/docs/dashboard/filters-and-segments) with `and`/`or`
+
+## Two deliberate behaviours
+
+**It does not run on its own.** A console runs when you tell it to. When the builder has
+drifted from the last reading, the screen says so rather than quietly re-reading on every
+keystroke. `Cmd`/`Ctrl` + `Enter` runs it from anywhere on the screen.
+
+**The request is shown, not described.** The URL on the tape is built by the same serialiser
+the dashboard uses, so it cannot drift from what is sent. Copy it, paste it into `curl` with
+[an API key](/docs/api/authentication), and you get the same bytes back.
+
+```sh
+curl "https://analytics.example.com/api/stats/breakdown?site=1&range=30d&audience=agent&dimension=operator" \
+  -H "Authorization: Bearer mfg_…"
+```
+
+## What it is not
+
+It is not SQL. You cannot write a join, invent a metric or reach a table the API does not
+expose, and that is on purpose: the audience for this product installs a script tag and
+does not want to learn a schema. Depth is available; it is never required.
+
+If you need something the envelope cannot express, the honest answer is that it needs to
+become an endpoint, not a text box.
+
+## Getting a result out
+
+Any console result exports as CSV through `GET /api/stats/export.csv` with the same
+envelope, and a saved reading can become a panel on a
+[custom dashboard](/docs/dashboard/dashboards).

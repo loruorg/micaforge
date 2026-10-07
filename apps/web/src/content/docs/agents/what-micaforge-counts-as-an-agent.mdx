@@ -1,0 +1,111 @@
+---
+title: "What counts as an agent"
+description: "Three tables, three answers, and why naming a client is not the same as guessing at one."
+group: "agents"
+order: 1
+updated: 2026-08-22
+---
+
+Most analytics tools sort traffic into two piles: people, and everything else. The second
+pile is called "bots" and is thrown away. That worked while everything else was a search
+crawler. It does not work now, because a large part of what is in that pile is the way
+your writing reaches its readers.
+
+Micaforge sorts into three, and each one has its own table.
+
+| Answer | Table | What it means |
+| --- | --- | --- |
+| Human | `events` | A person in a browser, as far as the request can show. |
+| Agent | `agent_events` | A non-human client we can **name**. |
+| Suspected bot | `bot_events` | Non-human, but not nameable. |
+
+The middle row is the product. A named client comes with an operator, a purpose and a
+verification result, and it appears in the agent report as itself, not as a share of a
+grey "bot traffic" number.
+
+## Named, from a catalog
+
+A client is an agent when its user agent carries a product token from the compiled-in
+catalog: 54 entries at the time of writing, each with a slug, the operator behind it,
+what the fetch is for, the operator's own documentation link, and their published IP
+ranges or reverse-DNS suffixes where those exist.
+
+**No token in that catalog is invented.** Every one is a string the operator published. A
+fabricated token could never match, so it would sit in your dashboard as a permanent zero,
+and it would put a company's name next to traffic they never sent.
+
+The same rule cuts the other way: agents whose operator has not documented a token are
+left out, however well known they are, until the day they publish one.
+
+Matching is a case-insensitive substring test, longest token first, because a real user
+agent wraps the token in a sentence:
+
+```text
+Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; GPTBot/1.2; +https://openai.com/gptbot)
+```
+
+A client that names itself in the `Signature-Agent` header from the Web Bot Auth drafts is
+read there first. A client that declares what it is, in a dedicated header, is telling the
+truth about itself even when its user agent is a copied browser string.
+
+## Grouped by operator, and by purpose
+
+Purpose is the axis that actually matters, because being harvested for a training corpus
+and being fetched to answer one person's question right now are different events with
+different consequences.
+
+| Purpose | What it is | Examples from the catalog |
+| --- | --- | --- |
+| `training` | Bulk collection for a corpus | GPTBot, ClaudeBot, CCBot, Bytespider |
+| `rag` | Fetched to ground an answer, usually while someone waits | ChatGPT-User, Claude-User, Perplexity-User |
+| `search` | Building a search or answer index | OAI-SearchBot, PerplexityBot, Googlebot, Applebot |
+| `preview` | Rendering a link unfurl | Slackbot, Discordbot, Twitterbot |
+| `eval` | Benchmarking, evaluation, one-off research | GoogleOther, Google-InspectionTool |
+| `unknown` | Named, but the operator has not said what for | SemrushBot, AhrefsBot |
+
+Operators run several agents with different jobs, which is exactly why they are reported
+apart. Blocking OpenAI's `GPTBot` does not block `ChatGPT-User`; one is a corpus crawl and
+the other is a person asking a question. A single "OpenAI" row would hide that.
+
+Two catalog entries, `Google-Extended` and `Applebot-Extended`, carry no user-agent
+token at all. Their operators document them as `robots.txt` controls rather than crawlers:
+they never appear in a request, they only change what may be done with what another
+crawler already fetched. They are in the catalog so that the
+[policy report](/docs/agents/robots-and-llms-txt) can tell you whether your `robots.txt`
+opts out of training, which is a question about a token that will never show up in a log
+line.
+
+## Not nameable: the third pile
+
+Everything non-human that the catalog cannot name is scored, not guessed at. Signals carry
+weights, the weights are summed, and 50 is the threshold. Each signal that fired is stored
+alongside the row, so the judgement can be audited rather than trusted:
+
+- an empty user agent, or one that names an HTTP library or a headless browser
+- a contact URL inside the user agent, which no browser sends
+- a `From` header, which is a crawler's contact address
+- no `Accept-Language`, or an `Accept` of `*/*`
+- a string that claims to be Chromium with none of the client hints Chromium sends
+
+The variant is called `SuspectedBot`, not `Bot`, and that is deliberate. Heuristics over a
+header set are evidence, not proof, and a product whose first principle is "never invent a
+number" does not get to dress a guess as a fact. Bot rows expire after three months; the
+named agent rows do not.
+
+Misfiling a person as a bot is the more expensive mistake, so the weights are set to
+tolerate a real browser behind a privacy extension that strips headers.
+
+## Reading it
+
+Every report takes an `audience` of `human`, `agent` or `all`, and defaults to `human`.
+That toggle is the whole product in one control: the same screen, the same window, the
+same filters, asked about the other readership.
+
+On agent rows the filter dimensions are `agent_id`, `operator`, `purpose`, `verified`,
+`robots_allowed`, `status` and `content_type`.
+
+## What has to be true for any of it to work
+
+Agents do not run JavaScript. Nothing on this page happens from a script tag: every agent
+row comes from your server's own log or from the server SDK. See
+[shipping server logs](/docs/agents/shipping-server-logs).

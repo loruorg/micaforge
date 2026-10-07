@@ -1,0 +1,76 @@
+---
+/**
+ * The contents sheet.
+ *
+ * A manual opens with its register, not with a grid of tiles: every section, every page
+ * it holds, one rule between them. The install snippet sits at the top because it is the
+ * first thing anyone actually came here for.
+ */
+import Docs from "../../layouts/Docs.astro";
+import CodeBlock from "../../components/CodeBlock.astro";
+import { getCollection } from "astro:content";
+import { docHref, sections } from "../../lib/docs";
+
+const snippet = `<script
+  defer
+  data-site="1"
+  data-host="https://analytics.example.com"
+  src="https://analytics.example.com/mf.js"
+></script>`;
+
+const entries = await getCollection("docs");
+const register = sections(entries);
+const pages = register.reduce((n, s) => n + s.docs.length, 0);
+---
+
+<Docs
+  title="Documentation · Micaforge"
+  description="How to install Micaforge, what it records, how agent traffic and the Citation Gap are measured, and how to run the whole thing yourself."
+  section="docs"
+  rail={false}
+  prose={false}
+>
+  <div class="doc-open">
+    <header class="doc-open__head">
+      <h1 class="doc-open__title">The manual</h1>
+      <p class="doc-open__lead">
+        {pages} pages: installing the tracker, everything it reports, how machine traffic
+        is named and counted, and how to run the whole stack on one machine. Where a
+        capability is not built yet, the page says so instead of describing it.
+      </p>
+    </header>
+
+    <div class="doc-open__snippet">
+      <CodeBlock>
+        <code class="language-html" set:text={snippet} />
+      </CodeBlock>
+      <p class="doc-open__snippet-note">
+        That is the browser half of the install. The machine half is a server log, because
+        no crawler will ever run the line above.
+      </p>
+    </div>
+
+    <div class="doc-register">
+      {
+        register.map((section) => (
+          <section class="doc-register__row">
+            <div>
+              <h2 class="doc-register__name">{section.group.label}</h2>
+              <p class="doc-register__gloss">{section.group.gloss}</p>
+            </div>
+            <ul class="doc-register__list">
+              {section.docs.map((doc) => (
+                <li>
+                  <a class="doc-register__link" href={docHref(doc.id)}>
+                    {doc.data.title}
+                    <span>{doc.data.description}</span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))
+      }
+    </div>
+  </div>
+</Docs>

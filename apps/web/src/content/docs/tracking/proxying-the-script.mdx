@@ -1,0 +1,110 @@
+---
+title: "Proxying the script"
+description: "Serving /mf.js and the ingest endpoint from your own domain."
+group: "tracking"
+order: 11
+updated: 2026-08-22
+---
+
+Content blockers work from lists of hostnames. Serve the tracker and its endpoint from
+your own domain and there is no third-party host to block, because there is no third
+party: on a self-hosted install the data was never leaving your infrastructure anyway.
+
+Two things have to be proxied, and the second is the one people forget.
+
+- `GET /mf.js`: the tracker file
+- `POST /api/track`: where it sends hits
+
+Proxying only the script gets you a tracker that loads and then reports to a hostname the
+blocker already has on its list.
+
+## Caddy
+
+```caddyfile
+example.com {
+	root * /srv/site
+	file_server
+
+	handle /mf.js {
+		reverse_proxy https://analytics.example.com {
+			header_up Host analytics.example.com
+		}
+	}
+
+	handle /api/track* {
+		reverse_proxy https://analytics.example.com {
+			header_up Host analytics.example.com
+		}
+	}
+}
+```
+
+## nginx
+
+```nginx
+location = /mf.js {
+    proxy_pass https://analytics.example.com/mf.js;
+    proxy_set_header Host analytics.example.com;
+    proxy_ssl_server_name on;
+}
+
+location /api/track {
+    proxy_pass https://analytics.example.com;
+    proxy_set_header Host analytics.example.com;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_ssl_server_name on;
+}
+```
+
+`X-Forwarded-For` matters: the ingest path resolves the client address to a country and
+an ASN, folds it into the daily visitor hash, and then discards it. Without the header
+every visitor appears to be your proxy.
+
+The header alone is not enough, because anyone can send one. The Micaforge install must
+also be told to believe it from your proxy: on a self-hosted install, add the proxy's
+public address to `MICAFORGE_TRUSTED_PROXIES` in `.env` (for example
+`MICAFORGE_TRUSTED_PROXIES=203.0.113.7/32`) and run `docker compose up -d caddy`. Until you
+do, every visitor through this proxy shares its address, counts as one visitor, and shares
+one rate-limit bucket.
+
+## Then simplify the tag
+
+With both paths on your own origin, the tracker needs neither `data-host` nor an absolute
+`src`: it takes the ingest origin from the origin it was served from.
+
+```html
+<script defer data-site="1" src="/mf.js"></script>
+```
+
+## A path prefix instead
+
+Some lists match on the filename. Any path works, as long as both ends agree:
+
+```caddyfile
+handle /assets/pen.js {
+	reverse_proxy https://analytics.example.com {
+		rewrite * /mf.js
+		header_up Host analytics.example.com
+	}
+}
+```
+
+```html
+<script defer data-site="1" data-host="https://example.com" src="/assets/pen.js"></script>
+```
+
+Here `data-host` is required, because the origin can no longer be derived from a filename
+you renamed.
+
+## What proxying does not do
+
+It does not hide anything from the reader: the request is still visible in their network
+tab, still cookieless, and still carries no personal data. It removes a hostname from a
+blocklist, and it removes one DNS lookup and one TLS handshake from your page load. It
+does not make blocked traffic reappear retroactively, and it is not a way around a
+reader's `optOut()`: that is checked in the tracker, not on the network.
+
+## Caching
+
+`/mf.js` is served immutable and ETagged. Let your proxy pass the cache headers through
+rather than setting its own, or an upgrade will take a week to reach your readers.

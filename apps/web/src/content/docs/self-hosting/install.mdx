@@ -1,0 +1,142 @@
+---
+title: "Installing the stack"
+description: "One machine, five containers, about ten minutes."
+group: "self-hosting"
+order: 1
+updated: 2026-08-22
+---
+
+The self-hosted build is the whole build. There is no feature gate, no community edition
+with parts removed, and no outbound call at runtime.
+
+## What you need
+
+- A machine with Docker and the Compose v2 plugin, and `openssl`. Nothing else: the
+  server and the web app are built inside Docker, so the host needs no Node and no Rust.
+- **4 GB of RAM and two vCPUs**, which is the size the whole stack is tuned for.
+- At least 5 GB of disk. The images alone are about 1.5 GB and the event store grows from
+  there.
+- For HTTPS: a domain whose DNS already points at the machine, and port 80 reachable from
+  the internet, because that is how the certificate is ordered.
+
+## Install
+
+```sh
+git clone https://github.com/micaforge/micaforge
+cd micaforge
+./install.sh --domain analytics.example.com --email you@example.com
+```
+
+Run it with no arguments to be asked instead. On a laptop:
+
+```sh
+./install.sh --no-tls --email you@example.com --yes
+```
+
+Behind a proxy that already terminates TLS, tell it the address browsers use. That address
+goes into the tracking snippet, emails and share links, and it makes Caddy believe the
+proxy's `X-Forwarded-For`, so each visitor keeps their own address:
+
+```sh
+./install.sh --no-tls --public-url https://analytics.example.com --email you@example.com --yes
+```
+
+Compiling the server takes several minutes on a small machine. To skip it, run a published
+release instead of building this checkout:
+
+```sh
+./install.sh --version 0.1.0 --domain analytics.example.com --email you@example.com
+```
+
+| Option | What it does |
+| --- | --- |
+| `--domain <host>` | The hostname this install answers on. Its DNS must already resolve here. |
+| `--email <address>` | Where Let's Encrypt sends expiry warnings, and the address you sign in with. |
+| `--no-tls` | Plain HTTP on port 80, no certificate. Cannot be combined with `--domain`. |
+| `--public-url <url>` | With `--no-tls`: the address browsers use, when a proxy in front terminates TLS. |
+| `--version <tag>` | Pull the published images for this release instead of building. |
+| `-y, --yes` | Do not prompt. Needs `--email` and one of `--domain` or `--no-tls`. |
+| `--force` | Overwrite an existing `.env` with fresh secrets. Read the warning below. |
+
+It checks the machine, generates three secrets with `openssl`, writes `.env` at mode 600,
+pulls the store images, builds the server and web images (or pulls them with `--version`),
+starts everything, waits until the server reports healthy, and prints your dashboard
+address and tracking snippet.
+
+It is safe to run twice. An existing `.env` is never overwritten without `--force`, because
+the key in it is the key every stored secret is sealed with: replacing it logs everyone out
+and makes sealed credentials unreadable.
+
+## What is running
+
+```text
+   browser  ─┐                                    ┌─ Postgres 17
+             │                                    │  identity, sites, goals,
+   mf.js ────┤                                    │  dashboards, keys, jobs
+             │                                    │
+             ├──▶  Caddy  ──▶  micaforge  ────────┼─ ClickHouse
+             │     TLS         one Rust binary    │  events, agent_events,
+   shipper ──┘     proxy       axum + workers     │  replays, errors, page_index
+   (your site's    web app                        │
+    access log)                                   └─ Valkey
+                                                     salts, rate limits,
+                                                     the live counter
+```
+
+Five containers. The server is one Rust binary holding the HTTP API, the ingest path, the
+tracker file and the background workers. Caddy holds the certificate and the built web app,
+and is the only thing with published ports.
+
+ClickHouse holds the events, because an append-only column-shaped stream belongs in a
+column store. Postgres holds identity and configuration and is kept off the ingest path, so
+a Postgres stall degrades the dashboard without stopping collection. Valkey holds only what
+is allowed to disappear: the daily visitor salt, rate-limit counters and the live gauge.
+
+## Migrations are not a step
+
+The server carries its Postgres migrations inside the binary and converges the ClickHouse
+schema on boot. Starting the container is what applies them. There is nothing to run.
+
+## First things after it is up
+
+1. **Create your account.** The first account on an install is always allowed and
+   becomes its owner. Registration is closed to everyone after it by default
+   (`MICAFORGE_DISABLE_REGISTRATION=true`): invite people from the dashboard. An open
+   signup form on a public dashboard is how a self-hosted install acquires strangers.
+
+   Forgot the password and there is no SMTP relay? Print a reset link on the host:
+
+   ```sh
+   docker compose exec micaforge micaforge-server reset-link you@example.com
+   ```
+
+2. **Add your site** and paste the snippet it gives you. See
+   [installation](/docs/getting-started/installation).
+
+3. **Ship a server log**, or the agent half stays empty. See
+   [shipping server logs](/docs/agents/shipping-server-logs).
+
+4. **Save the secret key somewhere else.** `MICAFORGE_SECRET_KEY_BASE` is what sealed
+   values in your database can be read with. It belongs in a password manager, and
+   deliberately not in your backups: see [backups](/docs/self-hosting/backups).
+
+## Day-to-day
+
+```sh
+docker compose logs -f micaforge      # what the server is doing
+docker compose ps                     # what is running
+./update.sh                           # dump, pull, rebuild, restart
+./backup.sh --keep 14                 # pg_dump plus a ClickHouse partition freeze
+```
+
+## Local development instead
+
+```sh
+pnpm install
+docker compose -f docker-compose.dev.yml up -d
+cargo run --manifest-path apps/backend/Cargo.toml -p micaforge-server
+pnpm dev
+```
+
+The dev compose file publishes Postgres, ClickHouse and Valkey on 127.0.0.1 with a
+development password. Section 10 of `.env.example` is the matching configuration block.

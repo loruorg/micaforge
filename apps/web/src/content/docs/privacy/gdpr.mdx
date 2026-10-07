@@ -1,0 +1,95 @@
+---
+title: "GDPR and consent"
+description: "What the product does, what that means for consent, and where our answer stops."
+group: "privacy"
+order: 3
+updated: 2026-08-22
+---
+
+<aside class="doc-annot">
+
+This page describes how the software behaves. It is not legal advice, and the people who
+wrote it are not your lawyers. Your regulator, your counsel and your own risk appetite
+decide what you have to do; what we can do is tell you exactly what happens, so that the
+decision is made against facts.
+
+</aside>
+
+## What the software does
+
+- **No cookie is set, and none is read.** The only browser storage is one localStorage key,
+  written only when a reader opts out.
+- **No raw IP is stored on a human event row.** The address is read, resolved to
+  country/region/city/ASN, folded into a rotating hash and dropped.
+- **No persistent identifier.** The visitor hash rotates daily on a salt kept for at most
+  48 hours. See [cookieless identification](/docs/privacy/cookieless-identification).
+- **No data leaves your install.** On a self-hosted deployment the build makes no outbound
+  call at runtime, including for geolocation.
+- **No third party.** There is no ad network, no data broker and no enrichment service in
+  the path, because there is no path out.
+
+## Consent
+
+Cookie consent rules (the ePrivacy Directive in the EU, PECR in the UK) are about storing
+or accessing information on a reader's device. Micaforge does neither: there is no cookie,
+and nothing is read from the device.
+
+Whether that means you need no banner is a question about your jurisdiction, your other
+tooling and your regulator's current position, and it is genuinely yours to answer. Many
+operators run cookieless analytics without a banner. That is a decision they made, not a
+guarantee this page can give you.
+
+Two switches exist for a stricter posture:
+
+```html
+<script defer data-site="1" data-respect-dnt src="/mf.js"></script>
+```
+
+`data-respect-dnt` sends nothing at all when the browser sets `doNotTrack`. And any reader
+can opt out for themselves:
+
+```js
+micaforge.optOut();   // survives reloads, until optIn()
+```
+
+## Personal data
+
+Out of the box, the intent is that no row identifies a person. Three things can change that,
+and all three are yours:
+
+1. **`identify()`.** An id you attach makes those rows personal data. Send an opaque id, and
+   say so in your privacy notice.
+2. **Properties.** They are stored verbatim. An email address in a property is personal data
+   in your store.
+3. **URLs.** A path can carry a name or a token. `data-exclude` drops paths before anything
+   is sent.
+
+## Data subject requests
+
+**Without `identify()`**, there is nothing to look up. The visitor hash cannot be recomputed
+after 48 hours, because the salt it needs no longer exists. That is a real answer, and it is
+a consequence of the design rather than a refusal.
+
+**With `identify()`**, `identified_id` is a filter dimension, so the rows for one id can be
+found and deleted. The event store is append-only by design, so deletion is an operational
+task rather than a button in the interface today.
+
+## Processors and transfers
+
+A self-hosted install has no processor: you run it. There is no transfer, because nothing
+leaves the machine.
+
+If you use SMTP for invitations and reports, that provider is a processor for those emails.
+It is the only outbound path in the product, and it is off by default.
+
+## Retention
+
+Set one that matches your policy. `MICAFORGE_RETENTION_DAYS=0` means forever and is the
+default. See [data retention](/docs/privacy/data-retention), and remember that your backup
+rotation has to match it, or the policy is theatre.
+
+## What we will not do
+
+Invent a compliance claim. There is no certification badge on this page, no "GDPR compliant"
+stamp and no template privacy notice, because compliance is a property of how **you** run
+the software, not of the software.

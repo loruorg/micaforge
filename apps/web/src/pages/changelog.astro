@@ -1,0 +1,67 @@
+---
+/**
+ * The log.
+ *
+ * A station log is a stamp and an entry, ruled apart. The version and the date sit in the
+ * data face because they are genuine data; everything else is prose.
+ */
+import { getCollection, render } from "astro:content";
+import Docs from "../layouts/Docs.astro";
+import CodeBlock from "../components/CodeBlock.astro";
+import { isoDay } from "../lib/docs";
+
+const entries = (await getCollection("changelog"))
+  .filter((e) => !e.data.draft)
+  .sort(
+    (a, b) =>
+      b.data.updated.getTime() - a.data.updated.getTime() || a.data.order - b.data.order,
+  );
+
+const rendered = await Promise.all(
+  entries.map(async (entry) => ({ entry, Content: (await render(entry)).Content })),
+);
+---
+
+<Docs
+  title="Changelog · Micaforge"
+  description="What changed, when. Micaforge is pre-release: there is no tagged version yet, and this log says so rather than inventing one."
+  section="changelog"
+  index={false}
+  rail={false}
+  prose={false}
+>
+  <header class="doc-open__head">
+    <h1 class="doc-open__title">Changelog</h1>
+    <p class="doc-open__lead">
+      Micaforge is early and pre-release. Nothing is tagged, nothing is hosted, and no
+      release has been made, so this log describes what is on the main branch, and marks
+      plainly what is not built.
+    </p>
+  </header>
+
+  {
+    rendered.length > 0 ? (
+      <div class="doc-log">
+        {rendered.map(({ entry, Content }) => (
+          <article class="doc-log__entry">
+            <div class="doc-log__stamp">
+              <span class="doc-log__version">{entry.data.title}</span>
+              <time class="doc-log__date" datetime={isoDay(entry.data.updated)}>
+                {isoDay(entry.data.updated)}
+              </time>
+              {entry.data.group === "unreleased" && (
+                <span class="doc-log__state">on main, not tagged</span>
+              )}
+            </div>
+            <div class="doc-log__body doc-prose">
+              <p class="doc-log__title">{entry.data.description}</p>
+              <Content components={{ pre: CodeBlock }} />
+            </div>
+          </article>
+        ))}
+      </div>
+    ) : (
+      <p class="doc-open__lead">The log is empty.</p>
+    )
+  }
+</Docs>

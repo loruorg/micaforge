@@ -1,0 +1,52 @@
+---
+title: "Custom dashboards"
+description: "Building a screen out of the same reads every other screen uses."
+group: "dashboard"
+order: 6
+updated: 2026-08-22
+---
+
+Every built-in screen answers one question. A custom dashboard is for the handful of
+numbers you want together, on one page, every morning.
+
+```http
+GET  /api/dashboards?site=1
+POST /api/dashboards
+GET  /api/dashboards/:id
+```
+
+A dashboard is a name and a layout. Each panel names an endpoint, a query envelope and how
+to draw it, so a panel is not a new kind of read: it is the same read the corresponding
+screen makes, saved.
+
+## Building one
+
+Add a panel, pick what it shows, and it renders from the same client as everywhere else:
+
+- a **readout** from `GET /api/stats/overview`: one figure with its comparison
+- a **trace** from `GET /api/stats/timeseries`: the record, one or both pens
+- a **sheet** from `GET /api/stats/breakdown`: ranked rows for any dimension
+
+Each panel carries its own filters and its own audience. That is the part worth exploiting:
+one panel showing human arrivals on `/docs`, next to one showing agent fetches of the same
+paths, is the whole product on a single row and takes about a minute to build.
+
+## The dashboard-level window
+
+The range, the comparison and the audience are set once at the top and apply to every panel
+that has not overridden them. Change the range and the whole page moves together, so two
+panels can never be showing different weeks without saying so.
+
+## Sharing one
+
+A dashboard is shared the same way a site is: a public link, or a private link with a
+password and an expiry. See [sharing](/docs/dashboard/sharing).
+
+## When to build one instead of using a screen
+
+Build one when you have a recurring question that spans screens ("the docs, this week,
+both audiences, with the gap") or when someone who does not use the tool needs a page
+they can read without learning it.
+
+Do not rebuild the overview. It already exists, it is faster, and it carries the parts a
+panel cannot.

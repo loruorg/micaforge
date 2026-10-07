@@ -1,0 +1,118 @@
+---
+title: "Authentication"
+description: "Session cookies for the dashboard, bearer keys for everything else, and a signature for ingest."
+group: "api"
+order: 1
+updated: 2026-08-22
+---
+
+Four credentials, each for one job.
+
+| Credential | Used by | Sent as |
+| --- | --- | --- |
+| Session cookie | The dashboard in a browser | `mf_session`, HttpOnly |
+| API key | Scripts, integrations, agents | `Authorization: Bearer mfg_…` |
+| Share slug | A shared dashboard link | `?share=<slug>`, or `?share=mfs_…` once unlocked |
+| Ingest signature | Server-side hit collection | `x-micaforge-signature` |
+
+## API keys
+
+```sh
+curl "https://analytics.example.com/api/stats/overview?site=1&range=7d&audience=all" \
+  -H "Authorization: Bearer mfg_…"
+```
+
+A key is shown **once**, in the response that creates it. What is stored is a SHA-256
+digest and a short public prefix, so a Postgres dump yields no working credential and a
+lost key is replaced rather than recovered.
+
+The prefix is not a secret: it is the lookup index and the label the settings screen shows,
+so one key can be told from its siblings without keeping the secret to recognise it.
+
+```http
+GET    /api/keys?org=<id>      list, by prefix and name
+POST   /api/keys               mint one; the only response that carries the secret
+DELETE /api/keys/:id           revoke, immediately
+GET    /api/keys/:id/usage     when it was last used, and how much
+```
+
+### Scopes
+
+Four values, deliberately coarse. A scope list nobody can hold in their head is a scope
+list everybody sets to "all".
+
+| Scope | Opens |
+| --- | --- |
+| `stats:read` | The analytics read endpoints. |
+| `manage:read` | Management `GET`s: sites, goals, funnels, alerts, flags. |
+| `manage:write` | Management writes. Everything a member could do in the dashboard. |
+| `ingest:write` | `POST /api/log/edge`, for a shipper or a proxy module. |
+
+A key with no scopes given gets `stats:read`, because the overwhelmingly common reason to
+mint one is to pull numbers into somebody else's dashboard, and a default that could also
+delete a site would be the wrong default.
+
+A key belongs to one organisation, and optionally to one site, and it never reaches past
+them: a site in another organisation, or any other site when the key is bound to one, reads
+as `404`. Minting and revoking need an admin. A key is capped below the people who mint it:
+it acts as a `member` when it holds `manage:write` and as a `viewer` otherwise, so it can
+never create or delete a site, read or rotate an ingest key, manage share links, or erase
+visitors. It is refused outright on sign-in, keys, admin, invitation, membership and
+ownership routes, whatever its scopes. Keys can carry an expiry.
+
+### Handling one
+
+- Read it from the environment. Never from a file in the repository, and never from a
+  browser bundle: a key in client-side JavaScript is a key you have published.
+- One key per consumer, named for what it is. Revoking then costs one integration rather
+  than all of them.
+- Rotate by minting the new one, moving the consumer, then revoking the old. There is no
+  grace period on a revoke, which is the point.
+
+## Session cookies
+
+The dashboard signs in at `POST /api/auth/login` and receives `mf_session`: HttpOnly,
+`SameSite=Lax`, and `Secure` whenever the install is served over HTTPS. It is a session
+credential for a browser and nothing else: do not try to drive the API with one from a
+script.
+
+Two-factor is available on an account (`/api/auth/totp/*`). Registration can be closed
+entirely on a self-hosted install with `MICAFORGE_DISABLE_REGISTRATION=true`, which is
+what you want the moment your own account exists.
+
+## Share slugs
+
+A [shared dashboard](/docs/dashboard/sharing) is read without an account. The credential
+is one query parameter, `?share=`, on every request the shared view makes: the link's slug,
+or, for a password-protected link, the short-lived `mfs_…` token that
+`POST /api/share/:slug/unlock` returns. No header is read. The server answers only within
+that link's scopes, `GET` only, and a share cannot reach settings, keys, people, sessions,
+recordings, or another site.
+
+## Ingest
+
+`POST /api/track` takes no credential at all. It is called from a browser, CORS is `*`, and
+a site id is not a secret: it is in your page source. What protects it is that a hit is
+only accepted for a hostname belonging to that site.
+
+`POST /api/log/edge` is the opposite: it is called by your server and it is signed with the
+site's ingest key.
+
+```http
+x-micaforge-signature: t=1787306400,v1=9f0c…
+```
+
+HMAC-SHA256, keyed with the ingest key, over `${t}.${body}`: the unix timestamp in `t`,
+one `.`, then the exact bytes of the body. The timestamp is signed, a `t` more than five
+minutes from the server's clock is refused, and an exact repeat is refused, so a captured
+batch cannot be replayed. Details in [the events API](/docs/api/events-api).
+
+## Failures
+
+```json
+{ "error": { "code": "unauthorized", "message": "…" } }
+```
+
+`401 unauthorized` for a missing or unknown credential, `403 forbidden` for a real
+credential without the scope or the role. The `code` is stable and is what to branch on;
+the message is a human sentence and may change.

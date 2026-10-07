@@ -1,0 +1,106 @@
+---
+import "../styles/global.css";
+
+interface Props {
+  title: string;
+  description: string;
+  /** Marketing pages get the wide reading shell; the app supplies its own. */
+  bare?: boolean;
+  ogImage?: string;
+}
+
+const { title, description, bare = false, ogImage = "/og/default.png" } = Astro.props;
+const canonical = new URL(Astro.url.pathname, Astro.site ?? "https://micaforge.dev");
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical.href} />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical.href} />
+    <meta property="og:image" content={new URL(ogImage, canonical).href} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="generator" content={Astro.generator} />
+    <link rel="icon" href="/mark.svg" type="image/svg+xml" />
+
+    <link rel="preload" href="/fonts/trench-slab-600.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/tabular-400.woff2" as="font" type="font/woff2" crossorigin />
+
+    <!--
+      The reader's chosen medium is applied before first paint so the page never
+      flashes the other record. Written as a plain attribute, never as a class a
+      framework has to hydrate.
+    -->
+    <script is:inline>
+      (function () {
+        try {
+          var m = localStorage.getItem("mf-record");
+          if (m === "paper" || m === "smoked") document.documentElement.setAttribute("data-record", m);
+        } catch (e) {
+          /* private mode: fall through to the OS preference */
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <!--
+      THESIS: Micaforge reports what the machines took and what came back. It refuses the
+      category's near-black dashboard with a neon accent, glowing card borders and a grid of
+      same-size stat cards.
+      OWN-WORLD: A smoked-drum recording station. Lampblack soot ground; the trace is bright
+      paper scratched through it, edged by a ridge of displaced soot, never a glow. Shellac
+      amber is the only accent; series differ by value, not hue. Panels are square-cornered,
+      ruled inside themselves, pin-fed down the left gutter. Trench Slab display, system-ui UI,
+      Tabular for genuine data.
+      STORY: A maintainer sees two pens writing one record (machines above, humans below)
+      and reads the gap between them, then acts on the pages being taken for nothing.
+      FIRST VIEWPORT: the record runs full width; two traces on one time axis with day-boundary
+      notches and annotations in the right margin; the Gap figure sits at display scale on the
+      left; the caliper on the record is the range control.
+      FORM: continuous-trace recorder; candidate 3 of 7; seed 36373d06.
+      FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review,
+      the verdict, and DESIGN.md
+    -->
+    <a class="mf-skip" href="#main">Skip to content</a>
+    {
+      bare ? (
+        <slot />
+      ) : (
+        <div class="mf-page">
+          <slot />
+        </div>
+      )
+    }
+    <style is:global>
+      .mf-skip {
+        position: absolute;
+        left: -9999px;
+        top: 0;
+        z-index: 100;
+        padding: var(--mf-3) var(--mf-5);
+        background: var(--mf-ground-3);
+        color: var(--mf-ink);
+        border: 1px solid var(--mf-rule-strong);
+        border-radius: var(--mf-r-sm);
+      }
+      .mf-skip:focus {
+        left: var(--mf-4);
+        top: var(--mf-4);
+      }
+      .mf-page {
+        position: relative;
+        z-index: 1;
+        min-height: 100dvh;
+        display: flex;
+        flex-direction: column;
+      }
+    </style>
+  </body>
+</html>

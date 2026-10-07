@@ -1,0 +1,108 @@
+---
+title: "The Citation Gap"
+description: "Fetches per arrival, per URL: how it is computed, what each verdict means, and what it cannot see."
+group: "agents"
+order: 5
+updated: 2026-08-22
+---
+
+For every URL, Micaforge holds two numbers side by side:
+
+- **agent fetches**: how often named non-human clients took the page
+- **answer arrivals**: how many sessions arrived at it from an answer engine
+
+The ratio between them is the Citation Gap. It is the number this project exists to put in
+front of you, and no other analytics tool reports it, because none of them stores both
+facts in the same place.
+
+```http
+GET /api/citation-gap            per URL: agent_fetches, answer_arrivals, ratio, verdict
+GET /api/citation-gap/summary    site level: totals, ratio, trend, verdict counts
+```
+
+## The arithmetic
+
+```text
+ratio = agent_fetches / answer_arrivals
+```
+
+With no arrivals, the ratio is the fetch count itself. That is not a fudge: it is the
+reading a person makes anyway ("two thousand taken, none returned"), and it keeps the
+number finite, because JSON cannot spell infinity and a serialiser would quietly turn it
+into `null`.
+
+## The four verdicts
+
+Read top to bottom. Being cited at all is the first question, because a page that returns
+readers is not being extracted however hard it is crawled, unless the exchange is
+lopsided enough to say otherwise.
+
+| Verdict | What it means |
+| --- | --- |
+| **Extracted** | Heavily crawled, and either never cited or cited far less than it is taken. Feeding the machines, getting nothing back. |
+| **Compounding** | Crawled and cited. The exchange is working. |
+| **Invisible** | Cited but barely crawled. Earning readers on a trace so thin it is probably under-indexed rather than well optimised. |
+| **Quiet** | Neither crawled nor cited enough to say anything. Not a failure. No signal yet. |
+
+The thresholds are constants, and they are published here so a verdict can be checked
+rather than believed:
+
+- **cited** means at least **3** answer-engine arrivals in the window
+- **heavily crawled** means at least **20** agent fetches in the window
+- a cited, heavily crawled page is **extracted** when the ratio is above **25**
+
+A page with two arrivals and nineteen fetches is `quiet`, not `extracted`. Thin data gets
+a shrug, not a verdict.
+
+## Where each half comes from
+
+**The taken half** is `agent_events`, which arrives from your server log or the server SDK.
+With no log shipped, this half is zero and every page reads `quiet`, honestly and
+uselessly. See [shipping server logs](/docs/agents/shipping-server-logs).
+
+**The returned half** is `events` rows whose channel is `answer_engine`: a session whose
+referrer host belongs to a known answer surface. ChatGPT, Perplexity, Claude, Gemini,
+Copilot, Grok, DeepSeek, Meta AI, Le Chat, Poe, Phind, You.com and their peers are a
+top-level channel next to Search, Social and Direct, with the same conversion reporting as
+any other.
+
+Both halves are joined against the **content register**, the table of pages your site is
+known to have, so a page that nothing has crawled and nobody has read still appears, with
+zeroes. Joining the other way round would filter away exactly the rows you opened the
+screen to find.
+
+## What it cannot see
+
+Two limits, stated plainly, because pretending otherwise would inflate this product's own
+signature metric.
+
+**Referrers usually arrive as an origin, not a URL.** Browsers default to
+`strict-origin-when-cross-origin`, so a cross-origin referrer carries the scheme and host
+and nothing else. Any answer surface that shares a host with an ordinary search page (DuckDuckGo's chat, Hugging Face's chat, Kagi's assistant) cannot be told apart from that
+site's own search results in the common case. Those three are matched only when a full
+referrer URL arrives with a path, which most browsers will not send. Counting every
+DuckDuckGo search as an answer-engine arrival would be a fabricated number.
+
+**In-page AI answers are invisible by construction.** A reader who clicks a citation
+inside a Google AI Overview arrives with `google.com` as the referrer, indistinguishable
+from an ordinary search click. Micaforge does not guess at those.
+
+So the returned half is a **floor**, never a ceiling. The real gap is at most as bad as
+the number shown, and the interface says so rather than quietly claiming precision.
+
+## Reading it well
+
+- **Look at the trend, not the day.** The summary carries a trend of fetches against
+  arrivals per bucket. A single day's ratio on a small site is noise.
+- **Sort by fetches, then read the verdict.** Your most-taken pages are where a decision
+  is worth making.
+- **Check the purpose split.** A page hammered by `training` crawlers and never fetched by
+  a `rag` agent is being collected, not consulted. Those call for different responses.
+- **Do not treat `extracted` as an instruction.** It is a measurement. Blocking the crawler
+  is one response; writing the page so that an answer has to link out is another; deciding
+  the reach is worth the trade is a third and perfectly reasonable one.
+
+## Related
+
+[Content decay](/docs/agents/content-decay) is the other side of the same question: pages
+whose human traffic fell while the machines kept reading them.

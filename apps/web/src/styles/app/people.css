@@ -1,0 +1,724 @@
+/* ============================================================================
+   PEOPLE: sessions, visitors, replay.
+
+   Everything a person (or a named machine) did, read off the record one run at
+   a time. Two ideas carry this area:
+
+     1. A SESSION IS A RUN OF THE PEN. The session detail is not a list of rows;
+        it is a strip of paper with the hits marked on a time rule and the
+        interval between them written alongside, and the paper advances further
+        when more time passed. That is the recorder's own behaviour.
+     2. THE HAND IS NAMED. Every row says whether a person or a named agent
+        wrote it, by pen SHAPE (written line / stepped corner) and by name, so
+        the distinction never rests on colour.
+
+   Class names carry an `mf-p-` prefix: each area ships its own stylesheet into
+   one global scope, so an area-local name must not be able to collide with a
+   neighbour's. Existing `.mf-*` classes are reused wherever they fit; nothing
+   here re-implements a panel, a key, a sheet or a state that global.css owns.
+
+   Deliberately unlayered: global.css declares its components inside
+   @layer components, so these rules win a tie without a specificity arms race.
+   ========================================================================= */
+
+/* ── shared measures for this area ──────────────────────────────────────── */
+:root {
+  /* the paper advance between two hits, floor and ceiling */
+  --mf-p-seg-min: 20px;
+  --mf-p-seg-max: 76px;
+  /* the time rule column in the session trail */
+  --mf-p-rule-col: 16px;
+}
+
+/* ── small shared utilities for this area ───────────────────────────────── */
+
+.mf-p-dim { color: var(--mf-ink-3); }
+
+/* Hidden text that stays IN FLOW. The shared .mf-sr is absolutely positioned,
+   and inside a horizontally scrolled table its containing block is the page, so
+   it drags the document's scroll width out past the viewport. This one cannot. */
+.mf-p-sr {
+  display: inline-block;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.mf-p-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mf-2);
+}
+
+.mf-p-facts--flush { padding: 0; }
+
+.mf-p-wait-row { padding: var(--mf-3) 0; }
+.mf-p-wait-row--span { grid-column: 1 / -1; padding: var(--mf-2) 0; }
+.mf-p-wait-line { display: inline-block; width: 60%; max-width: 24ch; }
+
+/* A code line inside a centred empty state still reads left to right. */
+.mf-p-empty-code {
+  width: min(38rem, 100%);
+  margin-top: var(--mf-2);
+  text-align: left;
+}
+
+/* ── page scaffolding ───────────────────────────────────────────────────── */
+
+/* One column that is allowed to be narrower than its content. Without the
+   explicit minmax(0, 1fr) the implicit track sizes to max-content, a panel
+   holding a wide sheet stretches the page, and the sheet's own horizontal
+   scroller never engages. */
+.mf-p-stack {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--mf-6);
+  align-content: start;
+}
+
+.mf-p-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.85fr);
+  gap: var(--mf-6);
+  align-items: start;
+}
+.mf-p-split > * { min-width: 0; }
+
+@media (max-width: 1080px) {
+  .mf-p-split { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* The way back up. A quiet text control, not a button pretending to be one. */
+.mf-p-back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mf-2);
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink-3);
+  text-decoration: none;
+  transition: color var(--mf-dur-1) linear;
+}
+.mf-p-back:hover { color: var(--mf-ink); }
+.mf-p-back svg { transform: rotate(90deg); }
+
+/* The subject of a detail screen, set once and large. */
+.mf-p-subject {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--mf-2) var(--mf-4);
+  padding: var(--mf-5) var(--mf-5) var(--mf-4);
+}
+.mf-p-subject__id {
+  font-family: var(--mf-font-data);
+  font-size: var(--mf-t-lg);
+  font-weight: 500;
+  color: var(--mf-ink);
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.mf-p-subject__when { font-size: var(--mf-t-sm); color: var(--mf-ink-3); }
+.mf-p-subject__acts { margin-left: auto; display: flex; gap: var(--mf-2); flex-wrap: wrap; }
+
+@media (max-width: 640px) {
+  .mf-p-subject { padding: var(--mf-4); }
+  .mf-p-subject__acts { margin-left: 0; }
+}
+
+/* ── the hand: who held the pen ─────────────────────────────────────────── */
+
+.mf-p-hand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mf-2);
+  min-width: 0;
+}
+/* The written pen: a person reads continuously, so the mark is a line. */
+.mf-p-hand__pen {
+  flex: none;
+  display: inline-block;
+  width: 13px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--mf-trace-human);
+}
+/* The stepped pen: a crawler fetches in discrete jumps, so the mark steps. */
+.mf-p-hand__pen[data-pen="stepped"] {
+  width: 7px;
+  height: 6px;
+  background: none;
+  border-radius: 0;
+  border-top: 2px solid var(--mf-trace-agent);
+  border-right: 2px solid var(--mf-trace-agent);
+}
+.mf-p-hand__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mf-p-hand[data-pen="stepped"] .mf-p-hand__name { color: var(--mf-shellac); }
+
+/* ── a ruled fact list ──────────────────────────────────────────────────── */
+
+.mf-p-facts {
+  display: grid;
+  grid-template-columns: minmax(9ch, 13ch) minmax(0, 1fr);
+  margin: 0;
+  padding: 0 var(--mf-5) var(--mf-4);
+}
+.mf-p-facts > dt {
+  grid-column: 1;
+  padding: var(--mf-2) var(--mf-4) var(--mf-2) 0;
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+  border-top: 1px solid var(--mf-rule);
+}
+.mf-p-facts > dd {
+  grid-column: 2;
+  margin: 0;
+  padding: var(--mf-2) 0;
+  min-width: 0;
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink);
+  border-top: 1px solid var(--mf-rule);
+  overflow-wrap: anywhere;
+}
+.mf-p-facts > dt:first-of-type,
+.mf-p-facts > dt:first-of-type + dd { border-top: 0; }
+/* Two pairs to a row where there is width for them, so a long list of facts
+   reads as one aligned block rather than a tall column. */
+.mf-p-facts--pairs {
+  grid-template-columns: minmax(9ch, 13ch) minmax(0, 1fr) minmax(9ch, 13ch) minmax(0, 1fr);
+  column-gap: var(--mf-6);
+}
+.mf-p-facts--pairs > dt,
+.mf-p-facts--pairs > dd { grid-column: auto; }
+.mf-p-facts--pairs > dt:first-of-type,
+.mf-p-facts--pairs > dt:first-of-type + dd { border-top: 1px solid var(--mf-rule); }
+
+@media (max-width: 860px) {
+  .mf-p-facts--pairs { grid-template-columns: minmax(9ch, 13ch) minmax(0, 1fr); column-gap: 0; }
+}
+
+.mf-p-facts__ua {
+  font-family: var(--mf-font-data);
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-2);
+  line-height: var(--mf-lead-snug);
+}
+.mf-p-facts a { color: var(--mf-ink); text-decoration: underline; text-underline-offset: 2px; text-decoration-color: var(--mf-rule-strong); }
+.mf-p-facts a:hover { text-decoration-color: currentColor; }
+
+@media (max-width: 480px) {
+  .mf-p-facts { grid-template-columns: minmax(0, 1fr); padding: 0 var(--mf-4) var(--mf-4); }
+  .mf-p-facts > dt { grid-column: 1; padding-bottom: 0; border-top: 1px solid var(--mf-rule); }
+  .mf-p-facts > dd { grid-column: 1; padding-top: var(--mf-1); border-top: 0; }
+  .mf-p-facts > dt:first-of-type + dd { border-top: 0; }
+}
+
+/* ── the trail: a session's hits as a strip of advancing paper ──────────── */
+
+.mf-p-trail {
+  list-style: none;
+  margin: 0;
+  padding: var(--mf-2) var(--mf-5) var(--mf-6);
+}
+
+.mf-p-trail__hit {
+  display: grid;
+  grid-template-columns: auto var(--mf-p-rule-col) minmax(0, 1fr);
+  column-gap: var(--mf-4);
+}
+
+/* The paper between two hits. Its height follows the interval, so a long
+   pause is visibly longer paper (the recorder's own behaviour) and the
+   written interval sits in the margin exactly where it belongs. */
+.mf-p-trail__lead {
+  grid-column: 2 / 4;
+  display: grid;
+  grid-template-columns: var(--mf-p-rule-col) minmax(0, 1fr);
+  column-gap: var(--mf-4);
+  align-items: center;
+  height: calc(var(--mf-p-seg-min) + (var(--mf-p-seg-max) - var(--mf-p-seg-min)) * var(--mf-p-k, 0));
+}
+.mf-p-trail__lead::before {
+  content: "";
+  grid-column: 1;
+  justify-self: center;
+  width: 1px;
+  height: 100%;
+  background: var(--mf-rule-strong);
+}
+.mf-p-trail__int {
+  grid-column: 2;
+  font-size: var(--mf-t-2xs);
+  color: var(--mf-ink-3);
+  letter-spacing: 0.02em;
+}
+.mf-p-trail__hit[data-still="true"] .mf-p-trail__int { color: var(--mf-ink-2); }
+
+.mf-p-trail__t {
+  grid-column: 1;
+  align-self: center;
+  font-family: var(--mf-font-data);
+  font-size: var(--mf-t-xs);
+  font-variant-numeric: tabular-nums lining-nums;
+  color: var(--mf-ink-3);
+  white-space: nowrap;
+}
+/* The hit mark sits ON the time rule: the icon is the notch. The rule runs
+   faintly through every hit and firms up across a measured gap, so the axis is
+   continuous while the intervals are the part that reads. */
+.mf-p-trail__mark {
+  position: relative;
+  grid-column: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--mf-ink-2);
+}
+.mf-p-trail__mark::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  margin-left: -0.5px;
+  background: var(--mf-rule);
+}
+.mf-p-trail__mark svg { position: relative; }
+.mf-p-trail__hit[data-kind="error"] .mf-p-trail__mark { color: var(--mf-oxide); }
+.mf-p-trail__hit[data-kind="custom"] .mf-p-trail__mark,
+.mf-p-trail__hit[data-kind="outbound"] .mf-p-trail__mark,
+.mf-p-trail__hit[data-kind="file_download"] .mf-p-trail__mark { color: var(--mf-shellac); }
+
+.mf-p-trail__body {
+  grid-column: 3;
+  min-width: 0;
+  padding: var(--mf-1) 0;
+}
+.mf-p-trail__title {
+  font-size: var(--mf-t-base);
+  color: var(--mf-ink);
+  line-height: var(--mf-lead-snug);
+  overflow-wrap: anywhere;
+}
+.mf-p-trail__path {
+  font-family: var(--mf-font-data);
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-2);
+  overflow-wrap: anywhere;
+}
+.mf-p-trail__path a { color: inherit; text-decoration: none; }
+.mf-p-trail__path a:hover { color: var(--mf-ink); }
+.mf-p-trail__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mf-1) var(--mf-4);
+  margin-top: var(--mf-1);
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+}
+.mf-p-trail__meta b { font-weight: 500; color: var(--mf-ink-2); }
+
+/* The entry and the exit are the two ends of the run and read as such. */
+.mf-p-trail__end {
+  display: grid;
+  grid-template-columns: auto var(--mf-p-rule-col) minmax(0, 1fr);
+  column-gap: var(--mf-4);
+  padding-top: var(--mf-2);
+}
+.mf-p-trail__end-label {
+  grid-column: 3;
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+}
+
+@media (max-width: 640px) {
+  .mf-p-trail { padding: var(--mf-2) var(--mf-4) var(--mf-5); }
+  .mf-p-trail__hit,
+  .mf-p-trail__end { column-gap: var(--mf-3); }
+  .mf-p-trail__lead { column-gap: var(--mf-3); }
+}
+
+/* A ruled list for named things with one measured value each. The value column
+   is right-aligned so every row's figure lands on the same axis however long
+   the name runs. */
+.mf-p-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 var(--mf-5) var(--mf-4);
+}
+.mf-p-list li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--mf-4);
+  padding: var(--mf-3) 0;
+  border-top: 1px solid var(--mf-rule);
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink);
+}
+.mf-p-list li:first-child { border-top: 0; }
+.mf-p-list__value {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--mf-3);
+  flex: none;
+  white-space: nowrap;
+}
+.mf-p-list__value b { font-weight: 500; }
+
+/* A destructive key that lives inside a row: legible, never loud. */
+.mf-p-rowkey .mf-btn__icon { color: var(--mf-ink-2); }
+.mf-p-rowkey:hover { color: var(--mf-oxide); background: var(--mf-oxide-wash); }
+.mf-p-rowkey:hover .mf-btn__icon { color: var(--mf-oxide); }
+
+/* Row links carry a static rule at rest that firms up on hover. It never grows,
+   wipes or travels. Scoped to this area's screens so it cannot restyle another
+   area's sheets from a stylesheet they never asked for. */
+.mf-p-stack .mf-sheet a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--mf-rule-strong);
+}
+.mf-p-stack .mf-sheet a:hover { text-decoration-color: currentColor; }
+
+/* ── list furniture: find, pager ────────────────────────────────────────── */
+
+.mf-p-find {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mf-2);
+  padding: 0 var(--mf-3);
+  color: var(--mf-ink-3);
+  /* One value step below the panel in BOTH media, and light enough that the
+     ink-3 placeholder still clears 4.5:1 on chart paper, which it does not on
+     the deeper well. */
+  background: var(--mf-ground);
+  border: 1px solid var(--mf-rule);
+  border-radius: var(--mf-r-sm);
+  box-shadow: var(--mf-press);
+}
+.mf-p-find input {
+  width: 20ch;
+  min-width: 0;
+  padding: 6px 0;
+  font: inherit;
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink);
+  background: none;
+  border: 0;
+}
+.mf-p-find input::placeholder { color: var(--mf-ink-3); }
+.mf-p-find:has(input:focus-visible) { outline: 2px solid var(--mf-focus); outline-offset: 2px; }
+.mf-p-find:has(input:focus-visible) input { outline: none; }
+
+.mf-p-pager {
+  display: flex;
+  align-items: center;
+  gap: var(--mf-3);
+  padding: var(--mf-3) var(--mf-5);
+  border-top: 1px solid var(--mf-rule);
+}
+.mf-p-pager__at {
+  margin-right: auto;
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+}
+
+@media (max-width: 640px) {
+  .mf-p-pager { padding: var(--mf-3) var(--mf-4); flex-wrap: wrap; }
+  .mf-p-find input { width: 100%; }
+  .mf-p-find { flex: 1; }
+}
+
+/* ── erasure: the privacy path, first class ─────────────────────────────── */
+
+.mf-p-erase {
+  display: grid;
+  gap: var(--mf-3);
+  padding: var(--mf-5);
+  border-top: 1px solid var(--mf-rule-strong);
+}
+.mf-p-erase__title {
+  font-family: var(--mf-font-display);
+  font-size: var(--mf-t-md);
+  font-weight: 600;
+  color: var(--mf-oxide);
+}
+.mf-p-erase__body {
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink-2);
+  max-width: 62ch;
+}
+.mf-p-erase__act { display: flex; flex-wrap: wrap; gap: var(--mf-3); align-items: center; }
+.mf-p-erase__failed { font-size: var(--mf-t-sm); color: var(--mf-oxide); }
+
+.mf-p-dialog {
+  width: min(34rem, calc(100vw - var(--mf-8)));
+  padding: 0;
+  color: var(--mf-ink);
+  /* The panel surface, not the raised one: on ground-3 the oxide error line
+     falls to 4.4:1 and stops clearing AA. Separation comes from the lift and
+     the firm edge instead. */
+  background: var(--mf-ground-2);
+  border: 1px solid var(--mf-rule-strong);
+  border-radius: var(--mf-r-md);
+  box-shadow: var(--mf-lift);
+}
+.mf-p-dialog::backdrop { background: var(--mf-scrim); }
+.mf-p-dialog__head { padding: var(--mf-5) var(--mf-5) var(--mf-3); }
+.mf-p-dialog__title {
+  font-family: var(--mf-font-display);
+  font-size: var(--mf-t-lg);
+  font-weight: 600;
+  line-height: 1.15;
+  color: var(--mf-ink);
+}
+.mf-p-dialog__body { padding: 0 var(--mf-5); font-size: var(--mf-t-sm); color: var(--mf-ink-2); }
+.mf-p-dialog__list {
+  list-style: none;
+  margin: var(--mf-4) 0 0;
+  padding: 0;
+  border-top: 1px solid var(--mf-rule);
+}
+.mf-p-dialog__list li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--mf-4);
+  padding: var(--mf-2) 0;
+  border-bottom: 1px solid var(--mf-rule);
+  font-size: var(--mf-t-sm);
+}
+.mf-p-dialog__list b {
+  font-family: var(--mf-font-data);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums lining-nums;
+  color: var(--mf-ink);
+}
+.mf-p-dialog__note { margin-top: var(--mf-4); }
+.mf-p-dialog__confirm {
+  display: grid;
+  gap: var(--mf-2);
+  margin-top: var(--mf-5);
+}
+.mf-p-dialog__confirm label { font-size: var(--mf-t-xs); color: var(--mf-ink-3); }
+.mf-p-dialog__confirm input {
+  padding: 7px var(--mf-3);
+  font-family: var(--mf-font-data);
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink);
+  background: var(--mf-well);
+  border: 1px solid var(--mf-rule);
+  border-radius: var(--mf-r-sm);
+  box-shadow: var(--mf-press);
+}
+.mf-p-dialog__foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--mf-2);
+  padding: var(--mf-5);
+}
+.mf-p-dialog__err {
+  padding: 0 var(--mf-5);
+  font-size: var(--mf-t-sm);
+  color: var(--mf-oxide);
+}
+
+/* ── the player ─────────────────────────────────────────────────────────── */
+
+.mf-p-stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  min-height: 22rem;
+  height: clamp(22rem, 58vh, 40rem);
+  background: var(--mf-well);
+  border-top: 1px solid var(--mf-rule);
+  border-bottom: 1px solid var(--mf-rule);
+}
+/* The recording sits on its own sheet, scaled to fit and pinned top-left so
+   the reconstruction is never stretched out of its true proportions. */
+.mf-p-player { display: block; }
+
+.mf-p-stage__sheet {
+  position: relative;
+  grid-area: 1 / 1;
+  flex: none;
+  box-shadow: var(--mf-burr);
+}
+.mf-p-stage__frame {
+  display: block;
+  border: 0;
+  transform-origin: 0 0;
+}
+.mf-p-stage__veil {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* The replay cursor: drawn in the icon set's grammar, with the scratch ridge
+   under it so it stays legible over any page it is replaying. */
+/* The transform carries the recorded point, and the margin pulls the drawn
+   arrow so its TIP sits on it rather than the box's top-left corner. The tip is
+   at 2.5,1.6 inside the 18x18 glyph, which is exactly what is subtracted here. */
+.mf-p-cursor {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 18px;
+  height: 18px;
+  margin: -1.6px 0 0 -2.5px;
+  pointer-events: none;
+  will-change: transform;
+}
+.mf-p-cursor svg { display: block; }
+.mf-p-cursor[data-seen="false"] { visibility: hidden; }
+
+/* The click mark is a registration cross, not a ripple. It is invisible at
+   rest, appears where the pointer went down, and clears itself. */
+.mf-p-click {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 22px;
+  height: 22px;
+  margin: -11px 0 0 -11px;
+  pointer-events: none;
+  color: var(--mf-shellac);
+  opacity: 0;
+}
+.mf-p-click.is-on { opacity: 1; }
+.mf-p-click svg { display: block; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .mf-p-click.is-on { animation: mf-p-strike var(--mf-dur-3) var(--mf-ease-pen) forwards; }
+  @keyframes mf-p-strike {
+    from { opacity: 1; }
+    to { opacity: 0; }
+  }
+}
+
+.mf-p-stage__note {
+  grid-area: 1 / 1;
+  z-index: 1;
+  align-self: center;
+  justify-self: center;
+  max-width: 40ch;
+  padding: 0 var(--mf-5);
+  text-align: center;
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink-3);
+}
+
+.mf-p-transport {
+  display: flex;
+  align-items: center;
+  gap: var(--mf-4);
+  padding: var(--mf-3) var(--mf-5);
+}
+.mf-p-transport__clock {
+  font-family: var(--mf-font-data);
+  font-size: var(--mf-t-sm);
+  font-variant-numeric: tabular-nums lining-nums;
+  color: var(--mf-ink-2);
+  white-space: nowrap;
+}
+
+/* The scrub track carries the recording's own activity: each bin is how much
+   happened in that slice, so the operator can see where the session is busy
+   before dragging into it. */
+.mf-p-scrub {
+  position: relative;
+  flex: 1;
+  min-width: 6rem;
+  height: 28px;
+  display: flex;
+  align-items: center;
+}
+.mf-p-scrub__bins {
+  position: absolute;
+  inset: 5px 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 1px;
+  pointer-events: none;
+}
+.mf-p-scrub__bin {
+  flex: 1;
+  min-width: 1px;
+  background: var(--mf-rule-strong);
+  border-radius: 1px 1px 0 0;
+}
+.mf-p-scrub__bin[data-still="true"] { background: var(--mf-rule); }
+.mf-p-scrub__played {
+  position: absolute;
+  inset: 5px auto 5px 0;
+  width: 0;
+  background: var(--mf-shellac-wash);
+  pointer-events: none;
+}
+.mf-p-scrub input[type="range"] {
+  position: relative;
+  width: 100%;
+  height: 28px;
+  margin: 0;
+  padding: 0;
+  background: none;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+.mf-p-scrub input[type="range"]::-webkit-slider-runnable-track { height: 28px; background: none; }
+.mf-p-scrub input[type="range"]::-moz-range-track { height: 28px; background: none; }
+/* The pen head, not a ball: a single upright stylus on the time rule. */
+.mf-p-scrub input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 3px;
+  height: 28px;
+  border: 0;
+  border-radius: 1px;
+  background: var(--mf-shellac);
+  box-shadow: var(--mf-burr);
+}
+.mf-p-scrub input[type="range"]::-moz-range-thumb {
+  width: 3px;
+  height: 28px;
+  border: 0;
+  border-radius: 1px;
+  background: var(--mf-shellac);
+  box-shadow: var(--mf-burr);
+}
+
+.mf-p-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mf-1) var(--mf-5);
+  padding: var(--mf-3) var(--mf-5);
+  border-top: 1px solid var(--mf-rule);
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+}
+.mf-p-status__num {
+  font-family: var(--mf-font-data);
+  font-variant-numeric: tabular-nums lining-nums;
+  color: var(--mf-ink-2);
+}
+.mf-p-status__skip { color: var(--mf-oxide); }
+
+@media (max-width: 700px) {
+  .mf-p-transport { flex-wrap: wrap; padding: var(--mf-3) var(--mf-4); }
+  .mf-p-scrub { order: 3; flex-basis: 100%; }
+  .mf-p-status { padding: var(--mf-3) var(--mf-4); }
+  .mf-p-stage { height: clamp(18rem, 52vh, 30rem); }
+}

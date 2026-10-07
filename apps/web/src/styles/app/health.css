@@ -1,0 +1,439 @@
+/* ============================================================================
+   Micaforge, HEALTH area: performance and errors.
+
+   Two instruments live on these screens.
+
+   The VITALS PRINTOUT is a stack of ruled histogram strips, one per metric,
+   printed on one continuous sheet. It is deliberately not five cards in a grid:
+   the strips share a left edge, a plot width and a baseline, so the five
+   distributions can be read against each other the way a multi-channel
+   recorder's bands are read.
+
+   The ERROR SHEET is a tabulation of fingerprints. An error's identity is
+   carried by type hierarchy (the class in the ink, the message under it in a
+   dimmer tone), never by a coloured chip parked beside it.
+
+   This file is deliberately UNLAYERED. global.css keeps its component classes
+   in @layer components, so the handful of refinements here (a two-line error
+   cell inside a tabulation-sheet cell) land without a specificity fight.
+   ========================================================================= */
+
+/* ── page scaffolding ────────────────────────────────────────────────────── */
+
+.mf-hs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mf-6);
+  min-width: 0;
+}
+
+/* An honest aside: what this screen can and cannot see. */
+.mf-hs-note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--mf-3);
+  padding: var(--mf-4) var(--mf-5);
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink-2);
+  background: var(--mf-ground-2);
+  border: 1px solid var(--mf-rule);
+  border-radius: var(--mf-r-md);
+  max-width: var(--mf-measure);
+}
+.mf-hs-note svg { flex: none; margin-top: 3px; color: var(--mf-ink-3); }
+
+.mf-hs-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--mf-3);
+  padding: 0 var(--mf-5) var(--mf-4);
+  font-size: var(--mf-t-sm);
+  color: var(--mf-oxide);
+}
+.mf-hs-alert svg { flex: none; margin-top: 3px; }
+
+/* A quiet line of fact under a readout: when it started, when it last fired. */
+.mf-hs-when {
+  padding: var(--mf-3) var(--mf-5) var(--mf-4);
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink-3);
+}
+
+/* Nothing to report, said inside a column rather than as a full empty state. */
+.mf-hs-none {
+  padding: var(--mf-2) var(--mf-4) var(--mf-4);
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink-3);
+  max-width: 60ch;
+}
+.mf-hs-none code { font-size: var(--mf-t-xs); color: var(--mf-ink-2); }
+
+.mf-hs-more {
+  display: flex;
+  justify-content: center;
+  padding: var(--mf-4) var(--mf-5) var(--mf-5);
+  border-top: 1px solid var(--mf-rule);
+}
+
+/* A link inside a tabulation sheet: it reads as a link by tone, and takes its
+   underline only on hover; it never grows one. */
+.mf-hs-link {
+  color: var(--mf-ink);
+  text-decoration: none;
+  border-bottom: 1px solid var(--mf-rule-strong);
+  transition: color var(--mf-dur-1) linear, border-color var(--mf-dur-1) linear;
+}
+.mf-hs-link:hover { color: var(--mf-shellac); border-bottom-color: var(--mf-shellac); }
+
+/* A back link. The chevron is the set's own glyph, turned, not a new arrow. */
+.mf-hs-back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mf-2);
+  align-self: flex-start;
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink-3);
+  text-decoration: none;
+  padding: var(--mf-1) 0;
+  transition: color var(--mf-dur-1) linear;
+}
+.mf-hs-back:hover { color: var(--mf-ink); }
+.mf-hs-back svg { transform: rotate(90deg); }
+
+/* ── the selector bank ───────────────────────────────────────────────────
+   A row of keys on one bank. Not a pill, not a segmented control: the keys
+   share a plate and the pressed one sinks to the raised surface tone. */
+/* The bank wraps rather than scrolls, and nothing clips it: an `overflow`
+   here would shave the focus ring off whichever key has focus. */
+.mf-hs-bank {
+  display: flex;
+  flex-wrap: wrap;
+  min-width: 0;
+  max-width: 100%;
+  background: var(--mf-well);
+  border: 1px solid var(--mf-rule);
+  border-radius: var(--mf-r-sm);
+}
+.mf-hs-bank__key {
+  padding: 5px var(--mf-3);
+  font: inherit;
+  font-size: var(--mf-t-xs);
+  line-height: 20px;
+  white-space: nowrap;
+  color: var(--mf-ink-2);
+  background: none;
+  border: 0;
+  border-left: 1px solid var(--mf-rule);
+  cursor: pointer;
+  transition: color var(--mf-dur-1) linear, background-color var(--mf-dur-1) linear;
+}
+.mf-hs-bank__key:first-child { border-left: 0; }
+.mf-hs-bank__key:hover { color: var(--mf-ink); background: var(--mf-ground-2); }
+.mf-hs-bank__key[aria-pressed="true"] { background: var(--mf-ground-3); color: var(--mf-ink); }
+
+/* ── facet selects ───────────────────────────────────────────────────────── */
+
+/* The control strip. It sits under the panel's masthead rather than inside it:
+   a head is sized to its text and will not shrink, so a row of controls parked
+   in it pushes the panel sideways on a narrow screen. Here the controls get the
+   full width, wrap when they must, and the strip is ruled off like the readout
+   below it. */
+.mf-hs-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mf-2);
+  padding: var(--mf-3) var(--mf-5);
+  border-top: 1px solid var(--mf-rule);
+}
+.mf-hs-strip__label {
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+  margin-right: var(--mf-1);
+}
+
+.mf-select {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.mf-select select {
+  appearance: none;
+  -webkit-appearance: none;
+  font: inherit;
+  font-size: var(--mf-t-xs);
+  line-height: 20px;
+  color: var(--mf-ink-2);
+  background: var(--mf-well);
+  border: 1px solid var(--mf-rule-strong);
+  border-radius: var(--mf-r-sm);
+  padding: 5px 28px 5px var(--mf-3);
+  max-width: 15rem;
+  cursor: pointer;
+  transition: color var(--mf-dur-1) linear, border-color var(--mf-dur-1) linear;
+}
+.mf-select select:hover { color: var(--mf-ink); border-color: var(--mf-ink-3); }
+.mf-select[data-set="true"] select { color: var(--mf-ink); border-color: var(--mf-ink-3); }
+.mf-select select option { background: var(--mf-ground-2); color: var(--mf-ink); }
+/* Centred against the control, not left to the static position to guess. */
+.mf-select__caret {
+  position: absolute;
+  right: 7px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--mf-ink-3);
+  pointer-events: none;
+}
+
+/* ── the vitals printout ─────────────────────────────────────────────────── */
+
+.mf-vitals { list-style: none; margin: 0; padding: 0; }
+
+.mf-vital {
+  border-top: 1px solid var(--mf-rule);
+  padding-bottom: var(--mf-3);
+}
+.mf-vital:first-child { border-top-color: transparent; }
+
+/* The channel being reported below is marked by a shellac fiducial on its own
+   rule: the instrument's "this channel is patched in". Deliberately not a
+   tinted ground: lifting the surface to ground-3 drops the poor rating's oxide
+   to 4.42:1 in the smoked medium, and a rating has to stay readable. */
+.mf-vital[data-current="true"] {
+  border-top-color: var(--mf-shellac);
+  box-shadow: inset 0 1px 0 var(--mf-shellac);
+}
+
+.mf-vital__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--mf-3);
+  width: 100%;
+  text-align: left;
+  padding: var(--mf-4) var(--mf-5) var(--mf-2);
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+}
+button.mf-vital__head { cursor: pointer; }
+button.mf-vital__head:hover .mf-vital__abbr { color: var(--mf-shellac); }
+button.mf-vital__head:hover .mf-vital__name { color: var(--mf-ink-2); }
+
+.mf-vital__abbr {
+  font-family: var(--mf-font-display);
+  font-size: var(--mf-t-md);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--mf-ink);
+  flex: none;
+  min-width: 3.4em;
+  transition: color var(--mf-dur-1) linear;
+}
+.mf-vital[data-current="true"] .mf-vital__abbr { color: var(--mf-shellac); }
+
+.mf-vital__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mf-vital__figure {
+  flex: none;
+  font-family: var(--mf-font-display);
+  font-size: var(--mf-t-lg);
+  font-weight: 500;
+  line-height: 1;
+  color: var(--mf-ink);
+}
+.mf-vital__at {
+  flex: none;
+  font-size: var(--mf-t-2xs);
+  color: var(--mf-ink-3);
+}
+
+/* The rating is a WORD. Colour only ever agrees with a word already there;
+   it never carries the verdict on its own. */
+.mf-rating {
+  font-size: var(--mf-t-xs);
+  white-space: nowrap;
+  color: var(--mf-ink-2);
+}
+.mf-rating[data-rating="good"] { color: var(--mf-verdigris); }
+.mf-rating[data-rating="needs-improvement"] { color: var(--mf-ink-2); }
+.mf-rating[data-rating="poor"] { color: var(--mf-oxide); }
+.mf-rating[data-rating="none"] { color: var(--mf-ink-3); }
+
+.mf-vital__rating {
+  flex: none;
+  min-width: 6.5em;
+  text-align: right;
+}
+
+.mf-vital__plot { padding: 0 var(--mf-5); }
+.mf-vital__plot svg { display: block; width: 100%; overflow: visible; }
+
+.mf-vital__none {
+  padding: 0 var(--mf-5) var(--mf-3);
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink-3);
+}
+
+.mf-vital__tick,
+.mf-vital__band,
+.mf-vital__mark {
+  font-family: var(--mf-font-data);
+  font-variant-numeric: tabular-nums lining-nums;
+  fill: var(--mf-ink-3);
+  font-size: 10px;
+}
+.mf-vital__mark { fill: var(--mf-shellac); }
+.mf-vital__band { font-family: var(--mf-font-ui); font-size: 10.5px; }
+
+/* ── the error sheet ─────────────────────────────────────────────────────── */
+
+/* Two lines of type inside one tabulation cell: the class, then the message.
+   The sheet's own cell rule keeps children on one line, which is right for
+   every other column and wrong for this one. */
+.mf-sheet__cell > .mf-err {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+  max-width: 46ch;
+  white-space: normal;
+  overflow: hidden;
+}
+.mf-err__line {
+  display: flex;
+  align-items: baseline;
+  gap: var(--mf-2);
+  max-width: 100%;
+}
+.mf-err__name {
+  font-weight: 500;
+  color: var(--mf-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mf-err[data-state="resolved"] .mf-err__name,
+.mf-err[data-state="ignored"] .mf-err__name { color: var(--mf-ink-3); }
+.mf-err__flag {
+  flex: none;
+  font-size: var(--mf-t-2xs);
+  color: var(--mf-ink-3);
+}
+.mf-err__flag[data-flag="unhandled"] { color: var(--mf-ink); font-weight: 500; }
+.mf-err__msg {
+  font-family: var(--mf-font-data);
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The trend trace. A scratch, with the ridge of displaced soot under it. */
+.mf-trace { display: block; }
+.mf-trace--none { color: var(--mf-ink-3); font-size: var(--mf-t-xs); }
+
+/* ── the error's own state ───────────────────────────────────────────────── */
+
+.mf-estate {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mf-2);
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink-2);
+}
+.mf-estate[data-state="resolved"] { color: var(--mf-verdigris); }
+.mf-estate[data-state="ignored"] { color: var(--mf-ink-3); }
+.mf-estate[data-state="open"] { color: var(--mf-oxide); }
+
+/* ── the stack ───────────────────────────────────────────────────────────── */
+
+.mf-stack {
+  list-style: none;
+  margin: 0;
+  padding: 0 var(--mf-5) var(--mf-5);
+  max-width: 100%;
+  overflow-x: auto;
+}
+.mf-frame {
+  display: flex;
+  gap: var(--mf-3);
+  padding: var(--mf-2) 0;
+  border-top: 1px solid var(--mf-rule);
+  font-family: var(--mf-font-data);
+  font-size: var(--mf-t-sm);
+  white-space: nowrap;
+}
+.mf-frame:first-child { border-top: 0; }
+.mf-frame__n {
+  flex: none;
+  width: 2.2em;
+  color: var(--mf-ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.mf-frame__text { color: var(--mf-ink-2); }
+.mf-frame[data-top="true"] .mf-frame__text { color: var(--mf-ink); }
+
+/* ── parallel columns ────────────────────────────────────────────────────
+   Corresponding parts line up across every column: each column is a grid row
+   of its own, so a long heading in one cannot shove another's table down. */
+.mf-hsplit {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.mf-hsplit__col {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-width: 0;
+  border-left: 1px solid var(--mf-rule);
+  padding-bottom: var(--mf-2);
+}
+.mf-hsplit__col:first-child { border-left: 0; }
+.mf-hsplit__head {
+  font-family: var(--mf-font-ui);
+  font-size: var(--mf-t-sm);
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--mf-ink-2);
+  padding: var(--mf-2) var(--mf-4) var(--mf-3);
+}
+
+/* ── waiting ─────────────────────────────────────────────────────────────── */
+
+.mf-hs-wait { display: grid; gap: var(--mf-6); padding: var(--mf-5); }
+.mf-hs-wait .mf-wait { height: 11px; }
+
+/* The readout strip before it has been read: same rhythm, no figures. */
+.mf-readout-wait .mf-wait--label { width: 44%; }
+.mf-readout-wait .mf-wait--value { width: 68%; height: 22px; }
+.mf-readout-wait .mf-wait--foot { width: 32%; }
+
+/* ── responsive ──────────────────────────────────────────────────────────── */
+
+@media (max-width: 900px) {
+  .mf-hsplit { grid-template-columns: minmax(0, 1fr); }
+  .mf-hsplit__col { border-left: 0; border-top: 1px solid var(--mf-rule); }
+  .mf-hsplit__col:first-child { border-top: 0; }
+}
+
+@media (max-width: 700px) {
+  .mf-vital__head { flex-wrap: wrap; padding: var(--mf-4) var(--mf-4) var(--mf-2); }
+  .mf-vital__name { flex-basis: 100%; order: 4; }
+  .mf-vital__figure { margin-left: auto; }
+  .mf-vital__plot { padding: 0 var(--mf-4); }
+  .mf-vital__none { padding: 0 var(--mf-4) var(--mf-3); }
+  .mf-stack { padding: 0 var(--mf-4) var(--mf-4); }
+  .mf-hs-strip { padding: var(--mf-3) var(--mf-4); }
+  .mf-hs-note { padding: var(--mf-3) var(--mf-4); }
+}

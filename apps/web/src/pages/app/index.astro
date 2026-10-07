@@ -1,0 +1,26 @@
+---
+/**
+ * The station's door.
+ *
+ * `public/_redirects` rewrites every `/app/*` address back to this one file, so
+ * this page is the whole dashboard: React Router reads the real address off the
+ * URL bar and mounts the channel it names. The layout is `bare` because the app
+ * draws its own spine, topbar and main region and wants no marketing shell
+ * around it.
+ *
+ * `client:only="react"` rather than `client:load`: the dashboard reads the
+ * signed-in account, the site list and a live pen count, none of which exist at
+ * build time. Pre-rendering it would ship a picture of an empty station and
+ * then swap it for the real one.
+ */
+import Base from "../../layouts/Base.astro";
+import App from "../../app/main.tsx";
+---
+
+<Base
+  title="Micaforge"
+  description="The record: what the machines took, and what came back."
+  bare={true}
+>
+  <App client:only="react" />
+</Base>

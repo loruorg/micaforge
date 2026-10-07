@@ -1,0 +1,666 @@
+/* ============================================================================
+   THE WEDGE: agent traffic, the Citation Gap, policy, decay.
+
+   Everything here is drawn in the recording-station vocabulary already
+   established in global.css. Three rules govern the file:
+
+     1. Only var(--mf-*). No literal colour, size, radius or duration.
+     2. Depth is the scratch ridge: a tight one-directional shadow in the
+        surface's own colour. Nothing glows, blooms or lifts.
+     3. New classes exist only where no .mf-* class already fits. Where one
+        fits (.mf-panel, .mf-sheet, .mf-readout, .mf-btn, .mf-caliper) it is
+        reused rather than reskinned.
+   ========================================================================= */
+
+/* ── the screen ─────────────────────────────────────────────────────────── */
+
+.mf-wedge {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mf-6);
+  max-width: var(--mf-shell-max);
+  min-width: 0;
+}
+
+/* Two panels abreast on a wide bench, stacked below it. The columns are not
+   equal on purpose: the files on the left are short monospace lines, while the
+   behaviour on the right is a wide sheet that must not have to scroll. */
+.mf-wedge-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
+  gap: var(--mf-6);
+  align-items: start;
+}
+.mf-wedge-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mf-6);
+  min-width: 0;
+}
+@media (max-width: 1200px) {
+  .mf-wedge-pair { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ── the bench ───────────────────────────────────────────────────────────
+   The screen names itself on the same ruled line as the instruments that
+   read it. Deliberately not a stacked page-title-then-subtitle-then-toolbar
+   hero: title left, controls right, one rule under both. */
+
+.mf-wedge-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mf-3) var(--mf-5);
+  padding-bottom: var(--mf-4);
+  border-bottom: 1px solid var(--mf-rule);
+}
+.mf-wedge-bar__title {
+  font-family: var(--mf-font-display);
+  font-size: var(--mf-t-xl);
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: var(--mf-track-display);
+  color: var(--mf-ink);
+  margin: 0;
+}
+.mf-wedge-bar__controls {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--mf-3);
+}
+.mf-wedge-bar__marks {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mf-2);
+}
+.mf-wedge-bar__marks-label {
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+  margin-right: var(--mf-1);
+}
+@media (max-width: 760px) {
+  .mf-wedge-bar__controls { margin-left: 0; flex-basis: 100%; }
+}
+
+/* The caliper is a fixed bank of stops and cannot shrink, so on a narrow bench
+   it takes a row of its own. How it folds at that width is not this file's
+   business: one behaviour for the whole station lives in styles/app/caliper.css,
+   and the wedge's old wrap (which cut the second row at twice the width of the
+   first) has been dropped in favour of it. */
+@media (max-width: 620px) {
+  .mf-wedge-bar__controls { width: 100%; }
+}
+
+/* A filter written onto the bench. A real control with a real action, not a
+   tinted chip wrapped round a noun. */
+.mf-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mf-2);
+  padding: 2px var(--mf-1) 2px var(--mf-3);
+  background: var(--mf-well);
+  border: 1px solid var(--mf-rule);
+  border-radius: var(--mf-r-sm);
+  box-shadow: var(--mf-press);
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-2);
+  max-width: 32ch;
+}
+.mf-mark__dim { color: var(--mf-ink-3); white-space: nowrap; }
+.mf-mark__val {
+  font-family: var(--mf-font-data);
+  color: var(--mf-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mf-mark__off {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex: none;
+  padding: 0;
+  font: inherit;
+  color: var(--mf-ink-3);
+  background: none;
+  border: 0;
+  border-radius: var(--mf-r-sm);
+  cursor: pointer;
+  transition: color var(--mf-dur-1) linear, background-color var(--mf-dur-1) linear;
+}
+.mf-mark__off:hover { color: var(--mf-oxide); background: var(--mf-ground-3); }
+
+/* ── readout, ruled cell by cell ─────────────────────────────────────────
+   The shipped strip divides its channels with a left border on each one, which
+   goes ragged the moment the strip wraps to a second row: the first channel of
+   the new row keeps a stray rule and the rows are not divided at all. Here each
+   channel casts its own hairline to the right and below, outside its own box,
+   so any number of channels wraps correctly, and the tail of a part-filled row
+   stays the panel's own surface rather than a lit block. */
+
+.mf-wedge .mf-readout,
+.mf-strip .mf-readout {
+  background: var(--mf-ground-2);
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+.mf-wedge .mf-readout__chan,
+.mf-strip .mf-readout__chan {
+  border-left: 0;
+  background: var(--mf-ground-2);
+  box-shadow: 1px 0 0 var(--mf-rule), 0 1px 0 var(--mf-rule);
+}
+.mf-wedge .mf-readout__chan.is-selectable:hover,
+.mf-strip .mf-readout__chan.is-selectable:hover { background: var(--mf-ground-3); }
+
+/* ── panel interiors ─────────────────────────────────────────────────────
+   .mf-panel carries no padding of its own, so anything that is not a
+   full-bleed sheet gets its gutter here, and always more than the pin-feed
+   cut removes, so no glyph is ever shaved by the perforation column. */
+
+.mf-wedge__body,
+.mf-wedge__plot {
+  padding: 0 var(--mf-5) var(--mf-5);
+  min-width: 0;
+}
+.mf-wedge__body > * + * { margin-top: var(--mf-4); }
+
+/* The caption over a bank of totals. The drum above it prints one sample per
+   channel under the same names, so the bank says which measurement it is. */
+.mf-wedge__caption {
+  padding: var(--mf-4) var(--mf-5) var(--mf-3);
+  font-size: var(--mf-t-xs);
+  line-height: var(--mf-lead-body);
+  color: var(--mf-ink-3);
+  max-width: 76ch;
+}
+@media (max-width: 700px) {
+  .mf-wedge__caption { padding: var(--mf-4) var(--mf-4) var(--mf-3); }
+}
+/* Written straight under a panel head, the caption is a continuation of the
+   note above it rather than a new block, so it does not open a second gap. */
+.mf-panel__head + .mf-wedge__caption { padding-top: 0; }
+
+.mf-wedge__prose {
+  font-size: var(--mf-t-sm);
+  line-height: var(--mf-lead-body);
+  color: var(--mf-ink-2);
+  max-width: 68ch;
+}
+.mf-wedge__prose strong { color: var(--mf-ink); font-weight: 500; }
+
+/* The honest caveat line. Bare mark, no tile, no tinted box. */
+.mf-caveat {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr);
+  gap: var(--mf-3);
+  align-items: start;
+  font-size: var(--mf-t-xs);
+  line-height: 1.5;
+  color: var(--mf-ink-3);
+  max-width: 72ch;
+}
+.mf-caveat svg { margin-top: 2px; color: var(--mf-ink-3); }
+.mf-caveat b { color: var(--mf-ink-2); font-weight: 500; }
+
+@media (max-width: 700px) {
+  .mf-wedge__body,
+  .mf-wedge__plot { padding: 0 var(--mf-4) var(--mf-4); }
+}
+
+/* ── the pivot bank ──────────────────────────────────────────────────────
+   Which channel the sheet below is tabulated by. State is tone and fill; the
+   key never moves, grows or grows an underline. */
+
+.mf-pivot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mf-1);
+}
+.mf-pivot__key {
+  padding: 4px var(--mf-3);
+  font: inherit;
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+  background: none;
+  border: 0;
+  border-radius: var(--mf-r-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color var(--mf-dur-1) linear, background-color var(--mf-dur-1) linear;
+}
+.mf-pivot__key:hover { color: var(--mf-ink-2); background: var(--mf-ground-3); }
+.mf-pivot__key[aria-pressed="true"] { background: var(--mf-ground-3); color: var(--mf-ink); }
+
+/* ── sortable column heads ───────────────────────────────────────────────── */
+
+.mf-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mf-1);
+  padding: 0;
+  font: inherit;
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  transition: color var(--mf-dur-1) linear;
+}
+.mf-sort:hover { color: var(--mf-ink-2); }
+.mf-sort[data-active="true"] { color: var(--mf-ink); }
+.mf-sort__dir { display: inline-flex; color: var(--mf-ink-3); visibility: hidden; }
+.mf-sort__dir[data-dir="asc"] svg { transform: rotate(180deg); }
+/* The mark appears under the pointer, so a sortable column says so without
+   every heading carrying a permanent caret. */
+.mf-sort:hover .mf-sort__dir,
+.mf-sort:focus-visible .mf-sort__dir { visibility: visible; }
+.mf-sort[data-active="true"] .mf-sort__dir { visibility: visible; color: var(--mf-shellac); }
+
+/* ── sheet cells that carry two lines ────────────────────────────────────── */
+
+.mf-wedge .mf-sheet__cell > .mf-wedge-stack,
+.mf-strip .mf-sheet__cell > .mf-wedge-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  overflow: visible;
+  white-space: normal;
+  line-height: 1.35;
+}
+.mf-wedge-stack > * {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mf-wedge-stack__sub { font-size: var(--mf-t-xs); color: var(--mf-ink-3); }
+
+.mf-path { font-family: var(--mf-font-data); }
+.mf-dim { color: var(--mf-ink-3); }
+
+/* A cell control: turns a tabulated value into the filter it names, or opens
+   the page it names. State is tone only: no underline grows in, nothing lifts. */
+.mf-cellkey {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mf-2);
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  text-decoration: none;
+  cursor: pointer;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: color var(--mf-dur-1) linear;
+}
+.mf-cellkey:hover { color: var(--mf-shellac); }
+.mf-cellkey:hover svg { color: var(--mf-shellac); }
+
+/* ── the verdict bank ────────────────────────────────────────────────────
+   Four counts on one ruled strip. Every cell reserves the same two rows above
+   its footnote, so the four figures sit on one line whatever the copy does. */
+
+.mf-verdicts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1px;
+  background: var(--mf-rule);
+  border-top: 1px solid var(--mf-rule);
+  border-bottom: 1px solid var(--mf-rule);
+}
+.mf-verdicts__cell {
+  display: grid;
+  grid-template-rows: 18px auto auto;
+  gap: var(--mf-2);
+  align-content: start;
+  padding: var(--mf-4) var(--mf-5);
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: var(--mf-ground-2);
+  border: 0;
+  cursor: pointer;
+  transition: background-color var(--mf-dur-1) linear;
+}
+.mf-verdicts__cell:hover { background: var(--mf-ground-3); }
+.mf-verdicts__cell[aria-pressed="true"] { background: var(--mf-ground-3); }
+.mf-verdicts__cell[aria-pressed="true"] .mf-verdicts__n { color: var(--mf-shellac); }
+.mf-verdicts__n {
+  font-family: var(--mf-font-display);
+  font-size: var(--mf-t-2xl);
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -0.012em;
+  color: var(--mf-ink);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+.mf-verdicts__of { font-size: var(--mf-t-xs); color: var(--mf-ink-3); }
+
+/* ── the plan: what to do about each verdict ─────────────────────────────
+   Three parallel columns on one grid, so the mark, the definition and the
+   action line up across all four rows however long the copy runs. */
+
+.mf-plan { display: grid; grid-template-columns: 13ch minmax(0, 1fr) minmax(0, 1.15fr); }
+.mf-plan__head {
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+  padding: 0 var(--mf-4) var(--mf-2) 0;
+  border-bottom: 1px solid var(--mf-rule-strong);
+}
+.mf-plan__cell {
+  padding: var(--mf-4) var(--mf-4) var(--mf-4) 0;
+  border-bottom: 1px solid var(--mf-rule);
+  font-size: var(--mf-t-sm);
+  line-height: 1.5;
+  color: var(--mf-ink-2);
+}
+.mf-plan__cell:nth-child(3n) { padding-right: 0; color: var(--mf-ink); }
+.mf-plan__row-on { background: var(--mf-shellac-wash); }
+@media (max-width: 760px) {
+  .mf-plan { grid-template-columns: minmax(0, 1fr); }
+  .mf-plan__head { display: none; }
+  .mf-plan__cell { padding: var(--mf-2) 0; border-bottom: 0; }
+  .mf-plan__cell:nth-child(3n) { padding-bottom: var(--mf-5); border-bottom: 1px solid var(--mf-rule); }
+}
+
+/* ── a finding ───────────────────────────────────────────────────────────
+   A missing robots.txt is a result, not an empty state. It is written as one:
+   the mark bare in the annotation ink, the fact, then the recommendation. */
+
+.mf-finding {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: var(--mf-3);
+  padding: var(--mf-4) var(--mf-5) var(--mf-5);
+  border-top: 1px solid var(--mf-rule);
+}
+.mf-finding + .mf-finding { border-top: 1px solid var(--mf-rule); }
+.mf-finding__mark { margin-top: 2px; color: var(--mf-oxide); }
+.mf-finding[data-tone="note"] .mf-finding__mark { color: var(--mf-ink-3); }
+.mf-finding__title {
+  font-family: var(--mf-font-ui);
+  font-size: var(--mf-t-base);
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--mf-ink);
+  margin: 0 0 var(--mf-2);
+}
+.mf-finding__body {
+  font-size: var(--mf-t-sm);
+  line-height: var(--mf-lead-body);
+  color: var(--mf-ink-2);
+  max-width: 66ch;
+}
+.mf-finding__do { margin-top: var(--mf-3); }
+.mf-finding__do b { color: var(--mf-ink); font-weight: 500; }
+
+/* ── a served file, rendered as the file ─────────────────────────────────── */
+
+.mf-file {
+  margin: 0;
+  padding: var(--mf-2) 0 var(--mf-4);
+  max-height: calc(var(--mf-24) * 4);
+  overflow: auto;
+  border-top: 1px solid var(--mf-rule);
+  background: var(--mf-well);
+}
+.mf-file__line {
+  display: grid;
+  grid-template-columns: 4ch minmax(0, 1fr);
+  gap: var(--mf-4);
+  padding: 0 var(--mf-5);
+  font-family: var(--mf-font-data);
+  font-size: var(--mf-t-sm);
+  line-height: 1.7;
+  color: var(--mf-ink-2);
+}
+.mf-file__no {
+  color: var(--mf-ink-3);
+  text-align: right;
+  user-select: none;
+  font-variant-numeric: tabular-nums;
+}
+.mf-file__txt { white-space: pre-wrap; word-break: break-word; }
+.mf-file__line[data-comment="true"] .mf-file__txt { color: var(--mf-ink-3); }
+/* the selected agent's group */
+.mf-file__line[data-group="true"] { background: var(--mf-ground-3); }
+.mf-file__line[data-group="true"] .mf-file__txt { color: var(--mf-ink); }
+/* the one rule that decides the selected agent */
+.mf-file__line[data-rule="true"] {
+  background: var(--mf-shellac-wash);
+  box-shadow: inset 2px 0 0 var(--mf-shellac);
+}
+.mf-file__line[data-rule="true"] .mf-file__txt { color: var(--mf-ink); }
+
+.mf-file__pick {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mf-2);
+  padding: 0 var(--mf-5) var(--mf-4);
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+}
+@media (max-width: 700px) {
+  .mf-file__line { padding: 0 var(--mf-4); gap: var(--mf-3); }
+  .mf-file__pick { padding: 0 var(--mf-4) var(--mf-4); }
+}
+
+/* ── waiting: blank paper feeding through ────────────────────────────────
+   A real loading state, drawn. Nothing on this page starts invisible waiting
+   for an animation or an observer to reveal it. */
+
+.mf-wedge-wait {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--mf-4);
+  padding: var(--mf-6) var(--mf-5);
+}
+.mf-wedge-wait--plot { min-height: calc(var(--mf-24) * 2); }
+
+/* ── the specimen strip (agent detail) ───────────────────────────────────
+   One channel pulled off the record for inspection. It enters by sliding a
+   short distance; it never fades in, so its content is on screen from the
+   first frame whether or not the animation runs. */
+
+.mf-strip {
+  position: fixed;
+  inset: 0 0 0 auto;
+  width: min(560px, 100%);
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+  background: var(--mf-ground-2);
+  border-left: 1px solid var(--mf-rule-strong);
+  box-shadow: var(--mf-lift);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  animation: mf-strip-in var(--mf-dur-2) var(--mf-ease-snap);
+}
+@keyframes mf-strip-in {
+  from { transform: translateX(var(--mf-4)); }
+  to { transform: translateX(0); }
+}
+.mf-strip__scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  padding: 0;
+  background: var(--mf-scrim);
+  border: 0;
+  cursor: pointer;
+}
+.mf-strip__head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--mf-4);
+  padding: var(--mf-5) var(--mf-5) var(--mf-4);
+  background: var(--mf-ground-2);
+  border-bottom: 1px solid var(--mf-rule);
+}
+.mf-strip__id { min-width: 0; }
+.mf-strip__name {
+  font-family: var(--mf-font-display);
+  font-size: var(--mf-t-lg);
+  font-weight: 600;
+  line-height: 1.15;
+  color: var(--mf-ink);
+  margin: 0;
+}
+.mf-strip__op { margin-top: var(--mf-1); font-size: var(--mf-t-sm); color: var(--mf-ink-3); }
+.mf-strip__close { margin-left: auto; flex: none; }
+.mf-strip__section { padding: var(--mf-5); border-bottom: 1px solid var(--mf-rule); }
+.mf-strip__section:last-child { border-bottom: 0; }
+.mf-strip__section > * + * { margin-top: var(--mf-4); }
+.mf-strip__h {
+  font-family: var(--mf-font-ui);
+  font-size: var(--mf-t-sm);
+  font-weight: 500;
+  color: var(--mf-ink);
+  margin: 0;
+}
+.mf-strip__sheet { margin: 0 calc(var(--mf-5) * -1) calc(var(--mf-5) * -1); }
+
+.mf-kv {
+  display: grid;
+  grid-template-columns: minmax(0, 13ch) minmax(0, 1fr);
+  gap: var(--mf-2) var(--mf-4);
+  margin: 0;
+  font-size: var(--mf-t-sm);
+}
+.mf-kv dt { color: var(--mf-ink-3); }
+.mf-kv dd { margin: 0; color: var(--mf-ink); min-width: 0; overflow-wrap: anywhere; }
+
+.mf-ext {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mf-2);
+  color: var(--mf-shellac);
+  text-decoration: none;
+  border-bottom: 1px solid var(--mf-rule-strong);
+  padding-bottom: 1px;
+  transition: color var(--mf-dur-1) linear, border-color var(--mf-dur-1) linear;
+}
+.mf-ext:hover { color: var(--mf-shellac-hi); border-color: var(--mf-shellac); }
+
+/* ── the decay row trace ─────────────────────────────────────────────────── */
+
+.mf-rowtrace { display: block; flex: none; }
+.mf-rowtrace__legend {
+  display: flex;
+  align-items: center;
+  gap: var(--mf-4);
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+}
+.mf-rowtrace__pen {
+  display: inline-block;
+  width: 14px;
+  height: 2px;
+  border-radius: 1px;
+  margin-right: var(--mf-2);
+  background: var(--mf-trace-human);
+  vertical-align: middle;
+}
+.mf-rowtrace__pen[data-pen="stepped"] {
+  background: none;
+  width: 8px;
+  height: 6px;
+  border-top: 2px solid var(--mf-trace-agent);
+  border-right: 2px solid var(--mf-trace-agent);
+}
+
+/* ── the refetch job ─────────────────────────────────────────────────────── */
+
+.mf-job {
+  display: flex;
+  align-items: center;
+  gap: var(--mf-3);
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+}
+.mf-job__track {
+  position: relative;
+  width: var(--mf-24);
+  height: 3px;
+  background: var(--mf-well);
+  border-radius: 1px;
+  overflow: hidden;
+}
+/* A width, eased, with stable square caps, never a scaled rounded bar that
+   changes shape halfway through the transition. */
+.mf-job__pen {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--mf-shellac);
+  transition: width var(--mf-dur-3) var(--mf-ease-pen);
+}
+
+/* ── a panel that is only a readout bank ─────────────────────────────────
+   The strip draws its own top and bottom rule, so the panel's border would
+   double it. Clip the corners and drop the duplicated hairline instead. */
+
+.mf-panel--bank { overflow: hidden; }
+.mf-panel--bank > .mf-readout:first-child { border-top: 0; }
+.mf-panel--bank > .mf-readout:last-child { border-bottom: 0; }
+.mf-wedge .mf-panel > .mf-finding:first-child { border-top: 0; }
+
+/* ── an allow / deny / no-rule flag ──────────────────────────────────────
+   Tone plus a drawn mark, so the answer never rests on colour alone. */
+
+.mf-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mf-2);
+  white-space: nowrap;
+  color: var(--mf-ink-2);
+}
+.mf-flag[data-tone="deny"] { color: var(--mf-oxide); }
+.mf-flag[data-tone="none"] { color: var(--mf-ink-3); }
+
+/* ── a change figure ─────────────────────────────────────────────────────
+   The sign carries the direction, so the meaning survives with no colour. */
+
+.mf-change { white-space: nowrap; color: var(--mf-ink-2); }
+.mf-change[data-tone="warn"] { color: var(--mf-oxide); }
+.mf-change[data-tone="good"] { color: var(--mf-verdigris); }
+.mf-change[data-tone="flat"] { color: var(--mf-ink-2); }
+
+/* ── a sheet that has to live in half a bench ─────────────────────────────
+   The policy screen sets the files against the behaviour in two columns, so
+   its sheets get tighter gutters rather than a horizontal scrollbar. */
+
+.mf-wedge-tight .mf-sheet th,
+.mf-wedge-tight .mf-sheet td { padding-left: var(--mf-3); padding-right: var(--mf-3); }
+.mf-wedge-tight .mf-sheet th:first-child,
+.mf-wedge-tight .mf-sheet td:first-child { padding-left: var(--mf-4); }
+.mf-wedge-tight .mf-sheet th:last-child,
+.mf-wedge-tight .mf-sheet td:last-child { padding-right: var(--mf-4); }
+
+/* ── the illustrative record shown in place of a reading ─────────────────── */
+
+.mf-wedge-demo { display: flex; flex-direction: column; gap: var(--mf-4); }
+.mf-wedge-demo .mf-empty { padding-bottom: var(--mf-4); }
+
+/* ── the sentence that explains which rule was marked ────────────────────── */
+
+.mf-file__why { padding: 0 var(--mf-5) var(--mf-4); }
+@media (max-width: 700px) {
+  .mf-file__why { padding: 0 var(--mf-4) var(--mf-4); }
+}

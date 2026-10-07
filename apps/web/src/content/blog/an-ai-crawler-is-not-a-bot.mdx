@@ -1,0 +1,64 @@
+---
+title: "An AI crawler is not a bot"
+description: "Why Micaforge has three tables instead of two, and what is lost when the third one is a bin."
+updated: 2026-08-14
+order: 1
+---
+
+Every analytics tool sorts your traffic into two piles. People, and bots. The second pile is
+filtered out, usually silently, and the number you are shown is the first pile.
+
+That was a reasonable design while the second pile was Googlebot and a handful of uptime
+monitors. Nobody needed a report on those. They took a page, they gave back a ranking, and
+the exchange was old enough to be invisible.
+
+It is not that any more.
+
+## What is in the bin now
+
+The second pile now contains, at least: crawlers collecting text for training corpora,
+fetchers retrieving one page to ground one answer while a person waits, indexers building
+answer engines, link unfurlers, evaluation crawls, and scrapers wearing all of the above as
+a costume.
+
+Those are not one thing. Being harvested for a corpus and being fetched to answer somebody's
+question right now are different events with different consequences, and calling both of
+them "bot traffic" throws away the distinction that matters most.
+
+## Naming is the whole difference
+
+Micaforge sorts into three, and the middle one is the product.
+
+A hit whose user agent carries a token from a catalog of named clients goes to
+`agent_events` with an operator, a purpose and a verification result attached. A hit that is
+plainly not a person but cannot be named goes to `bot_events` with the score and the list of
+signals that produced it. Everything else goes to `events`.
+
+The catalog is compiled in, and no token in it is invented. Every string is one an operator
+published. A fabricated token could never match anything, so it would sit in a dashboard as
+a permanent zero, and it would put a company's name next to traffic they never sent.
+
+The third pile still exists. It is scored, not guessed at, the variant is called
+`SuspectedBot` rather than `Bot`, and the reasons are stored next to the row so the
+judgement can be audited instead of trusted. Heuristics over a header set are evidence, not
+proof.
+
+## What you can ask once the middle pile exists
+
+- Which operators are reading you, and for what.
+- Whether the address a fetch came from is one the operator publishes, or whether somebody
+  is using the name without the addresses.
+- Which of your pages have never been crawled at all.
+- Whether the agents that took a page ever sent a reader back.
+
+None of those questions can be asked of a filter. A filter has one operation, and it is
+"discard".
+
+## The uncomfortable part
+
+Turning the machines back on will probably make your human numbers smaller. Some of what you
+have been counting as readers was not.
+
+That is a correction, not a loss. The number was wrong before; now it is right, and there is
+a second number beside it that was previously invisible. A tool that flatters you by
+counting crawlers as readers is not measuring your audience. It is measuring your patience.

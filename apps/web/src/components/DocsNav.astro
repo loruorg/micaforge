@@ -1,0 +1,66 @@
+---
+/**
+ * The manual's left index: every page, grouped by section.
+ *
+ * It is a disclosure so that a narrow screen is not asked to scroll past fifty links to
+ * reach the article. The element ships OPEN, which is what a reader with no JavaScript,
+ * and every crawler, gets. The script below only ever CLOSES it, and only on a narrow
+ * viewport: no link's existence depends on a script running.
+ */
+import { sections, docHref, type DocEntry } from "../lib/docs";
+
+interface Props {
+  entries: DocEntry[];
+  /** The id of the page being read, e.g. `agents/the-citation-gap`. */
+  current?: string;
+}
+
+const { entries, current } = Astro.props;
+const groups = sections(entries);
+const count = groups.reduce((n, g) => n + g.docs.length, 0);
+---
+
+<details class="doc-index" open>
+  <summary class="doc-index__summary">
+    <span>Contents</span>
+    <span class="doc-index__count mf-data">{count}</span>
+  </summary>
+
+  <nav class="doc-index__nav" aria-label="Documentation">
+    {
+      groups.map((section) => (
+        <div class="doc-bank">
+          <p class="doc-bank__label">{section.group.label}</p>
+          <ul class="doc-bank__list">
+            {section.docs.map((doc) => (
+              <li>
+                <a
+                  class="doc-bank__link"
+                  href={docHref(doc.id)}
+                  aria-current={doc.id === current ? "page" : undefined}
+                >
+                  {doc.data.title}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))
+    }
+  </nav>
+</details>
+
+<script>
+  // Open is the served state. This collapses it on a narrow viewport and restores it
+  // when there is room again, so a reader can never end up on a wide screen with the
+  // index closed and its handle hidden.
+  const index = document.querySelector<HTMLDetailsElement>(".doc-index");
+  if (index) {
+    const narrow = window.matchMedia("(max-width: 1080px)");
+    const apply = (matches: boolean) => {
+      index.open = !matches;
+    };
+    apply(narrow.matches);
+    narrow.addEventListener("change", (e) => apply(e.matches));
+  }
+</script>

@@ -1,0 +1,90 @@
+---
+title: "Custom events"
+description: "track(), event properties, and what belongs in a property rather than a name."
+group: "tracking"
+order: 2
+updated: 2026-08-22
+---
+
+```js
+micaforge.track("signup", { plan: "pro", seats: 5 });
+```
+
+That is the whole API. The event lands with `kind` `custom`, `event_name` `signup`, and
+the object as JSON in `props`.
+
+From the package:
+
+```ts
+import { track } from "@micaforge/sdk";
+
+track("signup", { plan: "pro", seats: 5 });
+```
+
+## Names
+
+Name the thing that happened, not the thing you will chart. `signup`, `plan_changed`,
+`export_started`. Keep the vocabulary small: every distinct name is a row in the events
+report, and forty near-identical names are harder to read than four with a property.
+
+Do this:
+
+```js
+track("plan_changed", { from: "free", to: "pro" });
+```
+
+Not this:
+
+```js
+track("plan_changed_free_to_pro");
+```
+
+## Properties
+
+Properties are JSON: strings, numbers, booleans, null, arrays and nested objects. Every
+key is filterable as `props.<key>`: `props.plan is pro`, `props.seats gte 5`. And the
+events screen breaks any single property down for you.
+
+Two rules worth holding to:
+
+- **Bounded values.** A property with thousands of distinct values makes a breakdown that
+  nobody can read. An id belongs in a property you filter by, not one you group by.
+- **Nothing personal.** Properties are stored exactly as sent. An email address in a
+  property is personal data in your event store, and the point of this tool is that there
+  is none.
+
+## Defaults on every event
+
+```js
+micaforge.setProps({ theme: "dark", app_version: "2.4.0" });
+```
+
+Merged into every event sent afterwards, including pageviews. A per-call property of the
+same name wins.
+
+## Revenue
+
+The browser payload has no revenue field. There are two honest ways to record money:
+
+- a **goal** with a fixed value, which is the right shape for "a signup is worth £40"
+- the **server SDK**, which does carry `revenue` and `currency`, and which is where a real
+  amount belongs anyway, because a price computed in a browser is a price a browser can
+  change
+
+```ts
+// on your server, after the payment settled
+micaforge.track({ name: "purchase", url: "https://example.com/checkout/done", revenue: 49.0, currency: "GBP" });
+```
+
+## Queued calls
+
+If you call `micaforge(...)` before the deferred script has loaded, install
+[the queue snippet](/docs/getting-started/script-tag) and nothing is lost: the tracker
+replays the queue on arrival.
+
+## Where they appear
+
+Custom events show up under Events with their counts and property breakdowns, they can be
+the definition of a [goal](/docs/dashboard/goals), and they can be a step in a
+[funnel](/docs/dashboard/funnels). They are also readable through
+`GET /api/stats/events`.

@@ -1,0 +1,151 @@
+---
+title: "Stats API"
+description: "One query envelope, every read endpoint, and the response shape they all share."
+group: "api"
+order: 2
+updated: 2026-08-22
+---
+
+Every analytics read takes the same query string and returns the same envelope. Learn it
+once.
+
+```sh
+curl "https://analytics.example.com/api/stats/overview?site=1&range=30d&compare=previous" \
+  -H "Authorization: Bearer mfg_…"
+```
+
+## The query envelope
+
+| Parameter | Values |
+| --- | --- |
+| `site` | Required. The numeric site id. |
+| `start`, `end` | ISO-8601 instants. |
+| `range` | `today`, `yesterday`, `24h`, `7d`, `30d`, `90d`, `12mo`, `mtd`, `ytd`, `all`. |
+| `compare` | `none`, `previous`, `year`. Default `none`. |
+| `tz` | IANA name. Defaults to the site's timezone. |
+| `granularity` | `minute`, `hour`, `day`, `week`, `month`. Chosen for you when absent. |
+| `filters` | A JSON array or group. See [filters](/docs/dashboard/filters-and-segments). |
+| `segment` | A saved segment id, merged into `filters`. |
+| `audience` | `human`, `agent`, `all`. Default `human`. |
+| `limit`, `page` | Pagination, on the list endpoints. |
+
+`audience` is the parameter that makes this product what it is. The same question, the same
+window, the same filters, asked about the other readership.
+
+## The response
+
+```json
+{
+  "data": { "visitors": 1284, "sessions": 1502, "pageviews": 3310 },
+  "meta": { "query": {}, "rows": 3, "sampled": false, "took_ms": 18 }
+}
+```
+
+`data` is the payload. `meta` says what was asked, how many rows came back, whether the
+answer was sampled, and how long it took.
+
+Errors carry the matching HTTP status:
+
+```json
+{ "error": { "code": "validation_error", "message": "range is not a known window", "field": "range" } }
+```
+
+The `code` is `snake_case` and stable: `not_found`, `unauthorized`, `forbidden`,
+`conflict`, `validation_error`, `rate_limited`, `bad_request`, `database_error`,
+`upstream_error`, `internal_error`. Branch on it, never on the message.
+
+## The endpoints
+
+**Totals and time**
+
+```http
+GET /api/stats/overview      visitors, sessions, pageviews, bounce, duration, views/session
+GET /api/stats/timeseries    one metric in buckets, plus the comparison series
+GET /api/stats/realtime      the last five minutes: live people, live agents, open pages
+```
+
+**Content and acquisition**
+
+```http
+GET /api/stats/pages         entries, exits, scroll depth, time on page
+GET /api/stats/sources       channels, then sources, then campaigns
+GET /api/stats/locations     country, region, city
+GET /api/stats/devices       browser, OS, device type, screen class
+GET /api/stats/breakdown     ranked rows for any dimension: ?dimension=…
+```
+
+**Behaviour**
+
+```http
+GET /api/stats/events        event names, counts and property breakdowns
+GET /api/stats/goals         conversions, rate and revenue per goal
+GET /api/stats/funnel/:id    step counts, drop-off, the sessions per step
+GET /api/stats/journeys      nodes and links: ?depth=4&start=/docs
+GET /api/stats/retention     the cohort grid: ?granularity=week
+GET /api/stats/sessions      the session list, and /:id for one session
+GET /api/stats/visitors      visitors, traits and session counts
+```
+
+**Health**
+
+```http
+GET /api/stats/performance   LCP, CLS, INP, FCP, TTFB at p50, p75, p95
+GET /api/stats/errors        grouped by fingerprint, with a sparkline
+```
+
+**Machines**
+
+```http
+GET /api/agents/overview     fetches, unique agents, verified share, bytes, top operators
+GET /api/agents/breakdown    ?dimension=agent_id|operator|purpose|pathname|status
+GET /api/agents/timeseries   crawl volume over time, per agent
+GET /api/agents/coverage     per URL: first crawl, last crawl, freshness gap, agents
+GET /api/agents/catalog      the known-agent catalog, with each operator's own docs link
+GET /api/citation-gap        per URL: fetches, arrivals, ratio, verdict
+GET /api/citation-gap/summary
+GET /api/policy              robots.txt and llms.txt as parsed, per agent
+GET /api/policy/violations   fetches of a path the site disallowed
+GET /api/content/decay       human traffic fell, agent traffic held
+```
+
+`/api/stats/export.csv` and `/api/stats/export.pdf` take the same envelope and return the
+same data as a file.
+
+## Worked examples
+
+Which operators crawled the most last month:
+
+```sh
+curl "https://analytics.example.com/api/stats/breakdown?site=1&range=30d&audience=agent&dimension=operator" \
+  -H "Authorization: Bearer mfg_…"
+```
+
+Answer-engine arrivals on the documentation, week by week:
+
+```sh
+curl -G "https://analytics.example.com/api/stats/timeseries" \
+  -H "Authorization: Bearer mfg_…" \
+  --data-urlencode "site=1" \
+  --data-urlencode "range=90d" \
+  --data-urlencode "granularity=week" \
+  --data-urlencode 'filters=[{"dimension":"channel","op":"is","value":"answer_engine"},{"dimension":"pathname","op":"starts_with","value":"/docs"}]'
+```
+
+The pages being taken with nothing coming back:
+
+```sh
+curl "https://analytics.example.com/api/citation-gap?site=1&range=30d" \
+  -H "Authorization: Bearer mfg_…"
+```
+
+## Practical notes
+
+- **Both audiences, one call, is not a thing.** `audience=all` sums where summing is
+  honest and returns nothing where it is not: a crawler has no bounce rate, and a zero
+  there would read as a measurement.
+- **Comparisons run the query twice** with everything else identical, so a delta can only
+  be a change in the data.
+- **Absent is not zero.** A metric that cannot be computed comes back absent. Render it as
+  absent.
+- **Bulk belongs in the export.** For a full table, use `export.csv` rather than paging a
+  breakdown ten thousand rows at a time.

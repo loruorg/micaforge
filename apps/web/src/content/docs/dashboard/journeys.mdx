@@ -1,0 +1,45 @@
+---
+title: "Journeys"
+description: "Where a page leads, as a flow rather than a list."
+group: "dashboard"
+order: 4
+updated: 2026-08-22
+---
+
+A funnel asks whether a path you chose was walked. A journey asks what people actually did,
+without you naming it first.
+
+```http
+GET /api/stats/journeys?site=1&range=30d&depth=4&start=/docs
+```
+
+It returns nodes and links (a flow) from an entry page outward, to whatever depth you
+ask for.
+
+## The two controls
+
+**Start.** Anchor the flow to an entry page, chosen from your real entry paths. Leave it
+off to see every entry at once, which is a wider and usually noisier picture.
+
+**Depth.** How many steps forward to follow. Three or four is where it stays readable; ten
+is a diagram nobody can read, and the answer it gives is rarely different.
+
+## Reading it
+
+Follow the widest link out of your busiest entry. That is what most readers do next, and
+it is frequently not what the page was designed to make them do.
+
+Then look for the exits. A step where a large share leaves is either the end of a job
+finished (which is fine) or the point where the page ran out of what someone came for.
+The path list next to the flow tells you which, because a session that ended after
+converting looks different from one that ended after ten seconds.
+
+## Journeys and agents
+
+Switch the audience to agents and the flow becomes crawl order, which pages a crawler
+reaches from which, and how deep it goes. That is a genuinely different question from the
+human one, and worth asking on a documentation site: a crawler that never gets past your
+index is a crawler that never read the pages you wrote.
+
+Crawl flow has no sessions in the human sense, so the numbers are fetches rather than
+people, and the screen says which it is showing.

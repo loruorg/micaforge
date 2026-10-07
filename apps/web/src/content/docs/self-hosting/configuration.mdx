@@ -1,0 +1,215 @@
+---
+title: "Configuration"
+description: "Every variable the server reads, what it defaults to, and what happens when it is unset."
+group: "self-hosting"
+order: 2
+updated: 2026-08-22
+---
+
+`.env.example` in the repository is the complete inventory: every variable, once, with what
+reads it. If a variable is not in that file, nothing reads it. This page is the tour.
+
+`docker compose` reads `.env` automatically. So does `cargo run`, through dotenvy. Keep it
+out of version control: it holds the key every other key is derived from.
+
+## Required
+
+```sh
+MICAFORGE_SECRET_KEY_BASE=   # openssl rand -base64 48
+POSTGRES_PASSWORD=           # openssl rand -hex 24
+CLICKHOUSE_PASSWORD=         # openssl rand -hex 24
+MICAFORGE_DOMAIN=:80
+ACME_EMAIL=
+```
+
+`MICAFORGE_SECRET_KEY_BASE` is the one operator secret. Session cookies, sealed
+credentials, share-link signatures and the ingest HMAC are all derived from it. Rotating it
+logs everyone out and makes stored secrets unreadable. 32 characters minimum, refused at
+boot below that.
+
+`MICAFORGE_DOMAIN` is read by Caddy. A hostname turns on automatic HTTPS; the literal `:80`
+serves plain HTTP, which is what you want on a laptop or behind a proxy that terminates TLS
+already.
+
+Keep the two store passwords to characters that need no percent-encoding: they are
+interpolated into connection URLs. Hex is the safe choice and is what the installer
+generates.
+
+## Public addresses
+
+```sh
+MICAFORGE_PUBLIC_URL=https://analytics.example.com
+MICAFORGE_DASHBOARD_URL=https://analytics.example.com
+```
+
+Both must be addresses a browser can reach, not the address the server binds. They are
+printed into invitation emails, share links and the tracking snippet, so a wrong value here
+is a snippet that silently sends nothing. They are two variables because a managed install
+can serve the dashboard from a CDN and the API from elsewhere.
+
+## Stores
+
+In the shipped compose file the three connection URLs are assembled from the parts and the
+container names, so there is nothing to set beyond the passwords. Spelled out, for a local
+`cargo run`:
+
+```sh
+MICAFORGE_DATABASE_URL=postgres://micaforge:PASSWORD@127.0.0.1:5432/micaforge
+MICAFORGE_CLICKHOUSE_URL=http://127.0.0.1:8123
+MICAFORGE_CLICKHOUSE_DB=micaforge
+MICAFORGE_CLICKHOUSE_USER=micaforge
+MICAFORGE_CLICKHOUSE_PASSWORD=
+MICAFORGE_REDIS_URL=redis://127.0.0.1:6379
+```
+
+ClickHouse takes its database and credentials separately rather than folded into the URL,
+because the driver does. Valkey speaks the Redis wire protocol, so the scheme stays
+`redis://`.
+
+Postgres memory is tuned for a 4 GB machine shared with ClickHouse:
+`POSTGRES_SHARED_BUFFERS`, `POSTGRES_EFFECTIVE_CACHE_SIZE`, `POSTGRES_WORK_MEM`,
+`POSTGRES_MAX_CONNECTIONS`. On a bigger box, raise shared buffers to about a quarter of RAM
+and effective cache size to about half.
+
+## Behaviour
+
+```sh
+MICAFORGE_BIND_ADDR=0.0.0.0:8080
+MICAFORGE_DISABLE_REGISTRATION=true
+MICAFORGE_SELF_HOSTED=true
+MICAFORGE_LOG_FORMAT=json
+MICAFORGE_WORKER_CONCURRENCY=2
+MICAFORGE_WRITER_BUFFER_MB=32
+RUST_LOG=info
+```
+
+Registration is closed by default. The first account on an install is always allowed and
+becomes its owner; everyone after it joins by invitation, unless you set
+`MICAFORGE_DISABLE_REGISTRATION=false`.
+
+`MICAFORGE_WRITER_BUFFER_MB` is how much each event table may hold in memory while
+ClickHouse is away, for a restart or an upgrade. The server keeps retrying and loses nothing
+until the buffer is full; then it drops the oldest rows and logs how many. Six tables, so the
+worst case is six times the value.
+
+`MICAFORGE_SELF_HOSTED` gates no feature, because there are none to gate. It selects the
+admin surface and guarantees no outbound call at runtime.
+
+`MICAFORGE_WORKER_CONCURRENCY` is how many background jobs run at once: crawls, imports,
+scheduled reports, alert evaluation. Two is right for a 4 GB VPS, where the ingest path must
+not queue behind an import. It defaults to half the cores, minimum 2, maximum 16.
+
+## Retention
+
+```sh
+MICAFORGE_RETENTION_DAYS=0
+MICAFORGE_REPLAY_RETENTION_DAYS=30
+```
+
+`0` means forever, and forever is the default: an analytics tool that quietly deleted
+history because a variable was unset would be indefensible. See
+[data retention](/docs/privacy/data-retention).
+
+## Geography, off by default
+
+Micaforge makes no outbound call to resolve an address, so geography needs a database on
+disk. Drop a MaxMind-compatible `.mmdb` into `infra/geoip/` and point these at the path
+inside the container:
+
+```sh
+MICAFORGE_GEOIP_CITY_PATH=/geoip/GeoLite2-City.mmdb
+MICAFORGE_GEOIP_ASN_PATH=/geoip/GeoLite2-ASN.mmdb
+```
+
+Without the city database you get country only, which most hosts give in a request header
+anyway. Without the ASN database there is no datacenter detection, which weakens agent
+verification without breaking it, since user-agent patterns and reverse DNS still apply.
+
+## Mail, off by default
+
+```sh
+MICAFORGE_SMTP_URL=smtp://user:password@smtp.example.com:587
+MICAFORGE_MAIL_FROM=Micaforge <noreply@example.com>
+```
+
+With no SMTP URL every email path degrades instead of failing: invitations become links you
+copy from the dashboard, scheduled reports do not run, and a password reset is a link the
+operator prints on the host:
+
+```sh
+docker compose exec micaforge micaforge-server reset-link you@example.com
+```
+
+The link works once and expires in an hour. No link or token is ever written to the log,
+because anyone who can read a log could otherwise take over the account.
+
+## Images and ports
+
+```sh
+MICAFORGE_IMAGE=micaforge            # or ghcr.io/micaforge/micaforge
+MICAFORGE_WEB_IMAGE=micaforge-web    # or ghcr.io/micaforge/micaforge-web
+MICAFORGE_VERSION=local              # or a release, such as 0.1.0
+POSTGRES_IMAGE=postgres:17-alpine
+CLICKHOUSE_IMAGE=clickhouse/clickhouse-server:26.8-alpine
+VALKEY_IMAGE=valkey/valkey:8-alpine
+HTTP_PORT=80
+HTTPS_PORT=443
+```
+
+With bare image names the server and web images are built from your checkout. With a
+registry path they are pulled, at `MICAFORGE_VERSION`. `./install.sh --version 0.1.0` sets
+all three for you.
+
+The stores are pinned to a major version (Postgres, Valkey) or an LTS line (ClickHouse), so
+a pull brings patch releases and never a format change. ClickHouse cannot be downgraded
+once it has written data: move that line on purpose, after `./backup.sh`.
+
+Moving `HTTP_PORT` off 80 breaks certificate issuance: ACME's HTTP-01 challenge needs port
+80 reachable on the standard port.
+
+## Who the visitor is
+
+```sh
+MICAFORGE_TRUSTED_PROXIES=                 # read by Caddy
+MICAFORGE_TRUSTED_PROXY_HEADER=x-real-ip   # read by the server; set in docker-compose.yml
+```
+
+The visitor address feeds the daily visitor hash and the rate limits, and is never stored.
+Caddy writes the address it resolved into `X-Real-IP`, overwriting any a client sent, and
+the server believes that header and nothing else.
+
+`MICAFORGE_TRUSTED_PROXIES` is who Caddy believes when they say who the visitor is. Empty
+trusts nobody, which is right when Caddy faces the internet. Behind your own proxy on the
+same network, set `private_ranges`; behind a CDN, list the CDN's published ranges, space
+separated. Get it wrong and every visitor arrives with the proxy's address, so they all
+count as one visitor and share one rate-limit bucket.
+
+## Hardening and limits
+
+```sh
+MICAFORGE_ADMIN_EMAILS=                 # extra instance admins, comma separated
+MICAFORGE_RATE_LIMIT_PER_MIN=3000       # per client address, 0 switches it off
+MICAFORGE_CORS_ORIGINS=                 # extra dashboard origins, comma separated
+MICAFORGE_ALLOW_PRIVATE_OUTBOUND=false  # let webhooks reach your own network
+```
+
+The first registered account is always an instance admin. An address in
+`MICAFORGE_ADMIN_EMAILS` becomes one only after its owner verifies it.
+
+Outbound requests (robots.txt and sitemap reads, webhooks, imports by URL) refuse private,
+loopback and link-local addresses, after DNS and on every redirect, so a site record cannot
+be pointed at your database or a cloud metadata endpoint. Turn
+`MICAFORGE_ALLOW_PRIVATE_OUTBOUND` on only if your webhooks really go to a host on your own
+network.
+
+## The web app
+
+The shipped web image needs no build-time configuration: the dashboard calls the API on
+whatever address served it. Two Astro variables exist for other setups, and both are read
+at **build** time:
+
+```sh
+PUBLIC_API_URL=https://api.example.com   # only when the dashboard is on another origin
+PUBLIC_SITE_URL=https://micaforge.dev    # canonical address of the marketing pages
+```
+

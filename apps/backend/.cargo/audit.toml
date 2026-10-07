@@ -1,0 +1,20 @@
+# `cargo audit` policy for this workspace. CI runs it on every push.
+#
+# An advisory is ignored here only when the vulnerable code cannot be reached
+# from this workspace, and the reason is written next to it. Re-check each one
+# when the dependency that pulls it in is upgraded.
+
+[advisories]
+ignore = [
+  # rsa: Marvin timing attack on RSA decryption. No fixed release exists. It is
+  # in Cargo.lock only through sqlx-mysql, which this workspace never compiles
+  # (sqlx is built with the postgres feature alone; `cargo tree -i rsa` is
+  # empty), and nothing here performs RSA operations.
+  "RUSTSEC-2023-0071",
+
+  # maxminddb: `Reader::open_mmap` marks an unsafe memory map as safe. The
+  # GeoIP reader in crates/enrich/src/geo.rs uses `Reader::open_readfile`,
+  # which reads the database into memory and never maps it. Remove this when
+  # maxminddb moves to 0.27.
+  "RUSTSEC-2025-0132",
+]

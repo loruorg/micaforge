@@ -1,0 +1,85 @@
+---
+title: "Scaling"
+description: "Where the load actually goes, and what to change first."
+group: "self-hosting"
+order: 5
+updated: 2026-08-22
+---
+
+The stack is tuned for one 4 GB machine with two vCPUs. That is enough for far more traffic
+than it sounds, because the expensive parts were designed out rather than optimised later.
+
+## Why it is cheap
+
+**Ingest is one Rust binary.** Accepting a hit is a parse, a classify, an enrich and a push
+into an in-memory queue. Nothing waits on a database.
+
+**Writes are batched per table.** The writer runs one lane per table, each with its own task
+and buffer. A pathological replay payload cannot delay a pageview, and a failing insert on
+one table cannot stall another.
+
+**Postgres is off the ingest path.** Sites are resolved from a one-minute in-process cache,
+policy files from a five-minute one. A Postgres stall degrades the dashboard; it does not
+stop collection.
+
+**Reads are columnar.** Every table is partitioned by month and ordered by
+`(site_id, timestamp, …)`, so a 30-day query on one site touches one or two partitions.
+
+## What to change, in order
+
+**1. Give ClickHouse the memory.** It is the component that will notice first. On a bigger
+box, take Postgres's share up too:
+
+```sh
+POSTGRES_SHARED_BUFFERS=2GB          # about a quarter of RAM
+POSTGRES_EFFECTIVE_CACHE_SIZE=6GB    # about half
+```
+
+**2. Keep worker concurrency low.** Background jobs (crawls, imports, reports, alert
+evaluation) compete with ingest for the same cores.
+
+```sh
+MICAFORGE_WORKER_CONCURRENCY=2
+```
+
+Two is right for a small VPS. Raise it only when you can see the queue backing up and the
+cores idle.
+
+**3. Set a retention policy if you have one.** Expiry drops whole partitions rather than
+rewriting them, so it is close to free.
+
+```sh
+MICAFORGE_RETENTION_DAYS=0      # forever, the default
+MICAFORGE_REPLAY_RETENTION_DAYS=30
+```
+
+**4. Watch the row counts.** `GET /api/sites/:site/usage` reports rows this month and rows
+ever, with human events and agent events counted **separately and never summed**: a single
+"events" number that folded crawler fetches into pageviews would be exactly the mistake this
+product exists to correct.
+
+## Disk, honestly
+
+A pageview is a wide row of small values, and ClickHouse compresses columnar data hard;
+an agent fetch is narrower still. Replay is the outlier: one recorded session outweighs a
+month of events, which is why it has a retention clock of its own.
+
+Rather than quoting a bytes-per-event figure this project has not measured, watch your own:
+`usage` gives you rows, and `docker system df` plus the ClickHouse volume gives you bytes.
+Two weeks of your own traffic is a better forecast than anyone else's benchmark.
+
+## What is not built
+
+There is no clustered or multi-node deployment, no sharded ClickHouse and no horizontal
+scale-out of the server, and nothing in the compose file pretends otherwise. One binary and
+one machine is the shape today.
+
+The API and the ingest path are stateless apart from the writer's in-memory queue, so more
+than one server against shared stores is architecturally plausible, but it has not been
+built or tested, and this page is not going to describe a deployment nobody has run.
+
+## If you are hosting many sites
+
+`site_id` is the first column of every ORDER BY key, so sites do not interfere with each
+other's reads. Cross-site work happens in Postgres, which is small. One install with fifty
+sites is a normal shape.

@@ -1,0 +1,236 @@
+---
+/**
+ * READ MODE: the shell every written page is read in.
+ *
+ * The article column is a sheet of the instrument's own paper: pin-fed down the left
+ * edge, square-cornered, edged by its own colour. Everything around it is the bench.
+ * Wayfinding sits on both sides of the sheet and never on top of it: the manual's index
+ * to the left, the page's own depth scale to the right, so the column itself holds
+ * nothing but the writing.
+ *
+ * The same shell carries the manual, the log and the argument. Only the left column
+ * changes, and any page may replace it through the `index` slot.
+ */
+import { getCollection } from "astro:content";
+import Base from "./Base.astro";
+import DocsNav from "../components/DocsNav.astro";
+import { IconOut, IconPaper, IconSmoked, Mark } from "../components/react/icons";
+import { docHref, isoDay, neighbours } from "../lib/docs";
+import "../styles/docs.css";
+
+interface Props {
+  /** The document title, for the tab and the search result. */
+  title: string;
+  description: string;
+  /** Which top-level section is being read, for the bar. */
+  section?: "docs" | "blog" | "changelog";
+  /** The docs entry id being read, e.g. `agents/the-citation-gap`. */
+  current?: string;
+  /** The h1 on the sheet. Omit and the page supplies its own opening. */
+  heading?: string;
+  /** The line under the h1. */
+  standfirst?: string;
+  /** A dateline under the standfirst, in the data face. Genuine dates only. */
+  stamp?: string;
+  /** When this page was last checked against the code. */
+  updated?: Date;
+  /** Rendered into the right-hand depth scale by the page itself. */
+  rail?: boolean;
+  /** Set false on a page that carries no manual index. */
+  index?: boolean;
+  /** Set false when the sheet holds a composition of its own rather than prose. */
+  prose?: boolean;
+}
+
+const {
+  title,
+  description,
+  section = "docs",
+  current,
+  heading,
+  standfirst,
+  stamp,
+  updated,
+  rail = true,
+  index = true,
+  prose = true,
+} = Astro.props;
+
+const entries = index && section === "docs" ? await getCollection("docs") : [];
+const turn = current ? neighbours(entries, current) : {};
+
+// `short` is what a narrow bar shows. Both strings are in the markup, so the label a
+// reader sees is never waiting on a script or a media query to be written.
+const bar = [
+  { href: "/docs", label: "Documentation", short: "Docs", key: "docs" },
+  { href: "/blog", label: "Blog", short: "Blog", key: "blog" },
+  { href: "/changelog", label: "Changelog", short: "Log", key: "changelog" },
+];
+
+const SOURCE = "https://github.com/micaforge/micaforge";
+---
+
+<Base title={title} description={description}>
+  <div class="doc-shell">
+    <header class="doc-bar">
+      <div class="doc-bar__inner">
+        <a class="doc-bar__brand" href="/">
+          <Mark size={22} />
+          <span class="doc-bar__wordmark">Micaforge</span>
+        </a>
+        <nav class="doc-bar__nav" aria-label="Sections">
+          {
+            bar.map((item) => (
+              <a
+                class="doc-bar__link"
+                href={item.href}
+                aria-current={item.key === section ? "page" : undefined}
+              >
+                <span class="doc-bar__long">{item.label}</span>
+                <span class="doc-bar__short">{item.short}</span>
+              </a>
+            ))
+          }
+        </nav>
+        <div class="doc-bar__right">
+          <div class="mf-medium doc-medium" role="group" aria-label="Recording medium">
+            <button type="button" class="mf-medium__opt" data-medium="smoked" aria-pressed="false">
+              <IconSmoked size={14} />
+              <span>Smoked</span>
+            </button>
+            <button type="button" class="mf-medium__opt" data-medium="paper" aria-pressed="false">
+              <IconPaper size={14} />
+              <span>Paper</span>
+            </button>
+          </div>
+        </div>
+      </div>
+      <span class="doc-bar__pen" aria-hidden="true"></span>
+    </header>
+
+    <!--
+      Inline and synchronous, next to the control it drives: the pressed state has to be
+      right in the first frame, exactly as the medium itself is applied before paint.
+    -->
+    <script is:inline>
+      (function () {
+        var root = document.documentElement;
+        var group = document.querySelector(".doc-medium");
+        if (!group) return;
+        var keys = group.querySelectorAll("[data-medium]");
+        function current() {
+          var set = root.getAttribute("data-record");
+          if (set === "paper" || set === "smoked") return set;
+          try {
+            return window.matchMedia("(prefers-color-scheme: light)").matches ? "paper" : "smoked";
+          } catch (e) {
+            return "smoked";
+          }
+        }
+        function paint(medium) {
+          for (var i = 0; i < keys.length; i++) {
+            keys[i].setAttribute("aria-pressed", keys[i].dataset.medium === medium ? "true" : "false");
+          }
+        }
+        paint(current());
+        group.addEventListener("click", function (event) {
+          var key = event.target.closest("[data-medium]");
+          if (!key) return;
+          var medium = key.dataset.medium;
+          root.setAttribute("data-record", medium);
+          try {
+            localStorage.setItem("mf-record", medium);
+          } catch (e) {
+            /* private mode: the choice holds for this page only */
+          }
+          paint(medium);
+        });
+      })();
+    </script>
+
+    <div class="doc-body" data-rail={String(rail)} data-index={String(index)}>
+      {
+        index && (
+          <aside class="doc-body__index">
+            <slot name="index">
+              {section === "docs" && <DocsNav entries={entries} current={current} />}
+            </slot>
+          </aside>
+        )
+      }
+
+      <main class="doc-sheet mf-panel mf-panel--feed" id="main">
+        {
+          heading && (
+            <header class="doc-sheet__head">
+              <h1 class="doc-sheet__title">{heading}</h1>
+              {standfirst && <p class="doc-sheet__standfirst">{standfirst}</p>}
+              {stamp && <p class="doc-sheet__stamp">{stamp}</p>}
+            </header>
+          )
+        }
+
+        <div class:list={["doc-sheet__body", prose && "doc-prose"]}>
+          <slot />
+        </div>
+
+        {
+          (updated || turn.prev || turn.next) && (
+            <footer class="doc-sheet__foot">
+              {updated && (
+                <p class="doc-sheet__checked">
+                  Checked against the code on <time datetime={isoDay(updated)}>{isoDay(updated)}</time>
+                </p>
+              )}
+              {(turn.prev || turn.next) && (
+                <nav class="doc-turn" aria-label="Manual">
+                  {turn.prev ? (
+                    <a class="doc-turn__link" href={docHref(turn.prev.id)} rel="prev">
+                      <span class="doc-turn__dir">Previous</span>
+                      <span class="doc-turn__title">{turn.prev.data.title}</span>
+                    </a>
+                  ) : (
+                    <span class="doc-turn__slot" />
+                  )}
+                  {turn.next ? (
+                    <a class="doc-turn__link doc-turn__link--next" href={docHref(turn.next.id)} rel="next">
+                      <span class="doc-turn__dir">Next</span>
+                      <span class="doc-turn__title">{turn.next.data.title}</span>
+                    </a>
+                  ) : (
+                    <span class="doc-turn__slot" />
+                  )}
+                </nav>
+              )}
+            </footer>
+          )
+        }
+      </main>
+
+      {
+        rail && (
+          <aside class="doc-body__rail">
+            <slot name="rail" />
+          </aside>
+        )
+      }
+    </div>
+
+    <footer class="doc-foot">
+      <div class="doc-foot__inner">
+        <p class="doc-foot__line">
+          Micaforge is free software under AGPL-3.0. The tracker and the SDK are MIT.
+        </p>
+        <nav class="doc-foot__links" aria-label="Elsewhere">
+          <a class="doc-foot__link" href="/docs">Documentation</a>
+          <a class="doc-foot__link" href="/blog">Blog</a>
+          <a class="doc-foot__link" href="/changelog">Changelog</a>
+          <a class="doc-foot__link" href={SOURCE} rel="noreferrer">
+            <span>Source</span>
+            <IconOut size={12} />
+          </a>
+        </nav>
+      </div>
+    </footer>
+  </div>
+</Base>

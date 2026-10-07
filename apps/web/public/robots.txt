@@ -1,0 +1,36 @@
+# Micaforge's own robots.txt.
+#
+# We measure which agents honour this file, so it would be strange to be vague in
+# it. Everything here is deliberate, and the dashboard that reports on it is the
+# product.
+
+User-agent: *
+Allow: /
+Disallow: /app/
+Disallow: /share/
+
+# Named AI agents. We allow the ones whose fetches we can verify against published
+# address ranges and who send readers back; we disallow the ones that take without
+# returning. The point of the product is being able to tell the difference.
+User-agent: GPTBot
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Claude-User
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+Sitemap: https://micaforge.dev/sitemap-index.xml

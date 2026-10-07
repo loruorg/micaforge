@@ -1,0 +1,69 @@
+---
+title: "identify()"
+description: "Attaching your own id to events, and the privacy trade you make when you do."
+group: "tracking"
+order: 3
+updated: 2026-08-22
+---
+
+Micaforge is cookieless by default. A visitor is a daily-rotating salted hash and nothing
+else, which means a returning reader tomorrow is a new visitor. That is the deal, and for
+most sites it is the right one.
+
+`identify()` is the opt-in exception, for a product where you already know who is signed
+in.
+
+```js
+micaforge.identify("u_123");
+micaforge.identify("u_123", { plan: "pro" });
+```
+
+The id is written to `identified_id` on every event sent afterwards. A second argument is
+merged into the default properties, exactly as `setProps` would.
+
+Clear it on sign-out:
+
+```js
+micaforge.identify(null);
+```
+
+## What changes when you use it
+
+- Events from the same account join up across days and devices, which the visitor hash
+  cannot do.
+- The visitor screens can show a profile: sessions, first seen, last seen, traits.
+- `identified_id` becomes a filter dimension like any other.
+
+## What it costs
+
+An identified row is personal data. The rest of the product is built so that there is
+none, and this is the one call that changes that, so it is worth being deliberate:
+
+- **Send an opaque id.** `u_123`, not an email address, not a name. If your id is
+  reversible only through your own database, the event store still holds nothing readable
+  on its own.
+- **Say so.** An identified analytics stream belongs in your privacy notice. See
+  [GDPR](/docs/privacy/gdpr) for what the rest of the system does and does not store.
+- **Retention still applies.** Identified rows expire with everything else under your
+  [retention setting](/docs/privacy/data-retention).
+
+## From the server
+
+The server SDK carries the same field, which is often the better place for it, because
+your server already knows the account and the browser only thinks it does.
+
+```ts
+micaforge.track({
+  name: "invoice_paid",
+  url: "https://example.com/billing",
+  identifiedId: "u_123",
+  revenue: 49.0,
+  currency: "GBP",
+});
+```
+
+## What it is not
+
+It is not a login, not a cross-site identifier and not a way to un-hash a visitor. Events
+sent before the call keep the visitor hash they had; identifying does not go back and
+relabel history.

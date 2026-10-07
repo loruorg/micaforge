@@ -1,0 +1,84 @@
+---
+title: "Experiments"
+description: "A/B tests, the two columns they write to, and which install can write them."
+group: "tracking"
+order: 10
+updated: 2026-08-22
+---
+
+An experiment is a flag with a hypothesis and a goal attached. Postgres holds the key,
+the hypothesis, the variants, the goal it is measured against, its status and when it ran.
+The `events` table holds two columns, `experiment` and `variant`, and both are filter
+dimensions.
+
+Assignment uses the same deterministic bucketing as
+[feature flags](/docs/tracking/feature-flags), so a variant is a pure function of the
+subject and the key. Nothing is stored on the client to remember it.
+
+## Assigning a variant
+
+```ts
+import { flags } from "@micaforge/sdk";
+
+const variant = flags({ visitor: userId }).variant("checkout-copy", "control");
+render(variant);
+```
+
+## Recording the exposure
+
+<aside class="doc-annot" data-tone="gap">
+
+**Read this before you start a test.** The browser payload has no `experiment` or
+`variant` field: see the payload in [pageviews](/docs/tracking/pageviews). A browser-only
+install cannot fill those two columns, so the experiment report cannot read a test that
+was recorded from the browser alone.
+
+</aside>
+
+There are two honest ways to run a test today.
+
+### From the server, which fills the real columns
+
+```ts
+micaforge.track({
+  name: "checkout_started",
+  url: req.url,
+  userAgent: req.headers["user-agent"],
+  ip: clientIp,
+  experiment: "checkout-copy",
+  variant,
+});
+```
+
+Now `experiment is checkout-copy` and `variant is b` are filters on every report, the
+experiment screen can compare the arms against the goal, and there is one row per event
+rather than a property to group by.
+
+### From the browser, as a property
+
+```ts
+micaforge.setProps({ exp_checkout_copy: variant });
+```
+
+Every event afterwards carries it, and `props.exp_checkout_copy` is a filter. What you
+lose is the dedicated experiment report: you are comparing two filtered views by hand,
+which works, and says exactly what it is.
+
+## Reading the result
+
+Point the experiment at a [goal](/docs/dashboard/goals): a path, an event, an outbound
+click, a file, or revenue. The comparison is conversion rate per arm over the same window
+with the same filters.
+
+Two rules the product holds to and you should too:
+
+- **No number is invented.** With too few conversions to say anything, the screen says
+  so instead of printing a winner.
+- **Decide the window before you start.** Stopping a test the first morning one arm is
+  ahead is how a coin flip becomes a decision.
+
+## Ending one
+
+Set the experiment's status and stop assigning. Past rows keep their `experiment` and
+`variant` values, because history is not rewritten when a test ends, which is what makes
+a result checkable a month later.

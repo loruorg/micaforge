@@ -1,0 +1,78 @@
+---
+title: "Upgrading"
+description: "One script, a dump before anything changes, and a rollback note when it is done."
+group: "self-hosting"
+order: 3
+updated: 2026-08-22
+---
+
+```sh
+./update.sh
+```
+
+Order matters, and this is the order: dump Postgres, record what is running now, fetch the
+new source, pull the store images, rebuild the server, restart, wait for healthy. The dump
+and the record are taken **first**, so a rollback is possible from the moment anything
+changes.
+
+```sh
+./update.sh --no-pull    # rebuild from the source already in this checkout
+```
+
+If the checkout has local changes, it will not pull over them. Commit them, stash them, or
+use `--no-pull` on purpose.
+
+## Migrations run themselves
+
+The server applies its Postgres migrations and converges the ClickHouse schema on boot.
+"Migrate" is one of the things "start the new container" means, and there is no separate
+step.
+
+## What is not dumped, and why that is safe
+
+ClickHouse is not dumped by the update. Its schema only ever gains tables and columns (nothing is dropped or retyped) so an update cannot destroy event data. Postgres migrations
+can, which is why that one is dumped every time.
+
+For a full backup of both, run [`./backup.sh`](/docs/self-hosting/backups). The update does
+not do it for you, because it would turn a two-minute update into a long one.
+
+## Rolling back
+
+The script prints what was running before it started. To go back:
+
+```sh
+git checkout <the previous commit>
+docker compose build micaforge caddy
+docker compose up -d micaforge caddy
+```
+
+If a Postgres migration was applied and has to be undone, restore the dump the update took
+before it began; it is in the same place the script named on its way past.
+
+## Before you upgrade a real install
+
+- **Move ClickHouse on purpose.** The shipped `.env.example` pins it to an LTS line, so a
+  pull brings patch releases only. ClickHouse cannot be downgraded once it has written
+  data, so change `CLICKHOUSE_IMAGE` only after `./backup.sh`. An install made from an
+  older `.env.example` may still say `latest-alpine`; `./update.sh` warns about it.
+- **Read the [changelog](/changelog).** It says what changed and what needs attention.
+- **Have your secret key.** Not because the update needs it, but because every recovery
+  path does.
+- **Watch it start.**
+
+  ```sh
+  docker compose logs -f micaforge
+  ```
+
+  The server logs each start-up step. If it does not become healthy in five minutes, the
+  script stops and shows you the last forty lines rather than leaving you to find them.
+
+## The web app
+
+The dashboard is inside the web image, and the update rebuilds it with the server, so the
+two always match. It calls the API on whatever address served it, so nothing about your
+domain is baked into it.
+
+With published images (`MICAFORGE_IMAGE` names a registry in `.env`), set
+`MICAFORGE_VERSION` to the release you want, then run `./update.sh`: it pulls instead of
+building.

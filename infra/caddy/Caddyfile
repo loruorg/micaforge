@@ -1,0 +1,174 @@
+# Micaforge edge: TLS, the reverse proxy, and the static site.
+#
+# Variables come from .env through docker-compose.yml:
+#
+#   MICAFORGE_DOMAIN   the address this site answers on. A hostname
+#                      (analytics.example.com) turns on automatic HTTPS. The
+#                      literal `:80` serves plain HTTP with no certificate,
+#                      which is what you want on a laptop or behind another
+#                      proxy that already terminates TLS.
+#   ACME_EMAIL         the contact address Let's Encrypt sends expiry warnings
+#                      to. Required, because a certificate nobody is told about
+#                      is a certificate that expires on a Sunday.
+#   MICAFORGE_TRUSTED_PROXIES
+#                      the addresses allowed to tell Caddy who the visitor is,
+#                      through X-Forwarded-For. Empty trusts nobody, which is
+#                      right when this Caddy faces the internet. Behind your own
+#                      proxy or a CDN, set it to that proxy's ranges, or to
+#                      `private_ranges` for a proxy on the same LAN. Get it wrong
+#                      and every visitor shares the proxy's address, so they all
+#                      collapse into one visitor and one rate-limit bucket.
+#
+# `admin off` below means a changed Caddyfile is picked up by
+# `docker compose restart caddy`, not by `caddy reload`.
+{
+	email {$ACME_EMAIL}
+
+	# The admin API is a local-only control socket. Nothing in this stack calls
+	# it, so it is not worth the port.
+	admin off
+
+	servers {
+		# 127.0.0.1 is this container itself, so the fallback trusts nobody.
+		trusted_proxies static {$MICAFORGE_TRUSTED_PROXIES:127.0.0.1/32}
+		# Read X-Forwarded-For from the right, so a client cannot prepend an
+		# address of its choosing in front of the one the proxy observed.
+		trusted_proxies_strict
+	}
+}
+
+{$MICAFORGE_DOMAIN} {
+	# ------------------------------------------------------------------
+	# No access log, on purpose
+	# ------------------------------------------------------------------
+	# An access log here would hold every visitor's raw address and every page
+	# URL they read, for every site this install measures, which is exactly the
+	# record PRODUCT.md promises is never kept. It would also not feed the
+	# agent screens: this Caddy fronts the analytics host, and crawlers fetch
+	# your site, not this one. Ship your own site's log with
+	# `micaforge-shipper` (docs: /docs/agents/shipping-server-logs). The
+	# server's own log carries request ids and errors.
+
+	# ------------------------------------------------------------------
+	# Ingest and API
+	# ------------------------------------------------------------------
+	# The tracker file and every /api path go to the Rust server. It is not
+	# published on a host port: this proxy is its whole front door.
+	#
+	# X-Real-IP is the visitor address as Caddy resolved it, after the
+	# trusted_proxies rule above, and the server is told to believe only that
+	# header (MICAFORGE_TRUSTED_PROXY_HEADER=x-real-ip in docker-compose.yml).
+	# Caddy always overwrites it, so a client cannot supply its own. The server
+	# folds the address into the daily visitor hash and never stores it
+	# (PRODUCT.md, and docs/CONTRACT.md 7.1).
+	# The import upload streams an export of up to 2 GiB at the client's pace,
+	# and the server gives it no time budget. Caddy's read timeout below would
+	# start counting while the body is still being sent and cut a slow upload
+	# off with a 502, so the upload gets a proxy of its own without one.
+	@upload {
+		method POST
+		path /api/imports
+	}
+	handle @upload {
+		reverse_proxy micaforge:8080 {
+			header_up X-Real-IP {client_ip}
+		}
+	}
+
+	@micaforge path /api/* /mf.js /mf.min.js
+	handle @micaforge {
+		reverse_proxy micaforge:8080 {
+			header_up X-Real-IP {client_ip}
+
+			# The server bounds its own requests (5s for collection, 30s for
+			# the API). This is the outer limit, for a slow upload or export,
+			# and short enough to clean up after a client that vanished.
+			transport http {
+				read_timeout 120s
+			}
+		}
+	}
+
+	# ------------------------------------------------------------------
+	# The dashboard and the marketing site
+	# ------------------------------------------------------------------
+	# The web image carries the built site at /srv.
+	root * /srv
+	encode zstd gzip
+
+	header {
+		# The dashboard renders values that came from a page's own title and URL.
+		# Content sniffing is how a text/plain response becomes script.
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		Permissions-Policy "accelerometer=(), camera=(), geolocation=(), gyroscope=(), microphone=(), payment=(), usb=()"
+
+		# Browsers ignore this header on plain HTTP, so it is safe in `:80`
+		# mode and does its job the moment a certificate is in place. No
+		# includeSubDomains: other hosts under your domain are not ours to
+		# promise for.
+		Strict-Transport-Security "max-age=31536000"
+
+		# An analytics host has no business in a search index. The marketing
+		# pages it also serves name micaforge.dev as their canonical address.
+		X-Robots-Tag "noindex, nofollow"
+	}
+
+	# Astro fingerprints everything under /_astro, so a file there never
+	# changes under its name and can be cached for a year.
+	@hashed path /_astro/*
+	header @hashed Cache-Control "public, max-age=31536000, immutable"
+
+	# The dashboard is one client-side router (docs/CONTRACT.md 5), so every path
+	# under /app and /share resolves to that island's entry document. This
+	# mirrors apps/web/public/_redirects, which does the same job on Pages.
+	#
+	# The dashboard may not be framed by anyone: it acts with the operator's
+	# session, and a page that can frame it can trick a click.
+	handle /app/* {
+		header {
+			X-Frame-Options DENY
+			Content-Security-Policy "frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'"
+			Cache-Control "no-cache"
+		}
+		try_files {path} {path}/index.html /app/index.html
+		file_server
+	}
+
+	# A shared dashboard exists to be linked and embedded by the site it reports
+	# on, so it may be framed. It is read-only and carries no session.
+	handle /share/* {
+		header {
+			Content-Security-Policy "base-uri 'self'; object-src 'none'; form-action 'self'"
+			Cache-Control "no-cache"
+		}
+		try_files {path} {path}/index.html /share/index.html
+		file_server
+	}
+
+	handle {
+		header ?Cache-Control "no-cache"
+		try_files {path} {path}/index.html {path}.html
+		file_server
+	}
+
+	# A missing page gets the site's own 404. Anything else is a failure of
+	# this stack, and must not be dressed up as a missing page: on /api the
+	# dashboard expects the API's JSON error envelope, and gets one that says
+	# the server could not be reached.
+	handle_errors 404 {
+		rewrite * /404.html
+		file_server
+	}
+
+	handle_errors {
+		@api path /api/* /mf.js /mf.min.js
+		handle @api {
+			header Content-Type application/json
+			respond `{"error":{"code":"upstream_unavailable","message":"the Micaforge server could not be reached; check docker compose logs micaforge"}}` {err.status_code}
+		}
+		handle {
+			respond "{err.status_code} {err.status_text}" {err.status_code}
+		}
+	}
+}

@@ -1,0 +1,200 @@
+---
+/**
+ * The sheet head.
+ *
+ * These pages are one continuous sheet torn off the drum, so the header is its
+ * leading edge: the nav sits on the paper, and the paper ends in the sprocket
+ * perforations it was fed through. That strip is the same geometry as the pin
+ * feed down a record panel's gutter, turned through ninety degrees. The header
+ * is not a flush row of links floating above the content, it is part of the
+ * sheet.
+ *
+ * Both menus are native <details> elements, so every control here works with
+ * JavaScript switched off. The inline script only adds outside-click and
+ * Escape, and drives the recording-medium switch.
+ */
+import "../styles/site.css";
+import { Mark, IconChevron, IconOut, IconSmoked, IconPaper } from "./react/icons.tsx";
+
+const path = Astro.url.pathname.replace(/\/+$/, "") || "/";
+
+const COMPARE = [
+  { href: "/vs/plausible", label: "Micaforge vs Plausible" },
+  { href: "/vs/google-analytics", label: "Micaforge vs Google Analytics" },
+];
+
+/** The bar, in reading order. The comparisons disclosure sits second. */
+const NAV = [
+  { href: "/why-agent-analytics", label: "Why agent analytics" },
+  { href: "/self-host", label: "Self-host" },
+  { href: "/docs", label: "Docs" },
+];
+
+const here = (href: string) => path === href;
+/** `/docs` stays lit while any page under it is being read. */
+const within = (href: string) => path === href || path.startsWith(`${href}/`);
+const inCompare = COMPARE.some((c) => here(c.href));
+---
+
+<header class="mf-head">
+  <div class="mf-wrap mf-head__row">
+    <a class="mf-head__brand" href="/">
+      <Mark size={26} />
+      <span class="mf-head__wordmark">Micaforge</span>
+    </a>
+
+    <nav class="mf-head__nav" aria-label="Sections">
+      <a
+        class:list={["mf-nav__link", here(NAV[0].href) && "is-here"]}
+        href={NAV[0].href}
+        aria-current={here(NAV[0].href) ? "page" : undefined}
+      >
+        {NAV[0].label}
+      </a>
+
+      <details class="mf-nav__disc" data-disc>
+        <summary class:list={["mf-nav__link", inCompare && "is-here"]}>
+          Comparisons
+          <IconChevron size={13} className="mf-nav__caret" />
+        </summary>
+        <div class="mf-nav__menu">
+          {COMPARE.map((c) => (
+            <a href={c.href} class:list={[here(c.href) && "is-here"]} aria-current={here(c.href) ? "page" : undefined}>
+              {c.label}
+            </a>
+          ))}
+        </div>
+      </details>
+
+      {NAV.slice(1).map((n) => (
+        <a
+          class:list={["mf-nav__link", within(n.href) && "is-here"]}
+          href={n.href}
+          aria-current={within(n.href) ? "page" : undefined}
+        >
+          {n.label}
+        </a>
+      ))}
+    </nav>
+
+    <div class="mf-head__acts">
+      <div class="mf-medium" role="group" aria-label="Recording medium">
+        <button type="button" class="mf-medium__opt" data-medium="smoked" aria-pressed="false">
+          <IconSmoked size={14} />
+          <span>Smoked</span>
+        </button>
+        <button type="button" class="mf-medium__opt" data-medium="paper" aria-pressed="false">
+          <IconPaper size={14} />
+          <span>Paper</span>
+        </button>
+      </div>
+
+      <a class="mf-head__out" href="https://github.com/micaforge/micaforge" rel="noopener">
+        <span>Source</span>
+        <IconOut size={14} />
+      </a>
+
+      <details class="mf-head__drawer" data-disc>
+        <summary aria-label="Menu">
+          Menu
+          <IconChevron size={13} className="mf-nav__caret" />
+        </summary>
+        <div class="mf-drawer__panel">
+          <div class="mf-wrap mf-drawer__list">
+            <a href="/" class:list={[here("/") && "is-here"]}>Overview</a>
+            {NAV.map((n) => (
+              <a href={n.href} class:list={[within(n.href) && "is-here"]}>{n.label}</a>
+            ))}
+            {COMPARE.map((c) => (
+              <a href={c.href} class:list={["mf-drawer__sub", here(c.href) && "is-here"]}>{c.label}</a>
+            ))}
+            <a href="https://github.com/micaforge/micaforge" rel="noopener">Source on GitHub</a>
+          </div>
+          <div class="mf-wrap mf-drawer__foot">
+            <div class="mf-medium" role="group" aria-label="Recording medium">
+              <button type="button" class="mf-medium__opt" data-medium="smoked" aria-pressed="false">
+                <IconSmoked size={14} />
+                <span>Smoked</span>
+              </button>
+              <button type="button" class="mf-medium__opt" data-medium="paper" aria-pressed="false">
+                <IconPaper size={14} />
+                <span>Paper</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </details>
+    </div>
+  </div>
+
+  <div class="mf-feed mf-feed--head" aria-hidden="true"></div>
+</header>
+
+<script is:inline>
+  (function () {
+    /* The recording medium. Same key and the same two values the station rail
+       writes, so a reader's choice follows them into the dashboard. */
+    var opts = document.querySelectorAll("[data-medium]");
+
+    function current() {
+      var chosen = null;
+      try {
+        chosen = localStorage.getItem("mf-record");
+      } catch (e) {
+        /* private mode: the choice simply does not persist */
+      }
+      if (chosen === "paper" || chosen === "smoked") return chosen;
+      var attr = document.documentElement.getAttribute("data-record");
+      if (attr === "paper" || attr === "smoked") return attr;
+      return window.matchMedia("(prefers-color-scheme: light)").matches ? "paper" : "smoked";
+    }
+
+    function paint(medium) {
+      for (var i = 0; i < opts.length; i++) {
+        opts[i].setAttribute("aria-pressed", opts[i].getAttribute("data-medium") === medium ? "true" : "false");
+      }
+    }
+
+    paint(current());
+
+    for (var i = 0; i < opts.length; i++) {
+      opts[i].addEventListener("click", function () {
+        var next = this.getAttribute("data-medium");
+        document.documentElement.setAttribute("data-record", next);
+        try {
+          localStorage.setItem("mf-record", next);
+        } catch (e) {
+          /* nothing to do: the page still switches for this visit */
+        }
+        paint(next);
+      });
+    }
+
+    /* Disclosures already open and close on their own. This only closes them
+       when the reader moves on, which <details> does not do by itself. */
+    var discs = document.querySelectorAll("[data-disc]");
+    function closeAll(except) {
+      for (var j = 0; j < discs.length; j++) {
+        if (discs[j] !== except) discs[j].open = false;
+      }
+    }
+    document.addEventListener("click", function (e) {
+      var inside = null;
+      for (var j = 0; j < discs.length; j++) {
+        if (discs[j].contains(e.target)) inside = discs[j];
+      }
+      closeAll(inside);
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key !== "Escape") return;
+      var open = null;
+      for (var j = 0; j < discs.length; j++) {
+        if (discs[j].open) open = discs[j];
+      }
+      if (!open) return;
+      open.open = false;
+      var s = open.querySelector("summary");
+      if (s) s.focus();
+    });
+  })();
+</script>

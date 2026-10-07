@@ -1,0 +1,52 @@
+---
+title: "0.1.0-dev"
+description: "The first public source drop: the contract, the tracker, the agent catalog and the self-hosted stack."
+updated: 2026-08-22
+order: 1
+group: "unreleased"
+---
+
+## The record starts here
+
+There is **no tagged release**. This entry describes what is on the main branch, so that
+somebody reading the source can tell what is finished from what is being written. It will be
+replaced by a real version entry the day one is tagged, and not before.
+
+### Settled
+
+- **The build contract.** The ClickHouse and Postgres schemas, the HTTP surface, the tracker
+  payload and the route map are written down and are what every crate and package is built
+  against.
+- **The tracker.** Under 3 KB gzipped, no dependencies, no cookies, `sendBeacon` then
+  `fetch(keepalive)` then a pixel. SPA routing, outbound and download capture, engagement
+  time, scroll depth and Core Web Vitals. The size budget is enforced by its own build.
+- **The SDK.** `@micaforge/sdk` with typed wrappers for React, Next, Vue and Svelte, and a
+  synchronous feature-flag client that does not flicker.
+- **The server SDK.** `@micaforge/sdk-server` with middlewares for Express, Fastify, Hono
+  and Next, plus `micaforge-shipper`, which turns an nginx or Caddy access log into agent
+  traffic.
+- **The agent catalog.** 54 named clients with their operator, purpose, published address
+  ranges and the operator's own documentation link. No token in it is invented.
+- **The Citation Gap.** Fetches against answer-engine arrivals per URL, with published
+  thresholds and four verdicts.
+- **The self-hosted stack.** One `./install.sh`, five containers, migrations applied on
+  boot, `./update.sh` and `./backup.sh` with a restore drill beside every backup.
+
+### Not built
+
+- **No client-side error recorder.** The `errors` table and its report exist; nothing feeds
+  them. See [error tracking](/docs/tracking/error-tracking).
+- **No session replay recorder.** The store, the retention clock and the route exist;
+  nothing is recorded. See [session replay](/docs/tracking/session-replay).
+- **Agent verification is off by default**, because it needs an outbound fetch and a
+  self-hosted install makes none at runtime. See
+  [verifying agents](/docs/agents/verifying-agents).
+
+### Known limits, stated rather than hidden
+
+- Cookieless means a returning visitor tomorrow is a new visitor. Daily uniques are exact;
+  anything longer is an estimate.
+- The Citation Gap's returned half is a floor, never a ceiling: in-page AI answers are
+  invisible by construction, and most referrers arrive as an origin with no path.
+- There are no customers, no benchmarks and no testimonials, so there are none quoted
+  anywhere in this product.

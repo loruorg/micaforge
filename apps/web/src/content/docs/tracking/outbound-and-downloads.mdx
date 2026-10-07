@@ -1,0 +1,72 @@
+---
+title: "Outbound and downloads"
+description: "Automatic capture of links that leave the site and links that fetch a file."
+group: "tracking"
+order: 4
+updated: 2026-08-22
+---
+
+Both are on by default. One click listener, attached in the capture phase, decides which
+of the two a link is, or neither.
+
+## Downloads
+
+A link is a download when its extension is in the list. The event arrives as
+`file_download` with the full URL as the event name.
+
+Default extensions:
+
+```text
+pdf csv txt docx xlsx pptx zip gz rar 7z dmg pkg exe msi deb rpm apk mp3 mp4 mov wav webm
+```
+
+Override the list on the tag. A value containing a comma or a dot is read as the list
+rather than as a boolean:
+
+```html
+<script defer data-site="1" data-downloads="pdf,epub,stl" src="/mf.js"></script>
+```
+
+Turn it off with `data-downloads="false"`.
+
+## Outbound links
+
+A link is outbound when it leaves your site. `docs.example.com` and `example.com` are the
+same site; `example.com` and `notexample.com` are not: the check is on the registrable
+host either being the other or being a subdomain of it, not on a string match.
+
+Only `http:` and `https:` links count, so `mailto:`, `tel:` and `javascript:` are never
+reported as outbound.
+
+The event arrives as `outbound` with the destination URL as the event name. Turn it off
+with `data-outbound="false"`.
+
+A link that is both a file and outbound is reported as a download. Files are the more
+specific fact.
+
+## Form submissions
+
+Off by default. With `data-forms` on, a submit is reported as a `form` event named after
+the form's `id` or `name`.
+
+**Field values never leave the page.** The listener reads two attributes off the form
+element and nothing else. There is no code path in the tracker that can read an input.
+
+## Doing it by hand
+
+Auto-capture cannot see a button that navigates in JavaScript, or a download served
+behind a signed URL. Report those yourself:
+
+```js
+micaforge.track("download", { file: "spec-v2.pdf", source: "sidebar" });
+```
+
+A custom event is the right shape here: it lands under Events with its properties intact,
+rather than pretending to be a click that never happened.
+
+## In the reports
+
+Both kinds appear under Events, filterable by `event_name`, and both can be the
+definition of a [goal](/docs/dashboard/goals): `outbound` and `file` are goal kinds of
+their own, so "clicked through to the repository" is a conversion without writing a
+query.

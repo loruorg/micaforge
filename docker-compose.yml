@@ -1,0 +1,356 @@
+# Micaforge, whole, on one machine.
+#
+#   cp .env.example .env      # then fill in the four values it marks REQUIRED
+#   docker compose up -d      # or ./install.sh, which does both and waits
+#
+# Five containers: the Rust server, the three stores it needs, and Caddy in
+# front holding the certificate and the built web app. Nothing else, and nothing
+# that phones home.
+#
+# Two of the images are built from this checkout (see the root Dockerfile):
+# `micaforge` and the Caddy image that carries the dashboard. Docker is the only
+# thing the host needs. To run published images instead of building, set
+# MICAFORGE_IMAGE, MICAFORGE_WEB_IMAGE and MICAFORGE_VERSION in .env and run
+# `docker compose pull` (install.sh --version does this for you).
+#
+# Every value is read from .env. Where a sane default exists it is written here
+# as `${VAR:-default}`; where a secret is needed there is no default, and
+# compose refuses to start with a message naming the variable. That is
+# deliberate: a compose file with a working default password is a compose file
+# that ships a working default password.
+#
+# Sizing: this is written for a 4 GB VPS with two vCPUs, which is the machine
+# PRODUCT.md targets. See infra/clickhouse/ for where that budget goes.
+
+name: micaforge
+
+# Docker's default json-file driver keeps every byte a container ever logged.
+# On a small disk that is the most likely way this install dies. 10 MB x 3 per
+# service is a few hours of detail, which is what you look at anyway.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  # ---------------------------------------------------------------------
+  # The server. API, tracker file, embedded workers: one binary.
+  # ---------------------------------------------------------------------
+  micaforge:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: server
+    image: ${MICAFORGE_IMAGE:-micaforge}:${MICAFORGE_VERSION:-local}
+    restart: unless-stopped
+    logging: *logging
+    security_opt:
+      - no-new-privileges:true
+
+    # No `ports:`. The server is reachable only through Caddy, on the compose
+    # network. If you terminate TLS somewhere else and want to expose it
+    # directly, publish 127.0.0.1:8080:8080 and never 0.0.0.0.
+    depends_on:
+      postgres:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+
+    environment:
+      # -- required ----------------------------------------------------
+      # 32 characters minimum; every other key is derived from it. Rotating it
+      # invalidates every session and makes sealed secrets unreadable.
+      MICAFORGE_SECRET_KEY_BASE: "${MICAFORGE_SECRET_KEY_BASE:?set MICAFORGE_SECRET_KEY_BASE in .env - run ./install.sh, or generate one with: openssl rand -base64 48}"
+
+      # -- stores ------------------------------------------------------
+      # The password is interpolated into a URL, so it must not contain
+      # characters that need percent-encoding. install.sh generates hex.
+      MICAFORGE_DATABASE_URL: "postgres://${POSTGRES_USER:-micaforge}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env - run ./install.sh, or generate one with: openssl rand -hex 24}@postgres:5432/${POSTGRES_DB:-micaforge}"
+      MICAFORGE_CLICKHOUSE_URL: http://clickhouse:8123
+      MICAFORGE_CLICKHOUSE_DB: ${CLICKHOUSE_DB:-micaforge}
+      MICAFORGE_CLICKHOUSE_USER: ${CLICKHOUSE_USER:-micaforge}
+      MICAFORGE_CLICKHOUSE_PASSWORD: "${CLICKHOUSE_PASSWORD:?set CLICKHOUSE_PASSWORD in .env - run ./install.sh, or generate one with: openssl rand -hex 24}"
+      # Valkey speaks the Redis wire protocol, so the scheme stays redis://.
+      MICAFORGE_REDIS_URL: redis://valkey:6379
+
+      # -- identity ----------------------------------------------------
+      # Both must be addresses a browser can actually reach: they end up in
+      # emails, share links and the snippet the setup screen hands you.
+      MICAFORGE_PUBLIC_URL: ${MICAFORGE_PUBLIC_URL:-http://localhost}
+      MICAFORGE_DASHBOARD_URL: ${MICAFORGE_DASHBOARD_URL:-http://localhost}
+
+      # -- behaviour ---------------------------------------------------
+      MICAFORGE_BIND_ADDR: 0.0.0.0:8080
+      MICAFORGE_SELF_HOSTED: "true"
+      # Closed by default; the first account is always allowed (CONTRACT 3.6).
+      MICAFORGE_DISABLE_REGISTRATION: ${MICAFORGE_DISABLE_REGISTRATION:-true}
+      MICAFORGE_LOG_FORMAT: ${MICAFORGE_LOG_FORMAT:-json}
+      MICAFORGE_WORKER_CONCURRENCY: ${MICAFORGE_WORKER_CONCURRENCY:-2}
+      MICAFORGE_WRITER_BUFFER_MB: ${MICAFORGE_WRITER_BUFFER_MB:-32}
+
+      # 0 keeps everything, forever, which is the default an analytics tool
+      # owes its operator. Replay is metered separately because one session of
+      # it outweighs a month of events.
+      MICAFORGE_RETENTION_DAYS: ${MICAFORGE_RETENTION_DAYS:-0}
+      MICAFORGE_REPLAY_RETENTION_DAYS: ${MICAFORGE_REPLAY_RETENTION_DAYS:-30}
+
+      # -- optional ----------------------------------------------------
+      # Empty is a valid answer to all of these. Geography falls back to
+      # country only; mail falls back to copyable invite links.
+      MICAFORGE_GEOIP_CITY_PATH: ${MICAFORGE_GEOIP_CITY_PATH:-}
+      MICAFORGE_GEOIP_ASN_PATH: ${MICAFORGE_GEOIP_ASN_PATH:-}
+      MICAFORGE_SMTP_URL: ${MICAFORGE_SMTP_URL:-}
+      MICAFORGE_MAIL_FROM: "${MICAFORGE_MAIL_FROM:-Micaforge <noreply@localhost>}"
+      MICAFORGE_ADMIN_EMAILS: ${MICAFORGE_ADMIN_EMAILS:-}
+      MICAFORGE_CORS_ORIGINS: ${MICAFORGE_CORS_ORIGINS:-}
+      MICAFORGE_RATE_LIMIT_PER_MIN: ${MICAFORGE_RATE_LIMIT_PER_MIN:-3000}
+      MICAFORGE_ALLOW_PRIVATE_OUTBOUND: ${MICAFORGE_ALLOW_PRIVATE_OUTBOUND:-false}
+      RUST_LOG: ${RUST_LOG:-info}
+
+      # -- the edge ----------------------------------------------------
+      # Caddy writes the visitor address it resolved into X-Real-IP and
+      # overwrites whatever a client sent, so that is the one header the
+      # server believes. Who Caddy itself trusts is MICAFORGE_TRUSTED_PROXIES,
+      # below. Change this only if you replace Caddy with another proxy.
+      MICAFORGE_TRUSTED_PROXY_HEADER: ${MICAFORGE_TRUSTED_PROXY_HEADER:-x-real-ip}
+
+    volumes:
+      # Drop a MaxMind-compatible .mmdb here and point the two GEOIP paths at
+      # it. Read-only: the server reads this database and never writes it.
+      - ${MICAFORGE_GEOIP_DIR:-./infra/geoip}:/geoip:ro
+
+    # Liveness, not readiness. /api/health/ready probes the stores and fails
+    # when Postgres is away; this container must stay up through any store
+    # outage, because its event writer holds the hits until the store is back.
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "--max-time", "5", "http://127.0.0.1:8080/api/health/live"]
+      interval: 15s
+      timeout: 6s
+      retries: 5
+      # First boot runs the Postgres migrations and creates every ClickHouse
+      # table before the port opens. On a cold VPS that is tens of seconds.
+      start_period: 90s
+
+    # Buffered events are flushed on shutdown (crates/store/src/writer.rs).
+    # The server bounds its own shutdown at 40s: in-flight requests first, then
+    # the writer and the job worker. SIGKILL at 10s, the Docker default, would
+    # drop whatever the writer still held.
+    stop_grace_period: 45s
+
+  # ---------------------------------------------------------------------
+  # Postgres: identity and configuration. Never on the ingest path.
+  # ---------------------------------------------------------------------
+  postgres:
+    image: ${POSTGRES_IMAGE:-postgres:17-alpine}
+    restart: unless-stopped
+    logging: *logging
+
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-micaforge}
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env - run ./install.sh, or generate one with: openssl rand -hex 24}"
+      POSTGRES_DB: ${POSTGRES_DB:-micaforge}
+      # C collation plus UTF-8: deterministic sorts, and no index corruption
+      # when the base image's glibc version changes under a running database.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+
+    # Tuned down from the defaults, which assume Postgres owns the machine.
+    # shared_buffers is the one that matters; the rest keep a single expensive
+    # dashboard query from taking memory ClickHouse has already promised.
+    command:
+      - postgres
+      - -c
+      - shared_buffers=${POSTGRES_SHARED_BUFFERS:-256MB}
+      - -c
+      - effective_cache_size=${POSTGRES_EFFECTIVE_CACHE_SIZE:-768MB}
+      - -c
+      - work_mem=${POSTGRES_WORK_MEM:-8MB}
+      - -c
+      - maintenance_work_mem=64MB
+      # The server's pool caps itself at 16 connections (crates/store/pg.rs).
+      # 50 leaves room for a psql session, a backup and a rolling restart.
+      - -c
+      - max_connections=${POSTGRES_MAX_CONNECTIONS:-50}
+      # SSD assumptions: sequential and random reads cost nearly the same.
+      - -c
+      - random_page_cost=1.1
+      - -c
+      - wal_compression=on
+      - -c
+      - checkpoint_completion_target=0.9
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\" -q"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ---------------------------------------------------------------------
+  # ClickHouse: the event store. Every table in docs/CONTRACT.md section 1.
+  # ---------------------------------------------------------------------
+  clickhouse:
+    # Pinned to an LTS line. ClickHouse cannot be downgraded once it has written
+    # data, so a floating tag is an upgrade you did not choose and cannot undo.
+    # Move it deliberately, after a backup (./backup.sh).
+    image: ${CLICKHOUSE_IMAGE:-clickhouse/clickhouse-server:26.8-alpine}
+    restart: unless-stopped
+    logging: *logging
+
+    environment:
+      CLICKHOUSE_DB: ${CLICKHOUSE_DB:-micaforge}
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-micaforge}
+      CLICKHOUSE_PASSWORD: "${CLICKHOUSE_PASSWORD:?set CLICKHOUSE_PASSWORD in .env - run ./install.sh, or generate one with: openssl rand -hex 24}"
+      # The entrypoint creates the user above and removes the passwordless
+      # `default` account. Access management stays off: there is one client.
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "0"
+
+    # ClickHouse opens a file handle per part per column, and a table with a
+    # year of daily partitions has a lot of parts. The container default of
+    # 1024 is exhausted long before the disk is, and the error it produces
+    # ("Too many open files") looks nothing like its cause.
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - clickhouse_logs:/var/log/clickhouse-server
+      # Merged over the image's own config; see the files for what each number
+      # is for. config.d bounds the server, users.d bounds a single query.
+      - ./infra/clickhouse/config.xml:/etc/clickhouse-server/config.d/micaforge.xml:ro
+      - ./infra/clickhouse/users.xml:/etc/clickhouse-server/users.d/micaforge.xml:ro
+
+    # /ping is the one HTTP endpoint that needs no credentials, so the check
+    # keeps working whatever the password is. It reads the body and discards it
+    # rather than using --spider: a spider request closes the socket before
+    # ClickHouse has finished writing, and the server logs a NETWORK_ERROR with
+    # a stack trace every single time the healthcheck runs.
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8123/ping || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+
+  # ---------------------------------------------------------------------
+  # Valkey: sessions, rate limits, the realtime gauge, the daily visitor salt.
+  # ---------------------------------------------------------------------
+  # Valkey rather than Redis because of the licence. Redis left open source in
+  # March 2024 for RSALv2/SSPLv1, which is not an OSI-approved licence and which
+  # a distributor of an AGPL project cannot ship without inheriting its source
+  # -availability terms. Valkey is the Linux Foundation fork of Redis 7.2.4,
+  # BSD-3-Clause, and wire-compatible: the client library, the URL scheme and
+  # every command in crates/store/src/kv.rs are unchanged. Point
+  # MICAFORGE_REDIS_URL at a Redis you already run if you prefer; nothing here
+  # depends on the fork.
+  valkey:
+    image: ${VALKEY_IMAGE:-valkey/valkey:8-alpine}
+    restart: unless-stopped
+    logging: *logging
+
+    command:
+      - valkey-server
+      # A ceiling, so a runaway key pattern cannot take memory from ClickHouse.
+      # The real working set here is a few megabytes: a salt per site per day,
+      # a counter per visitor per five minutes, one entry per live session.
+      - --maxmemory
+      - ${VALKEY_MAXMEMORY:-256mb}
+      # Every key in kv.rs carries a TTL, so eviction is a theoretical event at
+      # this size. If it ever happens, dropping the least recently used key
+      # costs a gap in a live count; refusing the write would cost an ingest
+      # error, and this data is explicitly the kind that may disappear.
+      - --maxmemory-policy
+      - allkeys-lru
+      # One snapshot every 15 minutes if anything changed. Not for durability:
+      # for the daily visitor salt, which must survive a restart or the same
+      # visitor is counted twice on the same day. Expired keys are dropped on
+      # load, so the 48 hour salt lifetime in kv.rs still holds exactly.
+      - --save
+      - "900 1"
+      - --appendonly
+      - "no"
+
+    volumes:
+      - valkey_data:/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "valkey-cli ping | grep -q PONG"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  # ---------------------------------------------------------------------
+  # Caddy: TLS, the proxy, and the access log the machine intake reads.
+  # ---------------------------------------------------------------------
+  caddy:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: web
+      args:
+        PUBLIC_SITE_URL: ${PUBLIC_SITE_URL:-https://micaforge.dev}
+    image: ${MICAFORGE_WEB_IMAGE:-micaforge-web}:${MICAFORGE_VERSION:-local}
+    restart: unless-stopped
+    logging: *logging
+    security_opt:
+      - no-new-privileges:true
+
+    depends_on:
+      micaforge:
+        condition: service_healthy
+
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+      # HTTP/3. Without the UDP port Caddy still advertises it and clients
+      # still fall back to TCP, which works but wastes a round trip per visit.
+      - "${HTTPS_PORT:-443}:443/udp"
+
+    environment:
+      # A hostname turns on automatic HTTPS. The literal `:80` serves plain
+      # HTTP with no certificate, for a laptop or a machine behind another
+      # proxy that already terminates TLS.
+      MICAFORGE_DOMAIN: ${MICAFORGE_DOMAIN:-:80}
+      ACME_EMAIL: "${ACME_EMAIL:?set ACME_EMAIL in .env - Let's Encrypt sends certificate expiry warnings there}"
+      # Empty trusts no proxy, which is right when Caddy faces the internet.
+      # See infra/caddy/Caddyfile before you set it.
+      MICAFORGE_TRUSTED_PROXIES: ${MICAFORGE_TRUSTED_PROXIES:-}
+
+    volumes:
+      # The image carries a copy of this file; mounting the checkout's copy over
+      # it means an edit takes effect on `docker compose restart caddy`, with
+      # no rebuild. The built web app is inside the image at /srv.
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # Certificates and account keys. Losing this volume means re-issuing
+      # every certificate, and Let's Encrypt rate-limits that.
+      - caddy_data:/data
+      - caddy_config:/config
+
+    # A port check, not a request. Once the site address is a hostname, Caddy
+    # answers port 80 only for that Host header and redirects it to 443, so an
+    # HTTP probe from inside the container would test DNS and hairpin routing
+    # rather than Caddy. That the listener is bound is the honest thing this
+    # check can prove; whether the app behind it is well is the micaforge
+    # container's own healthcheck, above.
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 80 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  postgres_data:
+  clickhouse_data:
+  clickhouse_logs:
+  valkey_data:
+  caddy_data:
+  caddy_config:

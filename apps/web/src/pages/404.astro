@@ -1,0 +1,137 @@
+---
+/**
+ * Not found.
+ *
+ * The drawing is the page: a strip of the instrument's own paper with a trace
+ * that stops partway across and blank paper after it. Nothing is animated, so
+ * there is nothing to fail; the whole thing is in the served HTML.
+ */
+import Base from "../layouts/Base.astro";
+import SiteHeader from "../components/SiteHeader.astro";
+import SiteFooter from "../components/SiteFooter.astro";
+import { IconOut } from "../components/react/icons.tsx";
+
+/** The written pen, stopping at x = 370. */
+const trace = [
+  [40, 102], [62, 96], [84, 78], [106, 88], [128, 70], [150, 92], [172, 84],
+  [194, 64], [216, 80], [238, 74], [260, 96], [282, 86], [304, 68], [326, 90],
+  [348, 82], [370, 94],
+];
+const traceD = trace.map(([x, y], i) => `${i === 0 ? "M" : "L"}${x},${y}`).join("");
+
+/** Sprocket holes down the feed gutter. */
+const holes = Array.from({ length: 7 }, (_, i) => 38 + i * 16);
+/** Paper ruling inside the strip. */
+const rules = [36, 60, 84, 108, 132];
+---
+
+<Base
+  title="Not found · Micaforge"
+  description="No page at this address."
+>
+  <SiteHeader />
+
+  <main id="main">
+    <div class="mf-wrap mf-404">
+      <h1 class="mf-404__title">No record at this address</h1>
+      <p class="mf-404__body">
+        The page you asked for is not here. It may have been renamed, or it may never have
+        existed. Either way the pen has nothing to write.
+      </p>
+
+      <figure class="mf-404__art">
+        <svg viewBox="0 0 560 180" role="img" aria-label="A strip of chart paper: a recorded trace runs from the left and stops partway across, leaving blank paper after it.">
+          <defs>
+            <clipPath id="nf-strip">
+              <rect x="1" y="24" width="558" height="124" rx="3" />
+            </clipPath>
+          </defs>
+
+          <!-- the paper -->
+          <rect class="nf-paper" x="0.5" y="24.5" width="559" height="123" rx="3" />
+
+          <!-- ruling, clipped to the paper: never a page-wide grid -->
+          <g clip-path="url(#nf-strip)">
+            {rules.map((y) => <line class="nf-rule" x1="22" x2="559" y1={y} y2={y} />)}
+          </g>
+
+          <!-- the feed gutter -->
+          <line class="nf-gutter" x1="22" x2="22" y1="24" y2="148" />
+          {holes.map((cy) => <circle class="nf-hole" cx="11" cy={cy} r="2" />)}
+
+          <!-- the sheet stamp: a genuine status code, so it is set in the data face -->
+          <text class="nf-stamp" x="34" y="44">404</text>
+
+          <!-- the trace, and the ridge of displaced soot under it -->
+          <path class="nf-burr" d={traceD} transform="translate(0,1)" />
+          <path class="nf-trace" d={traceD} />
+
+          <!-- where it stops -->
+          <line class="nf-stop" x1="370" x2="370" y1="30" y2="142" />
+          <rect class="nf-pen" x="368" y="92" width="4" height="4" />
+          <text class="nf-annot" x="382" y="98">the pen lifted here</text>
+        </svg>
+      </figure>
+
+      <div class="mf-next">
+        <a class="mf-link" href="/">Back to the record<IconOut size={13} /></a>
+        <a class="mf-link" href="/docs">Documentation<IconOut size={13} /></a>
+        <a class="mf-link" href="/why-agent-analytics">Why agent analytics<IconOut size={13} /></a>
+        <a class="mf-link" href="/self-host">Self-host<IconOut size={13} /></a>
+      </div>
+    </div>
+  </main>
+
+  <SiteFooter />
+</Base>
+
+<style>
+  .nf-paper {
+    fill: var(--mf-ground-2);
+    stroke: var(--mf-rule-strong);
+    stroke-width: 1;
+  }
+  .nf-rule { stroke: var(--mf-rule-minor); stroke-width: 1; }
+  .nf-gutter { stroke: var(--mf-rule); stroke-width: 1; stroke-dasharray: 3 3; }
+  .nf-hole { fill: var(--mf-well); }
+
+  .nf-stamp {
+    font-family: var(--mf-font-data);
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    fill: var(--mf-ink-3);
+  }
+  .nf-annot {
+    font-family: var(--mf-font-ui);
+    font-size: 12px;
+    fill: var(--mf-ink-3);
+  }
+
+  /* The trace is bright paper scratched through soot, and it carries a ridge of
+     displaced soot on one side. That ridge is the depth; nothing here glows. */
+  .nf-burr {
+    fill: none;
+    stroke: var(--mf-well);
+    stroke-width: 2.2;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+  }
+  .nf-trace {
+    fill: none;
+    stroke: var(--mf-trace-human);
+    stroke-width: 1.8;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+  }
+  .nf-stop { stroke: var(--mf-rule-strong); stroke-width: 1; stroke-dasharray: 2 4; }
+  .nf-pen { fill: var(--mf-shellac); }
+
+  /* The strip is the page's one artifact, so it is given real size rather than
+     sitting in the corner as a decoration. */
+  .mf-404__art { max-width: 720px; }
+  .mf-404__art svg { display: block; width: 100%; height: auto; }
+
+  @media (max-width: 560px) {
+    .nf-annot { font-size: 14px; }
+  }
+</style>

@@ -1,0 +1,898 @@
+/* ============================================================================
+   READ MODE: the manual, the log and the argument.
+
+   The article column is the record's own paper: a pin-fed sheet, ruled by the
+   instrument that wrote it. Everything around it is the bench the sheet is read
+   on. Comprehension first: one measure, one ink, one scale of headings, and a
+   depth scale down the right edge so the shape of a page is legible before a
+   word of it is.
+
+   Every value here is a token. Nothing glows; edges are the surface's own
+   colour and the burr of displaced soot beside a scratch.
+   ========================================================================= */
+
+.doc-shell {
+  --doc-index: 244px;
+  --doc-rail: 196px;
+  --doc-max: 1420px;
+  /* The sheet's own left margin: the perforation column, plus room for the
+     registration ticks that sit beside each section heading. */
+  --doc-gutter: calc(var(--mf-feed-gutter) + var(--mf-8) + var(--mf-6));
+
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ── the bench rail across the top ───────────────────────────────────────── */
+
+.doc-bar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: var(--mf-ground);
+  border-bottom: 1px solid var(--mf-rule);
+}
+
+.doc-bar__inner {
+  max-width: var(--doc-max);
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--mf-8);
+  height: var(--mf-header-h);
+  padding: 0 var(--mf-6);
+}
+
+.doc-bar__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mf-3);
+  color: var(--mf-ink);
+  text-decoration: none;
+  transition: color var(--mf-dur-1) linear;
+}
+.doc-bar__brand svg { flex: none; }
+.doc-bar__wordmark {
+  font-family: var(--mf-font-display);
+  font-size: var(--mf-t-md);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+.doc-bar__brand:hover { color: var(--mf-shellac); }
+
+.doc-bar__nav {
+  display: flex;
+  align-items: center;
+  gap: var(--mf-5);
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.doc-bar__nav::-webkit-scrollbar { display: none; }
+
+.doc-bar__link {
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink-3);
+  text-decoration: none;
+  white-space: nowrap;
+  padding: var(--mf-2) 0;
+  transition: color var(--mf-dur-1) linear;
+}
+.doc-bar__link:hover { color: var(--mf-ink); }
+/* The current section reads as current through the type itself: full ink and a
+   heavier weight. No dot, no underline, nothing bolted on beneath it. */
+.doc-bar__link[aria-current="page"] {
+  color: var(--mf-ink);
+  font-weight: 500;
+}
+
+.doc-bar__long { display: inline; }
+.doc-bar__short { display: none; }
+
+.doc-bar__right { margin-left: auto; display: flex; align-items: center; gap: var(--mf-3); }
+
+/* The pen advancing across the sheet as the reader descends. Purely a position
+   readout: it carries no content, and where scroll-linked animation is not
+   supported it simply rests at zero. */
+.doc-bar__pen {
+  position: absolute;
+  left: 0;
+  bottom: -1px;
+  height: 2px;
+  width: 100%;
+  background: var(--mf-shellac);
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+  pointer-events: none;
+}
+
+@supports (animation-timeline: scroll()) {
+  .doc-bar__pen {
+    animation: doc-pen-advance linear both;
+    animation-timeline: scroll(root block);
+  }
+}
+
+@keyframes doc-pen-advance {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+/* ── medium switch ───────────────────────────────────────────────────────── */
+
+.doc-medium { display: inline-flex; }
+
+/* ── the body grid ───────────────────────────────────────────────────────── */
+
+.doc-body {
+  flex: 1;
+  width: 100%;
+  max-width: var(--doc-max);
+  margin: 0 auto;
+  padding: var(--mf-8) var(--mf-6) var(--mf-16);
+  display: grid;
+  grid-template-columns: var(--doc-index) minmax(0, 1fr) var(--doc-rail);
+  align-items: start;
+  gap: var(--mf-8);
+}
+
+.doc-body[data-rail="false"] { grid-template-columns: var(--doc-index) minmax(0, 1fr); }
+.doc-body[data-index="false"] { grid-template-columns: minmax(0, 1fr) var(--doc-rail); max-width: 1120px; }
+.doc-body[data-index="false"][data-rail="false"] { grid-template-columns: minmax(0, 1fr); }
+
+.doc-body__index {
+  position: sticky;
+  top: calc(var(--mf-header-h) + var(--mf-6));
+  max-height: calc(100dvh - var(--mf-header-h) - var(--mf-10));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  padding-right: var(--mf-2);
+  min-width: 0;
+}
+
+.doc-body__rail {
+  position: sticky;
+  top: calc(var(--mf-header-h) + var(--mf-6));
+  max-height: calc(100dvh - var(--mf-header-h) - var(--mf-10));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  min-width: 0;
+}
+
+/* ── the left index ──────────────────────────────────────────────────────── */
+
+.doc-index { min-width: 0; }
+
+.doc-index__summary {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mf-3);
+  padding: var(--mf-3) var(--mf-4);
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink);
+  background: var(--mf-ground-2);
+  border: 1px solid var(--mf-rule);
+  border-radius: var(--mf-r-sm);
+  cursor: pointer;
+  list-style: none;
+}
+.doc-index__summary::-webkit-details-marker { display: none; }
+.doc-index__count { font-size: var(--mf-t-xs); color: var(--mf-ink-3); }
+
+.doc-bank + .doc-bank { margin-top: var(--mf-6); }
+
+/* A genuine grouping label for a bank of channels, the same treatment the
+   instrument's own channel banks carry. It is used here and nowhere else. */
+.doc-bank__label {
+  font-family: var(--mf-font-data);
+  font-size: var(--mf-t-2xs);
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--mf-ink-3);
+  margin: 0 0 var(--mf-2);
+  padding-left: var(--mf-3);
+}
+
+.doc-bank__list { list-style: none; margin: 0; padding: 0; }
+
+.doc-bank__link {
+  position: relative;
+  display: block;
+  padding: 5px var(--mf-3);
+  border-radius: var(--mf-r-sm);
+  font-size: var(--mf-t-sm);
+  line-height: 1.35;
+  color: var(--mf-ink-2);
+  text-decoration: none;
+  transition: color var(--mf-dur-1) linear, background-color var(--mf-dur-1) linear;
+}
+.doc-bank__link:hover { color: var(--mf-ink); background: var(--mf-ground-2); }
+
+/* The page currently under the pen. */
+.doc-bank__link[aria-current="page"] {
+  color: var(--mf-ink);
+  background: var(--mf-ground-3);
+}
+.doc-bank__link[aria-current="page"]::before {
+  content: "";
+  position: absolute;
+  left: -5px;
+  top: 50%;
+  width: 3px;
+  height: 15px;
+  transform: translateY(-50%);
+  background: var(--mf-shellac);
+  border-radius: 1px;
+}
+
+/* ── the sheet ───────────────────────────────────────────────────────────── */
+
+.doc-sheet {
+  min-width: 0;
+  /* A short page still reads as a sheet on the bench rather than a scrap of
+     paper with a foot of bare ground under it. */
+  min-height: calc(100dvh - var(--mf-header-h) - var(--mf-24));
+  padding: var(--mf-10) var(--mf-10) var(--mf-8);
+  padding-left: var(--doc-gutter);
+}
+
+.doc-sheet__head { max-width: var(--mf-measure); }
+
+.doc-sheet__title {
+  font-size: var(--mf-t-2xl);
+  font-weight: 600;
+  line-height: 1.04;
+  letter-spacing: -0.02em;
+  color: var(--mf-ink);
+  margin: 0;
+}
+
+.doc-sheet__standfirst {
+  margin-top: var(--mf-4);
+  font-size: var(--mf-t-md);
+  line-height: 1.5;
+  color: var(--mf-ink-2);
+  max-width: 58ch;
+}
+
+.doc-sheet__stamp {
+  margin-top: var(--mf-4);
+  font-family: var(--mf-font-data);
+  font-size: var(--mf-t-2xs);
+  letter-spacing: 0.04em;
+  color: var(--mf-ink-3);
+}
+
+/* The reading measure is 68ch and belongs to the prose. A sample or a table is
+   not read at a measure, it is scanned, so those two are allowed the wider
+   column rather than being squeezed into a paragraph's width. */
+.doc-sheet__body { max-width: 88ch; margin-top: var(--mf-8); }
+.doc-prose > :is(p, ul, ol, h2, h3, h4, blockquote, .doc-annot) { max-width: var(--mf-measure); }
+/* A sheet holding a composition rather than prose takes the whole column: the
+   68ch measure is a rule about reading, not about tabulation. */
+.doc-sheet__body:not(.doc-prose) { max-width: none; margin-top: 0; }
+
+/* ── prose ───────────────────────────────────────────────────────────────── */
+
+.doc-prose { font-size: var(--mf-t-base); line-height: var(--mf-lead-body); color: var(--mf-ink-2); }
+
+.doc-prose > * + * { margin-top: var(--mf-5); }
+
+.doc-prose h2 {
+  position: relative;
+  margin-top: var(--mf-12);
+  font-size: var(--mf-t-lg);
+  font-weight: 600;
+  line-height: 1.16;
+  color: var(--mf-ink);
+  scroll-margin-top: calc(var(--mf-header-h) + var(--mf-6));
+}
+
+/* The registration tick: the fiducial an instrument panel uses to say where a
+   scale begins. It is the same mark the icon set carries, so a section opening
+   in the manual and a glyph in the product are drawn by one hand. */
+.doc-prose h2::before {
+  content: "";
+  position: absolute;
+  left: calc(var(--mf-6) * -1);
+  top: 0.62em;
+  width: 5px;
+  height: 5px;
+  background: var(--mf-shellac);
+}
+
+.doc-prose h3 {
+  margin-top: var(--mf-8);
+  font-size: var(--mf-t-md);
+  font-weight: 600;
+  line-height: 1.28;
+  color: var(--mf-ink);
+  scroll-margin-top: calc(var(--mf-header-h) + var(--mf-6));
+}
+
+.doc-prose h4 {
+  margin-top: var(--mf-6);
+  font-family: var(--mf-font-ui);
+  font-size: var(--mf-t-base);
+  font-weight: 600;
+  color: var(--mf-ink);
+  scroll-margin-top: calc(var(--mf-header-h) + var(--mf-6));
+}
+
+.doc-prose strong { color: var(--mf-ink); font-weight: 600; }
+
+.doc-prose a {
+  color: var(--mf-shellac);
+  text-decoration: none;
+  border-bottom: 1px solid var(--mf-rule-strong);
+  padding-bottom: 1px;
+  transition: color var(--mf-dur-1) linear, border-color var(--mf-dur-1) linear;
+}
+.doc-prose a:hover { color: var(--mf-shellac-hi); border-color: var(--mf-shellac); }
+
+.doc-prose ul,
+.doc-prose ol { margin-left: 0; padding-left: var(--mf-5); }
+.doc-prose li + li { margin-top: var(--mf-2); }
+.doc-prose li > ul,
+.doc-prose li > ol { margin-top: var(--mf-2); }
+
+.doc-prose ul { list-style: none; padding-left: var(--mf-4); }
+.doc-prose ul > li { position: relative; padding-left: var(--mf-4); }
+.doc-prose ul > li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.62em;
+  width: 4px;
+  height: 4px;
+  background: var(--mf-ink-3);
+}
+
+.doc-prose ol { list-style: decimal; }
+.doc-prose ol > li::marker { color: var(--mf-ink-3); font-variant-numeric: tabular-nums; }
+
+/* Inline code is the data face in the first ink, sitting IN the line, and it is
+   the same treatment the published sheet uses. No padding, because a chip's
+   right padding pushes the following full stop off the end of the word and
+   "openssl." reads as "openssl ." The framed sample below keeps its own well. */
+.doc-prose code {
+  font-family: var(--mf-font-data);
+  font-size: 0.92em;
+  color: var(--mf-ink);
+  background: none;
+  border: 0;
+  padding: 0;
+  overflow-wrap: anywhere;
+}
+
+.doc-prose a code { color: inherit; }
+
+/* An operator's note in the margin of the record, brought inline. The short
+   rounded leader is the mark a chart annotation is drawn with. */
+.doc-prose blockquote,
+.doc-prose .doc-annot {
+  margin-top: var(--mf-6);
+  padding-top: var(--mf-4);
+  font-size: var(--mf-t-sm);
+  line-height: 1.62;
+  color: var(--mf-ink-2);
+  border: 0;
+}
+
+.doc-prose blockquote { position: relative; }
+.doc-prose blockquote::before,
+.doc-prose .doc-annot::before {
+  content: "";
+  display: block;
+  width: 34px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--mf-ink-3);
+  margin-bottom: var(--mf-3);
+}
+
+.doc-prose .doc-annot { display: block; }
+.doc-prose .doc-annot > * + * { margin-top: var(--mf-3); }
+
+/* Not built yet. The words carry it; the colour only agrees with them. */
+.doc-prose .doc-annot[data-tone="gap"]::before { background: var(--mf-oxide); }
+.doc-prose .doc-annot[data-tone="gap"] strong { color: var(--mf-oxide); }
+
+.doc-prose .doc-annot[data-tone="keep"]::before { background: var(--mf-verdigris); }
+
+.doc-prose hr {
+  margin-top: var(--mf-10);
+  border: 0;
+  border-top: 1px solid var(--mf-rule);
+}
+
+.doc-prose img { max-width: 100%; height: auto; }
+
+/* Tables carry the tabulation sheet's own treatment. */
+.doc-prose table {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-size: var(--mf-t-sm);
+}
+.doc-prose thead th {
+  text-align: left;
+  font-family: var(--mf-font-ui);
+  font-weight: 500;
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+  padding: var(--mf-2) var(--mf-4) var(--mf-2) 0;
+  border-bottom: 1px solid var(--mf-rule-strong);
+  white-space: nowrap;
+}
+.doc-prose tbody td {
+  padding: var(--mf-3) var(--mf-4) var(--mf-3) 0;
+  border-bottom: 1px solid var(--mf-rule);
+  color: var(--mf-ink-2);
+  vertical-align: top;
+  font-family: var(--mf-font-ui);
+}
+.doc-prose tbody tr:last-child td { border-bottom: 0; }
+.doc-prose tbody td:first-child { color: var(--mf-ink); white-space: nowrap; }
+
+/* ── code samples ────────────────────────────────────────────────────────── */
+
+.mf-code {
+  margin: var(--mf-6) 0 0;
+  background: var(--mf-well);
+  border: 1px solid var(--mf-rule);
+  border-radius: var(--mf-r-md);
+  box-shadow: var(--mf-press);
+  overflow: hidden;
+}
+
+.mf-code__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mf-4);
+  padding: var(--mf-2) var(--mf-2) var(--mf-2) var(--mf-4);
+  border-bottom: 1px solid var(--mf-rule);
+}
+
+/* The sample's own language, in the face the sample is set in. */
+.mf-code__lang {
+  font-family: var(--mf-font-data);
+  font-size: var(--mf-t-2xs);
+  letter-spacing: 0.04em;
+  color: var(--mf-ink-3);
+}
+
+.mf-code__copy {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mf-2);
+  padding: 4px var(--mf-3);
+  font: inherit;
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--mf-r-sm);
+  cursor: pointer;
+  /* Colour and fill only. The key does not rise off the panel. */
+  transition: color var(--mf-dur-1) linear, background-color var(--mf-dur-1) linear,
+    border-color var(--mf-dur-1) linear;
+}
+.mf-code__copy:hover { color: var(--mf-ink); background: var(--mf-ground-3); border-color: var(--mf-rule); }
+.mf-code__copy[data-state="done"] { color: var(--mf-verdigris); }
+.mf-code__copy[data-state="failed"] { color: var(--mf-oxide); }
+
+.mf-code__mark { display: inline-flex; align-items: center; }
+.mf-code__mark > :nth-child(2) { display: none; }
+.mf-code__copy[data-state="done"] .mf-code__mark > :nth-child(1) { display: none; }
+.mf-code__copy[data-state="done"] .mf-code__mark > :nth-child(2) { display: inline-flex; }
+
+.mf-code__label { min-width: 8ch; text-align: left; }
+
+.mf-code__pre {
+  margin: 0;
+  padding: var(--mf-4);
+  overflow-x: auto;
+  font-family: var(--mf-font-data);
+  font-size: var(--mf-t-sm);
+  line-height: 1.62;
+  color: var(--mf-ink);
+  background: none;
+  tab-size: 2;
+}
+.mf-code__pre code {
+  font: inherit;
+  color: inherit;
+  background: none;
+  padding: 0;
+  white-space: pre;
+}
+
+/* ── on this page ────────────────────────────────────────────────────────── */
+
+.doc-rail { min-width: 0; }
+
+.doc-rail__title {
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+  margin: 0 0 var(--mf-3);
+}
+
+.doc-rail__list { list-style: none; margin: 0; padding: 0; }
+
+.doc-rail__link {
+  display: flex;
+  align-items: baseline;
+  gap: var(--mf-3);
+  padding: 4px 0;
+  font-size: var(--mf-t-xs);
+  line-height: 1.45;
+  color: var(--mf-ink-3);
+  text-decoration: none;
+  transition: color var(--mf-dur-1) linear;
+}
+.doc-rail__link:hover { color: var(--mf-ink); }
+
+/* The depth scale. A graduation on a real instrument separates a major from a
+   minor by more than a couple of pixels, and at 16 against 8 these two read as
+   one length drawn twice. A section's tick is now three times its subsection's
+   and a step heavier in tone, so the depth is legible at a glance and from the
+   left edge of the mark, where the eye picks the scale up. Both ticks end on
+   the same line, so the titles stay aligned whatever the depth. */
+.doc-rail__tick {
+  flex: none;
+  width: 24px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--mf-rule-strong);
+  transform: translateY(-3px);
+  transition: background-color var(--mf-dur-1) linear;
+}
+.doc-rail__item[data-depth="3"] .doc-rail__tick {
+  width: 8px;
+  margin-left: 16px;
+  background: var(--mf-rule);
+}
+.doc-rail__link:hover .doc-rail__tick { background: var(--mf-ink-3); }
+
+.doc-rail__link[aria-current="true"] { color: var(--mf-ink); }
+.doc-rail__link[aria-current="true"] .doc-rail__tick { background: var(--mf-shellac); }
+
+.doc-rail__text { overflow-wrap: anywhere; }
+
+/* ── the sheet's foot: when it was checked, and what is next ─────────────── */
+
+.doc-sheet__foot {
+  max-width: var(--mf-measure);
+  margin-top: var(--mf-12);
+  padding-top: var(--mf-5);
+  border-top: 1px solid var(--mf-rule);
+}
+
+.doc-sheet__checked {
+  font-family: var(--mf-font-data);
+  font-size: var(--mf-t-2xs);
+  letter-spacing: 0.04em;
+  color: var(--mf-ink-3);
+}
+
+/* Two parallel columns: same rows, same heights, whatever the titles do. */
+.doc-turn {
+  margin-top: var(--mf-5);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--mf-4);
+}
+
+.doc-prose a.doc-turn__link { color: inherit; border-bottom: 1px solid var(--mf-rule); padding-bottom: 0; }
+.doc-prose a.doc-turn__link:hover { border-color: var(--mf-rule-strong); }
+
+.doc-turn__link {
+  display: grid;
+  grid-template-rows: 18px auto;
+  gap: var(--mf-1);
+  padding: var(--mf-4);
+  text-decoration: none;
+  background: var(--mf-ground);
+  border: 1px solid var(--mf-rule);
+  border-radius: var(--mf-r-sm);
+  transition: border-color var(--mf-dur-1) linear, background-color var(--mf-dur-1) linear;
+}
+.doc-turn__link:hover { background: var(--mf-ground-3); border-color: var(--mf-rule-strong); }
+.doc-turn__link--next { text-align: right; }
+.doc-turn__dir { font-size: var(--mf-t-xs); color: var(--mf-ink-3); line-height: 18px; }
+.doc-turn__title {
+  font-family: var(--mf-font-display);
+  font-size: var(--mf-t-base);
+  font-weight: 500;
+  color: var(--mf-ink);
+  line-height: 1.3;
+}
+.doc-turn__slot { display: block; }
+
+/* ── the contents sheet (the docs index) ─────────────────────────────────── */
+
+.doc-open__head { max-width: 62ch; }
+
+.doc-open__title {
+  font-size: var(--mf-t-3xl);
+  font-weight: 600;
+  line-height: 0.98;
+  letter-spacing: -0.024em;
+  color: var(--mf-ink);
+  margin: 0;
+}
+
+.doc-open__lead {
+  margin-top: var(--mf-5);
+  font-size: var(--mf-t-md);
+  line-height: 1.52;
+  color: var(--mf-ink-2);
+  max-width: 56ch;
+}
+
+.doc-open__snippet { max-width: 72ch; margin-top: var(--mf-8); }
+.doc-open__snippet-note {
+  margin-top: var(--mf-3);
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink-3);
+  max-width: 60ch;
+}
+
+.doc-register { margin-top: var(--mf-14); }
+
+.doc-register__row {
+  display: grid;
+  grid-template-columns: minmax(0, 264px) minmax(0, 1fr);
+  gap: var(--mf-6) var(--mf-10);
+  padding: var(--mf-8) 0;
+  border-top: 1px solid var(--mf-rule);
+}
+.doc-register__row:last-child { border-bottom: 1px solid var(--mf-rule); }
+
+.doc-register__name {
+  font-family: var(--mf-font-display);
+  font-size: var(--mf-t-xl);
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.014em;
+  color: var(--mf-ink);
+  margin: 0;
+}
+.doc-register__gloss {
+  margin-top: var(--mf-2);
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink-3);
+  max-width: 30ch;
+}
+
+.doc-register__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(248px, 1fr));
+  gap: var(--mf-1) var(--mf-8);
+  align-content: start;
+}
+
+.doc-register__link {
+  display: block;
+  padding: var(--mf-2) 0;
+  font-size: var(--mf-t-base);
+  color: var(--mf-ink-2);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: color var(--mf-dur-1) linear, border-color var(--mf-dur-1) linear;
+}
+.doc-register__link:hover { color: var(--mf-ink); border-color: var(--mf-rule-strong); }
+.doc-register__link span {
+  display: block;
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+}
+
+/* ── the log, and the argument ───────────────────────────────────────────── */
+
+.doc-log { margin-top: var(--mf-10); }
+
+.doc-log__entry {
+  display: grid;
+  grid-template-columns: minmax(0, 152px) minmax(0, 1fr);
+  gap: var(--mf-4) var(--mf-8);
+  padding: var(--mf-8) 0;
+  border-top: 1px solid var(--mf-rule);
+}
+.doc-log__entry:last-child { border-bottom: 1px solid var(--mf-rule); }
+
+.doc-log__stamp { display: flex; flex-direction: column; gap: var(--mf-1); }
+.doc-log__version {
+  font-family: var(--mf-font-data);
+  font-size: var(--mf-t-sm);
+  font-weight: 500;
+  color: var(--mf-ink);
+}
+.doc-log__date {
+  font-family: var(--mf-font-data);
+  font-size: var(--mf-t-2xs);
+  letter-spacing: 0.04em;
+  color: var(--mf-ink-3);
+}
+.doc-log__state { font-size: var(--mf-t-xs); color: var(--mf-shellac); }
+
+.doc-log__body { min-width: 0; max-width: var(--mf-measure); }
+/* Inside a log entry the section ticks would sit in the stamp column, and the
+   first heading needs no room made above it. */
+.doc-log__body h2::before { display: none; }
+.doc-log__body h2 { margin-top: var(--mf-8); font-size: var(--mf-t-md); }
+.doc-log__body h3 { margin-top: var(--mf-6); font-size: var(--mf-t-base); }
+.doc-log__body > :first-child { margin-top: 0; }
+.doc-log__title {
+  font-size: var(--mf-t-lg);
+  font-weight: 600;
+  line-height: 1.18;
+  color: var(--mf-ink);
+  margin: 0 0 var(--mf-4);
+}
+
+.doc-posts { list-style: none; margin: var(--mf-10) 0 0; padding: 0; }
+
+.doc-posts__item { border-top: 1px solid var(--mf-rule); }
+.doc-posts__item:last-child { border-bottom: 1px solid var(--mf-rule); }
+
+.doc-posts__link {
+  display: grid;
+  grid-template-columns: minmax(0, 132px) minmax(0, 1fr);
+  gap: var(--mf-3) var(--mf-8);
+  padding: var(--mf-7) 0;
+  padding-block: var(--mf-8);
+  text-decoration: none;
+  transition: background-color var(--mf-dur-1) linear;
+}
+.doc-posts__link:hover { background: var(--mf-ground-3); }
+
+.doc-posts__date {
+  font-family: var(--mf-font-data);
+  font-size: var(--mf-t-2xs);
+  letter-spacing: 0.04em;
+  color: var(--mf-ink-3);
+  line-height: 1.7;
+}
+.doc-posts__title {
+  font-size: var(--mf-t-lg);
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--mf-ink);
+  margin: 0;
+}
+.doc-posts__sub {
+  margin-top: var(--mf-2);
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink-2);
+  max-width: 62ch;
+}
+
+/* ── the foot of the bench ───────────────────────────────────────────────── */
+
+.doc-foot {
+  border-top: 1px solid var(--mf-rule);
+  background: var(--mf-ground);
+}
+
+.doc-foot__inner {
+  max-width: var(--doc-max);
+  margin: 0 auto;
+  padding: var(--mf-6);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--mf-3) var(--mf-6);
+}
+
+.doc-foot__line { font-size: var(--mf-t-xs); color: var(--mf-ink-3); }
+
+.doc-foot__links { display: flex; flex-wrap: wrap; gap: var(--mf-5); }
+
+.doc-foot__link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mf-2);
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+  text-decoration: none;
+  transition: color var(--mf-dur-1) linear;
+}
+.doc-foot__link:hover { color: var(--mf-ink); }
+.doc-foot__link svg { color: var(--mf-ink-3); }
+.doc-foot__link:hover svg { color: var(--mf-shellac); }
+
+/* ── narrower benches ────────────────────────────────────────────────────── */
+
+@media (max-width: 1240px) {
+  .doc-shell { --doc-index: 216px; --doc-rail: 172px; }
+  .doc-body { gap: var(--mf-6); }
+}
+
+@media (max-width: 1080px) {
+  .doc-body,
+  .doc-body[data-rail="false"],
+  .doc-body[data-index="false"] {
+    grid-template-columns: minmax(0, 1fr);
+    padding: var(--mf-5) var(--mf-4) var(--mf-14);
+    gap: var(--mf-5);
+  }
+
+  .doc-body__index,
+  .doc-body__rail {
+    position: static;
+    max-height: none;
+    overflow: visible;
+    padding-right: 0;
+  }
+
+  .doc-index__summary { display: flex; }
+  .doc-index__nav {
+    margin-top: var(--mf-4);
+    padding-bottom: var(--mf-2);
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: var(--mf-6);
+  }
+  .doc-bank + .doc-bank { margin-top: 0; }
+
+  /* The page's own scale sits above the writing on a narrow bench, where a list
+     at the foot of a long article would never be found. */
+  .doc-body__rail { order: -1; }
+  .doc-body__index { order: -2; }
+
+  .doc-rail {
+    padding: var(--mf-4) var(--mf-4) var(--mf-5);
+    background: var(--mf-ground-2);
+    border: 1px solid var(--mf-rule);
+    border-radius: var(--mf-r-md);
+  }
+
+  .doc-sheet {
+    padding: var(--mf-6) var(--mf-5) var(--mf-6);
+    padding-left: calc(var(--mf-feed-gutter) + var(--mf-5));
+  }
+  .doc-prose h2::before { display: none; }
+  .doc-open__title { font-size: var(--mf-t-2xl); }
+  .doc-register__row { grid-template-columns: minmax(0, 1fr); }
+  .doc-log__entry,
+  .doc-posts__link { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 720px) {
+  /* The bar keeps its whole vocabulary; only the words get shorter. */
+  .doc-bar__long { display: none; }
+  .doc-bar__short { display: inline; }
+  .doc-bar__inner { gap: var(--mf-4); padding: 0 var(--mf-4); }
+  .doc-bar__nav { gap: var(--mf-4); }
+  .doc-bar__brand { font-size: var(--mf-t-base); }
+  /* The medium switch keeps its two record icons and drops the words. */
+  .doc-medium .mf-medium__opt span { display: none; }
+  .doc-medium .mf-medium__opt { padding: 6px var(--mf-3); }
+}
+
+@media (max-width: 640px) {
+  .doc-sheet__title { font-size: var(--mf-t-xl); }
+  .doc-turn { grid-template-columns: minmax(0, 1fr); }
+  .doc-turn__link--next { text-align: left; }
+  .mf-code__label { display: none; }
+  .mf-code__copy { padding: 5px var(--mf-2); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* The pen readout is motion tied to scrolling; a reader who asked for less of
+     it gets none, and loses nothing, because it carries no content. */
+  .doc-bar__pen { display: none; }
+}

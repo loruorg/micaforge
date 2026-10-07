@@ -1,0 +1,716 @@
+/* ============================================================================
+   ENTRY, the way in: authentication, the site chooser, first-run onboarding
+   and the public share view.
+
+   These screens are the first thing anyone sees, so they are composed as the
+   station's own paperwork rather than as a centred box on an empty field. The
+   unauthenticated frame IS a sheet of chart paper: perforations down the left
+   gutter, a fragment of a two-pen record written across the top, and the form
+   pinned onto the sheet below it as a log slip.
+
+   Every value here is a var(--mf-*). Depth is the scratch ridge, never a glow.
+   ========================================================================= */
+
+/* Area geometry that the shared space scale does not cover: each of these is
+   tied one-to-one to an SVG user unit in this area's components, so the scratch
+   ridge stays a true one-pixel offset instead of a scaled smear. */
+:root {
+  --mf-entry-band-h: 150px;
+  --mf-entry-band-h-sm: 108px;
+  --mf-entry-band-h-xs: 92px;
+  --mf-entry-max: 1080px;
+  --mf-entry-slip: 400px;
+  --mf-entry-share-col: 340px;
+  --mf-entry-search-w: 26ch;
+  --mf-entry-form-measure: 44ch;
+}
+
+/* ── the sheet ──────────────────────────────────────────────────────────── */
+
+/* The masthead, the sheet and the colophon are ONE composed group centred in
+   the viewport, rather than three things pinned to the top, middle and bottom
+   edges with two voids between them. `safe center` keeps the top reachable when
+   the group is taller than the screen. */
+.mf-entry {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  align-content: center;
+  align-content: safe center;
+  justify-items: center;
+  min-height: 100dvh;
+  padding: var(--mf-10) var(--mf-6);
+  gap: var(--mf-5);
+}
+
+.mf-entry__mast,
+.mf-entry__stage,
+.mf-entry__colophon {
+  width: 100%;
+  max-width: var(--mf-entry-max);
+}
+
+.mf-entry__mast {
+  display: flex;
+  align-items: center;
+  gap: var(--mf-4);
+}
+
+.mf-entry__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mf-3);
+  color: var(--mf-ink);
+  text-decoration: none;
+}
+
+.mf-entry__wordmark {
+  font-family: var(--mf-font-display);
+  font-size: var(--mf-t-md);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+
+.mf-entry__sheet {
+  width: 100%;
+  max-width: var(--mf-entry-max);
+  overflow: hidden;
+}
+
+/* ── the specimen trace ─────────────────────────────────────────────────── */
+
+.mf-entry__band {
+  border-bottom: 1px solid var(--mf-rule);
+  background: var(--mf-well);
+}
+
+/* The record is a fixed 150 user units tall so the scratch ridge stays a true
+   one-pixel offset; only the time axis stretches with the viewport. */
+.mf-entry__trace {
+  display: block;
+  width: 100%;
+  height: var(--mf-entry-band-h);
+}
+
+.mf-entry__legend {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--mf-2) var(--mf-6);
+  padding: var(--mf-3) var(--mf-5) var(--mf-3) 0;
+  border-bottom: 1px solid var(--mf-rule);
+}
+
+.mf-entry__chan {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--mf-2);
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink-2);
+}
+
+/* The swatch repeats the pen's own line character, so the two channels are
+   told apart by SHAPE before colour is involved at all. */
+.mf-entry__pen {
+  position: relative;
+  align-self: center;
+  display: inline-block;
+  width: 18px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--mf-trace-human);
+}
+
+.mf-entry__pen[data-pen="stepped"] {
+  width: 9px;
+  height: 8px;
+  margin-right: 9px;
+  background: none;
+  border-top: 2px solid var(--mf-trace-agent);
+  border-right: 2px solid var(--mf-trace-agent);
+  border-radius: 0;
+}
+
+.mf-entry__pen[data-pen="stepped"]::after {
+  content: "";
+  position: absolute;
+  left: 100%;
+  bottom: -2px;
+  width: 9px;
+  border-bottom: 2px solid var(--mf-trace-agent);
+}
+
+.mf-entry__specimen { margin-left: auto; }
+
+/* ── the log slip ───────────────────────────────────────────────────────── */
+
+.mf-entry__body {
+  display: grid;
+  grid-template-columns: minmax(0, var(--mf-entry-slip)) minmax(0, 1fr);
+  align-items: stretch;
+  gap: var(--mf-8) var(--mf-12);
+  padding: var(--mf-8) var(--mf-8) var(--mf-8) 0;
+}
+
+/* The standing explanation ends level with the slip, so the two columns share a
+   bottom edge instead of one hanging short of the other. */
+.mf-entry__aside {
+  max-width: 48ch;
+  display: grid;
+  align-content: end;
+  gap: var(--mf-4);
+  justify-items: start;
+}
+
+.mf-entry__aside p {
+  font-size: var(--mf-t-sm);
+  line-height: var(--mf-lead-body);
+  color: var(--mf-ink-2);
+}
+
+.mf-entry__colophon {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--mf-2) var(--mf-4);
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+}
+
+.mf-entry__dot { color: var(--mf-rule-strong); }
+
+/* A link carries a static rule that is present at rest. It never grows,
+   wipes or travels in on hover; only its tone changes. */
+.mf-entry__link {
+  display: inline-flex;
+  /* A link is as wide as its words: inside a grid it must not stretch, or its
+     rule runs on past the text it belongs to. */
+  justify-self: start;
+  align-self: start;
+  align-items: center;
+  gap: var(--mf-2);
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink-2);
+  text-decoration: none;
+  border-bottom: 1px solid var(--mf-rule-strong);
+  padding-bottom: 2px;
+  transition: color var(--mf-dur-1) linear, border-color var(--mf-dur-1) linear;
+}
+.mf-entry__link:hover { color: var(--mf-ink); border-color: var(--mf-ink-3); }
+.mf-entry__link--sm { font-size: var(--mf-t-xs); }
+
+/* ── forms ──────────────────────────────────────────────────────────────── */
+
+.mf-form { display: grid; gap: var(--mf-5); }
+
+.mf-form__title {
+  font-family: var(--mf-font-display);
+  font-size: var(--mf-t-xl);
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: var(--mf-track-display);
+  color: var(--mf-ink);
+  margin: 0;
+}
+
+.mf-form__note {
+  margin-top: var(--mf-2);
+  font-size: var(--mf-t-sm);
+  line-height: var(--mf-lead-body);
+  color: var(--mf-ink-3);
+  max-width: 54ch;
+}
+
+.mf-form__fields { display: grid; gap: var(--mf-4); }
+
+/* Prose inside the slip: an explanation, not a field hint. */
+.mf-form__body {
+  font-size: var(--mf-t-sm);
+  line-height: var(--mf-lead-body);
+  color: var(--mf-ink-2);
+  max-width: 54ch;
+}
+
+/* A failure is written across the slip on its own ruled line, no tinted box,
+   no chip. The rules above and below are the containment. */
+.mf-form__err {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--mf-2);
+  padding: var(--mf-3) 0;
+  border-top: 1px solid var(--mf-oxide-wash);
+  border-bottom: 1px solid var(--mf-oxide-wash);
+  font-size: var(--mf-t-sm);
+  line-height: var(--mf-lead-snug);
+  color: var(--mf-oxide);
+}
+.mf-form__err svg { flex: none; margin-top: 1px; }
+
+.mf-form__ok {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--mf-2);
+  padding: var(--mf-3) 0;
+  border-top: 1px solid var(--mf-verdigris-wash);
+  border-bottom: 1px solid var(--mf-verdigris-wash);
+  font-size: var(--mf-t-sm);
+  line-height: var(--mf-lead-snug);
+  color: var(--mf-verdigris);
+}
+.mf-form__ok svg { flex: none; margin-top: 1px; }
+
+.mf-form__foot {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--mf-3) var(--mf-5);
+}
+
+.mf-form__foot .mf-btn { flex: none; }
+
+.mf-field { display: grid; gap: var(--mf-2); }
+
+.mf-field__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--mf-3);
+}
+
+.mf-field__label {
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-2);
+}
+
+.mf-field__hint {
+  font-size: var(--mf-t-xs);
+  line-height: var(--mf-lead-snug);
+  color: var(--mf-ink-3);
+}
+
+.mf-field__err {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--mf-2);
+  font-size: var(--mf-t-xs);
+  line-height: var(--mf-lead-snug);
+  color: var(--mf-oxide);
+}
+.mf-field__err svg { flex: none; margin-top: 1px; }
+
+/* An input is a sunken well cut into the sheet: the press shadow is the cut,
+   not a drop shadow under a floating box. */
+.mf-input {
+  width: 100%;
+  min-width: 0;
+  font: inherit;
+  font-family: var(--mf-font-ui);
+  font-size: var(--mf-t-base);
+  line-height: 1.3;
+  color: var(--mf-ink);
+  background: var(--mf-well);
+  border: 1px solid var(--mf-rule-strong);
+  border-radius: var(--mf-r-sm);
+  box-shadow: var(--mf-press);
+  padding: var(--mf-2) var(--mf-3);
+  transition: border-color var(--mf-dur-1) linear;
+}
+
+/* A placeholder is text, so it clears the same contrast floor as any other
+   text. `opacity: 1` undoes the dimming some engines add on top of the colour. */
+.mf-input::placeholder { color: var(--mf-ink-2); opacity: 1; }
+.mf-input:hover { border-color: var(--mf-ink-3); }
+.mf-input:focus { border-color: var(--mf-shellac); }
+.mf-input[aria-invalid="true"] { border-color: var(--mf-oxide); }
+/* A disabled field still shows real content (the address an invitation was sent
+   to, for one), so it stays readable; the quiet surface carries "inactive". */
+.mf-input[disabled] { color: var(--mf-ink-2); cursor: not-allowed; }
+
+/* Values that are genuine data (a domain, a snippet, a timezone key) are set
+   in the data face. Ordinary prose input is not. */
+.mf-input--data {
+  font-family: var(--mf-font-data);
+  font-size: var(--mf-t-sm);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* Keep the browser's autofill from painting its own surface over the well. */
+.mf-input:-webkit-autofill,
+.mf-input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--mf-ink);
+  -webkit-box-shadow: inset 0 0 0 100px var(--mf-well);
+  caret-color: var(--mf-ink);
+}
+
+.mf-select { position: relative; display: block; }
+.mf-select select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: var(--mf-10);
+}
+.mf-select__caret {
+  position: absolute;
+  right: var(--mf-3);
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--mf-ink-3);
+  pointer-events: none;
+}
+
+/* A quiet text control that sits on the field's own label line. */
+.mf-reveal {
+  font: inherit;
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  transition: color var(--mf-dur-1) linear;
+}
+.mf-reveal:hover { color: var(--mf-ink); }
+
+/* A form written straight onto a panel rather than onto the log slip. */
+.mf-panel-form { padding: 0 var(--mf-5) var(--mf-5); }
+.mf-panel-form .mf-form__fields { max-width: var(--mf-entry-form-measure); }
+/* Inside an already-capped task column the fields take the panel's own width,
+   so the controls line up with the panel edge instead of stopping short of it. */
+.mf-stack--narrow .mf-panel-form .mf-form__fields { max-width: none; }
+
+.mf-waiting {
+  display: grid;
+  gap: var(--mf-3);
+  padding: var(--mf-4) 0;
+}
+
+@media (max-width: 900px) {
+  .mf-entry { padding: var(--mf-5) var(--mf-4); gap: var(--mf-4); }
+  .mf-entry__trace { height: var(--mf-entry-band-h-sm); }
+  .mf-entry__body {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--mf-6);
+    padding: var(--mf-5) var(--mf-5) var(--mf-6) 0;
+  }
+  .mf-entry__aside { align-content: start; }
+  .mf-entry__legend { padding-right: var(--mf-4); }
+  .mf-entry__specimen { margin-left: 0; }
+}
+
+@media (max-width: 560px) {
+  .mf-panel-form { padding: 0 var(--mf-4) var(--mf-4); }
+}
+
+@media (max-width: 480px) {
+  .mf-entry__trace { height: var(--mf-entry-band-h-xs); }
+  .mf-form__title { font-size: var(--mf-t-lg); }
+}
+
+/* ── the site chooser ───────────────────────────────────────────────────── */
+
+/* A grid item defaults to min-width:auto, which lets a wide table or a long
+   snippet push the whole column past the viewport. The explicit minmax track
+   is what keeps the sideways scrolling inside the table, where it belongs. */
+.mf-stack {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--mf-6);
+  align-content: start;
+}
+.mf-stack > * { min-width: 0; }
+
+/* A task page is a column, not a slab: capping the measure keeps the form and
+   its heading on one axis instead of stranding them at the left of a wide sheet. */
+.mf-stack--narrow { max-width: 76ch; }
+.mf-stack--task { max-width: 104ch; }
+
+.mf-chooser__mast {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--mf-4) var(--mf-6);
+}
+
+/* The heading block takes the width; the tools keep only what they need, so a
+   two-line summary does not get squeezed into four. */
+.mf-chooser__mast > :first-child { flex: 1 1 40ch; min-width: 0; }
+
+.mf-chooser__title {
+  font-family: var(--mf-font-display);
+  font-size: var(--mf-t-2xl);
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: var(--mf-track-display);
+  color: var(--mf-ink);
+  margin: 0;
+}
+
+.mf-chooser__sub {
+  margin-top: var(--mf-2);
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink-3);
+  max-width: 58ch;
+}
+
+.mf-chooser__tools {
+  display: flex;
+  align-items: center;
+  gap: var(--mf-3);
+  flex-wrap: wrap;
+}
+
+.mf-search { position: relative; display: block; }
+.mf-search .mf-input { padding-left: var(--mf-8); width: var(--mf-entry-search-w); max-width: 100%; }
+.mf-search__glyph {
+  position: absolute;
+  left: var(--mf-3);
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--mf-ink-3);
+  pointer-events: none;
+}
+
+.mf-site {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--mf-2);
+  min-width: 0;
+}
+.mf-site__domain {
+  font-size: var(--mf-t-sm);
+  font-weight: 500;
+  color: var(--mf-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mf-site__name {
+  font-family: var(--mf-font-ui);
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mf-spark { display: block; }
+
+.mf-cell-quiet,
+.mf-cell-warn {
+  font-family: var(--mf-font-ui);
+  font-size: var(--mf-t-sm);
+}
+.mf-cell-quiet { color: var(--mf-ink-3); }
+.mf-cell-warn { color: var(--mf-oxide); }
+
+/* The ink behind a row is the trace of the audience the sheet is reading. The
+   base rule draws it in the machine pen's shellac, which is right for the agent
+   panels on a published record and wrong for the reader panels beside them. */
+.mf-share--human .mf-sheet__ink { background: var(--mf-trace-human-fill); }
+
+/* ── onboarding ─────────────────────────────────────────────────────────── */
+
+/* A station log: each step is a ruled entry on the sheet. Deliberately no rail
+   running down the numbers: the ruling between entries is the structure. */
+.mf-step {
+  display: grid;
+  grid-template-columns: var(--mf-8) minmax(0, 1fr);
+  gap: var(--mf-2) var(--mf-4);
+  padding: var(--mf-5);
+  border-top: 1px solid var(--mf-rule);
+}
+
+.mf-step__n {
+  grid-row: 1 / span 2;
+  text-align: left;
+  font-family: var(--mf-font-display);
+  font-size: var(--mf-t-lg);
+  font-weight: 500;
+  line-height: 1.15;
+  color: var(--mf-ink-3);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+.mf-step[data-done="true"] .mf-step__n { color: var(--mf-verdigris); }
+
+.mf-step__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--mf-2) var(--mf-4);
+}
+
+.mf-step__title {
+  font-size: var(--mf-t-md);
+  font-weight: 500;
+  line-height: 1.25;
+  color: var(--mf-ink);
+  margin: 0;
+}
+
+.mf-step__state {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mf-2);
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+}
+.mf-step[data-done="true"] .mf-step__state { color: var(--mf-verdigris); }
+
+/* A copied snippet is set in `white-space: pre`, so its min-content width is the
+   whole line. Without this the grid track sizes to that line and the step, not
+   the snippet, is what scrolls sideways. */
+.mf-step__body { display: grid; gap: var(--mf-4); max-width: 92ch; }
+.mf-step__body > * { min-width: 0; }
+
+.mf-step__hint {
+  font-size: var(--mf-t-sm);
+  line-height: var(--mf-lead-body);
+  color: var(--mf-ink-2);
+  max-width: 70ch;
+}
+
+.mf-step__found {
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink-2);
+}
+.mf-step__found .mf-step__op { color: var(--mf-ink); }
+
+.mf-onb__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--mf-3) var(--mf-5);
+  padding: var(--mf-4) var(--mf-5);
+  border-top: 1px solid var(--mf-rule);
+}
+
+.mf-onb__foot-note {
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+  max-width: 52ch;
+}
+
+@media (max-width: 560px) {
+  .mf-step { grid-template-columns: minmax(0, 1fr); padding: var(--mf-4); }
+  .mf-step__n { grid-row: auto; }
+}
+
+/* ── the share view ─────────────────────────────────────────────────────── */
+
+.mf-share {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+.mf-share__head {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: var(--mf-4);
+  min-height: var(--mf-header-h);
+  padding: var(--mf-3) var(--mf-6);
+  background: var(--mf-ground);
+  border-bottom: 1px solid var(--mf-rule);
+  flex-wrap: wrap;
+}
+
+.mf-share__id {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mf-3);
+  min-width: 0;
+}
+
+.mf-share__site {
+  font-family: var(--mf-font-display);
+  font-size: var(--mf-t-md);
+  font-weight: 600;
+  color: var(--mf-ink);
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mf-share__tools {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--mf-4);
+  flex-wrap: wrap;
+}
+
+.mf-share__body {
+  flex: 1;
+  width: 100%;
+  max-width: var(--mf-shell-max);
+  margin: 0 auto;
+  padding: var(--mf-6) var(--mf-6) var(--mf-16);
+  min-width: 0;
+}
+
+.mf-share__pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(var(--mf-entry-share-col), 100%), 1fr));
+  gap: var(--mf-6);
+}
+
+.mf-share__record { padding: 0 var(--mf-5) var(--mf-5); }
+
+.mf-share__foot {
+  border-top: 1px solid var(--mf-rule);
+  padding: var(--mf-5) var(--mf-6);
+}
+
+.mf-share__foot-inner {
+  width: 100%;
+  max-width: var(--mf-shell-max);
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--mf-2) var(--mf-4);
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+}
+
+.mf-share__gap-note {
+  padding: var(--mf-4) var(--mf-5);
+  font-size: var(--mf-t-sm);
+  line-height: var(--mf-lead-body);
+  color: var(--mf-ink-2);
+  max-width: 68ch;
+}
+
+.mf-share__scope-note {
+  padding: var(--mf-4) var(--mf-5) var(--mf-5);
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+}
+
+@media (max-width: 900px) {
+  .mf-share__head { padding: var(--mf-3) var(--mf-4); }
+  .mf-share__body { padding: var(--mf-5) var(--mf-4) var(--mf-16); }
+  .mf-share__foot { padding: var(--mf-5) var(--mf-4); }
+  .mf-share__record { padding: 0 var(--mf-4) var(--mf-4); }
+}
+
+@media (max-width: 560px) {
+  /* The interval keys are wider than a phone: they scroll inside their own
+     strip so the page itself never moves sideways. */
+  .mf-share__tools {
+    margin-left: 0;
+    width: 100%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: var(--mf-1);
+  }
+  .mf-share__tools > * { flex: none; }
+}

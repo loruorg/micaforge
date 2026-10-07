@@ -1,0 +1,312 @@
+/* ============================================================================
+   THE RECORD: the site overview and the live pen.
+
+   Everything here extends the bench in global.css rather than forking it: the
+   panel, the readout strip, the sheet and the keys are all reused as-is. What
+   this file adds is the furniture those pieces sit on, the patch bar above the
+   drum, the filter composer, the bench the small sheets are laid out on, and
+   the live counters on the realtime screen.
+
+   Two house rules hold throughout:
+     - depth is the scratch ridge (var(--mf-burr) / var(--mf-lift)) or a value
+       shift, never a bloom;
+     - every colour, space, radius and duration is a var(--mf-*).
+   ========================================================================= */
+
+/* ── the screen ──────────────────────────────────────────────────────────── */
+
+.mfr-screen {
+  display: grid;
+  gap: var(--mf-6);
+  min-width: 0;
+}
+
+/* Panel content below the masthead. Left padding is inherited from the panel
+   (the pin-feed gutter pads content clear of the perforations), so this only
+   sets the remaining three sides and never fights the cut. */
+.mfr-body {
+  padding: 0 var(--mf-5) var(--mf-5);
+  min-width: 0;
+}
+.mfr-body--flush { padding-bottom: 0; }
+
+/* ── the patch bar: the pens and the interval ────────────────────────────
+   The conditions rack and the export key are the station's, in the top rail,
+   where every other screen reads them. This bar carries what only the record
+   has: which pens are patched in, and the interval they are writing over. */
+
+.mfr-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mf-3) var(--mf-5);
+  min-width: 0;
+}
+
+/* The audience switch is the control this product exists for, so it leads the
+   bar and is cut a size larger than the keys beside it. */
+.mfr-bar__audience .mf-audience__key {
+  padding: 6px var(--mf-4);
+  font-size: var(--mf-t-sm);
+}
+
+.mfr-bar__end {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--mf-2);
+}
+
+/* A key that is really a link still has to stop looking like body copy. */
+.mfr-key { text-decoration: none; }
+
+/* A key that latches. State is carried by fill and edge, the key does not
+   move, glow or grow when it is engaged. */
+.mfr-toggle[aria-pressed="true"] {
+  background: var(--mf-shellac-wash);
+  border-color: var(--mf-shellac-dim);
+  color: var(--mf-ink);
+}
+.mfr-toggle[aria-pressed="true"]:hover {
+  background: var(--mf-shellac-wash);
+  border-color: var(--mf-shellac);
+}
+.mfr-toggle[aria-pressed="true"] .mf-btn__icon { color: var(--mf-shellac); }
+
+/* ── the record panel ────────────────────────────────────────────────────── */
+
+.mfr-record__readout { margin-top: var(--mf-5); }
+
+/* The interval the record is being read over, stated in figures. */
+.mfr-window {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--mf-1) var(--mf-3);
+}
+.mfr-window__note { color: var(--mf-ink-3); }
+
+/* ── the machines strip ──────────────────────────────────────────────────── */
+
+.mfr-ratio {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--mf-2);
+}
+.mfr-ratio__unit {
+  font-family: var(--mf-font-ui);
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink-3);
+}
+
+/* ── the bench of small sheets ───────────────────────────────────────────────
+   Not a grid of identical cards: three widths, assigned by how much room the
+   content actually needs. Paths get the long sheet, a browser name does not. */
+
+.mfr-bench {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--mf-5);
+  min-width: 0;
+}
+.mfr-bench > .mfr-lead { grid-column: span 4; }
+.mfr-bench > .mfr-unit { grid-column: span 2; }
+.mfr-bench > .mfr-full { grid-column: span 4; }
+
+@media (min-width: 1301px) {
+  .mfr-bench { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .mfr-bench > .mfr-lead { grid-column: span 4; }
+  .mfr-bench > .mfr-unit { grid-column: span 2; }
+  .mfr-bench > .mfr-full { grid-column: span 6; }
+}
+
+@media (max-width: 768px) {
+  .mfr-bench { grid-template-columns: minmax(0, 1fr); }
+  .mfr-bench > .mfr-lead,
+  .mfr-bench > .mfr-unit,
+  .mfr-bench > .mfr-full { grid-column: span 1; }
+}
+
+/* The ink behind a sheet row is the trace of the audience that sheet is
+   reading. The base rule in global.css draws it in the machine pen's shellac,
+   which is right on the wedge screens and wrong on a table of human traffic, so
+   the bench states which pen it is written in and the ink follows. Unlayered,
+   so it settles the question against the base rule whatever order they load. */
+.mfr-bench[data-trace="human"] .mf-sheet__ink { background: var(--mf-trace-human-fill); }
+.mfr-bench[data-trace="agent"] .mf-sheet__ink { background: var(--mf-trace-agent-fill); }
+
+/* The caption over the readout bank: which measurement these figures are, since
+   the drum above them prints a single sample under the same channel names. */
+.mfr-record__totals {
+  margin: 0 0 var(--mf-3);
+  font-size: var(--mf-t-xs);
+  line-height: var(--mf-lead-body);
+  color: var(--mf-ink-3);
+  max-width: 76ch;
+}
+
+/* A name is prose and belongs in the UI face; the figure beside it is data and
+   stays in the data face. Table cells default to data, so this opts back out. */
+.mfr-name { font-family: var(--mf-font-ui); }
+.mfr-sub {
+  font-family: var(--mf-font-ui);
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+}
+
+/* ── waiting for the first hit ───────────────────────────────────────────── */
+
+.mfr-install {
+  display: grid;
+  grid-template-columns: minmax(0, 30ch) minmax(0, 1fr);
+  gap: var(--mf-8);
+  align-items: start;
+}
+.mfr-install__say { display: grid; gap: var(--mf-4); }
+.mfr-install__body {
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink-2);
+  max-width: 46ch;
+}
+.mfr-install__demo { display: grid; gap: var(--mf-3); min-width: 0; }
+
+@media (max-width: 1000px) {
+  .mfr-install { grid-template-columns: minmax(0, 1fr); gap: var(--mf-6); }
+}
+
+/* ── the live pen ────────────────────────────────────────────────────────── */
+
+/* Two counts at display scale on one ruled strip. Same construction as the
+   readout bank, cut larger because on this screen they are the whole reading. */
+.mfr-live {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-top: 1px solid var(--mf-rule);
+  border-bottom: 1px solid var(--mf-rule);
+}
+.mfr-live__ch {
+  display: grid;
+  grid-template-rows: 20px auto 20px;
+  gap: var(--mf-3);
+  align-content: start;
+  padding: var(--mf-6) var(--mf-5);
+  border-left: 1px solid var(--mf-rule);
+  min-width: 0;
+}
+.mfr-live__ch:first-child { border-left: 0; }
+.mfr-live__label {
+  display: flex;
+  align-items: center;
+  gap: var(--mf-2);
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink-2);
+  line-height: 20px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mfr-live__n {
+  font-family: var(--mf-font-display);
+  font-size: var(--mf-t-4xl);
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: var(--mf-track-display);
+  color: var(--mf-ink);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+.mfr-live__note {
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+  line-height: 20px;
+}
+
+/* The pen marks, in the same grammar as the shell's live readout: the human pen
+   writes a line, the machine pen steps. Shape carries the channel, not colour. */
+.mfr-pen {
+  display: inline-block;
+  align-self: center;
+  flex: none;
+  width: 14px;
+  height: 2px;
+  background: var(--mf-trace-human);
+}
+.mfr-pen[data-pen="stepped"] {
+  background: none;
+  width: 8px;
+  height: 6px;
+  border-top: 2px solid var(--mf-trace-agent);
+  border-right: 2px solid var(--mf-trace-agent);
+}
+
+/* ── polling status ──────────────────────────────────────────────────────── */
+
+.mfr-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mf-2) var(--mf-4);
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+}
+.mfr-status__held { color: var(--mf-shellac); }
+
+/* The paper advance: how far through the interval the next reading is. A real
+   indicator, not decoration, so it is driven by the poll interval itself. */
+.mfr-advance {
+  position: relative;
+  display: inline-block;
+  width: 30px;
+  height: 2px;
+  background: var(--mf-rule-strong);
+  overflow: hidden;
+  flex: none;
+}
+.mfr-advance__pen {
+  position: absolute;
+  inset: 0 0 0 0;
+  background: var(--mf-shellac);
+  transform-origin: left center;
+  animation: mfr-advance var(--mfr-advance-dur, 5000ms) linear infinite;
+}
+@keyframes mfr-advance {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mfr-advance { display: none; }
+}
+
+/* ── the live feed ───────────────────────────────────────────────────────── */
+
+.mfr-feed {
+  max-height: 60vh;
+  overflow-y: auto;
+  min-width: 0;
+}
+.mfr-feed .mf-sheet th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--mf-ground-2);
+}
+
+.mfr-feed__when { color: var(--mf-ink-3); }
+
+/* ── the realtime bench ──────────────────────────────────────────────────── */
+
+.mfr-now {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--mf-5);
+  min-width: 0;
+}
+@media (max-width: 768px) {
+  .mfr-now { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 700px) {
+  .mfr-live__n { font-size: var(--mf-t-2xl); }
+  .mfr-live__ch { padding: var(--mf-4); }
+  .mfr-body { padding: 0 var(--mf-4) var(--mf-4); }
+  .mfr-bar__end { margin-left: 0; }
+}

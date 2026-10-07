@@ -1,0 +1,24 @@
+node_modules/
+dist/
+.astro/
+target/
+*.log
+.env
+.env.local
+.env.replaced-*
+.DS_Store
+coverage/
+.turbo/
+apps/web/public/fonts/*.woff
+packages/sdk/dist/
+
+# Claude Code session-recovery state
+HANDOFF.md
+.claude/quota-blocked.json
+.claude/stop-failure-events.jsonl
+.claude/rate-limit-state.json
+
+# Operator data that lives beside the stack but is never committed.
+infra/geoip/*
+!infra/geoip/README.md
+backups/

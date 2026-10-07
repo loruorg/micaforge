@@ -1,0 +1,558 @@
+/* ============================================================================
+   Audience: pages, sources, locations, devices.
+
+   These four screens read the record from the reader's side. Everything here
+   is written in the station's existing vocabulary and reuses the .mf-* bench
+   wherever it fits; the .mfa-* names below exist only for the parts the bench
+   does not already have (the tab bank, the filter trail, the device bench, the
+   channel comparison and the map).
+
+   Two rules govern the file, the same two that govern the bench:
+     1. Depth is the scratch ridge, never a bloom. Nothing here glows, lifts or
+        scales; state changes by tone and fill.
+     2. Parallel things sit on one grid. A long browser name or a long channel
+        label can never shove its neighbour's figure out of line, because every
+        row that must align has a reserved slot rather than a content-sized one.
+   ========================================================================= */
+
+@layer components {
+  /* ── the screen frame ─────────────────────────────────────────────────── */
+  .mfa-screen {
+    max-width: var(--mf-shell-max);
+    min-width: 0;
+    margin: 0 auto;
+    display: grid;
+    gap: var(--mf-5);
+    align-content: start;
+  }
+
+  /* A grid item's automatic minimum is its own min-content width, and a sheet
+     of eight measured columns has a wide one. Left alone, that minimum holds
+     the panel open and takes the page sideways with it. Released here, the
+     panel fits the screen and the sheet scrolls inside its own container,
+     which is the only place in this product allowed to scroll horizontally. */
+  .mfa-screen > * { min-width: 0; }
+
+  /* ── the control bar, carried in a PanelHead's actions slot ───────────── */
+  .mfa-bar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--mf-3) var(--mf-4);
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  /* The masthead's action slot is content-sized by default, which on a narrow
+     screen would let the interval keys shove the panel past the viewport and
+     take the whole page sideways with it. Where this bar is the action, the
+     slot is allowed to shrink and the bar wraps its keys onto another line. */
+  .mf-panel__head:has(.mfa-bar) { flex-wrap: wrap; }
+  .mf-panel__head:has(.mfa-bar) .mf-panel__actions { flex: 1 1 auto; min-width: 0; }
+  /* The bar wraps, so a control that cannot shrink takes a line of its own
+     rather than pushing the panel sideways. The caliper is the one that cannot
+     shrink; how it folds when even a whole line is too narrow is settled for
+     every screen at once in styles/app/caliper.css, so this file no longer
+     wraps its stops and no interval is ever hidden behind a hidden scrollbar. */
+  .mfa-bar .mf-caliper { max-width: 100%; }
+  .mfa-bar .mf-audience { flex-wrap: wrap; }
+
+  /* The ink behind a sheet row is the trace of the audience the screen is
+     reading. The base rule draws it in the machine pen's shellac, which is
+     right on the wedge screens and wrong on a table of human traffic. */
+  .mfa-screen[data-trace="human"] .mf-sheet__ink { background: var(--mf-trace-human-fill); }
+  .mfa-screen[data-trace="agent"] .mf-sheet__ink { background: var(--mf-trace-agent-fill); }
+
+  /* ── the filter trail ───────────────────────────────────────────────────
+     Not metadata in a tinted pill: each clip is a live control that removes
+     the filter it names, so it is drawn as a small square-cornered key. */
+  .mfa-trail {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--mf-2) var(--mf-3);
+    padding: var(--mf-3) var(--mf-5);
+    border-top: 1px solid var(--mf-rule);
+  }
+
+  .mfa-clip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--mf-2);
+    padding: 3px var(--mf-2) 3px var(--mf-3);
+    background: var(--mf-ground-3);
+    border: 1px solid var(--mf-rule-strong);
+    border-radius: var(--mf-r-sm);
+    box-shadow: inset 0 1px 0 var(--mf-lip);
+    font-size: var(--mf-t-xs);
+    min-width: 0;
+  }
+  .mfa-clip__dim { color: var(--mf-ink-3); white-space: nowrap; }
+  .mfa-clip__op { color: var(--mf-ink-3); }
+  .mfa-clip__val {
+    font-family: var(--mf-font-data);
+    color: var(--mf-ink);
+    max-width: 24ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .mfa-clip__drop {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    margin-left: var(--mf-1);
+    color: var(--mf-ink-3);
+    background: none;
+    border: 0;
+    cursor: pointer;
+    transition: color var(--mf-dur-1) linear;
+  }
+  .mfa-clip__drop:hover { color: var(--mf-oxide); }
+
+  /* ── the tab bank ───────────────────────────────────────────────────────
+     A row of channel keys with the live one marked by the same pen bar the
+     rail uses. The bar is present at rest and does not grow, wipe or travel. */
+  .mfa-tabs {
+    display: flex;
+    align-items: stretch;
+    gap: var(--mf-5);
+    overflow-x: auto;
+    padding: 0 var(--mf-5);
+    border-top: 1px solid var(--mf-rule);
+    border-bottom: 1px solid var(--mf-rule);
+    scrollbar-width: thin;
+  }
+  .mfa-tabs__key {
+    position: relative;
+    flex: none;
+    padding: var(--mf-3) 0;
+    font: inherit;
+    font-size: var(--mf-t-sm);
+    color: var(--mf-ink-3);
+    background: none;
+    border: 0;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color var(--mf-dur-1) linear;
+  }
+  .mfa-tabs__key:hover { color: var(--mf-ink-2); }
+  .mfa-tabs__key[aria-pressed="true"] { color: var(--mf-ink); }
+  .mfa-tabs__key[aria-pressed="true"]::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -1px;
+    height: 2px;
+    background: var(--mf-shellac);
+  }
+
+  /* Two ruled strips meeting would draw the rule twice; the lower one yields. */
+  .mf-readout + .mfa-tabs,
+  .mf-readout + .mfa-trail,
+  .mf-readout + .mfa-caveat,
+  .mf-readout + .mfa-bench,
+  .mf-readout + .mfa-geo,
+  .mf-readout + .mfa-compare,
+  .mfa-tabs + .mfa-trail,
+  .mfa-tabs + .mfa-caveat,
+  .mfa-tabs + .mfa-bench,
+  .mfa-tabs + .mfa-geo { border-top: 0; }
+
+  /* ── an honest caveat, spoken by the screen itself ────────────────────── */
+  .mfa-caveat {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--mf-3);
+    padding: var(--mf-3) var(--mf-5);
+    border-top: 1px solid var(--mf-rule);
+    font-size: var(--mf-t-sm);
+    color: var(--mf-ink-3);
+  }
+  .mfa-caveat svg { flex: none; margin-top: 2px; color: var(--mf-shellac); }
+  .mfa-caveat p { max-width: var(--mf-measure); }
+
+  /* Prose inside a sheet (a country, a browser, a channel) is UI text. The
+     data face is reserved for paths, counts, versions and timestamps. */
+  .mfa-name { font-family: var(--mf-font-ui); }
+  .mfa-sub {
+    font-family: var(--mf-font-ui);
+    font-size: var(--mf-t-xs);
+    color: var(--mf-ink-3);
+  }
+
+  .mfa-foot {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--mf-2) var(--mf-4);
+    padding: var(--mf-3) var(--mf-5);
+    border-top: 1px solid var(--mf-rule);
+    font-size: var(--mf-t-xs);
+    color: var(--mf-ink-3);
+  }
+
+  /* ── the device bench ───────────────────────────────────────────────────
+     One panel divided into channel cells by ruling, the way a recorder's
+     bench divides its inputs. Explicitly not six bordered cards on a grid:
+     there is one surface here, ruled, and the cells share its edges. */
+  .mfa-bench {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    border-top: 1px solid var(--mf-rule);
+  }
+  .mfa-bench__cell {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    min-width: 0;
+    min-height: calc(var(--mf-32) + var(--mf-16));
+    padding-bottom: var(--mf-2);
+    border-left: 1px solid var(--mf-rule);
+    border-bottom: 1px solid var(--mf-rule);
+  }
+  .mfa-bench__cell:nth-child(3n + 1) { border-left: 0; }
+  .mfa-bench__cell:nth-last-child(-n + 3) { border-bottom: 0; }
+
+  .mfa-bench__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--mf-3);
+    padding: var(--mf-4) var(--mf-4) var(--mf-3);
+  }
+  .mfa-bench__title {
+    font-size: var(--mf-t-base);
+    font-weight: 500;
+    color: var(--mf-ink);
+  }
+  .mfa-bench__count { font-size: var(--mf-t-xs); color: var(--mf-ink-3); white-space: nowrap; }
+
+  .mfa-bench__cell .mf-empty { padding: var(--mf-6) var(--mf-4); gap: var(--mf-2); }
+  .mfa-bench__cell .mf-empty__paper { width: var(--mf-24); }
+  .mfa-bench__cell .mf-empty__title { font-size: var(--mf-t-base); }
+
+  @media (max-width: 1180px) {
+    .mfa-bench { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .mfa-bench__cell:nth-child(3n + 1) { border-left: 1px solid var(--mf-rule); }
+    .mfa-bench__cell:nth-child(2n + 1) { border-left: 0; }
+    .mfa-bench__cell:nth-last-child(-n + 3) { border-bottom: 1px solid var(--mf-rule); }
+    .mfa-bench__cell:nth-last-child(-n + 2) { border-bottom: 0; }
+  }
+  @media (max-width: 720px) {
+    .mfa-bench { grid-template-columns: minmax(0, 1fr); }
+    .mfa-bench__cell { border-left: 0; border-bottom: 1px solid var(--mf-rule); }
+    .mfa-bench__cell:nth-child(2n + 1) { border-left: 0; }
+    .mfa-bench__cell:last-child { border-bottom: 0; }
+    .mfa-bench__cell { min-height: 0; }
+  }
+
+  /* ── the channel comparison bench ───────────────────────────────────────
+     Two measures per channel on one shared scale each, so the bars are
+     comparable down the column, with the site's own average drawn across
+     every track as a fiducial rule. Every figure is printed as well as
+     drawn: the bar is the shape, the number is the fact. */
+  .mfa-compare { border-top: 1px solid var(--mf-rule); }
+
+  .mfa-compare__row {
+    display: grid;
+    grid-template-columns: minmax(9rem, 1fr) minmax(0, 1.35fr) minmax(0, 1.35fr);
+    align-items: center;
+    gap: var(--mf-4) var(--mf-6);
+    padding: var(--mf-3) var(--mf-5);
+    border-bottom: 1px solid var(--mf-rule);
+  }
+  .mfa-compare__row--head {
+    padding-top: var(--mf-2);
+    padding-bottom: var(--mf-2);
+    border-bottom: 1px solid var(--mf-rule-strong);
+    font-size: var(--mf-t-xs);
+    color: var(--mf-ink-3);
+  }
+  .mfa-compare__row:last-child { border-bottom: 0; }
+
+  .mfa-compare__chan {
+    display: grid;
+    grid-template-rows: auto 16px;
+    gap: 2px;
+    min-width: 0;
+  }
+  .mfa-compare__label {
+    font-size: var(--mf-t-sm);
+    color: var(--mf-ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .mfa-compare__vis {
+    font-family: var(--mf-font-data);
+    font-size: var(--mf-t-xs);
+    color: var(--mf-ink-3);
+    line-height: 16px;
+  }
+
+  .mfa-gauge {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 6.5ch;
+    align-items: center;
+    gap: var(--mf-3);
+  }
+  .mfa-gauge__track {
+    position: relative;
+    display: block;
+    height: var(--mf-3);
+    background: var(--mf-well);
+    border: 1px solid var(--mf-rule);
+    border-radius: var(--mf-r-sm);
+    overflow: hidden;
+  }
+  .mfa-gauge__fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    background: var(--mf-s4);
+  }
+  .mfa-gauge__fill[data-lead="true"] { background: var(--mf-shellac); }
+  /* the fiducial: where the site as a whole sits on this measure */
+  .mfa-gauge__mark {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--mf-ink-2);
+  }
+  .mfa-gauge__val {
+    font-family: var(--mf-font-data);
+    font-size: var(--mf-t-sm);
+    color: var(--mf-ink);
+    text-align: right;
+    white-space: nowrap;
+  }
+  .mfa-gauge__val[data-empty="true"] { color: var(--mf-ink-3); }
+
+  /* The measure's own name. It is in the accessibility tree at every width and
+     drawn only where the column head above it has been dropped. */
+  .mfa-gauge__cap {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .mfa-legend {
+    display: flex;
+    align-items: center;
+    gap: var(--mf-2);
+    font-size: var(--mf-t-xs);
+    color: var(--mf-ink-3);
+  }
+  .mfa-legend__rule {
+    display: inline-block;
+    width: 1px;
+    height: var(--mf-3);
+    background: var(--mf-ink-2);
+  }
+
+  @media (max-width: 860px) {
+    .mfa-compare__row {
+      grid-template-columns: minmax(0, 1fr);
+      gap: var(--mf-2);
+    }
+    .mfa-compare__row--head { display: none; }
+    .mfa-compare__chan { grid-template-rows: auto auto; }
+    .mfa-gauge__cap {
+      position: static;
+      grid-column: 1 / -1;
+      width: auto;
+      height: auto;
+      clip-path: none;
+      font-size: var(--mf-t-xs);
+      color: var(--mf-ink-3);
+    }
+  }
+
+  /* ── locations: the map bench ─────────────────────────────────────────── */
+  .mfa-geo {
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) minmax(19rem, 1fr);
+    border-top: 1px solid var(--mf-rule);
+  }
+  /* The plate and the sheet are one bench, so they end together: the ranked
+     sheet runs inside its own height rather than leaving a long empty field
+     of ground beside the map. Its column heads hold their place while it
+     scrolls, and the breadcrumb sits outside the scroll entirely. The divider
+     belongs to the sheet, not to the plate, so it runs the full height of
+     whichever column is taller. */
+  .mfa-geo__plate {
+    min-width: 0;
+    padding: var(--mf-4) var(--mf-5) var(--mf-3);
+  }
+  .mfa-geo__list { min-width: 0; border-left: 1px solid var(--mf-rule); }
+  .mfa-geo__list .mf-sheet-wrap {
+    max-height: calc(var(--mf-32) * 3.5);
+    overflow-y: auto;
+    scrollbar-width: thin;
+  }
+  .mfa-geo__list .mf-sheet th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--mf-ground-2);
+  }
+
+  @media (max-width: 1180px) {
+    .mfa-geo { grid-template-columns: minmax(0, 1fr); }
+    .mfa-geo__plate { border-bottom: 1px solid var(--mf-rule); }
+    .mfa-geo__list { border-left: 0; }
+    /* Stacked, the sheet has the whole width and the page is the only thing
+       that scrolls. A second scrollport inside it would just be a trap. */
+    .mfa-geo__list .mf-sheet-wrap { max-height: none; overflow-y: visible; }
+    .mfa-geo__list .mf-sheet th { position: static; }
+  }
+
+  .mfa-map { min-width: 0; }
+  /* The plate proper. The peak slip is positioned against THIS box, so its
+     percentage coordinates land on the map and not on the readout below it. */
+  .mfa-map__frame { position: relative; container-type: inline-size; }
+  .mfa-map__svg { display: block; width: 100%; height: auto; }
+
+  /* Tone only: a country never lifts, scales or blooms under the pointer, and
+     the change is immediate. A transition here would animate the shading in
+     from the no-reading grey on first paint, which means a screenshot, a
+     backgrounded tab or a throttled frame can catch the plate mid-fade and
+     show a blank world. The plate is correct on the first frame it draws. */
+  .mfa-map__land { cursor: pointer; }
+  .mfa-map__land[data-flat="true"] { cursor: default; }
+
+  /* The reading, written under the plate the way a station's readout sits
+     under its drum, never floating over the paper as a tooltip. */
+  .mfa-map__readout {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--mf-2) var(--mf-5);
+    margin-top: var(--mf-3);
+    padding-top: var(--mf-3);
+    border-top: 1px solid var(--mf-rule);
+  }
+  .mfa-map__place {
+    font-size: var(--mf-t-md);
+    color: var(--mf-ink);
+  }
+  .mfa-map__figure {
+    font-family: var(--mf-font-data);
+    font-size: var(--mf-t-md);
+    font-weight: 500;
+    color: var(--mf-ink);
+  }
+  .mfa-map__unit { font-size: var(--mf-t-sm); color: var(--mf-ink-3); }
+  .mfa-map__spare { margin-left: auto; font-size: var(--mf-t-xs); color: var(--mf-ink-3); }
+
+  .mfa-map__scale {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--mf-2) var(--mf-4);
+    margin-top: var(--mf-3);
+  }
+  .mfa-map__steps { display: flex; align-items: stretch; gap: var(--mf-1); }
+  .mfa-map__step {
+    display: grid;
+    justify-items: center;
+    align-content: start;
+    min-width: var(--mf-10);
+    gap: 3px;
+    font-family: var(--mf-font-data);
+    font-size: var(--mf-t-2xs);
+    color: var(--mf-ink-3);
+  }
+  .mfa-map__chip {
+    display: block;
+    width: 100%;
+    height: var(--mf-2);
+    border: 1px solid var(--mf-rule);
+  }
+
+  /* The peak: the station marks its strongest reading on the plate itself,
+     with a registration crosshair and the place written beside it. */
+  .mfa-map__peak {
+    position: absolute;
+    margin-top: calc(var(--mf-2) * -1);
+    transform: translate(-50%, -100%);
+    pointer-events: none;
+    white-space: nowrap;
+    padding: 1px var(--mf-2) 2px;
+    background: var(--mf-ground-2);
+    border: 1px solid var(--mf-rule-strong);
+    border-radius: var(--mf-r-sm);
+    box-shadow: var(--mf-burr);
+    font-family: var(--mf-font-data);
+    font-size: var(--mf-t-2xs);
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--mf-ink);
+  }
+  .mfa-map__peak[data-align="start"] { transform: translate(0, -100%); }
+  .mfa-map__peak[data-align="end"] { transform: translate(-100%, -100%); }
+  /* Near the top edge the slip flips below the crosshair, so the plate's own
+     boundary can never shave the caps off it. */
+  .mfa-map__peak[data-below] {
+    margin-top: var(--mf-2);
+    transform: translate(-50%, 0);
+  }
+  .mfa-map__peak[data-below][data-align="start"] { transform: translate(0, 0); }
+  .mfa-map__peak[data-below][data-align="end"] { transform: translate(-100%, 0); }
+
+  /* Below this the plate is smaller than the slip, and a slip wider than the
+     map it annotates would hang off the paper. The crosshair still marks the
+     peak and the readout under the plate still names it, so nothing is lost. */
+  @container (max-width: 520px) {
+    .mfa-map__peak { display: none; }
+  }
+
+  .mfa-crumbs {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--mf-2);
+    padding: var(--mf-3) var(--mf-5);
+    border-bottom: 1px solid var(--mf-rule);
+    font-size: var(--mf-t-sm);
+  }
+  .mfa-crumbs__step {
+    font: inherit;
+    color: var(--mf-ink-3);
+    background: none;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+    transition: color var(--mf-dur-1) linear;
+  }
+  .mfa-crumbs__step:hover { color: var(--mf-ink); }
+  .mfa-crumbs__here { color: var(--mf-ink); }
+  .mfa-crumbs__sep { color: var(--mf-ink-3); transform: rotate(-90deg); flex: none; }
+  .mfa-crumbs .mf-btn { margin-left: auto; }
+
+  /* Linked to the plate: pointing at a name in the sheet marks the country,
+     and pointing at the country marks the name. Tone only, both ways. */
+  .mfa-name[data-on="true"] { color: var(--mf-shellac); }
+
+  @media (max-width: 700px) {
+    /* An odd last channel would otherwise sit in one column of two and draw
+       its rule half way across the strip. It takes the whole row instead. */
+    .mfa-screen .mf-readout__chan:last-child:nth-child(odd) { grid-column: 1 / -1; }
+
+    /* Below this width the masthead stacks, and a column flex container sizes
+       its children to their own content across the axis, which would let the
+       control bar hold the panel wider than the screen. It takes the full
+       width instead, and the keys wrap inside it. */
+    .mf-panel__head:has(.mfa-bar) .mf-panel__actions { align-self: stretch; width: 100%; }
+    .mfa-tabs { gap: var(--mf-4); padding: 0 var(--mf-4); }
+    .mfa-trail, .mfa-caveat, .mfa-foot, .mfa-crumbs { padding-left: var(--mf-4); padding-right: var(--mf-4); }
+    .mfa-compare__row { padding-left: var(--mf-4); padding-right: var(--mf-4); }
+    .mfa-geo__plate { padding-left: var(--mf-4); padding-right: var(--mf-4); }
+  }
+}

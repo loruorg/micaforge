@@ -1,0 +1,58 @@
+---
+title: "From Plausible"
+description: "Importing Plausible's CSV exports, and what changes when the two audiences separate."
+group: "migrating"
+order: 2
+updated: 2026-08-22
+---
+
+The closest neighbour, and the easiest move: both tools are cookieless, both count a session
+the same way, and neither has ever stored a personal identifier by default.
+
+## Get the export
+
+Plausible exports its reports as CSVs: visitors by day, top pages, sources, countries,
+devices, and so on. Take the whole set for the period you want.
+
+They are **aggregate** exports: one row per dimension value per day, with counts.
+
+## Import it
+
+Upload on the site's Imports screen. The importer resolves columns through a table of
+aliases, so Plausible's column names are read without any reshaping.
+
+Aggregate rows expand into events at the start of each day, capped at 10,000 per row and
+marked as an import in `sdk_version`. So imported days carry no hour-of-day shape: do not
+read that chart for the imported period.
+
+Every imported row carries an `import_id`, so an import can be re-run without duplicating
+and undone with a delete.
+
+## What matches
+
+- **Sessions.** Both use a 30-minute inactivity gap.
+- **Bounce rate and duration.** Same definitions.
+- **Pageviews.** Same event.
+- **Cookieless visitors.** Both hash daily. Neither can honestly claim a monthly unique.
+
+## What changes
+
+**Bots become an audience.** Plausible filters known bots out and shows you what is left.
+Micaforge names them, counts them in their own table, and shows you both. Your human numbers
+should look much the same; what is new is the second set beside them.
+
+**Answer engines leave the referral bucket.** ChatGPT, Perplexity, Claude, Gemini and their
+peers are a top-level channel here, next to Search. Referral goes down; a channel you could
+not see before appears.
+
+**Custom properties.** Plausible's custom event properties come across as `props`, filterable
+as `props.<key>`.
+
+**Goals.** Not part of a CSV export. Recreate them: there are usually few, and they take a
+minute each. See [goals](/docs/dashboard/goals).
+
+## The one thing worth doing on the way in
+
+Turn on the [server log feed](/docs/agents/shipping-server-logs) the same day. The reason to
+move to this tool is the half that Plausible does not have, and until a log is being shipped
+you have moved to a similar tool with a different colour scheme.

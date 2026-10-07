@@ -1,0 +1,62 @@
+---
+title: "Your script tag is half an install"
+description: "Why the most important audience on a documentation site will never run your JavaScript."
+updated: 2026-08-08
+order: 3
+---
+
+Every analytics install in the last fifteen years has been one step: paste a script tag.
+It works because the audience was people, and people run JavaScript.
+
+The audience changed. The install did not.
+
+## The part that cannot be fixed
+
+GPTBot will never execute your snippet. Neither will ClaudeBot, PerplexityBot, CCBot,
+Bytespider or any of the others. They fetch HTML, take what they came for and leave. There is
+no runtime, no `document`, no `sendBeacon`.
+
+This is not a gap that better client-side engineering closes. It is a property of what those
+clients are. Any analytics product whose only intake is a browser script has a permanent
+blind spot exactly where the interesting question now lives, and no amount of work on the
+tracker changes it.
+
+## The part that was never missing
+
+Your web server wrote every one of those fetches down. It has been doing it the whole time.
+The timestamp, the address, the method, the path, the status, the bytes, the response time
+and (the field everything depends on) the user agent.
+
+The log has always held the other half of your audience. It just was not connected to
+anything that reported on it.
+
+## So the install is two halves
+
+The script tag reports the people: engagement, scroll depth, client-side navigation, Core
+Web Vitals. A server cannot see any of that.
+
+The log reports the machines, which agent, which operator, what for, from what address, with
+what status code. A browser cannot see any of that.
+
+Neither half is optional if you want the whole picture, and neither half can be derived from
+the other. In Micaforge that is one script tag and one of:
+
+```sh
+npx --package=@micaforge/sdk-server micaforge-shipper /var/log/nginx/access.log
+```
+
+or a middleware in your Node app, which skips the file entirely.
+
+## What you find on day one
+
+Usually two things.
+
+The first is scale. On a documentation site the machine half is frequently comparable to the
+human half, and occasionally larger. It has been that way for a while; it was simply not
+being counted.
+
+The second is distribution. The crawl is rarely spread the way your traffic is. A handful of
+pages get fetched constantly and some of your best writing has never been crawled at all, which is a fixable problem, and one you cannot see from a browser.
+
+Install the second half the same day as the first. Otherwise you have installed a tool that
+measures the audience you already knew about.

@@ -1,0 +1,174 @@
+---
+title: "Events API"
+description: "The four ingest endpoints, their payloads, their limits and what they answer."
+group: "api"
+order: 3
+updated: 2026-08-22
+---
+
+Four ways in. The first three are the browser's; the fourth is your server's.
+
+```http
+POST /api/track                 one browser payload
+POST /api/track/batch           an array of them
+GET  /api/track/pixel.gif       the no-JavaScript fallback
+POST /api/log/edge              server-side hits, signed
+```
+
+All four accept cross-origin requests. The first three need no credential: a site id is
+not a secret, it is in your page source. What protects them is that a hit is only accepted
+for a hostname that belongs to that site.
+
+## POST /api/track
+
+The tracker's own endpoint. Keys are one or two characters because the payload rides in a
+`sendBeacon`.
+
+```json
+{
+  "s": 1,
+  "t": "pageview",
+  "n": "",
+  "u": "https://example.com/docs/x?a=1",
+  "r": "https://chatgpt.com/",
+  "w": 1512, "h": 982,
+  "vw": 1280, "vh": 720,
+  "l": "en-GB",
+  "tz": "Europe/Lisbon",
+  "d": 4210,
+  "sc": 68,
+  "p": { "plan": "pro" },
+  "id": "u_123",
+  "v": "1.0.0",
+  "e": { "lcp": 1180 }
+}
+```
+
+| Key | Meaning |
+| --- | --- |
+| `s` | Site id. Required. |
+| `t` | Kind: `pageview`, `custom`, `outbound`, `file_download`, `form`, `error`, `web_vitals`, `engagement`. |
+| `n` | Event name, for a custom event. |
+| `u` | The full URL. Required. |
+| `r` | `document.referrer`. |
+| `w`, `h`, `vw`, `vh` | Screen and viewport. |
+| `l`, `tz` | Language and IANA timezone. |
+| `d`, `sc` | Engagement ms and max scroll percent, both for the previous page. Absent on the first pageview of a document, which has no previous page. |
+| `p` | Properties. |
+| `id` | The `identify()` id. |
+| `v` | SDK version. |
+| `e` | Web Vitals. |
+
+The answer is `204 No Content`, always and deliberately: a tracker must never learn
+anything it could leak, and a page must never be told its analytics failed. A payload for
+an unknown site or a hostname that is not the site's gets `403`. A hit dropped for any
+other reason (an excluded path, a rate limit, an opt-out) is indistinguishable from one
+that was written, on purpose.
+
+The body is capped at 64 KB, which is the platform's own `sendBeacon` limit; anything
+larger did not come from the tracker.
+
+The server fills in what it can see and the payload does not carry: the user agent from
+the request header, and country, region, city and ASN from the address, which it then
+discards. No raw IP is stored on a human event row.
+
+## POST /api/track/batch
+
+The same payloads as an array, for a server SDK or an importer. Both shapes are accepted,
+because two reasonable clients produced both:
+
+```json
+[ { "s": 1, "t": "pageview", "u": "…" } ]
+```
+
+```json
+{ "events": [ { "s": 1, "t": "pageview", "u": "…" } ] }
+```
+
+Up to 200 payloads per call.
+
+## GET /api/track/pixel.gif
+
+The same payload, query-string encoded, answered with a 1×1 GIF. It is the tracker's last
+resort after `sendBeacon` and `fetch(keepalive)`, and it is what you use in an email or a
+feed where no script can run.
+
+```html
+<img src="https://analytics.example.com/api/track/pixel.gif?s=1&t=pageview&u=https%3A%2F%2Fexample.com%2F" alt="" width="1" height="1" />
+```
+
+## POST /api/log/edge
+
+Server-side hits: crawls from your access log, and pageviews your server rendered. Two
+arrays named after the two tables they land in, so the request says exactly what it asks
+the server to write.
+
+```json
+{
+  "site_id": 1,
+  "agent_events": [
+    {
+      "timestamp": "2026-08-22T09:41:02.412Z",
+      "user_agent": "Mozilla/5.0 (compatible; ClaudeBot/1.0; +claudebot@anthropic.com)",
+      "method": "GET",
+      "hostname": "docs.example.com",
+      "pathname": "/docs/getting-started/installation",
+      "status": 200,
+      "bytes": 8213,
+      "duration_ms": 12,
+      "content_type": "text/html",
+      "conditional": 0,
+      "ip": "203.0.113.9"
+    }
+  ],
+  "events": []
+}
+```
+
+Every key is a column, with two exceptions that are transport only. `ip` is resolved to a
+country and an ASN, checked against the operator's published ranges, hashed and dropped.
+`user_agent` on a human row derives browser, OS and device type and is not stored raw.
+
+**What you do not send:** `agent_id`, `operator`, `purpose`, `verified`, `asn`, `country`,
+`ip_hash`, `robots_allowed`, `llms_listed`. Every one of those is established by the server
+against the catalog, the operator's published ranges and your own policy files. A client
+guessing at them would be a number this product did not earn.
+
+### Signing
+
+```http
+POST /api/log/edge
+Content-Type: application/json
+x-micaforge-signature: t=1787306400,v1=9f0c…
+```
+
+`t` is unix seconds. `v1` is HMAC-SHA256, keyed with the site's
+[ingest key](/docs/agents/shipping-server-logs) and hex encoded, over `${t}.${body}`: the
+digits of `t`, one `.`, then the exact bytes of the body. Because the timestamp is signed,
+a captured batch cannot be sent again under a new `t`. A `t` more than five minutes from
+the server's clock is refused with `401`, and an exact repeat of a signature that was
+already accepted is refused with `409`, so sign each attempt afresh.
+
+Sign the bytes you send, not a re-serialisation of the same object: key order is not
+guaranteed to survive a round trip, and a signature that disagrees with its own body fails
+in a way that is tedious to find.
+
+```js
+import { createHmac } from "node:crypto";
+
+const body = JSON.stringify(payload);
+const t = Math.floor(Date.now() / 1000);
+const v1 = createHmac("sha256", ingestKey).update(`${t}.${body}`, "utf8").digest("hex");
+// header: `t=${t},v1=${v1}`, and send exactly `body`
+```
+
+Limits: 2 MB per request, 500 rows per array. Over the rate limit the answer is `429` with
+`Retry-After`. Unlike the browser endpoint, this one tells you: a shipper that is being
+throttled needs to know, and there is no page to protect.
+
+## Which one to use
+
+- A browser: nothing. The [tracker](/docs/getting-started/script-tag) already uses these.
+- A Node server: the [middlewares](/docs/agents/shipping-server-logs), which sign for you.
+- An access log: the shipper, which also signs for you.
+- Anything else: `/api/log/edge`, with the signature above. It is the whole protocol.

@@ -1,0 +1,84 @@
+---
+title: "What we store"
+description: "Every column, and the three things that are never written down."
+group: "privacy"
+order: 1
+updated: 2026-08-22
+---
+
+The short version: traffic, not individuals. The long version is this page, because a
+privacy claim that cannot be checked against a schema is marketing.
+
+## Never stored
+
+**No raw IP address on a human event row.** The address is read on arrival, resolved to
+country, region, city, ASN and organisation, folded into the visitor hash, and dropped. It
+is never written to a column.
+
+**No raw IP address in a log or a rate limit.** The shipped proxy keeps no access log. The
+server's own log never writes an address or a user agent: where it needs to tell two
+clients apart it writes a short keyed digest, whose key lives only in memory and changes
+every day. Rate-limit counters are keyed the same way, so the snapshot Valkey writes to
+disk holds no address either.
+
+**No cookie.** None is set, none is read. There is one localStorage key, `mf-opt-out`, and
+it is written only when a reader calls `optOut()`.
+
+**No user agent as a stored string on a human row.** It is read from the request header to
+derive browser, OS and device type, and that is what is kept.
+
+## A human event row
+
+Every event carries some of these. Empty and absent are the same thing here: a column with
+nothing in it was never sent.
+
+| Group | Columns |
+| --- | --- |
+| Identity | `visitor_id` (a daily-rotating hash), `session_id`, `identified_id` (only if you call `identify()`) |
+| Page | `hostname`, `pathname`, `page_title`, `querystring`, `url_params`, `hash`, `entry_path`, `exit_path` |
+| Acquisition | `referrer`, `referrer_host`, `channel`, `source`, the five `utm_*`, `click_id` |
+| Client | `browser`, `browser_version`, `os`, `os_version`, `device_type`, `screen_w/h`, `viewport_w/h`, `language`, `timezone` |
+| Place | `country`, `region`, `city`, `lat`, `lon`, `asn`, `asn_org`, `is_datacenter` |
+| Behaviour | `kind`, `event_name`, `props`, `duration_ms`, `scroll_pct`, `revenue`, `currency` |
+| Experiments | `flags`, `experiment`, `variant` |
+| Performance | `lcp`, `cls`, `inp`, `fcp`, `ttfb` |
+
+`lat` and `lon` come from the same city database as `city`. They are the city's coordinates,
+not the reader's: a city centroid, at city resolution, for drawing a map.
+
+## An agent event row
+
+Machine traffic keeps more, because none of it is a person: the timestamp, the agent slug,
+the operator, the purpose, whether it verified, the raw user agent, the method, host, path
+and query string, the status, the bytes, the response time, the content type, the ASN and
+country, whether the fetch was conditional, and what your `robots.txt` and `llms.txt` said
+at the time.
+
+The address is kept as `ip_hash`, salted and rotating, never as an address. That hash is
+what lets a repeat crawler be counted as one client without anything being stored that
+identifies a machine later.
+
+## The things you control
+
+**Properties are stored exactly as sent.** An email address in a property is personal data
+in your event store. Nothing strips it, because nothing can know which strings matter to
+you. Send opaque values.
+
+**Paths are content.** A URL can carry a customer name, an invite token or an unreleased
+product name. Use `data-exclude` for paths that should never be reported, and remember that
+a [shared dashboard](/docs/dashboard/sharing) publishes the pages report.
+
+**`identify()` is a choice.** Nothing attaches an id unless you call it. See
+[identify()](/docs/tracking/identify).
+
+## Where it lives
+
+On a self-hosted install: on your machine, in your ClickHouse and your Postgres, and nowhere
+else. The build makes no outbound call at runtime, for anything, including geolocation.
+That is why geography needs a database on disk rather than an API.
+
+## How long
+
+Forever by default, because an analytics tool that quietly deleted history because a
+variable was unset would be indefensible. Set a policy and it is applied as a ClickHouse TTL
+that drops whole partitions. See [data retention](/docs/privacy/data-retention).

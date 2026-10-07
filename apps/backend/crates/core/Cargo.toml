@@ -1,0 +1,47 @@
+[package]
+name = "micaforge-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+description = "Shared vocabulary, config, errors and crypto for Micaforge."
+
+[lib]
+name = "micaforge_core"
+path = "src/lib.rs"
+
+[dependencies]
+# Serialisation of the shared vocabulary. Every type here crosses an HTTP or a
+# storage boundary, so serde is not optional for this crate.
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Errors. `anyhow` is here only for the `From<anyhow::Error>` bridge that lets
+# job and importer code stay loose internally while still returning our type.
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Time. Every range in this product is resolved in the site's own zone before it
+# ever reaches ClickHouse, so chrono-tz is a core concern, not a query detail.
+chrono = { workspace = true }
+chrono-tz = { workspace = true }
+
+uuid = { workspace = true }
+url = { workspace = true }
+
+# Crypto. Password hashing, sealed secrets at rest, the daily visitor hash and
+# the API-key digest all live here so there is exactly one implementation of each.
+argon2 = { workspace = true }
+chacha20poly1305 = { workspace = true }
+blake3 = { workspace = true }
+sha2 = { workspace = true }
+hmac = { workspace = true }
+rand = { workspace = true }
+hex = { workspace = true }
+base64 = { workspace = true }
+
+# Present only for the `From` impls on `Error`: every crate that touches a store
+# returns `micaforge_core::Error`, so the conversion has to live with the type.
+sqlx = { workspace = true }
+redis = { workspace = true }

@@ -1,0 +1,307 @@
+---
+/**
+ * The data processing addendum, as a template.
+ *
+ * The most important sentence on this page is the first one in section 1: most
+ * people reading it do not need it. A self-hosted install where the data never
+ * leaves the operator's machine has no processor to sign anything with, and
+ * this project is not one. Saying so at the top is worth more than the twelve
+ * clauses under it.
+ */
+import Base from "../layouts/Base.astro";
+import SiteHeader from "../components/SiteHeader.astro";
+import SiteFooter from "../components/SiteFooter.astro";
+import Prose from "../components/Prose.astro";
+import { IconAlert, IconOut } from "../components/react/icons.tsx";
+
+const sections = [
+  { id: "need", t: "1. Whether you need this at all" },
+  { id: "roles", t: "2. Roles" },
+  { id: "scope", t: "3. Subject matter, duration and purpose" },
+  { id: "instructions", t: "4. Instructions" },
+  { id: "people", t: "5. Confidentiality" },
+  { id: "security", t: "6. Security" },
+  { id: "subs", t: "7. Sub-processors" },
+  { id: "transfers", t: "8. International transfers" },
+  { id: "rights", t: "9. Helping with data subject requests" },
+  { id: "breach", t: "10. Breach notification" },
+  { id: "audit", t: "11. Audit" },
+  { id: "end", t: "12. Deletion and return" },
+  { id: "annex-1", t: "Annex I. Details of the processing" },
+  { id: "annex-2", t: "Annex II. Technical and organisational measures" },
+];
+---
+
+<Base
+  title="Data processing · Micaforge"
+  description="A plain-language DPA template for operators who process personal data for somebody else using Micaforge, starting with an honest account of when you do not need one."
+>
+  <SiteHeader />
+
+  <main id="main">
+    <article class="mf-wrap mf-doc">
+      <header class="mf-doc__head">
+        <h1 class="mf-doc__title">Data processing addendum</h1>
+        <p class="mf-doc__lede">
+          For the case where you measure somebody else's visitors on their behalf. If you only
+          measure your own, section 1 will save you the other eleven.
+        </p>
+        <div class="mf-doc__meta">
+          <span><strong>Template</strong> version 1</span>
+          <span>Last changed <strong>22 August 2026</strong></span>
+          <span>Written against GDPR Article 28</span>
+        </div>
+      </header>
+
+      <div class="mf-note lg-warn">
+        <div class="mf-note__head"><IconAlert size={18} />This is a template, not advice</div>
+        <p>
+          An Article 28 contract is a legal instrument between two named parties. This page is a
+          starting structure with the parts only you can fill in marked{" "}
+          <code>[LIKE THIS]</code>. It has not been reviewed by a lawyer and it is not legal
+          advice.
+        </p>
+        <p>
+          The authors of Micaforge are not a party to anything you sign. They receive no data
+          and have no access to your installation.
+        </p>
+      </div>
+
+      <nav class="mf-toc" aria-label="Contents">
+        <ol>
+          {sections.map((s) => <li><a href={`#${s.id}`}>{s.t}</a></li>)}
+        </ol>
+      </nav>
+
+      <Prose class="lg-body" as="section">
+        <h2 id="need">1. Whether you need this at all</h2>
+        <p>
+          Start here, because for most readers the answer is no.
+        </p>
+        <ul>
+          <li>
+            <strong>You self-host and measure your own sites.</strong> You are the controller,
+            there is no processor, and there is nobody to sign a DPA with. Micaforge's authors
+            are not a processor: the build makes no outbound call at runtime, so no data reaches
+            them by any path.
+          </li>
+          <li>
+            <strong>You rent the server it runs on.</strong> Your hosting provider is your
+            processor for the infrastructure. Use their DPA, not this one.
+          </li>
+          <li>
+            <strong>You measure other people's sites for them.</strong> Now you are a processor
+            and they are the controller, and this is the document that belongs between you.
+          </li>
+          <li>
+            <strong>You are an agency reading a client's install.</strong> Same as above, in the
+            same direction.
+          </li>
+        </ul>
+
+        <h2 id="roles">2. Roles</h2>
+        <p>
+          <strong>[CUSTOMER]</strong> is the controller. <strong>[OPERATOR NAME]</strong> is the
+          processor. This addendum forms part of <strong>[THE AGREEMENT]</strong> between them
+          and takes precedence over it on data protection matters.
+        </p>
+        <p>
+          Where the processor determines its own purposes for any processing, it is a controller
+          for that processing and this addendum does not cover it.
+        </p>
+
+        <h2 id="scope">3. Subject matter, duration and purpose</h2>
+        <p>
+          The processor operates a Micaforge installation that measures traffic to the
+          controller's websites, and provides the controller access to the resulting reports.
+          Processing lasts for the term of the agreement plus the deletion period in section 12.
+          The details are in Annex I.
+        </p>
+
+        <h2 id="instructions">4. Instructions</h2>
+        <p>
+          The processor processes personal data only on the controller's documented
+          instructions, which include the configuration the controller sets: which sites are
+          measured, the retention period, whether session replay is on, and whether the site's
+          own code calls <code>identify()</code>.
+        </p>
+        <p>
+          If an instruction appears to breach data protection law, the processor tells the
+          controller and may pause that processing until it is resolved.
+        </p>
+
+        <h2 id="people">5. Confidentiality</h2>
+        <p>
+          Everyone the processor allows near the data is bound by confidentiality and is given
+          access only where their work requires it. <strong>[Name how you enforce that: named
+          accounts, roles, review cadence.]</strong>
+        </p>
+
+        <h2 id="security">6. Security</h2>
+        <p>
+          The processor keeps appropriate technical and organisational measures under Article
+          32. What the software provides is listed in Annex II. What the deployment provides is
+          the processor's responsibility, and Annex II is where you write it down.
+        </p>
+
+        <h2 id="subs">7. Sub-processors</h2>
+        <p>
+          The controller gives general authorisation for the sub-processors listed in Annex I.
+          The processor gives <strong>[NUMBER]</strong> days' notice before adding or replacing
+          one, and the controller may object on reasonable data protection grounds.
+        </p>
+        <p>
+          On a single-machine install the list is usually short: the hosting provider, and an
+          email relay if one is configured. It is not zero, and writing &ldquo;none&rdquo; when a
+          server is rented from somebody would be false.
+        </p>
+
+        <h2 id="transfers">8. International transfers</h2>
+        <p>
+          Personal data is processed in <strong>[COUNTRY]</strong>. Where data leaves the UK or
+          the EEA, the transfer relies on <strong>[ADEQUACY DECISION, STANDARD CONTRACTUAL
+          CLAUSES OR UK ADDENDUM]</strong>, with a transfer risk assessment on file.
+        </p>
+        <p>
+          Micaforge itself transfers nothing: geolocation reads a database on disk precisely so
+          that resolving an address does not become an international transfer.
+        </p>
+
+        <h2 id="rights">9. Helping with data subject requests</h2>
+        <p>
+          The processor passes on any request it receives and helps the controller answer it,
+          taking account of the nature of the processing.
+        </p>
+        <p>
+          One honest limit, which matters here more than in most DPAs. Micaforge stores no
+          cookie, no raw address and no identifier that survives the day, so in the ordinary
+          case <strong>neither party can locate a given person's records at all</strong>. Under
+          Article 11 neither is required to collect additional data purely to make that
+          possible. Where the controller's own site attaches an account identifier through{" "}
+          <code>identify()</code>, records can be found and deleted by that identifier, and the
+          processor will do so on instruction.
+        </p>
+
+        <h2 id="breach">10. Breach notification</h2>
+        <p>
+          The processor notifies the controller without undue delay, and in any case within{" "}
+          <strong>[HOURS]</strong> hours of becoming aware of a personal data breach, with what
+          is known at the time and updates as more is learnt.
+        </p>
+
+        <h2 id="audit">11. Audit</h2>
+        <p>
+          The processor makes available the information needed to demonstrate compliance and
+          allows audits by the controller or an auditor it mandates, on reasonable notice, no
+          more than <strong>[NUMBER]</strong> times a year unless a supervisory authority or a
+          breach requires otherwise.
+        </p>
+        <p>
+          Because the software is AGPL-3.0, part of the audit is unusually cheap: the controller
+          can read exactly what the code stores rather than take anyone's word for it.
+        </p>
+
+        <h2 id="end">12. Deletion and return</h2>
+        <p>
+          On the end of the agreement, the processor deletes or returns the personal data at the
+          controller's choice within <strong>[NUMBER]</strong> days, except where law requires
+          it to be kept. Reports export as CSV, and a self-hosted install can be read directly
+          from ClickHouse, so a return is a real option rather than a formality.
+        </p>
+
+        <h2 id="annex-1">Annex I. Details of the processing</h2>
+        <dl>
+          <dt>Categories of data subject</dt>
+          <dd>Visitors to the controller's websites. <strong>[Add signed-in users if the site calls identify().]</strong></dd>
+          <dt>Categories of personal data</dt>
+          <dd>
+            Page addresses and titles, referrer, campaign parameters, browser, operating system,
+            device type, screen and window size, language, time zone, country, region and city,
+            network operator, engagement time, scroll depth, custom event properties chosen by
+            the controller, and a visitor identifier that is a one-way hash of a daily secret,
+            the site, the address and the browser string.
+          </dd>
+          <dt>Data not processed</dt>
+          <dd>
+            No raw IP address and no browser string is stored on a visitor's record. No cookie
+            is set or read.
+          </dd>
+          <dt>Special category data</dt>
+          <dd>
+            None by design. The controller must not send it in event properties or in page
+            addresses. <strong>[If the controller's site addresses reveal health, beliefs or
+            similar, say so and treat it accordingly.]</strong>
+          </dd>
+          <dt>Frequency</dt>
+          <dd>Continuous, for as long as the tracking script is installed.</dd>
+          <dt>Retention</dt>
+          <dd>
+            <strong>[PERIOD]</strong>. Micaforge defaults to keeping event history indefinitely
+            and session replays for thirty days. The daily secret is never kept beyond
+            forty-eight hours.
+          </dd>
+          <dt>Sub-processors</dt>
+          <dd><strong>[HOSTING PROVIDER, COUNTRY]</strong>. <strong>[EMAIL RELAY, IF CONFIGURED]</strong>.</dd>
+        </dl>
+
+        <h2 id="annex-2">Annex II. Technical and organisational measures</h2>
+        <p>What the software does, which you may state as fact:</p>
+        <dl>
+          <dt>Data minimisation at collection</dt>
+          <dd>
+            The address is resolved to country, region, city and network operator and then
+            discarded. The browser string is resolved to categories and discarded. Neither is
+            written to a visitor's record.
+          </dd>
+          <dt>Pseudonymisation that expires</dt>
+          <dd>
+            Visitor identifiers are keyed on a salt that rotates at local midnight and is never
+            kept beyond forty-eight hours, so records cannot be linked across days.
+          </dd>
+          <dt>Encryption of stored secrets</dt>
+          <dd>
+            Credentials at rest are sealed with XChaCha20-Poly1305, derived from a single
+            operator key held in a file with restricted permissions.
+          </dd>
+          <dt>Access control</dt>
+          <dd>
+            Organisations, teams, roles and per-site access, with API keys that are scoped and
+            expirable, and share links that can carry a password and an expiry.
+          </dd>
+          <dt>No external egress</dt>
+          <dd>
+            A self-hosted build makes no outbound network call at runtime, including for
+            geolocation and for update checks.
+          </dd>
+          <dt>Transport security</dt>
+          <dd>
+            The shipped stack terminates TLS with automatic certificates and publishes no store
+            port outside the machine.
+          </dd>
+        </dl>
+        <p>What the deployment must add, which only you can state:</p>
+        <ul>
+          <li><strong>[Backups: what, where, how often, tested when.]</strong></li>
+          <li><strong>[Patching: how the host and the images are kept current.]</strong></li>
+          <li><strong>[Access: who can reach the machine, and how that is authenticated.]</strong></li>
+          <li><strong>[Monitoring and incident response, including who is called.]</strong></li>
+          <li><strong>[Physical security of the hosting environment, usually your provider's.]</strong></li>
+        </ul>
+      </Prose>
+
+      <div class="mf-next">
+        <a class="mf-link" href="/privacy">Privacy template<IconOut size={13} /></a>
+        <a class="mf-link" href="/terms">Terms<IconOut size={13} /></a>
+        <a class="mf-link" href="/docs/privacy/gdpr">What the GDPR asks of an install<IconOut size={13} /></a>
+        <a class="mf-link" href="/docs/privacy/what-we-store">Every column, listed<IconOut size={13} /></a>
+      </div>
+    </article>
+  </main>
+
+  <SiteFooter />
+</Base>
+
+<style>
+  .lg-warn { margin-top: var(--mf-10); max-width: var(--mf-measure); }
+  .lg-body { margin-top: var(--mf-12); }
+</style>

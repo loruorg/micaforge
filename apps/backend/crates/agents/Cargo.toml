@@ -1,0 +1,43 @@
+[package]
+name = "micaforge-agents"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+description = "The agent catalog, classifier, verifier and policy reader: Micaforge's wedge."
+
+[lib]
+name = "micaforge_agents"
+path = "src/lib.rs"
+
+[dependencies]
+# The shared vocabulary. This crate returns `micaforge_core::Result` and maps its
+# own classification onto `micaforge_core::Table`, so the ingest path never has
+# to decide twice which table a hit belongs in.
+micaforge-core = { workspace = true }
+
+# The catalog is served verbatim by `GET /api/agents/catalog`, and the parsed
+# robots.txt / llms.txt is stored as `site_policy.parsed` jsonb, so everything
+# public here serialises.
+serde = { workspace = true }
+# Operators publish their IP ranges as JSON documents with no agreed shape, so
+# the fetcher walks a `serde_json::Value` tree rather than deriving a struct.
+serde_json = { workspace = true }
+
+# CIDR arithmetic for published-range verification.
+ipnet = { workspace = true }
+
+# Fetching an operator's published ranges. A self-hosted install makes no
+# outbound call at runtime; this is only ever driven by an operator-enabled job.
+reqwest = { workspace = true }
+
+# The user-agent index is built once, lowercased, sorted longest-pattern-first.
+once_cell = { workspace = true }
+
+# One line per refreshed agent, so an operator can see why verification is
+# `unknown` for a given crawler.
+tracing = { workspace = true }
+
+# Referrer classification takes a full URL as often as it takes a bare host.
+url = { workspace = true }

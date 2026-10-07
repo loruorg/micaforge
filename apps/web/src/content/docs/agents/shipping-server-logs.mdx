@@ -1,0 +1,223 @@
+---
+title: "Shipping server logs"
+description: "The log shipper, the framework middlewares, and the signed endpoint they both use."
+group: "agents"
+order: 2
+updated: 2026-08-22
+---
+
+Crawlers do not run JavaScript. Your script tag will never see GPTBot, and no amount of
+work on the tracker will change that. The only machine that observed those requests is the
+one that answered them.
+
+There are two ways to get them to Micaforge, and you only need one.
+
+- **The log shipper**, if your site is served by nginx, Caddy, Apache or anything else
+  that writes an access log.
+- **A middleware**, if your site is a Node application.
+
+Both send to `POST /api/log/edge`, signed with the site's ingest key.
+
+## The ingest key
+
+Find it on the site's Tracking settings screen, or read it from
+`GET /api/sites/:site/tracking`, which also returns the snippet, the script URL and the
+edge endpoint. It is a server-side secret: it signs every batch, it is not the site id,
+and a build that ships it to a browser bundle should be treated as a leak. Read it from
+the environment.
+
+`POST /api/sites/:site/rotate-key` replaces it. Rotating invalidates the old key
+immediately, so restart your shippers straight after.
+
+## The log shipper
+
+```sh
+export MICAFORGE_HOST=https://analytics.example.com
+export MICAFORGE_SITE_ID=1
+export MICAFORGE_INGEST_KEY=...
+
+# See what a week of logs holds. Sends nothing.
+npx --package=@micaforge/sdk-server micaforge-shipper \
+  --dry-run --from-beginning --no-follow /var/log/nginx/access.log
+
+# Then run it for real, following the file as it grows.
+npx --package=@micaforge/sdk-server micaforge-shipper /var/log/nginx/access.log
+```
+
+Start with the dry run. It parses, classifies and counts by agent without sending
+anything, and it tells you how many lines it could not read, which is how you find out
+that your log format is missing the user agent before you find out from an empty
+dashboard.
+
+The shipper remembers its position in a state file beside the log, so a restart neither
+replays your history nor skips what arrived while it was down. A first run without
+`--from-beginning` starts at the end of the file for the same reason.
+
+Useful flags:
+
+| Flag | What it does |
+| --- | --- |
+| `--format auto\|combined\|common\|json` | Sniffed from the first readable line by default. |
+| `--hostname docs.example.com` | Files hits under a host when the format has no host field. |
+| `--exclude '/assets/**'` | Repeatable. `*` is one segment, `**` any depth. |
+| `--methods GET,HEAD` | A crawl is a read. Pass an empty list to report every method. |
+| `--no-follow` | Read to the end, ship, exit. The mode for cron and backfills. |
+| `--include-humans` | Also ship unnamed requests as pageviews. See the warning below. |
+| `--key-file /path` | Read the key from a file. Arguments are visible in `ps`. |
+
+Backfill from rotated logs, then exit:
+
+```sh
+zcat /var/log/nginx/access.log.*.gz \
+  | npx --package=@micaforge/sdk-server micaforge-shipper --no-follow -
+```
+
+### nginx
+
+The built-in `combined` format works, because it carries the user agent, which is the one
+field nothing can be worked around. This format is better: it adds the host, the response
+time and the content type, which all have columns waiting for them:
+
+```nginx
+log_format micaforge escape=json
+  '{'
+    '"time":"$time_iso8601",'
+    '"remote_addr":"$remote_addr",'
+    '"host":"$host",'
+    '"request_method":"$request_method",'
+    '"request_uri":"$request_uri",'
+    '"status":$status,'
+    '"body_bytes_sent":$body_bytes_sent,'
+    '"request_time":$request_time,'
+    '"sent_http_content_type":"$sent_http_content_type",'
+    '"http_referer":"$http_referer",'
+    '"http_user_agent":"$http_user_agent"'
+  '}';
+
+access_log /var/log/nginx/micaforge.log micaforge;
+```
+
+Behind Cloudflare or another proxy, `$remote_addr` is the proxy. Log the forwarded address
+instead, or agent verification has nothing real to check.
+
+### Caddy
+
+Caddy writes JSON and needs no format designed for it:
+
+```caddyfile
+docs.example.com {
+	log {
+		output file /var/log/caddy/access.log {
+			roll_size 100MiB
+			roll_keep 10
+		}
+		format json
+	}
+
+	root * /srv/docs
+	file_server
+}
+```
+
+Every field Micaforge has a column for is already in a Caddy log line: the time, the
+address, the method, the host, the path, the status, the size, the response time and the
+content type.
+
+## The middlewares
+
+If your site is a Node application, report from inside it and there is no file to follow.
+
+```ts
+import { Micaforge } from "@micaforge/sdk-server";
+
+export const micaforge = new Micaforge({
+  host: process.env.MICAFORGE_HOST!,
+  siteId: 1,
+  ingestKey: process.env.MICAFORGE_INGEST_KEY!,
+});
+```
+
+```ts
+// Express: mount it first, before your routes and before any body parser.
+app.use(micaforge.express({ exclude: ["/health", "/_next/**"] }));
+```
+
+```ts
+// Fastify
+import { micaforgeFastify } from "@micaforge/sdk-server/fastify";
+await fastify.register(micaforgeFastify, { client: micaforge });
+```
+
+```ts
+// Hono
+import { micaforgeHono } from "@micaforge/sdk-server/hono";
+app.use("*", micaforgeHono(micaforge));
+```
+
+```ts
+// Next.js, in instrumentation.ts
+import { createInstrumentation } from "@micaforge/sdk-server/next";
+
+export const { register, client: micaforge } = createInstrumentation({
+  host: process.env.MICAFORGE_HOST!,
+  siteId: 1,
+  ingestKey: process.env.MICAFORGE_INGEST_KEY!,
+});
+```
+
+Three promises the package keeps, and they are the reason it is safe to mount in a request
+path:
+
+1. **It never throws into your request.** Every public method is wrapped. A bad key, a DNS
+   failure, a 500 from the collector: one line through your logger, and the event is
+   dropped.
+2. **It never blocks your response.** Hits are queued and sent on a 200 ms window, or as
+   soon as 50 are waiting. Nothing awaits the collector.
+3. **It sends only what the schema has a column for.** Every key on the wire is a column,
+   with two documented transport fields (`user_agent` and `ip`) that the server reads
+   and drops.
+
+### Do not count humans twice
+
+The middlewares report human requests as well as agent ones by default. If the browser
+tracker is on your pages, turn that off:
+
+```ts
+app.use(micaforge.express({ humans: false }));
+```
+
+The tracker sees engagement, scroll and client-side navigation that a server cannot. The
+server sees crawlers that a tracker cannot. Running both with `humans: false` gives you
+each half once. The shipper's equivalent is simply leaving `--include-humans` off, which
+is the default.
+
+## What the server decides, not you
+
+The client sends the raw user agent, the path, the status, the bytes, the response time
+and the source address. It does **not** send which agent it was, which operator runs it,
+what the crawl was for, whether it was verified, or whether robots.txt allowed it. All of
+those are established by the server against the full catalog, the operator's published
+ranges and your own policy files.
+
+That split is deliberate. A client guessing at those fields would be a number this product
+did not earn, and a stale copy of the catalog in a customer's process would quietly
+disagree with their own dashboard.
+
+The source address goes up so the server can check it against published ranges. Micaforge
+stores only a salted, rotating hash of it. The raw address is never written down.
+
+## Signing
+
+Each request is signed with HMAC-SHA256, keyed with the ingest key, over `${t}.${body}`:
+the unix time in `t`, one `.`, then the exact bytes on the wire:
+
+```http
+POST /api/log/edge
+x-micaforge-signature: t=1787306400,v1=9f0c…
+```
+
+A `t` more than five minutes from the server's clock is refused, so keep the shipping
+host's clock in sync.
+
+If you are writing your own shipper rather than using either of these, that is the whole
+protocol; the payload shape is in [the events API](/docs/api/events-api).

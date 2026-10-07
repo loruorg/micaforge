@@ -1,0 +1,105 @@
+---
+title: "robots.txt and llms.txt"
+description: "What your site said, what the agents did, and the difference between the two."
+group: "agents"
+order: 4
+updated: 2026-08-22
+---
+
+You write `robots.txt`. You may now also write `llms.txt`. Neither file tells you whether
+any of it was honoured, and your server log has held the answer the whole time.
+
+Micaforge reads both files, parses them, and joins them against the fetches it recorded.
+
+## What each file is for
+
+`robots.txt` says what an agent may not take. It is a rule, per user-agent group, per
+path.
+
+`llms.txt` says what a site contains and where the good version of it lives. It is plain
+Markdown with a fixed skeleton, and it is a convention rather than a standard, so the
+parser is forgiving on purpose:
+
+```markdown
+# Micaforge
+
+> Cookieless analytics that counts machine readers as a first-class audience.
+
+## Docs
+
+- [Installation](https://example.com/docs/getting-started/installation): the script tag
+- [The Citation Gap](https://example.com/docs/agents/the-citation-gap)
+
+## Optional
+
+- [Changelog](https://example.com/changelog)
+```
+
+Micaforge reads it for one reason: to put your stated intent next to observed behaviour. A
+page listed there and never fetched, and a page fetched constantly that you never listed,
+are both findings worth having.
+
+## The reports
+
+```http
+GET /api/policy               parsed robots.txt and llms.txt, per agent, allowed or denied
+GET /api/policy/violations    agents that fetched a path their rule disallowed
+POST /api/policy/refetch      re-read both files now
+```
+
+Both files are fetched by a scheduled job and stored per site, along with the parse. The
+Policy screen shows, per agent: what your file said, whether the page is listed in
+`llms.txt`, how many fetches were observed, and how many of those hit a path that agent
+was disallowed from.
+
+Every agent row also carries the position at the time of the fetch, so it survives a later
+edit to your `robots.txt`:
+
+- `robots_allowed`: `1` allowed, `0` disallowed, `-1` no rule reached this agent
+- `llms_listed`: `1` listed, `0` absent, `-1` no `llms.txt`
+
+## Two restraints on the violation report
+
+This is the part of the product most capable of being unfair, so it is deliberately
+narrow.
+
+**A violation is a fetch of a path your site disallowed, and nothing more.** Not an
+unverified fetch. Not a fetch by an operator you dislike. Not an operator who declines to
+say whether they obey robots. One rule, one observation, both shown side by side.
+
+**Unknown is a real answer.** A site with no `robots.txt`, or one whose file never
+mentions this agent and has no `*` group, has expressed no policy. Reporting that as
+"allowed" would put words in your mouth, so it is reported as `-1`.
+
+The catalog also records whether each operator *states* that their agent obeys
+`robots.txt`. That is the claim, never the behaviour. The claim and the measurement are
+shown next to each other, and you draw your own conclusion.
+
+## Blocking, and what it costs
+
+If you want to stop a crawl, `robots.txt` is where you say so:
+
+```text
+User-agent: GPTBot
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /
+```
+
+Two things worth knowing before you paste that.
+
+`Google-Extended` and `Applebot-Extended` never appear in a request. They are controls
+over what may be done with content another crawler already fetched, which is why they are
+in the catalog with no user-agent token: the only place they can ever be seen is your own
+`robots.txt`.
+
+And blocking the corpus crawler is not the same as blocking the fetch that answers a
+question. `GPTBot` is a training crawl; `ChatGPT-User` is a person asking something right
+now, whose next click could be a reader arriving on your page. Blocking the second one
+removes you from answers as well as from the corpus. That is a decision you should make
+with the [Citation Gap](/docs/agents/the-citation-gap) in front of you, and Micaforge
+reports those agents separately so that you can.
+
+`robots.txt` is not enforcement, either. It is a request. The violations report is how you
+find out whether it was granted.

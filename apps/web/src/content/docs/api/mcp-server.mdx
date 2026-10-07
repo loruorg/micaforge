@@ -1,0 +1,104 @@
+---
+title: "MCP server"
+description: "Twelve read tools over JSON-RPC, so an agent can query the analytics it is helping to produce."
+group: "api"
+order: 4
+updated: 2026-08-22
+---
+
+The agents this product counts on one screen can, through this endpoint, read the count.
+
+```http
+POST /api/mcp
+Authorization: Bearer mfg_…
+```
+
+JSON-RPC 2.0 over a single HTTP POST, protocol revision `2024-11-05`. Nothing here is a
+new capability: every tool is one of the read endpoints, answered by the same query
+functions, over the same [query envelope](/docs/api/stats-api).
+
+## Connecting
+
+Any MCP client that can speak HTTP with a bearer token will do:
+
+```json
+{
+  "mcpServers": {
+    "micaforge": {
+      "url": "https://analytics.example.com/api/mcp",
+      "headers": { "Authorization": "Bearer mfg_…" }
+    }
+  }
+}
+```
+
+A key, not a session. The caller is a program: a session cookie belongs to a browser, and
+an agent holding one is an agent running inside somebody's dashboard tab. A key is a
+credential an operator minted deliberately, can name, can scope to one site, and can revoke
+without logging anybody out. `stats:read` is enough for every tool here.
+
+## The methods
+
+`initialize`, `tools/list`, `tools/call` and `ping`. Batches are accepted, and a
+notification (a member with no `id`) is answered with no response, which is what JSON-RPC
+requires and costs nothing here, because every tool is a read.
+
+```sh
+curl -X POST https://analytics.example.com/api/mcp \
+  -H "Authorization: Bearer mfg_…" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+```
+
+## The tools
+
+Start with `list_sites`: it returns the numeric `site` id every other tool needs.
+
+| Tool | Answers |
+| --- | --- |
+| `list_sites` | Which sites this key can read, with each id, domain and timezone. |
+| `get_overview` | Visitors, sessions, pageviews, bounce, duration, views per session, each with its change. |
+| `get_timeseries` | One metric in buckets, plus the comparison series. |
+| `get_breakdown` | Ranked rows for one dimension, with metrics and each row's share. |
+| `get_pages` | Pages with entries, exits, scroll depth and time on page. |
+| `get_sources` | Channels, then sources, then campaigns. |
+| `get_agent_overview` | Fetches, distinct agents, verified share, bytes, busiest operators and purposes. |
+| `get_agent_coverage` | Per URL: first crawl, last crawl, freshness gap, which agents. |
+| `get_citation_gap` | Per URL fetches against arrivals, with the ratio and the verdict. `view: "summary"` for site totals. |
+| `get_policy_violations` | Fetches of a path robots.txt disallowed, per agent and path. |
+| `get_content_decay` | Pages the machines still read and people no longer do. |
+| `run_query` | The general console: a dimension and metrics, or the totals without one. |
+
+Every tool except `list_sites` takes the query envelope: `site`, a window, `compare`, `tz`,
+`granularity`, `filters`, `audience`.
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "tools/call",
+  "params": {
+    "name": "get_citation_gap",
+    "arguments": { "site": 1, "range": "30d", "view": "summary" }
+  }
+}
+```
+
+## Two things a caller should know
+
+**Errors are JSON-RPC objects, not HTTP statuses.** Once a request has parsed, every
+failure (an unknown tool, a bad range, a site this key may not read) comes back as an
+`error` member with HTTP 200, and the stable `snake_case` code is in `error.data.code`. A
+client that receives a naked 4xx on a batch has to guess which call failed and generally
+just reports that the server is broken. The one exception is authentication, which is a
+property of the transport and answers with the ordinary `401`.
+
+**Rows are capped at 1,000 per call**, lower than the HTTP ceiling. The consumer is a
+context window, and ten thousand breakdown rows is not an answer to any question an agent
+can usefully ask. For a whole table, use the CSV export.
+
+## What it cannot do
+
+Every tool is a read. There is no tool that creates a goal, edits a site, deletes anything
+or changes a setting, and that is a design decision rather than an oversight: an agent
+should be able to read the record it is helping to write, and not to alter it.

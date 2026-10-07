@@ -1,0 +1,979 @@
+/* ============================================================================
+   Micaforge, the published sheet.
+
+   The dashboard is the recording station. These pages are what comes OFF it: a
+   single continuous sheet, torn from the drum and filed. That is the whole idea
+   and it is why the chrome looks the way it does. The header is the sheet's
+   leading edge, carrying its feed perforations, and the footer is the tear-off
+   at the other end. Everything between them is written on one piece of paper.
+
+   Unlayered on purpose: global.css puts its base and component rules in
+   cascade layers, so these overrides win without a specificity fight.
+   ========================================================================= */
+
+/* ── the sheet ───────────────────────────────────────────────────────────── */
+
+.mf-wrap {
+  width: 100%;
+  max-width: 1140px;
+  margin-inline: auto;
+  /* Every text block on these pages is padded clear of the viewport rim by the
+     same gutter, so nothing is ever set hard against an edge. */
+  padding-inline: clamp(var(--mf-5), 4.5vw, var(--mf-10));
+}
+
+/* The perforation strip. Same recipe as the pin feed down a record panel's
+   gutter, turned through ninety degrees: this is the sheet's cut edge. */
+.mf-feed {
+  height: 13px;
+  background-image: radial-gradient(
+    circle at center,
+    var(--mf-well) 0 calc(var(--mf-feed-hole) / 2),
+    transparent calc(var(--mf-feed-hole) / 2 + 0.5px)
+  );
+  background-size: var(--mf-feed-pitch) 100%;
+  background-position: calc(var(--mf-feed-pitch) / 2) center;
+  background-repeat: repeat-x;
+}
+.mf-feed--head { border-bottom: 1px dashed var(--mf-rule); }
+.mf-feed--foot { border-top: 1px dashed var(--mf-rule); }
+
+/* ── the sheet head ──────────────────────────────────────────────────────── */
+
+.mf-head {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: var(--mf-ground);
+}
+
+.mf-head__row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--mf-6);
+  min-height: 62px;
+  padding-block: var(--mf-3);
+}
+
+.mf-head__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mf-3);
+  text-decoration: none;
+  color: var(--mf-ink);
+}
+.mf-head__brand svg { flex: none; }
+.mf-head__wordmark {
+  font-family: var(--mf-font-display);
+  font-size: var(--mf-t-md);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+
+.mf-head__nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--mf-1);
+}
+
+/* A nav item is a channel on the sheet head. State is carried by ink weight and
+   colour; the shellac bar is the same "channel currently writing" mark the
+   station rail uses, not a dot bolted under a link. */
+.mf-nav__link {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mf-2);
+  padding: var(--mf-2) var(--mf-3);
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink-2);
+  text-decoration: none;
+  border-radius: var(--mf-r-sm);
+  transition: color var(--mf-dur-1) linear, background-color var(--mf-dur-1) linear;
+}
+.mf-nav__link:hover { color: var(--mf-ink); background: var(--mf-ground-2); }
+.mf-nav__link.is-here { color: var(--mf-ink); font-weight: 600; }
+.mf-nav__link.is-here::before {
+  content: "";
+  position: absolute;
+  left: var(--mf-3);
+  right: var(--mf-3);
+  top: -3px;
+  height: 3px;
+  border-radius: 1px;
+  background: var(--mf-shellac);
+}
+
+/* The comparison disclosure. Native <details>, so it opens with no JavaScript
+   at all; the script only adds outside-click and Escape. */
+.mf-nav__disc { position: relative; }
+.mf-nav__disc > summary {
+  list-style: none;
+  cursor: pointer;
+}
+.mf-nav__disc > summary::-webkit-details-marker { display: none; }
+.mf-nav__disc[open] > summary { color: var(--mf-ink); background: var(--mf-ground-2); }
+.mf-nav__caret {
+  transition: transform var(--mf-dur-1) var(--mf-ease-snap);
+  color: var(--mf-ink-3);
+}
+.mf-nav__disc[open] .mf-nav__caret { transform: rotate(180deg); }
+
+.mf-nav__menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  min-width: 232px;
+  padding: var(--mf-2);
+  background: var(--mf-ground-2);
+  border: 1px solid var(--mf-rule-strong);
+  border-radius: var(--mf-r-md);
+  box-shadow: var(--mf-lift);
+}
+.mf-nav__menu a {
+  display: block;
+  padding: var(--mf-2) var(--mf-3);
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink-2);
+  text-decoration: none;
+  border-radius: var(--mf-r-sm);
+  transition: color var(--mf-dur-1) linear, background-color var(--mf-dur-1) linear;
+}
+.mf-nav__menu a:hover { color: var(--mf-ink); background: var(--mf-ground-3); }
+.mf-nav__menu a.is-here { color: var(--mf-ink); font-weight: 600; }
+
+.mf-head__acts {
+  display: flex;
+  align-items: center;
+  gap: var(--mf-3);
+  justify-self: end;
+}
+
+.mf-head__out {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mf-2);
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink-2);
+  text-decoration: none;
+  transition: color var(--mf-dur-1) linear;
+}
+.mf-head__out:hover { color: var(--mf-ink); }
+.mf-head__out svg { color: var(--mf-ink-3); transition: color var(--mf-dur-1) linear; }
+.mf-head__out:hover svg { color: var(--mf-shellac); }
+
+/* The drawer, under 900px. Also a native <details>: it works with JS disabled. */
+.mf-head__drawer { display: none; }
+.mf-head__drawer > summary {
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mf-2);
+  padding: 6px var(--mf-3);
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink);
+  background: var(--mf-ground-3);
+  border: 1px solid var(--mf-rule-strong);
+  border-radius: var(--mf-r-sm);
+  box-shadow: inset 0 1px 0 var(--mf-lip);
+  cursor: pointer;
+}
+.mf-head__drawer > summary::-webkit-details-marker { display: none; }
+
+.mf-drawer__panel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  background: var(--mf-ground-2);
+  border-top: 1px solid var(--mf-rule);
+  border-bottom: 1px solid var(--mf-rule-strong);
+  box-shadow: var(--mf-lift);
+}
+.mf-drawer__list {
+  display: flex;
+  flex-direction: column;
+  padding-block: var(--mf-3);
+}
+.mf-drawer__list a {
+  padding: var(--mf-3) 0;
+  font-size: var(--mf-t-base);
+  color: var(--mf-ink-2);
+  text-decoration: none;
+  border-bottom: 1px solid var(--mf-rule);
+}
+.mf-drawer__list a:last-of-type { border-bottom: 0; }
+.mf-drawer__list a.is-here { color: var(--mf-ink); font-weight: 600; }
+.mf-drawer__sub { padding-left: var(--mf-5); }
+.mf-drawer__foot { padding: var(--mf-4) 0 var(--mf-5); }
+
+@media (max-width: 900px) {
+  .mf-head__nav { display: none; }
+  .mf-head__row { grid-template-columns: auto minmax(0, 1fr); }
+  .mf-head__acts { grid-column: 2; }
+  .mf-head__acts .mf-medium { display: none; }
+  .mf-head__drawer { display: block; }
+}
+@media (max-width: 520px) {
+  /* The source link is already in the drawer at this width. Hiding only its
+     label would leave a bare arrow that is both a stray glyph and a link with
+     no accessible name, so the whole control goes instead. */
+  .mf-head__acts .mf-head__out { display: none; }
+}
+
+/* ── the sheet foot ──────────────────────────────────────────────────────── */
+
+.mf-foot {
+  margin-top: auto;
+  padding-top: var(--mf-16);
+  border-top: 1px solid var(--mf-rule);
+  background: var(--mf-ground);
+}
+
+.mf-foot__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) repeat(4, minmax(0, 1fr));
+  gap: var(--mf-10) var(--mf-6);
+  padding-bottom: var(--mf-12);
+}
+
+.mf-foot__brand { display: flex; flex-direction: column; gap: var(--mf-3); align-items: flex-start; }
+.mf-foot__mark {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mf-3);
+  text-decoration: none;
+  color: var(--mf-ink);
+}
+.mf-foot__wordmark {
+  font-family: var(--mf-font-display);
+  font-size: var(--mf-t-lg);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.mf-foot__line {
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink-2);
+  max-width: 34ch;
+}
+
+.mf-foot__col h2 {
+  font-family: var(--mf-font-ui);
+  font-size: var(--mf-t-xs);
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--mf-ink-3);
+  margin: 0 0 var(--mf-3);
+}
+.mf-foot__col ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--mf-2); }
+.mf-foot__col a {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mf-2);
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink-2);
+  text-decoration: none;
+  transition: color var(--mf-dur-1) linear;
+}
+.mf-foot__col a:hover { color: var(--mf-ink); }
+.mf-foot__col a svg { color: var(--mf-ink-3); }
+.mf-foot__col a:hover svg { color: var(--mf-shellac); }
+
+/* The colophon. One line, left-aligned to the same margin as everything above
+   it, never a tagline flung left with the rest jammed right. */
+.mf-foot__colophon {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--mf-2) var(--mf-5);
+  padding-block: var(--mf-5) var(--mf-6);
+  border-top: 1px solid var(--mf-rule);
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+}
+.mf-foot__colophon strong { color: var(--mf-ink-2); font-weight: 500; }
+
+@media (max-width: 1000px) {
+  .mf-foot__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .mf-foot__brand { grid-column: 1 / -1; }
+}
+@media (max-width: 560px) {
+  .mf-foot__grid { grid-template-columns: minmax(0, 1fr); gap: var(--mf-8); }
+}
+
+/* ── long-form typography ────────────────────────────────────────────────── */
+
+.mf-prose { color: var(--mf-ink-2); }
+.mf-prose > * { max-width: var(--mf-measure); }
+.mf-prose > .mf-bleed { max-width: none; }
+
+.mf-prose p,
+.mf-prose li {
+  font-size: var(--mf-t-md);
+  line-height: var(--mf-lead-body);
+}
+.mf-prose > p + p { margin-top: var(--mf-5); }
+
+/* Generous room ABOVE a heading, and much less below it, so a heading belongs
+   to the text that follows rather than floating between two blocks. */
+.mf-prose h2 {
+  font-size: var(--mf-t-xl);
+  color: var(--mf-ink);
+  margin: var(--mf-14) 0 var(--mf-4);
+}
+.mf-prose h3 {
+  font-size: var(--mf-t-lg);
+  color: var(--mf-ink);
+  margin: var(--mf-10) 0 var(--mf-3);
+}
+.mf-prose h4 {
+  font-family: var(--mf-font-ui);
+  font-size: var(--mf-t-base);
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--mf-ink);
+  margin: var(--mf-8) 0 var(--mf-2);
+}
+.mf-prose > :first-child { margin-top: 0; }
+
+.mf-prose strong { color: var(--mf-ink); font-weight: 600; }
+.mf-prose em { font-style: italic; }
+
+.mf-prose a {
+  color: var(--mf-ink);
+  text-decoration: underline;
+  text-decoration-color: var(--mf-rule-strong);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  /* colour only: no underline that grows, wipes or travels on hover */
+  transition: color var(--mf-dur-1) linear, text-decoration-color var(--mf-dur-1) linear;
+}
+.mf-prose a:hover { color: var(--mf-shellac); text-decoration-color: var(--mf-shellac); }
+
+.mf-prose ul,
+.mf-prose ol { margin: var(--mf-5) 0; padding-left: 0; list-style: none; }
+.mf-prose li + li { margin-top: var(--mf-3); }
+.mf-prose ul > li { position: relative; padding-left: var(--mf-6); }
+/* The registration tick from the icon set, doing an honest job: it marks where
+   an item begins, exactly as it marks zero on a glyph. */
+.mf-prose ul > li::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 0.62em;
+  width: 5px;
+  height: 5px;
+  background: var(--mf-shellac);
+}
+.mf-prose ol { counter-reset: mf-ol; }
+.mf-prose ol > li { position: relative; padding-left: var(--mf-8); counter-increment: mf-ol; }
+.mf-prose ol > li::before {
+  content: counter(mf-ol);
+  position: absolute;
+  left: 0;
+  top: 0;
+  font-family: var(--mf-font-display);
+  font-size: var(--mf-t-base);
+  color: var(--mf-ink-3);
+  line-height: var(--mf-lead-body);
+}
+
+/* Inline code, one treatment, everywhere on the sheet. It is set in the data
+   face and the first ink and it sits IN the line: no fill, no border, no
+   padding. Two things were wrong with the chip this replaces. Its right padding
+   pushed the following full stop off the end of the word, so "openssl." read as
+   "openssl ." And it only ever reached inside .mf-prose, so the same element in
+   a figure caption fell through to the UA monospace at the UA's own word-space
+   and "one docker compose file" read as a typo. A block sample is a different
+   thing and keeps the well it is sunk into, further down this file. */
+:is(.mf-doc, .mf-prose, .mf-sec, .mf-fig, .mf-note, .mf-cmp) code {
+  font-family: var(--mf-font-data);
+  font-size: 0.92em;
+  color: var(--mf-ink);
+  background: none;
+  border: 0;
+  padding: 0;
+  overflow-wrap: anywhere;
+}
+.mf-prose pre {
+  margin: var(--mf-6) 0;
+  padding: var(--mf-4) var(--mf-5);
+  background: var(--mf-well);
+  border: 1px solid var(--mf-rule);
+  border-radius: var(--mf-r-md);
+  box-shadow: var(--mf-press);
+  overflow-x: auto;
+}
+.mf-prose pre code {
+  padding: 0;
+  background: none;
+  border: 0;
+  font-size: var(--mf-t-sm);
+  line-height: 1.7;
+  color: var(--mf-ink);
+  white-space: pre;
+}
+
+/* No decorative quotation marks anywhere: an aside earns its weight from the
+   display face and the space around it. */
+.mf-prose blockquote {
+  margin: var(--mf-8) 0;
+  padding: 0;
+  font-family: var(--mf-font-display);
+  font-size: var(--mf-t-lg);
+  line-height: 1.34;
+  color: var(--mf-ink);
+}
+
+.mf-prose dl { margin: var(--mf-6) 0; }
+.mf-prose dt {
+  font-family: var(--mf-font-display);
+  font-size: var(--mf-t-md);
+  font-weight: 600;
+  color: var(--mf-ink);
+  margin-top: var(--mf-5);
+}
+.mf-prose dt:first-of-type { margin-top: 0; }
+.mf-prose dd { margin: var(--mf-2) 0 0; font-size: var(--mf-t-md); line-height: var(--mf-lead-body); }
+
+/* A rule that is part of the instrument rather than a bare hairline: a dashed
+   interval line with the fiducial square sitting on it. */
+.mf-prose hr,
+.mf-rule-fid {
+  position: relative;
+  height: 1px;
+  border: 0;
+  margin: var(--mf-12) 0;
+  background-image: repeating-linear-gradient(
+    to right,
+    var(--mf-rule-strong) 0 6px,
+    transparent 6px 12px
+  );
+}
+.mf-prose hr::after,
+.mf-rule-fid::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: -2px;
+  width: 5px;
+  height: 5px;
+  background: var(--mf-shellac);
+}
+
+/* ── the document: a register margin beside the measure ──────────────────── */
+
+.mf-doc { padding-block: var(--mf-12) var(--mf-20); }
+
+.mf-doc__head { max-width: none; }
+.mf-doc__title {
+  font-size: clamp(2.3rem, 5.2vw, 3.9rem);
+  font-weight: 600;
+  line-height: 1.02;
+  letter-spacing: -0.026em;
+  color: var(--mf-ink);
+  max-width: 19ch;
+}
+.mf-doc__lede {
+  max-width: 56ch;
+  margin-top: var(--mf-6);
+  font-size: var(--mf-t-lg);
+  line-height: 1.42;
+  color: var(--mf-ink-2);
+}
+
+/* Movements. The number lives in the register margin the way a section number
+   is written in the margin of a technical report, not as a kicker above a
+   heading. Under 940px it steps down beside the heading instead. */
+.mf-mv {
+  display: grid;
+  grid-template-columns: 76px minmax(0, var(--mf-measure));
+  column-gap: var(--mf-8);
+  margin-top: var(--mf-20);
+}
+.mf-mv__n {
+  grid-column: 1;
+  font-family: var(--mf-font-display);
+  font-size: var(--mf-t-lg);
+  font-weight: 500;
+  line-height: 1.15;
+  color: var(--mf-ink-3);
+  text-align: right;
+  padding-top: 0.16em;
+}
+.mf-mv__body { grid-column: 2; min-width: 0; }
+.mf-mv__body > h2 {
+  font-size: var(--mf-t-xl);
+  color: var(--mf-ink);
+  margin: 0 0 var(--mf-5);
+}
+.mf-mv--wide { grid-template-columns: 76px minmax(0, 1fr); }
+
+@media (max-width: 940px) {
+  .mf-mv { grid-template-columns: minmax(0, 1fr); }
+  .mf-mv__n {
+    grid-column: 1;
+    text-align: left;
+    font-size: var(--mf-t-md);
+    margin-bottom: var(--mf-2);
+    padding-top: 0;
+  }
+  .mf-mv__body { grid-column: 1; }
+}
+
+/* ── the sheet register, and the wide composition it exists for ──────────────
+   A document sheet was setting one 68ch measure against the left margin and
+   leaving the right of a wide viewport blank for whole screens. That margin now
+   holds the sheet's own register: the sections, numbered, in the order they are
+   written. Below the breakpoint there is no margin to write in, so the register
+   is not drawn and the sheet keeps the whole column.
+
+   The register is placed in column two spanning every row, so it can be sticky
+   against the reading position while the sheet's own blocks stack down column
+   one in source order. */
+
+.mf-reg { display: none; }
+
+@media (min-width: 1180px) {
+  .mf-doc--reg {
+    /* Matches the manual's own depth scale column, so a reader moving between
+       the sheet and the manual finds the index in the same place at the same
+       width. */
+    --mf-reg-w: 196px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) var(--mf-reg-w);
+    column-gap: var(--mf-10);
+    align-items: start;
+  }
+  .mf-doc--reg > * {
+    grid-column: 1;
+    min-width: 0;
+  }
+
+  .mf-reg {
+    display: block;
+    grid-column: 2;
+    /* An implicit grid has no last line to reach for, so the span is stated as
+       a count large enough to cover any sheet. Empty implicit rows carry no
+       height, so nothing is added to the page by asking for them. */
+    grid-row: 1 / span 40;
+    align-self: start;
+    position: sticky;
+    top: var(--mf-24);
+    padding-top: var(--mf-3);
+    border-top: 1px solid var(--mf-rule-strong);
+  }
+}
+
+.mf-reg__title {
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+  margin: 0 0 var(--mf-3);
+}
+
+.mf-reg__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* The number is genuine ordinal data (this is section three of six), which is
+   why it is set in the data face here and not anywhere a label just wanted to
+   look technical. */
+.mf-reg__link {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: var(--mf-3);
+  align-items: baseline;
+  padding: var(--mf-2) 0;
+  font-size: var(--mf-t-xs);
+  line-height: 1.45;
+  color: var(--mf-ink-3);
+  text-decoration: none;
+  transition: color var(--mf-dur-1) linear;
+}
+.mf-reg__link:hover { color: var(--mf-ink); }
+.mf-reg__n { color: var(--mf-ink-3); transition: color var(--mf-dur-1) linear; }
+.mf-reg__link:hover .mf-reg__n { color: var(--mf-ink-2); }
+.mf-reg__text { overflow-wrap: anywhere; }
+
+/* The section being read, marked in the same vocabulary the station rail uses
+   for the channel that is currently writing. */
+.mf-reg__link[aria-current="true"] { color: var(--mf-ink); }
+.mf-reg__link[aria-current="true"] .mf-reg__n { color: var(--mf-shellac); }
+
+/* The sheet head is sticky, so a heading jumped to has to clear it or it lands
+   underneath the paper's leading edge. */
+.mf-doc :is(h2, h3)[id] { scroll-margin-top: var(--mf-24); }
+
+/* ── the annotation notice: the operator's red pen in the margin ─────────── */
+
+.mf-note {
+  position: relative;
+  margin: var(--mf-8) 0;
+  padding: var(--mf-5) var(--mf-6);
+  background: var(--mf-oxide-wash);
+  border: 1px solid var(--mf-oxide);
+  border-radius: var(--mf-r-md);
+  max-width: var(--mf-measure);
+}
+.mf-note--wide { max-width: none; }
+.mf-note__head {
+  display: flex;
+  align-items: center;
+  gap: var(--mf-3);
+  margin-bottom: var(--mf-2);
+  font-family: var(--mf-font-display);
+  font-size: var(--mf-t-md);
+  font-weight: 600;
+  color: var(--mf-ink);
+}
+.mf-note__head svg { flex: none; color: var(--mf-oxide); }
+.mf-note p { font-size: var(--mf-t-sm); line-height: var(--mf-lead-body); color: var(--mf-ink-2); }
+.mf-note p + p { margin-top: var(--mf-3); }
+
+/* The quieter sibling, for a statement of fact rather than a warning. */
+.mf-note--plain {
+  background: var(--mf-ground-2);
+  border-color: var(--mf-rule-strong);
+}
+.mf-note--plain .mf-note__head svg { color: var(--mf-shellac); }
+
+/* ── figures ─────────────────────────────────────────────────────────────── */
+
+.mf-fig { margin: var(--mf-10) 0; max-width: none; }
+.mf-fig__frame { padding: var(--mf-6) var(--mf-6) var(--mf-5); }
+.mf-fig figcaption,
+.mf-fig__cap {
+  margin-top: var(--mf-4);
+  font-size: var(--mf-t-sm);
+  line-height: var(--mf-lead-body);
+  color: var(--mf-ink-3);
+  max-width: 68ch;
+}
+.mf-fig__cap strong { color: var(--mf-ink-2); font-weight: 500; }
+
+/* ── the comparison sheet ────────────────────────────────────────────────── */
+
+/* A real table, because a comparison IS a table: every row is one question
+   asked of every column, and a table row cannot go ragged. The action lives in
+   the foot, so it is anchored to the bottom of every column at the same line. */
+.mf-cmp { width: 100%; min-width: 660px; border-collapse: collapse; }
+.mf-cmp caption {
+  caption-side: top;
+  text-align: left;
+  padding-bottom: var(--mf-4);
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink-3);
+}
+.mf-cmp th,
+.mf-cmp td {
+  font-family: var(--mf-font-ui);
+  font-variant-numeric: normal;
+  text-align: left;
+  vertical-align: top;
+  padding: var(--mf-4) var(--mf-5);
+  border-bottom: 1px solid var(--mf-rule);
+}
+.mf-cmp thead th {
+  border-bottom: 1px solid var(--mf-rule-strong);
+  vertical-align: bottom;
+}
+.mf-cmp thead th:first-child { width: 26%; }
+.mf-cmp__who {
+  font-family: var(--mf-font-display);
+  font-size: var(--mf-t-md);
+  font-weight: 600;
+  color: var(--mf-ink);
+  display: block;
+}
+.mf-cmp__who-note {
+  display: block;
+  margin-top: var(--mf-1);
+  font-family: var(--mf-font-ui);
+  font-size: var(--mf-t-xs);
+  font-weight: 400;
+  color: var(--mf-ink-3);
+}
+.mf-cmp tbody th {
+  font-weight: 600;
+  color: var(--mf-ink);
+  font-size: var(--mf-t-sm);
+}
+.mf-cmp td { color: var(--mf-ink-2); font-size: var(--mf-t-sm); line-height: 1.5; }
+
+/* Reading a comparison is reading ACROSS, and four columns is further than the
+   eye tracks unaided. The row lights by tone under the pointer: no movement, no
+   border, nothing that could be mistaken for a control. */
+.mf-cmp tbody th,
+.mf-cmp tbody td { transition: background-color var(--mf-dur-1) linear; }
+.mf-cmp tbody tr:hover th,
+.mf-cmp tbody tr:hover td { background: var(--mf-ground-2); }
+
+/* The mark carries a shape AND a word, so the answer never depends on colour. */
+.mf-cmp__mark {
+  display: flex;
+  align-items: baseline;
+  gap: var(--mf-2);
+  font-weight: 600;
+  color: var(--mf-ink);
+}
+.mf-cmp__mark svg { flex: none; align-self: center; }
+.mf-cmp__mark[data-state="yes"] svg { color: var(--mf-verdigris); }
+.mf-cmp__mark[data-state="partial"] svg { color: var(--mf-shellac); }
+.mf-cmp__mark[data-state="no"] svg { color: var(--mf-ink-3); }
+.mf-cmp__mark[data-state="no"] { color: var(--mf-ink-2); }
+.mf-cmp__note { display: block; margin-top: var(--mf-2); color: var(--mf-ink-2); font-weight: 400; }
+
+.mf-cmp tfoot td,
+.mf-cmp tfoot th {
+  border-bottom: 0;
+  border-top: 1px solid var(--mf-rule-strong);
+  padding-top: var(--mf-6);
+  vertical-align: bottom;
+}
+
+/* ── the parallel choice: two columns on one shared grid ─────────────────── */
+
+.mf-pick {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: auto 1fr auto;
+  gap: var(--mf-6);
+  margin: var(--mf-8) 0;
+  max-width: none;
+}
+.mf-pick__col {
+  display: grid;
+  grid-row: 1 / -1;
+  grid-template-rows: subgrid;
+  gap: var(--mf-4);
+  padding: var(--mf-6);
+  background: var(--mf-ground-2);
+  border: 1px solid var(--mf-rule);
+  border-radius: var(--mf-r-md);
+  box-shadow: inset 0 1px 0 var(--mf-lip);
+}
+.mf-pick__title {
+  font-family: var(--mf-font-display);
+  font-size: var(--mf-t-md);
+  font-weight: 600;
+  color: var(--mf-ink);
+  line-height: 1.25;
+}
+.mf-pick__col ul { list-style: none; margin: 0; padding: 0; }
+.mf-pick__col li {
+  position: relative;
+  padding-left: var(--mf-5);
+  font-size: var(--mf-t-sm);
+  line-height: var(--mf-lead-body);
+  color: var(--mf-ink-2);
+}
+.mf-pick__col li + li { margin-top: var(--mf-3); }
+.mf-pick__col li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.6em;
+  width: 5px;
+  height: 5px;
+  background: var(--mf-shellac);
+}
+.mf-pick__foot { align-self: end; }
+
+@media (max-width: 760px) {
+  .mf-pick { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; }
+  .mf-pick__col { grid-row: auto; grid-template-rows: none; }
+}
+
+/* ── the install command ─────────────────────────────────────────────────── */
+
+.mf-cmd {
+  margin: var(--mf-6) 0;
+  border: 1px solid var(--mf-rule-strong);
+  border-radius: var(--mf-r-md);
+  background: var(--mf-well);
+  box-shadow: var(--mf-press);
+  max-width: none;
+  overflow: hidden;
+}
+.mf-cmd__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--mf-4);
+  padding: var(--mf-2) var(--mf-3) var(--mf-2) var(--mf-4);
+  border-bottom: 1px solid var(--mf-rule);
+  background: var(--mf-ground-2);
+}
+.mf-cmd__where {
+  font-family: var(--mf-font-data);
+  font-size: var(--mf-t-2xs);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--mf-ink-3);
+}
+.mf-cmd__copy { margin-left: auto; }
+.mf-cmd pre {
+  margin: 0;
+  padding: var(--mf-4) var(--mf-5);
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  overflow-x: auto;
+}
+.mf-cmd code {
+  display: block;
+  font-family: var(--mf-font-data);
+  font-size: var(--mf-t-sm);
+  line-height: 1.75;
+  color: var(--mf-ink);
+  white-space: pre;
+  background: none;
+  border: 0;
+  padding: 0;
+}
+.mf-cmd__c { color: var(--mf-ink-3); }
+
+/* ── the architecture drawing ────────────────────────────────────────────── */
+
+.mf-arch { width: 100%; overflow-x: auto; }
+.mf-arch__inner { min-width: 700px; }
+.mf-arch svg { display: block; width: 100%; height: auto; }
+.mf-arch__box { fill: var(--mf-ground-2); stroke: var(--mf-rule-strong); stroke-width: 1; }
+.mf-arch__name {
+  font-family: var(--mf-font-display);
+  font-size: 15px;
+  font-weight: 600;
+  fill: var(--mf-ink);
+}
+.mf-arch__sub {
+  font-family: var(--mf-font-ui);
+  font-size: 11.5px;
+  fill: var(--mf-ink-3);
+}
+.mf-arch__flow { stroke: var(--mf-trace-human); stroke-width: 1.4; fill: none; }
+.mf-arch__flow--machine { stroke: var(--mf-trace-agent); stroke-width: 1.4; stroke-dasharray: 4 3.5; }
+.mf-arch__key {
+  font-family: var(--mf-font-ui);
+  font-size: 11.5px;
+  fill: var(--mf-ink-2);
+}
+
+/* ── the closing hand-off, and page-level link rows ──────────────────────── */
+
+.mf-next {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mf-4) var(--mf-6);
+  margin-top: var(--mf-10);
+  max-width: none;
+}
+.mf-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mf-2);
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink-2);
+  text-decoration: none;
+  border-bottom: 1px solid var(--mf-rule-strong);
+  padding-bottom: 2px;
+  transition: color var(--mf-dur-1) linear, border-color var(--mf-dur-1) linear;
+}
+.mf-link:hover { color: var(--mf-ink); border-color: var(--mf-shellac); }
+.mf-link svg { color: var(--mf-ink-3); }
+.mf-link:hover svg { color: var(--mf-shellac); }
+
+/* ── the verdict register ────────────────────────────────────────────────── */
+
+.mf-verdicts { max-width: none; margin: var(--mf-8) 0 0; }
+.mf-verdicts__row {
+  display: grid;
+  grid-template-columns: 148px minmax(0, 1fr);
+  gap: var(--mf-4) var(--mf-6);
+  padding: var(--mf-5) 0;
+  border-top: 1px solid var(--mf-rule);
+}
+.mf-verdicts__row:last-child { border-bottom: 1px solid var(--mf-rule); }
+.mf-verdicts__name {
+  font-family: var(--mf-font-display);
+  font-size: var(--mf-t-md);
+  font-weight: 600;
+}
+.mf-verdicts__name[data-verdict="extracted"] { color: var(--mf-oxide); }
+.mf-verdicts__name[data-verdict="compounding"] { color: var(--mf-verdigris); }
+.mf-verdicts__name[data-verdict="invisible"] { color: var(--mf-shellac); }
+.mf-verdicts__name[data-verdict="quiet"] { color: var(--mf-ink-2); }
+.mf-verdicts__means { font-size: var(--mf-t-md); color: var(--mf-ink); line-height: var(--mf-lead-body); }
+.mf-verdicts__do { margin-top: var(--mf-2); font-size: var(--mf-t-sm); color: var(--mf-ink-2); line-height: var(--mf-lead-body); }
+@media (max-width: 640px) {
+  .mf-verdicts__row { grid-template-columns: minmax(0, 1fr); gap: var(--mf-2); }
+}
+
+/* ── the four-oh-four sheet ──────────────────────────────────────────────── */
+
+.mf-404 { padding-block: var(--mf-20) var(--mf-24); }
+.mf-404__title {
+  font-size: clamp(2.4rem, 6vw, 4.2rem);
+  font-weight: 600;
+  line-height: 1.03;
+  letter-spacing: -0.026em;
+  color: var(--mf-ink);
+  max-width: 15ch;
+}
+.mf-404__body { margin-top: var(--mf-5); max-width: 50ch; font-size: var(--mf-t-md); color: var(--mf-ink-2); }
+.mf-404__art { margin-top: var(--mf-10); max-width: 560px; }
+.mf-404__art svg { display: block; width: 100%; height: auto; }
+
+/* ── document furniture shared by the legal sheets ───────────────────────── */
+
+.mf-doc__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mf-2) var(--mf-6);
+  margin-top: var(--mf-6);
+  padding-top: var(--mf-4);
+  border-top: 1px solid var(--mf-rule);
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+  max-width: none;
+}
+.mf-doc__meta span strong { color: var(--mf-ink-2); font-weight: 500; }
+
+/* A contents register: honest navigation for a long document, on the sheet's
+   own left margin where a filing index belongs. */
+.mf-toc { margin: var(--mf-10) 0 0; max-width: none; }
+.mf-toc ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: var(--mf-2) var(--mf-6);
+  counter-reset: mf-toc;
+}
+.mf-toc li { counter-increment: mf-toc; }
+.mf-toc a {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  align-content: start;
+  /* Fill the row the grid gave this item, so a two-line entry cannot leave its
+     neighbours' rules sitting at a different height. */
+  height: 100%;
+  gap: var(--mf-3);
+  padding: var(--mf-2) 0;
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink-2);
+  text-decoration: none;
+  border-bottom: 1px solid var(--mf-rule);
+  transition: color var(--mf-dur-1) linear, border-color var(--mf-dur-1) linear;
+}
+.mf-toc a::before {
+  content: counter(mf-toc);
+  font-family: var(--mf-font-display);
+  color: var(--mf-ink-3);
+}
+.mf-toc a:hover { color: var(--mf-ink); border-color: var(--mf-shellac); }

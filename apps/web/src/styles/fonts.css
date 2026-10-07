@@ -1,0 +1,9 @@
+/* Self-hosted display + data faces, served from our own origin. Neither sits on
+   the free-default shelf; both were chosen against rendered specimens. */
+@font-face{font-family:"Trench Slab";src:url("/fonts/trench-slab-400.woff2") format("woff2");font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:"Trench Slab";src:url("/fonts/trench-slab-500.woff2") format("woff2");font-weight:500;font-style:normal;font-display:swap}
+@font-face{font-family:"Trench Slab";src:url("/fonts/trench-slab-600.woff2") format("woff2");font-weight:600;font-style:normal;font-display:swap}
+@font-face{font-family:"Trench Slab";src:url("/fonts/trench-slab-700.woff2") format("woff2");font-weight:700;font-style:normal;font-display:swap}
+@font-face{font-family:"Tabular";src:url("/fonts/tabular-400.woff2") format("woff2");font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:"Tabular";src:url("/fonts/tabular-500.woff2") format("woff2");font-weight:500;font-style:normal;font-display:swap}
+@font-face{font-family:"Tabular";src:url("/fonts/tabular-600.woff2") format("woff2");font-weight:600;font-style:normal;font-display:swap}

@@ -1,0 +1,93 @@
+---
+/**
+ * A code sample.
+ *
+ * Used as the `pre` override for every MDX document, so an ordinary fenced block in a
+ * page comes out framed, named and copyable without the author doing anything.
+ *
+ * Two decisions worth keeping:
+ *
+ *  1. THE LANGUAGE IS READ FROM THE SLOT. The markdown pipeline writes it onto the
+ *     `<code>` element as `language-ts`. Reading it here at build time means the stamp
+ *     is in the HTML the reader is served, not painted on afterwards by a script.
+ *  2. THE COPY KEY TAKES ITS TEXT FROM THE DOM. Nothing is serialised into an
+ *     attribute, so what lands on the clipboard is exactly the characters on screen,
+ *     and there is no second copy of the sample to fall out of step with the first.
+ *
+ * This is the one place a monospace is honest: the sample IS data.
+ */
+import { IconCheck, IconCopy } from "./react/icons";
+
+const body = (await Astro.slots.render("default")).trim();
+const match = /class="language-([a-z0-9+#.\-]+)"/i.exec(body);
+const lang = match ? match[1].toLowerCase() : "";
+---
+
+<figure class="mf-code">
+  <div class="mf-code__bar">
+    <span class="mf-code__lang">{lang || "text"}</span>
+    <button type="button" class="mf-code__copy" data-state="idle">
+      <span class="mf-code__mark" aria-hidden="true">
+        <IconCopy size={13} />
+        <IconCheck size={13} />
+      </span>
+      <span class="mf-code__label">Copy</span>
+    </button>
+  </div>
+  <pre class="mf-code__pre" tabindex="0" data-language={lang || undefined} set:html={body}></pre>
+</figure>
+
+<script>
+  // One delegated listener for every sample on the page, bound once.
+  const RESET_MS = 1600;
+
+  function fallbackCopy(text: string): boolean {
+    // `navigator.clipboard` is absent over plain HTTP, which is exactly how a
+    // self-hosted install is often read on a laptop. The old path still works there.
+    try {
+      const area = document.createElement("textarea");
+      area.value = text;
+      area.setAttribute("readonly", "");
+      area.style.position = "fixed";
+      area.style.top = "-1000px";
+      document.body.appendChild(area);
+      area.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(area);
+      return ok;
+    } catch {
+      return false;
+    }
+  }
+
+  function settle(button: HTMLElement, state: "done" | "failed") {
+    const label = button.querySelector<HTMLElement>(".mf-code__label");
+    button.dataset.state = state;
+    if (label) label.textContent = state === "done" ? "Copied" : "Press Ctrl+C";
+    window.setTimeout(() => {
+      button.dataset.state = "idle";
+      if (label) label.textContent = "Copy";
+    }, RESET_MS);
+  }
+
+  document.addEventListener("click", (event) => {
+    const target = event.target as HTMLElement | null;
+    const button = target?.closest<HTMLElement>(".mf-code__copy");
+    if (!button) return;
+
+    const pre = button.closest(".mf-code")?.querySelector("pre");
+    if (!pre) return;
+
+    // Trailing newline removed: the fence has one, the clipboard does not need it.
+    const text = (pre.textContent ?? "").replace(/\n+$/, "");
+
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).then(
+        () => settle(button, "done"),
+        () => settle(button, fallbackCopy(text) ? "done" : "failed"),
+      );
+      return;
+    }
+    settle(button, fallbackCopy(text) ? "done" : "failed");
+  });
+</script>

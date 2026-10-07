@@ -1,0 +1,68 @@
+---
+title: "The Citation Gap, in one number"
+description: "Two counts against one URL, the ratio between them, and what it cannot see."
+updated: 2026-08-20
+order: 2
+---
+
+Here is the whole idea.
+
+For every URL, hold two numbers next to each other: how often AI agents fetched it, and how
+many people arrived at it from an answer engine. Divide the first by the second.
+
+```text
+ratio = agent_fetches / answer_arrivals
+```
+
+That ratio is the Citation Gap. Two thousand fetches and four arrivals is a page being taken
+and not returned. Two hundred fetches and ninety arrivals is an exchange that is working.
+
+No other analytics tool reports it, and the reason is not that nobody thought of it. It is
+that the two halves live in different places. The taken half is in your web server's access
+log, which analytics tools do not read, because crawlers do not run JavaScript. The returned
+half is in the referrer of an ordinary pageview, which analytics tools do read but file
+under "referral", next to a link from someone's newsletter.
+
+Put both in the same store, keyed by URL, and the ratio falls out.
+
+## Thresholds, published
+
+A verdict that cannot be checked is an opinion. So:
+
+- **cited** means at least three answer-engine arrivals in the window
+- **heavily crawled** means at least twenty agent fetches in the window
+- a cited, heavily crawled page is **extracted** when the ratio is above twenty-five
+
+A page with two arrivals and nineteen fetches gets no verdict at all. Thin data earns a
+shrug, not a diagnosis.
+
+## What it cannot see
+
+This is the part a product would normally leave out, which is precisely why it is here.
+
+**Referrers usually arrive as an origin.** Browsers default to
+`strict-origin-when-cross-origin`, so a cross-origin referrer carries a host and nothing
+else. Any answer surface sharing a host with an ordinary search page cannot be told apart
+from that site's own results in the common case. Counting every DuckDuckGo search as an
+answer-engine arrival would inflate this product's own signature metric with a number
+nobody measured.
+
+**In-page answers are invisible.** A reader who clicks a citation inside an AI overview
+arrives with the search engine's host as the referrer, indistinguishable from an ordinary
+search click.
+
+So the returned half is a **floor**, never a ceiling. The real exchange is at least as good
+as the number shown, and the interface says so rather than implying a precision it does not
+have.
+
+## What to do with it
+
+Nothing, necessarily. `extracted` is a measurement, not an instruction.
+
+Blocking the crawler is one response. Writing the page so an answer has to link out is
+another. Deciding that the reach is worth the trade is a third, and it is often the right
+one: plenty of writing exists to be read, not to be clicked.
+
+What is not reasonable is not knowing. Until the two numbers sit next to each other, the
+question cannot even be asked, and it is being answered for you every day by a system that
+does not consult you.

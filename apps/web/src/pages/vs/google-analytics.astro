@@ -1,0 +1,368 @@
+---
+/**
+ * Micaforge against Google Analytics 4.
+ *
+ * A different composition from the other two comparisons, because the honest
+ * question here is not "which has more features" but "why will the numbers
+ * disagree". The definitions come first, the concessions second, the table
+ * third. GA4 has no README in this repository, so every claim about it is kept
+ * at the level of documented, checkable behaviour, and the page says where to
+ * check it.
+ */
+import Base from "../../layouts/Base.astro";
+import SiteHeader from "../../components/SiteHeader.astro";
+import SiteFooter from "../../components/SiteFooter.astro";
+import Prose from "../../components/Prose.astro";
+import SheetRegister from "../../components/SheetRegister.astro";
+import { IconCheck, IconPartial, IconClose, IconInfo, IconOut } from "../../components/react/icons.tsx";
+
+type State = "yes" | "partial" | "no";
+interface Cell { s: State; w: string; n?: string }
+
+const rows: { q: string; cells: [Cell, Cell] }[] = [
+  {
+    q: "Price",
+    cells: [
+      { s: "yes", w: "Free, and AGPL-3.0", n: "You pay for the machine it runs on. Nothing is metered." },
+      { s: "yes", w: "Free at most volumes", n: "Analytics 360 is the paid tier. For most sites GA4 costs nothing, and that is a real advantage." },
+    ],
+  },
+  {
+    q: "Where the data lives",
+    cells: [
+      { s: "yes", w: "Your machine", n: "Your ClickHouse, your Postgres. The build makes no outbound call at runtime, including for geolocation." },
+      { s: "no", w: "Google's", n: "Under Google's terms, in Google's account, subject to Google's retention controls." },
+    ],
+  },
+  {
+    q: "Access to raw events",
+    cells: [
+      { s: "yes", w: "Direct", n: "Query ClickHouse yourself, or use the stats API, the query console or CSV." },
+      { s: "partial", w: "Through BigQuery", n: "The export is genuinely good, and it is how serious GA4 work is done. It is also a second product to learn and to pay for at volume." },
+    ],
+  },
+  {
+    q: "Cookies and consent",
+    cells: [
+      { s: "yes", w: "None set, none read", n: "A daily-rotating salted hash, no raw IP at rest, so there is nothing to ask consent for." },
+      { s: "no", w: "First-party cookies", n: "Which is why the consent banner exists, and why your totals are shaped by who accepted it." },
+    ],
+  },
+  {
+    q: "How a session ends",
+    cells: [
+      { s: "yes", w: "Thirty minutes idle", n: "That rule and nothing else." },
+      { s: "partial", w: "Idle, midnight, campaign", n: "GA4 also restarts a session at midnight and on a campaign change, so it usually reports more sessions than this will." },
+    ],
+  },
+  {
+    q: "Known bots",
+    cells: [
+      { s: "yes", w: "Named and kept", n: "Their own table, excluded from the human report by default and never deleted." },
+      { s: "no", w: "Dropped, silently", n: "Google documents automatic exclusion of known bots and spiders. There is nothing to switch on and nothing to read afterwards." },
+    ],
+  },
+  {
+    q: "Fetches by AI crawlers",
+    cells: [
+      { s: "yes", w: "Counted, from your log", n: "Operator, purpose, verification, robots verdict, per fetch." },
+      { s: "no", w: "Structurally invisible", n: "GA4 is a JavaScript tag. A crawler does not run one, so no configuration of GA4 can see this. It is not a gap in the product; it is the wrong instrument for the measurement." },
+    ],
+  },
+  {
+    q: "Citation Gap per URL",
+    cells: [
+      { s: "yes", w: "Yes" },
+      { s: "no", w: "No", n: "Half the arithmetic is missing, so the ratio cannot be built even in BigQuery." },
+    ],
+  },
+  {
+    q: "Sampling, thresholding and modelling",
+    cells: [
+      { s: "yes", w: "None", n: "Every number is a count of stored rows. When something cannot be known, the screen says so instead of estimating." },
+      { s: "no", w: "All three", n: "Rows can be withheld for privacy, and some reported figures are modelled rather than observed. What was withheld does not come across in an export." },
+    ],
+  },
+  {
+    q: "History kept",
+    cells: [
+      { s: "yes", w: "Forever, by default", n: "Retention is a setting, and its default is to keep everything. Deleting history because a variable was unset would be indefensible." },
+      { s: "partial", w: "Capped by a setting", n: "Event-level retention on the standard tier is measured in months. Check your property's data retention setting before assuming last year is still there." },
+    ],
+  },
+  {
+    q: "Advertising and search integration",
+    cells: [
+      { s: "no", w: "None", n: "No Ads, no Search Console, no Looker Studio connector. If you buy traffic, this is a real loss." },
+      { s: "yes", w: "The whole ecosystem", n: "Ads, Search Console, Looker Studio, audiences, conversion import. Nothing here competes with that and nothing is trying to." },
+    ],
+  },
+  {
+    q: "People who already know it",
+    cells: [
+      { s: "no", w: "Nobody", n: "This project is pre-release. There is no course, no consultant, no Stack Overflow answer." },
+      { s: "yes", w: "Everybody", n: "Every agency, every contractor, every new hire. That is worth a great deal on a team." },
+    ],
+  },
+  {
+    q: "Learning curve",
+    cells: [
+      { s: "yes", w: "One question per screen", n: "Depth is available through filters and the query console; it is never required to read a report." },
+      { s: "partial", w: "Considerable", n: "Explorations and custom reports are powerful and are the reason GA4 usually needs somebody who specialises in it." },
+    ],
+  },
+];
+
+/** The sheet's own register, written down the wide margin. Every id is a
+    heading below. */
+const sections = [
+  { id: "numbers-h", label: "Four numbers that will not match" },
+  { id: "giveup-h", label: "What you give up by leaving" },
+  { id: "tag-h", label: "What a tag cannot do" },
+  { id: "cmp-h", label: "Row by row" },
+  { id: "move-h", label: "How to move" },
+];
+---
+
+<Base
+  title="Micaforge vs Google Analytics 4"
+  description="Not a cheaper GA4. Why the numbers will disagree, what you give up by leaving, and the one measurement a JavaScript tag cannot make."
+>
+  <SiteHeader />
+
+  <main id="main">
+    <article class="mf-wrap mf-doc mf-doc--reg">
+      <SheetRegister sections={sections} />
+
+      <header class="mf-doc__head">
+        <h1 class="mf-doc__title">Not a cheaper GA4</h1>
+        <p class="mf-doc__lede">
+          Swapping one tag for another and expecting the same numbers is how a migration goes
+          wrong. The two tools do not measure the same things, and one of them cannot measure
+          the thing this project was built for. Both statements are worth understanding before
+          you move.
+        </p>
+        <div class="mf-doc__meta">
+          <span><strong>Claims about GA4</strong> are kept to documented, checkable behaviour</span>
+          <span>Micaforge rows describe the build in this repository</span>
+          <span>Out of date? That is a bug. Open an issue.</span>
+        </div>
+      </header>
+
+      <Prose class="cmp-sec">
+        <h2 id="numbers-h">Four numbers that will not match</h2>
+        <p>
+          Set the expectation before the install, not after the first Monday morning when the
+          two dashboards disagree.
+        </p>
+        <dl>
+          <dt>Sessions</dt>
+          <dd>
+            GA4 restarts a session at midnight and on a campaign change, as well as after
+            inactivity. Micaforge uses a thirty-minute inactivity gap and nothing else, so it
+            will usually report fewer sessions.
+          </dd>
+          <dt>Users</dt>
+          <dd>
+            GA4 has a cookie. Micaforge has a hash that rotates daily, so a reader returning
+            tomorrow is a new visitor. Daily uniques are roughly comparable. Anything longer is
+            not, and Micaforge will read higher over a month.
+          </dd>
+          <dt>Bots</dt>
+          <dd>
+            GA4 drops known bots and spiders before you see them. Micaforge names them, keeps
+            them, and holds them out of the human report. Your human pageviews may go{" "}
+            <strong>down</strong> when you switch. That is the correction, not a loss.
+          </dd>
+          <dt>Answer engines</dt>
+          <dd>
+            Referrals from an answer surface become a channel of their own here rather than
+            sitting in the referral bucket, so your referral number falls and a new one appears
+            beside search.
+          </dd>
+        </dl>
+
+        <h2 id="giveup-h">What you give up by leaving</h2>
+        <p>
+          GA4 is free, and it is free because it is part of an advertising business. That is a
+          fair trade for a great many sites, and pretending otherwise would be dishonest.
+        </p>
+        <dl>
+          <dt>The ecosystem</dt>
+          <dd>
+            Google Ads, Search Console, Looker Studio, audience export, conversion import.
+            Micaforge has none of this and is not attempting it. If you buy traffic, GA4 earns
+            its place.
+          </dd>
+          <dt>Everyone already knows it</dt>
+          <dd>
+            Every agency and every new hire can read a GA4 property. Micaforge is pre-release
+            software with a repository and no community at all.
+          </dd>
+          <dt>BigQuery</dt>
+          <dd>
+            The raw event export is genuinely strong, and it is how serious analysis on GA4 gets
+            done.
+          </dd>
+          <dt>Somebody else's uptime</dt>
+          <dd>
+            GA4 does not go down because your VPS ran out of disk. A self-hosted install is a
+            machine you now operate.
+          </dd>
+        </dl>
+
+        <h2 id="tag-h">What a tag cannot do</h2>
+        <p>
+          GA4 is a JavaScript tag, so it sees exactly what a browser executes. Every crawler
+          that has ever taken one of your pages did so without executing anything, which means
+          the entire agent half of this argument is invisible to GA4 by construction. No
+          setting, no custom dimension and no BigQuery query changes that, because the rows
+          were never collected.
+        </p>
+        <p>
+          Micaforge reads that half from the access log your web server already writes. It is
+          the same reason the two tools disagree about bots: one is discarding a category, the
+          other is reporting it.
+        </p>
+      </Prose>
+
+      <section class="cmp-table" aria-labelledby="cmp-h">
+        <h2 id="cmp-h" class="cmp-h">Row by row</h2>
+        <div class="mf-sheet-wrap">
+          <table class="mf-cmp">
+            <caption>
+              GA4 cells describe documented behaviour you can verify in your own property.
+              Where a figure depends on your settings, the cell says to go and look.
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Question</th>
+                <th scope="col">
+                  <span class="mf-cmp__who">Micaforge</span>
+                  <span class="mf-cmp__who-note">AGPL-3.0, pre-release, self-hosted</span>
+                </th>
+                <th scope="col">
+                  <span class="mf-cmp__who">Google Analytics 4</span>
+                  <span class="mf-cmp__who-note">Hosted, free at most volumes</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {
+                rows.map((r) => (
+                  <tr>
+                    <th scope="row">{r.q}</th>
+                    {r.cells.map((c) => (
+                      <td>
+                        <span class="mf-cmp__mark" data-state={c.s}>
+                          {c.s === "yes" && <IconCheck size={14} />}
+                          {c.s === "partial" && <IconPartial size={14} />}
+                          {c.s === "no" && <IconClose size={14} />}
+                          {c.w}
+                        </span>
+                        {c.n && <span class="mf-cmp__note">{c.n}</span>}
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              }
+            </tbody>
+            <tfoot>
+              <tr>
+                <th scope="row">Next</th>
+                <td>
+                  <a class="mf-btn mf-btn--primary" href="/self-host">
+                    <span class="mf-btn__label">Install Micaforge</span>
+                  </a>
+                </td>
+                <td>
+                  <a class="mf-link" href="/docs/migrating/from-google-analytics">
+                    Import your GA4 history<IconOut size={13} />
+                  </a>
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </section>
+
+      <Prose class="cmp-sec">
+        <h2 id="move-h">How to move without breaking the reporting</h2>
+        <p>
+          Import the GA4 export, then run both for a fortnight. Do not reconcile the totals:
+          reconcile the shapes. The same pages in the same order, the same weekday rhythm, the
+          same campaigns. When the shapes agree, the difference in the totals is the definitions
+          above, exactly as described.
+        </p>
+        <p>
+          Aggregate exports expand into events at the start of each day, so an imported period
+          has no hour-of-day shape. The importer marks those rows, and the docs say so on the
+          same page as the button.
+        </p>
+
+        <div class="mf-note mf-note--plain">
+          <div class="mf-note__head"><IconInfo size={18} />About these claims</div>
+          <p>
+            Google Analytics is not open source and has no README in this repository, so every
+            GA4 statement here is kept to behaviour Google documents and you can check inside
+            your own property: the session definition, bot exclusion, data thresholding, the
+            data retention control and the BigQuery export. Nothing on this page is a benchmark
+            of either product.
+          </p>
+        </div>
+      </Prose>
+
+      <div class="mf-pick">
+        <div class="mf-pick__col">
+          <h2 class="mf-pick__title">Stay on GA4 if</h2>
+          <ul>
+            <li>You buy advertising and need conversions to flow back into it.</li>
+            <li>Your reporting is built on BigQuery already.</li>
+            <li>Other people need to read the property without being taught.</li>
+            <li>You have no appetite for operating a server.</li>
+            <li>Consent banners are already part of your site and you accept the trade.</li>
+          </ul>
+          <div class="mf-pick__foot">
+            <a class="mf-link" href="/docs/migrating/from-google-analytics">
+              What an import would look like<IconOut size={13} />
+            </a>
+          </div>
+        </div>
+        <div class="mf-pick__col">
+          <h2 class="mf-pick__title">Move to Micaforge if</h2>
+          <ul>
+            <li>You want measurement without a consent banner.</li>
+            <li>You want exact counts rather than modelled ones.</li>
+            <li>You want the data on a machine you control, forever.</li>
+            <li>Your site is written content that AI systems are reading.</li>
+            <li>You can ship a web server access log.</li>
+          </ul>
+          <div class="mf-pick__foot">
+            <a class="mf-btn mf-btn--primary" href="/self-host">
+              <span class="mf-btn__label">Install it</span>
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <div class="mf-next">
+        <a class="mf-link" href="/why-agent-analytics">The argument in full<IconOut size={13} /></a>
+        <a class="mf-link" href="/vs/plausible">Micaforge vs Plausible<IconOut size={13} /></a>
+        <a class="mf-link" href="/docs/migrating/from-google-analytics">Importing your GA4 history<IconOut size={13} /></a>
+      </div>
+    </article>
+  </main>
+
+  <SiteFooter />
+</Base>
+
+<style>
+  .cmp-sec { margin-top: var(--mf-16); }
+  .cmp-table { margin-top: var(--mf-16); }
+  .cmp-h {
+    font-size: var(--mf-t-xl);
+    color: var(--mf-ink);
+    margin-bottom: var(--mf-5);
+  }
+  .mf-pick { margin-top: var(--mf-16); }
+</style>

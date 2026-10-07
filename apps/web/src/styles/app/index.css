@@ -1,0 +1,30 @@
+/* ============================================================================
+   Every stylesheet the dashboard needs, gathered once.
+
+   The area barrels each import their own sheet, which works while a route
+   mounts a screen THROUGH its barrel. The router does not always do that: an
+   area holding a lazily-loaded channel is imported screen by screen, so that
+   pulling one screen in eagerly does not drag its heavy sibling along with it,
+   and a screen module does not always carry its area's styles. Gathering them
+   here means the record is drawn correctly no matter which door a screen came
+   through, and it keeps the styles out of the lazy chunks, where they would
+   arrive a frame after the markup they dress.
+
+   caliper.css comes first because it settles one shared control for every
+   screen below it, and it is deliberately unlayered so that it wins over both
+   the base rule in global.css and any area sheet that disagrees.
+
+   Imported once, from app/providers.tsx.
+   ========================================================================= */
+
+@import "./caliper.css";
+@import "./record.css";
+@import "./machines.css";
+@import "./audience.css";
+@import "./behaviour.css";
+@import "./health.css";
+@import "./people.css";
+@import "./bench.css";
+@import "./settings.css";
+@import "./entry.css";
+@import "./shell.css";

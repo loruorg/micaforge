@@ -1,0 +1,71 @@
+---
+title: "Backups"
+description: "Two stores, two methods, and the restore drill that ships beside them."
+group: "self-hosting"
+order: 4
+updated: 2026-08-22
+---
+
+```sh
+./backup.sh
+./backup.sh --dir /mnt/backups --keep 14
+```
+
+Everything lands in one dated directory, together with a `RESTORE.md` written for exactly
+what is in it. A backup whose restore procedure lives somewhere else is a backup nobody has
+tested.
+
+## Two stores, two methods
+
+**Postgres** is dumped with `pg_dump` in custom format: users, organisations, sites, goals,
+funnels, dashboards, API keys, the agent catalog. Small, and the part that cannot be
+recomputed.
+
+**ClickHouse** is frozen with `ALTER TABLE … FREEZE` and the result tarred. Freeze makes
+hard links to the parts, so it costs almost nothing and copies nothing twice; the tar is the
+only real read. Every event table is partitioned by month, so all but the current month is
+immutable and the same bytes come out every time.
+
+The stack has to be running for a backup: `FREEZE` is a server command.
+
+## What is deliberately not in the backup
+
+`.env`, and therefore `MICAFORGE_SECRET_KEY_BASE`.
+
+Sealed values inside the Postgres dump (TOTP secrets, SMTP credentials) can only be read
+with that key. Putting it in the same directory as the data it protects would mean one
+stolen tarball is a total compromise.
+
+Keep it in a password manager. Every recovery path assumes you have it, and none of them can
+recreate it.
+
+## Restoring
+
+The full drill is in the `RESTORE.md` beside each backup, written with your own container
+names and database names filled in. The shape of it:
+
+1. **Bring up an empty stack**. Postgres, ClickHouse and Valkey only. Not the server: it
+   creates the ClickHouse schema on boot, and the schema in the backup is the one those
+   parts belong to.
+2. **Restore Postgres** by dropping and recreating the database, then `pg_restore --no-owner`.
+3. **Create the ClickHouse schema** from the `.sql` in the backup. Every statement is
+   `CREATE … IF NOT EXISTS`, so it is safe to run twice.
+4. **Attach the frozen parts.** They are attached rather than copied, and ClickHouse names
+   their directories after each table's UUID, so the drill maps them for you.
+5. **Start the server** and check `/api/health/ready`.
+
+Do it once, on a machine that does not matter, before you need it. The first restore should
+not happen on the day the disk failed.
+
+## What to actually do
+
+- **Run it from cron**, daily, with `--keep 14`.
+- **Copy the directory off the machine.** A backup on the disk that failed is not a backup.
+- **Check the size trend.** A dump that suddenly halves is a signal.
+- **Keep the key separately**, and know where it is.
+
+## Retention is not a backup
+
+`MICAFORGE_RETENTION_DAYS` deletes old data on purpose. A backup keeps it despite the
+deletion. If your retention policy exists for legal reasons, your backup rotation has to
+match it, or the policy is theatre.

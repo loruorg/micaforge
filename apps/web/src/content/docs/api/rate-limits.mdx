@@ -1,0 +1,71 @@
+---
+title: "Rate limits"
+description: "What is limited, by how much, and what a limited request looks like."
+group: "api"
+order: 5
+updated: 2026-08-22
+---
+
+Limits exist to bound a broken loop, not to police traffic. They are counted in fixed
+windows in Valkey, keyed per site and per salted address digest: the limiter holds no
+address either.
+
+## Ingest
+
+**600 hits per minute, per site, per address.** Deliberately generous: a documentation site
+behind one corporate NAT is a legitimate source of hundreds of hits a minute, and
+throttling it would delete real readers.
+
+Over the limit, `POST /api/track` still answers `204 No Content` and the hit is dropped. A
+tracker must never learn anything it could leak, and a page must never be told its
+analytics failed: an accepted hit and a dropped one look identical from the browser, on
+purpose.
+
+**`POST /api/log/edge` is different.** It answers `429` with `Retry-After: 60`, because a
+shipper being throttled needs to know and there is no page to protect. Both the shipper and
+the server SDK back off and retry on a 429 without being told.
+
+Two size limits sit alongside: 200 payloads per `/api/track/batch` call, and 500 rows per
+array per `/api/log/edge` call, inside a 2 MB body.
+
+## Authentication
+
+| Endpoint | Limit |
+| --- | --- |
+| `POST /api/auth/login` | 40 attempts per 5 minutes, per address. |
+| `POST /api/auth/register` | 5 per hour, per address. |
+| `POST /api/auth/forgot-password` | 5 per hour, per address. |
+
+The password reset limit is per address rather than per account, so the mail path cannot be
+used to flood somebody's inbox.
+
+## Reads
+
+The analytics endpoints are not rate limited today. They are authenticated, they are bounded
+by what a key can reach, and a self-hosted install is answering only to its own operator.
+
+That is a statement about how it is built, not a promise to keep forever: if you are
+building something that hammers the read API, build it to handle a `429` anyway.
+
+## What a limited response looks like
+
+```http
+HTTP/1.1 429 Too Many Requests
+Retry-After: 60
+```
+
+```json
+{ "error": { "code": "rate_limited", "message": "too many edge batches for this site" } }
+```
+
+Branch on `error.code`, honour `Retry-After`, and back off exponentially with jitter after
+that. Both shipped clients do.
+
+## Staying under them without trying
+
+- **Batch instead of looping.** One call with fifty rows, not fifty calls.
+- **Let the SDK hold the queue.** The server SDK sends on a 200 ms window or at 50 queued
+  hits, whichever comes first. Nothing is awaited on your request path.
+- **Cache reads that feed a dashboard.** A page refreshing an overview every second is
+  asking one question 60 times a minute, and the answer changes on the minute at best.
+- **Export instead of paging.** A whole table is one `export.csv`, not two hundred pages.

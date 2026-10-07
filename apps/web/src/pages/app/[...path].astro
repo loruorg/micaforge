@@ -1,0 +1,28 @@
+---
+/**
+ * Every address under `/app` other than the root.
+ *
+ * This route exists so the address space is declared in one place rather than
+ * living only in a host's rewrite rules. It emits a single placeholder page:
+ * `public/_redirects` already rewrites `/app/*` to `/app/index.html` with a 200,
+ * so the built site does not need one HTML file per site, channel and record,
+ * which is just as well, because the set of sites is not known until somebody
+ * adds one.
+ *
+ * The placeholder mounts the same dashboard, so even a host with no rewrite
+ * rule lands on a working station rather than on a 404.
+ */
+import type { GetStaticPaths } from "astro";
+import Base from "../../layouts/Base.astro";
+import App from "../../app/main.tsx";
+
+export const getStaticPaths = (() => [{ params: { path: "index" } }]) satisfies GetStaticPaths;
+---
+
+<Base
+  title="Micaforge"
+  description="The record: what the machines took, and what came back."
+  bare={true}
+>
+  <App client:only="react" />
+</Base>

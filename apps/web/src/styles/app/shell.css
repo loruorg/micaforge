@@ -1,0 +1,633 @@
+/* ============================================================================
+   The station's own chrome: the controls in the top rail, the slips they open,
+   the waiting state a channel arrives on, and the sheet a failure is reported
+   on. Everything the router agent added lives here under .mfs-*; the bench
+   classes in global.css are reused wherever they already fit.
+
+   The two rules that govern every line below are the two that govern the
+   bench:
+     1. Depth is the scratch ridge and the lift token, never a bloom. Nothing
+        glows, nothing rises on hover, state changes by tone and fill.
+     2. Parallel things sit on one grid. A long dimension name cannot shove a
+        neighbouring figure out of line, because the rows that must align have
+        reserved slots rather than content-sized ones.
+   ========================================================================= */
+
+@layer components {
+  /* ── the top rail's keys ──────────────────────────────────────────────────
+     A key on the station's rail, cut to the same height as the caliper's jaws
+     so the whole bar reads as one bank rather than four borrowed controls. */
+  .mfs-key {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--mf-2);
+    max-width: 15rem;
+    padding: 5px var(--mf-3);
+    font: inherit;
+    font-size: var(--mf-t-xs);
+    line-height: 1.2;
+    color: var(--mf-ink-2);
+    background: var(--mf-ground);
+    border: 1px solid var(--mf-rule);
+    border-radius: var(--mf-r-sm);
+    box-shadow: inset 0 1px 0 var(--mf-lip);
+    text-decoration: none;
+    cursor: pointer;
+    transition:
+      background-color var(--mf-dur-1) linear,
+      border-color var(--mf-dur-1) linear,
+      color var(--mf-dur-1) linear;
+  }
+  .mfs-key:hover {
+    background: var(--mf-ground-3);
+    border-color: var(--mf-rule-strong);
+    color: var(--mf-ink);
+  }
+  .mfs-key[data-state="open"] {
+    background: var(--mf-ground-3);
+    border-color: var(--mf-ink-3);
+    color: var(--mf-ink);
+  }
+  .mfs-key[disabled] {
+    opacity: 0.42;
+    cursor: not-allowed;
+  }
+  .mfs-key__label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  /* The chevron is drawn pointing down; open turns it up. No other rotation:
+     a sideways caret says "go to", and this key opens a slip in place. */
+  .mfs-key__caret {
+    flex: none;
+    color: var(--mf-ink-3);
+    transition: rotate var(--mf-dur-1) var(--mf-ease-snap);
+  }
+  .mfs-key[data-state="open"] .mfs-key__caret { rotate: 180deg; }
+  @media (prefers-reduced-motion: reduce) {
+    .mfs-key__caret { transition: none; }
+  }
+
+  /* The count of what is clipped on. A figure, so it is set in the data face;
+     it earns its contrast from the shellac wash, not from a capsule. */
+  .mfs-key__n {
+    flex: none;
+    min-width: 1.25em;
+    padding: 0 3px;
+    font-size: var(--mf-t-2xs);
+    text-align: center;
+    color: var(--mf-shellac);
+    background: var(--mf-shellac-wash);
+    border-radius: var(--mf-r-sm);
+  }
+
+  /* The operator's own key carries their initial, so it is sized to a glyph. */
+  .mfs-key--who { padding-inline: var(--mf-2); }
+  .mfs-key__label--who {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.1em;
+    font-weight: 600;
+    color: var(--mf-ink);
+  }
+
+  /* ── the mark on the channel the pen is writing ───────────────────────────
+     The rail's live channel is marked in shellac, which is right: it is the pen
+     mark. A rounded three-pixel bar down the edge of a list item is not: that is
+     the accent border every component kit ships. Same idea, drawn the way the
+     instrument would draw it: the short trace the pen has already laid down
+     along the paper edge, and the nib itself resting on the channel it writes.
+     Square caps, one colour, no bloom. */
+  .mf-rail .mf-chan.is-live::before {
+    left: calc(var(--mf-3) * -1 + 2px);
+    top: 50%;
+    width: 8px;
+    height: 2px;
+    transform: translateY(-50%);
+    border-radius: 0;
+    background: var(--mf-shellac);
+  }
+  .mf-rail .mf-chan.is-live::after {
+    content: "";
+    position: absolute;
+    left: calc(var(--mf-3) * -1 + 9px);
+    top: 50%;
+    width: 5px;
+    height: 9px;
+    transform: translateY(-50%);
+    background: var(--mf-shellac);
+    /* the nib: a drawn silhouette, not a rounded rectangle */
+    clip-path: polygon(0 0, 100% 50%, 0 100%);
+  }
+
+  /* ── the slip a key opens ─────────────────────────────────────────────────
+     A log slip pinned to the rail: the panel's own surface, a self-coloured
+     edge, and the one directional lift token. No halo, no backdrop blur. */
+  .mfs-slip-panel {
+    z-index: 40;
+    width: min(26rem, calc(100vw - var(--mf-6)));
+    max-height: min(34rem, calc(100dvh - var(--mf-16)));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    background: var(--mf-ground-2);
+    border: 1px solid var(--mf-rule-strong);
+    border-radius: var(--mf-r-md);
+    box-shadow: var(--mf-lift), inset 0 1px 0 var(--mf-lip);
+    color: var(--mf-ink);
+  }
+
+  /* The interval slip carries the caliper, and the caliper is six stops wide.
+     A slip cut to the account menu's width sliced the last stop off inside its
+     own panel, which is the same fault as the viewport edge cutting it. The
+     slip that holds a rack is cut to fit the instrument in it. */
+  .mfs-slip-panel:has(.mfs-rack) { width: min(30rem, calc(100vw - var(--mf-6))); }
+
+  /* ── the rack inside it ───────────────────────────────────────────────── */
+  .mfs-rack {
+    display: grid;
+    gap: var(--mf-5);
+    padding: var(--mf-5);
+  }
+  .mfs-rack__part {
+    display: grid;
+    gap: var(--mf-3);
+    min-width: 0;
+  }
+  /* Each part after the first is ruled off from the one above, the way a slip
+     is divided. The rule is the panel's own edge value, not a drawn line. */
+  .mfs-rack__part + .mfs-rack__part {
+    padding-top: var(--mf-5);
+    border-top: 1px solid var(--mf-rule);
+  }
+  /* An instrument label, in the data face because that is what it labels. */
+  .mfs-rack__head {
+    font-family: var(--mf-font-data);
+    font-size: var(--mf-t-2xs);
+    font-weight: 400;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--mf-ink-3);
+  }
+  .mfs-rack__foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--mf-2);
+  }
+  .mfs-rack__foot--centre { justify-content: center; }
+
+  /* Written out in place, for a screen that owns a whole row for the rack. */
+  .mfs-rack-bar {
+    background: var(--mf-ground-2);
+    border: 1px solid var(--mf-rule);
+    border-radius: var(--mf-r-md);
+  }
+
+  /* ── a sentence the operator can read ─────────────────────────────────────
+     Rank is carried by type: the dimension is the subject, the operator is
+     grammar and stays quiet, and the value is set in the data face because it
+     came off the record. No capsule, no tint, no chip. */
+  .mfs-conds {
+    display: grid;
+    gap: 1px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .mfs-cond {
+    display: flex;
+    align-items: baseline;
+    gap: var(--mf-3);
+    padding: var(--mf-2) 0;
+  }
+  .mfs-cond + .mfs-cond { border-top: 1px solid var(--mf-rule); }
+  .mfs-cond__text {
+    flex: 1;
+    min-width: 0;
+    font-size: var(--mf-t-sm);
+    line-height: var(--mf-lead-snug);
+    overflow-wrap: anywhere;
+  }
+  .mfs-cond__dim {
+    font-weight: 500;
+    color: var(--mf-ink);
+  }
+  .mfs-cond__op { color: var(--mf-ink-3); }
+  .mfs-cond__val { color: var(--mf-shellac); }
+
+  /* The unclip control. A bare mark, no tile behind it. */
+  .mfs-drop {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    align-self: center;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    color: var(--mf-ink-3);
+    background: none;
+    border: 0;
+    border-radius: var(--mf-r-sm);
+    cursor: pointer;
+    transition: color var(--mf-dur-1) linear, background-color var(--mf-dur-1) linear;
+  }
+  .mfs-drop:hover {
+    color: var(--mf-oxide);
+    background: var(--mf-oxide-wash);
+  }
+  .mfs-drop[disabled] { opacity: 0.42; cursor: not-allowed; }
+
+  /* One quiet line the rack says about itself. */
+  .mfs-say {
+    font-size: var(--mf-t-xs);
+    line-height: var(--mf-lead-body);
+    color: var(--mf-ink-3);
+  }
+  .mfs-say[data-tone="warn"] { color: var(--mf-oxide); }
+  .mfs-say[data-tone="good"] { color: var(--mf-verdigris); }
+
+  /* ── fields ───────────────────────────────────────────────────────────── */
+  .mfs-input,
+  .mfs-select {
+    width: 100%;
+    min-width: 0;
+    padding: 5px var(--mf-2);
+    font: inherit;
+    font-size: var(--mf-t-sm);
+    line-height: 1.3;
+    color: var(--mf-ink);
+    background: var(--mf-well);
+    border: 1px solid var(--mf-rule-strong);
+    border-radius: var(--mf-r-sm);
+    box-shadow: var(--mf-press);
+  }
+  .mfs-input::placeholder { color: var(--mf-ink-2); }
+  .mfs-input[disabled],
+  .mfs-select[disabled] { opacity: 0.5; cursor: not-allowed; }
+  /* The native picker indicator is drawn by the browser in its own ink; on the
+     soot record it has to be inverted to be visible at all. */
+  .mfs-input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(1) opacity(0.5);
+    cursor: pointer;
+  }
+  :root[data-record="paper"] .mfs-input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: opacity(0.6);
+  }
+  /* `appearance: none` removes the platform's own caret, so one is drawn back.
+     A control with no affordance is not a restrained control, it is a broken
+     one. The mark is the same chevron the rest of the station uses, rotated
+     down, and it sits over the field rather than in a box beside it. */
+  .mfs-selwrap { position: relative; display: block; min-width: 0; }
+  .mfs-select { appearance: none; padding-right: var(--mf-6); }
+  .mfs-selwrap__caret {
+    position: absolute;
+    top: 50%;
+    right: var(--mf-2);
+    translate: 0 -50%;
+    color: var(--mf-ink-2);
+    pointer-events: none;
+  }
+
+  /* ── the builder ──────────────────────────────────────────────────────────
+     Every row shares one grid, so a two-word label and a nine-word label leave
+     their fields on exactly the same left edge. */
+  .mfs-build {
+    display: grid;
+    gap: var(--mf-2);
+  }
+  .mfs-build__row {
+    display: grid;
+    grid-template-columns: 6.5rem minmax(0, 1fr);
+    align-items: center;
+    gap: var(--mf-3);
+  }
+  .mfs-build__lab {
+    font-size: var(--mf-t-xs);
+    color: var(--mf-ink-3);
+    text-align: right;
+  }
+  /* The value and its action on one line: the field can grow, the key cannot
+     shrink, and the observed-values list drops clear of both. */
+  .mfs-build__act {
+    display: flex;
+    align-items: center;
+    gap: var(--mf-2);
+    min-width: 0;
+  }
+  .mfs-build__act > .mfs-combo { flex: 1; min-width: 0; }
+  .mfs-build__act > .mfs-selwrap { flex: 1; min-width: 0; }
+  .mfs-build__act > .mf-btn { flex: none; }
+  .mfs-build__row--act { margin-top: var(--mf-1); }
+  /* With no value to write, the key is all that is left on the row. */
+  .mfs-build__row--act .mfs-build__act:only-child { justify-content: flex-end; }
+  .mfs-build__act:has(> .mf-btn:only-child) { justify-content: flex-end; }
+
+  /* ── the value combobox ───────────────────────────────────────────────── */
+  .mfs-combo { position: relative; min-width: 0; }
+  .mfs-combo__list {
+    position: absolute;
+    z-index: 2;
+    top: calc(100% + 2px);
+    left: 0;
+    right: 0;
+    max-height: 13rem;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    list-style: none;
+    margin: 0;
+    padding: 2px;
+    background: var(--mf-ground-3);
+    border: 1px solid var(--mf-rule-strong);
+    border-radius: var(--mf-r-sm);
+    box-shadow: var(--mf-lift);
+  }
+  .mfs-combo__opt {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--mf-3);
+    width: 100%;
+    padding: 4px var(--mf-2);
+    font: inherit;
+    font-size: var(--mf-t-xs);
+    text-align: left;
+    color: var(--mf-ink-2);
+    background: none;
+    border: 0;
+    border-radius: var(--mf-r-sm);
+    cursor: pointer;
+  }
+  .mfs-combo__opt.is-cursor {
+    background: var(--mf-shellac-wash);
+    color: var(--mf-ink);
+  }
+  .mfs-combo__opt-key {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .mfs-combo__opt-n { flex: none; color: var(--mf-ink-3); }
+  .mfs-combo__waiting {
+    display: grid;
+    gap: var(--mf-2);
+    padding: var(--mf-2);
+  }
+
+  /* ── the measured interval ────────────────────────────────────────────── */
+  .mfs-span {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--mf-3);
+  }
+  .mfs-span__field { display: grid; gap: var(--mf-1); min-width: 0; }
+  .mfs-span__field .mfs-build__lab { text-align: left; }
+
+  /* ── a bank of exclusive keys ─────────────────────────────────────────── */
+  .mfs-bank {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 2px;
+    padding: 2px;
+    background: var(--mf-well);
+    border: 1px solid var(--mf-rule);
+    border-radius: var(--mf-r-sm);
+  }
+  .mfs-bank__key {
+    padding: 4px var(--mf-3);
+    font: inherit;
+    font-size: var(--mf-t-xs);
+    color: var(--mf-ink-2);
+    background: none;
+    border: 0;
+    border-radius: var(--mf-r-sm);
+    cursor: pointer;
+    transition: background-color var(--mf-dur-1) linear, color var(--mf-dur-1) linear;
+  }
+  .mfs-bank__key:hover { color: var(--mf-ink); background: var(--mf-ground-2); }
+  .mfs-bank__key[aria-pressed="true"] {
+    background: var(--mf-ground-3);
+    color: var(--mf-ink);
+  }
+
+  /* ── saved segments ───────────────────────────────────────────────────── */
+  .mfs-seg { display: grid; gap: var(--mf-3); }
+  .mfs-seg__list {
+    display: grid;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .mfs-seg__row {
+    display: flex;
+    align-items: center;
+    gap: var(--mf-2);
+  }
+  .mfs-seg__row + .mfs-seg__row { border-top: 1px solid var(--mf-rule); }
+  .mfs-seg__load {
+    flex: 1;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--mf-3);
+    min-width: 0;
+    padding: var(--mf-2);
+    font: inherit;
+    font-size: var(--mf-t-sm);
+    text-align: left;
+    color: var(--mf-ink);
+    background: none;
+    border: 0;
+    border-radius: var(--mf-r-sm);
+    cursor: pointer;
+    transition: background-color var(--mf-dur-1) linear;
+  }
+  .mfs-seg__load:hover { background: var(--mf-ground-3); }
+  .mfs-seg__n {
+    flex: none;
+    font-size: var(--mf-t-2xs);
+    color: var(--mf-ink-3);
+  }
+  .mfs-seg__save {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--mf-2);
+    align-items: center;
+  }
+  .mfs-seg__waiting { display: grid; gap: var(--mf-2); }
+
+  /* ── a menu of ways out ───────────────────────────────────────────────── */
+  .mfs-menu { width: min(20rem, calc(100vw - var(--mf-6))); padding: var(--mf-2); }
+  .mfs-menu__note {
+    padding: var(--mf-2) var(--mf-3) var(--mf-3);
+    font-size: var(--mf-t-2xs);
+    line-height: var(--mf-lead-body);
+    color: var(--mf-ink-3);
+    border-bottom: 1px solid var(--mf-rule);
+    margin-bottom: var(--mf-2);
+  }
+  .mfs-menu__item {
+    display: grid;
+    gap: 2px;
+    width: 100%;
+    padding: var(--mf-2) var(--mf-3);
+    font: inherit;
+    text-align: left;
+    text-decoration: none;
+    color: var(--mf-ink);
+    background: none;
+    border: 0;
+    border-radius: var(--mf-r-sm);
+    cursor: pointer;
+    transition: background-color var(--mf-dur-1) linear;
+  }
+  .mfs-menu__item:hover,
+  .mfs-menu__item[data-highlighted] {
+    background: var(--mf-ground-3);
+    outline: none;
+  }
+  .mfs-menu__item-name { font-size: var(--mf-t-sm); font-weight: 500; }
+  .mfs-menu__item-note {
+    font-size: var(--mf-t-2xs);
+    line-height: var(--mf-lead-snug);
+    color: var(--mf-ink-3);
+  }
+
+  /* ── a channel still arriving ─────────────────────────────────────────────
+     Blank paper feeding through the machine. Present in the document from the
+     first frame; nothing here is hidden waiting on an animation. */
+  .mfs-wait-screen {
+    max-width: var(--mf-shell-max);
+    margin: 0 auto;
+    display: grid;
+    gap: var(--mf-5);
+    align-content: start;
+  }
+  .mfs-wait-screen > * { min-width: 0; }
+  .mfs-wait-screen__head {
+    display: grid;
+    gap: var(--mf-3);
+    padding: var(--mf-5) var(--mf-5) var(--mf-4);
+  }
+  .mfs-wait-screen__plot {
+    display: flex;
+    align-items: flex-end;
+    gap: var(--mf-4);
+    height: 8rem;
+    padding: 0 var(--mf-5) var(--mf-5);
+  }
+  .mfs-wait-screen__rows {
+    display: grid;
+    gap: var(--mf-4);
+    padding: var(--mf-5);
+  }
+
+  /* The paper creeps forward while a reading is being taken. It is decoration
+     on a state that is already fully drawn, so it is safe to switch off. */
+  @media (prefers-reduced-motion: no-preference) {
+    .mfs-wait-screen .mf-wait {
+      animation: mfs-feed var(--mf-dur-drum) var(--mf-ease-pen) infinite alternate;
+    }
+    .mfs-wait-screen__plot .mf-wait:nth-child(2n) { animation-delay: calc(var(--mf-dur-1) * 1); }
+    .mfs-wait-screen__plot .mf-wait:nth-child(3n) { animation-delay: calc(var(--mf-dur-1) * 2); }
+    .mfs-wait-screen__rows .mf-wait:nth-child(2n) { animation-delay: calc(var(--mf-dur-1) * 1); }
+  }
+  @keyframes mfs-feed {
+    from { opacity: 1; }
+    to { opacity: 0.55; }
+  }
+
+  /* ── a screen that stopped writing ────────────────────────────────────── */
+  .mfs-boundary {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100dvh;
+    padding: var(--mf-6);
+    background: var(--mf-ground);
+  }
+  .mfs-boundary__sheet {
+    width: min(40rem, 100%);
+    padding: var(--mf-6) var(--mf-6) var(--mf-8);
+    background: var(--mf-ground-2);
+    border: 1px solid var(--mf-rule);
+    border-radius: var(--mf-r-md);
+    box-shadow: inset 0 1px 0 var(--mf-lip);
+  }
+
+  /* ── the notice slip ──────────────────────────────────────────────────────
+     Sonner's own surface variables are re-pointed at the record's materials so
+     the slip is made of the same paper as everything else. */
+  [data-sonner-toaster] {
+    --normal-bg: var(--mf-ground-3);
+    --normal-text: var(--mf-ink);
+    --normal-border: var(--mf-rule-strong);
+    --success-bg: var(--mf-ground-3);
+    --success-text: var(--mf-verdigris);
+    --success-border: var(--mf-rule-strong);
+    --error-bg: var(--mf-ground-3);
+    --error-text: var(--mf-oxide);
+    --error-border: var(--mf-rule-strong);
+    font-family: var(--mf-font-ui);
+  }
+  .mfs-slip {
+    border-radius: var(--mf-r-md) !important;
+    box-shadow: var(--mf-lift), inset 0 1px 0 var(--mf-lip) !important;
+  }
+  .mfs-slip__title { font-size: var(--mf-t-sm); font-weight: 500; }
+  .mfs-slip__body { font-size: var(--mf-t-xs); color: var(--mf-ink-3); }
+  .mfs-slip__act {
+    font-size: var(--mf-t-xs) !important;
+    color: var(--mf-ground) !important;
+    background: var(--mf-shellac) !important;
+    border-radius: var(--mf-r-sm) !important;
+  }
+  .mfs-slip__close {
+    color: var(--mf-ink-3) !important;
+    background: var(--mf-ground-2) !important;
+    border-color: var(--mf-rule-strong) !important;
+  }
+
+  /* ── the top rail, narrower than the controls it carries ──────────────────
+     Under 1080px the rail becomes a drawer and the topbar gains the toggle, so
+     the bar is given a second line to lay its controls on instead of pushing
+     the page sideways. The station never scrolls horizontally.
+
+     The Channels key is chrome now, riding in that bar with the rest of the
+     station's controls, so the strip of blank paper this file used to reserve at
+     the foot of every screen (clearance for a key that floated over the record)
+     went with it. */
+  @media (max-width: 1080px) {
+    .mf-topbar {
+      height: auto;
+      min-height: var(--mf-header-h);
+      flex-wrap: wrap;
+      row-gap: var(--mf-2);
+      padding-block: var(--mf-2);
+      gap: var(--mf-4);
+    }
+    .mf-topbar__right {
+      order: 3;
+      width: 100%;
+      margin-left: 0;
+      flex-wrap: wrap;
+    }
+  }
+
+  @media (max-width: 560px) {
+    .mfs-key { max-width: 11rem; }
+    .mfs-build__row {
+      grid-template-columns: minmax(0, 1fr);
+      gap: var(--mf-1);
+    }
+    .mfs-build__lab { text-align: left; }
+    /* The action row's label is a spacer that would otherwise eat a whole line
+       of a 390px slip; the field and its key stay on one row regardless. */
+    .mfs-build__row--act > .mfs-build__lab { display: none; }
+    .mfs-span { grid-template-columns: minmax(0, 1fr); }
+    .mfs-rack { padding: var(--mf-4); }
+  }
+}

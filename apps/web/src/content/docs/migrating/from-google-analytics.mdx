@@ -1,0 +1,78 @@
+---
+title: "From Google Analytics"
+description: "Importing GA4 history, and the four numbers that will not match."
+group: "migrating"
+order: 1
+updated: 2026-08-22
+---
+
+## Get the export
+
+Two shapes work, because the importer resolves columns through a table of aliases rather
+than parsing a format:
+
+- **The BigQuery event export** (one row per event, the richest source.
+- **A Data API or interface export**: aggregate rows, one line saying this page had 412
+  views on this day.
+
+CSV either way. Nothing needs reshaping first.
+
+## Import it
+
+Upload it on the site's Imports screen, or point the importer at a URL. Then watch the
+progress; a large export takes a while, and it resumes rather than restarting if it is
+interrupted.
+
+Two properties are worth knowing before you start.
+
+**It is idempotent, by replacement.** Every row it writes carries an `import_id`. Re-running
+the same import deletes that id's rows first and writes them again, so an import run twice (by a retry, by a second press of the button, by a worker that died halfway) leaves exactly
+one copy. That column is also what makes an import reversible: undoing one is a delete.
+
+**It is resumable, through a staging table.** The file is streamed into `imports_raw`
+verbatim first, one row per source record with its position in the file, and only then
+normalised into events. A job that died at row 400,000 resumes at 400,001, and a mapping bug
+is re-runnable without asking you to export again.
+
+## Aggregate rows become events
+
+Micaforge stores pageviews, not counts. A row saying "412 views of /pricing on 3 March"
+expands into 412 events at the start of that day, capped at 10,000 per row and marked in
+`sdk_version` as an import, so an expanded row can always be told from a real one.
+
+Which means: **imported days have no hourly shape**. Everything lands at midnight. If your
+export was aggregated, do not read the hour-of-day chart for the imported period, because
+it is an artefact of the import, not of your readers.
+
+## What will not match, and why
+
+Set the expectation now, because the two tools are not measuring the same thing.
+
+**Sessions.** GA4 restarts a session at midnight and on a campaign change. Micaforge uses a
+30-minute inactivity gap and nothing else. Micaforge will usually show fewer sessions.
+
+**Users.** GA4 has a cookie. Micaforge has a daily-rotating hash, so a returning reader
+tomorrow is a new visitor. Daily uniques are comparable; anything longer is not, and
+Micaforge will read higher over a month.
+
+**Bots.** GA4 drops "known bots" silently. Micaforge names them, counts them and keeps them
+out of the human numbers unless you ask for them. Your human pageviews may go **down**, and
+that is the correction rather than a loss.
+
+**Answer engines.** GA4 files ChatGPT and Perplexity referrals as `referral`. Micaforge
+makes them a top-level channel. Your referral number will drop and a new one will appear
+beside search.
+
+## After the import
+
+Run both for a fortnight. Do not reconcile the totals; reconcile the **shapes**: the same
+pages in the same order, the same weekday rhythm, the same campaigns. When the shapes agree,
+the difference in the totals is the definitions, which is exactly what you were told above.
+
+Then turn off the GA tag. Two analytics scripts is one script's worth of page weight wasted.
+
+## What does not come over
+
+Google's own modelled data: thresholded rows, modelled conversions, anything GA4 estimated
+rather than observed. Micaforge imports what your export contains. It will not invent the
+parts Google withheld from it, and neither will it pretend the gap is not there.

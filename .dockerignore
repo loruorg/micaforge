@@ -1,0 +1,27 @@
+# The build context is the repository root. Everything below is either rebuilt
+# inside the image or must never be inside one.
+
+# Rebuilt by the image. A host-built artifact would only mask a broken build, and
+# `target` in a working checkout is several gigabytes.
+**/node_modules
+**/target
+**/dist
+**/.astro
+**/.turbo
+**/coverage
+**/*.rs.bk
+
+# Nothing secret is ever copied into an image. The containers read their whole
+# configuration from the environment.
+.env
+.env.*
+!.env.example
+
+# Operator data and local state.
+.git
+backups/
+infra/geoip/*
+!infra/geoip/README.md
+HANDOFF.md
+.claude/
+**/.DS_Store

@@ -1,0 +1,26 @@
+---
+/**
+ * The public record.
+ *
+ * A share link is read by someone who has no account and may never have heard
+ * of Micaforge, so this door is deliberately the same application: the slug in
+ * the address selects the shared view, the share screen draws its own full-page
+ * sheet, and nothing on it asks anyone to sign in.
+ *
+ * The catch-all with an undefined parameter is what emits `/share/index.html`,
+ * which is the file `public/_redirects` rewrites every `/share/*` address to.
+ */
+import type { GetStaticPaths } from "astro";
+import Base from "../../layouts/Base.astro";
+import App from "../../app/main.tsx";
+
+export const getStaticPaths = (() => [{ params: { path: undefined } }]) satisfies GetStaticPaths;
+---
+
+<Base
+  title="A shared Micaforge record"
+  description="A read-only view of one site's record, shared by its owner."
+  bare={true}
+>
+  <App client:only="react" />
+</Base>

@@ -1,0 +1,96 @@
+<?xml version="1.0"?>
+<!--
+  Micaforge profile override for ClickHouse.
+
+  Mounted at /etc/clickhouse-server/users.d/micaforge.xml. It tunes the `default`
+  profile, which is the profile every Micaforge query runs under.
+
+  It deliberately defines no users. The account itself is created by the image's
+  entrypoint from CLICKHOUSE_USER / CLICKHOUSE_PASSWORD / CLICKHOUSE_DB, which it
+  writes into users.d/default-user.xml alongside this file. Two files in the same
+  directory, touching different parts of the tree, merge cleanly; a second copy of
+  the user definition here would be one more place for the password to drift out
+  of step with .env.
+
+  Same audience as config.xml: one 4 GB VPS. config.xml bounds what the *server*
+  may use. This file bounds what a single *query* may use, which is the limit that
+  turns "the box died" into "that one query returned an error".
+-->
+<clickhouse>
+  <profiles>
+    <default>
+
+      <!--
+        Per-query ceiling, and per-user ceiling across concurrent queries. Both
+        sit under the server ceiling in config.xml, so one expensive breakdown
+        over a year of events fails on its own rather than starving the ingest
+        path that is writing at the same time.
+
+        A query that hits this is usually an unbounded GROUP BY over a high
+        cardinality dimension. The two external-memory settings below are the
+        reason it will normally spill to disk instead of failing.
+      -->
+      <max_memory_usage>1000000000</max_memory_usage>
+      <max_memory_usage_for_user>1200000000</max_memory_usage_for_user>
+
+      <!--
+        Spill to disk at half the query budget. Slower than memory, and much
+        faster than an error. This is what makes a full-history export work on a
+        machine that cannot hold the intermediate state.
+      -->
+      <max_bytes_before_external_group_by>500000000</max_bytes_before_external_group_by>
+      <max_bytes_before_external_sort>500000000</max_bytes_before_external_sort>
+
+      <!--
+        Nothing a dashboard renders is worth a minute of CPU on a shared box, and
+        the API's own timeout is shorter than this. A query that runs into this
+        limit is a bug or a filter nobody meant to remove; either way an error is
+        the useful outcome.
+      -->
+      <max_execution_time>60</max_execution_time>
+
+      <!--
+        Two vCPUs is the assumption. ClickHouse defaults max_threads to the core
+        count, which is right for a dedicated server and wrong here: four threads
+        per query keeps a single dashboard load from taking the whole machine
+        away from ingest.
+      -->
+      <max_threads>4</max_threads>
+
+      <!--
+        The uncompressed cache pays off for repeated point reads of the same
+        rows. Analytics scans do not repeat that way, so it would be memory spent
+        on nothing. Off is also the ClickHouse default; it is stated here because
+        it is a decision, not an oversight.
+      -->
+      <use_uncompressed_cache>0</use_uncompressed_cache>
+
+      <!--
+        Asynchronous inserts are off on purpose. The Rust server already batches
+        events in memory and flushes on size or interval (see
+        apps/backend/crates/store/src/writer.rs). Turning them on here would add a
+        second, invisible buffer with its own durability window, and make "where
+        is my event" a two-place question instead of one.
+      -->
+      <async_insert>0</async_insert>
+
+      <!--
+        Keep query_log rows for the queries Micaforge runs. config.xml gives them
+        a 7 day TTL, so this costs a bounded amount of disk and is the only way to
+        answer "which dashboard screen is slow" after the fact.
+      -->
+      <log_queries>1</log_queries>
+
+    </default>
+  </profiles>
+
+  <!--
+    Quotas are left at the distribution default, which is unlimited.
+
+    A quota limits queries per interval per user, and there is exactly one user
+    here: the Micaforge server. Rate limiting it would throttle the dashboard
+    without protecting anything, because the limits that matter on this box are
+    the memory ceilings above. Add a quota if you open ClickHouse to something
+    other than Micaforge, which the shipped compose file does not do.
+  -->
+</clickhouse>

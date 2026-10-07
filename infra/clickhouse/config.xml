@@ -1,0 +1,142 @@
+<?xml version="1.0"?>
+<!--
+  Micaforge server override for ClickHouse.
+
+  Mounted at /etc/clickhouse-server/config.d/micaforge.xml, so it is merged on top
+  of the image's own config.xml rather than replacing it. Only the settings below
+  change; everything else stays at the distribution default.
+
+  It is written for the machine Micaforge is actually installed on: one 4 GB VPS
+  running ClickHouse next to Postgres, Valkey, Caddy and the Rust server. Out of
+  the box ClickHouse assumes it owns the host, and on a small box that assumption
+  ends with the kernel killing something. Every number here is a share of 4 GB,
+  and every one has a reason next to it.
+
+  On a bigger machine, raise them. Edit this file and
+  `docker compose restart clickhouse`; the file is a bind mount, not baked into
+  the image, so no rebuild is involved.
+-->
+<clickhouse>
+
+  <!--
+    The single most important line in this file.
+
+    ClickHouse's default is 90% of host RAM, and it counts only its own tracked
+    allocations. On a 4 GB box that leaves nothing for the other four containers,
+    and the failure mode is not a slow query, it is the OOM killer taking
+    Postgres. 1.4 GiB is a hard ceiling ClickHouse enforces on itself: a query
+    that would exceed it fails with a memory-limit error, which is an error an
+    operator can read and act on.
+  -->
+  <max_server_memory_usage>1500000000</max_server_memory_usage>
+
+  <!--
+    Marks are the index ClickHouse reads before it reads any data, so this cache
+    is the one that earns its memory. The default reservation is 5 GiB, which is
+    larger than the whole machine. 256 MiB holds the marks for an event table far
+    bigger than a single-VPS install will ever have.
+  -->
+  <mark_cache_size>268435456</mark_cache_size>
+
+  <!--
+    A dashboard screen fires a handful of queries at once, and the realtime panel
+    polls. Sixteen concurrent queries is more than one operator plus the
+    background jobs can generate; past that, queuing is the correct answer and
+    the 1000 the image ships with is only a way to run out of memory faster.
+  -->
+  <max_concurrent_queries>16</max_concurrent_queries>
+
+  <!--
+    Thread pools. The defaults size themselves for a many-core server: 10000
+    threads in the global pool, 128 in the schedule pool. Each one reserves stack
+    address space, and on two vCPUs none of them help. These numbers still leave
+    ample headroom for merges plus queries plus the TTL passes.
+  -->
+  <max_thread_pool_size>500</max_thread_pool_size>
+  <background_pool_size>8</background_pool_size>
+  <background_schedule_pool_size>8</background_schedule_pool_size>
+  <background_common_pool_size>4</background_common_pool_size>
+
+  <!--
+    Connections. Only the Micaforge server talks to ClickHouse, over HTTP, with a
+    bounded pool. 256 is generous; the default 1024 is a denial-of-service budget
+    for a port that is not published in the first place.
+  -->
+  <max_connections>256</max_connections>
+  <keep_alive_timeout>30</keep_alive_timeout>
+
+  <!--
+    Merges are the part that fills a small disk. ClickHouse will happily merge
+    parts up to 150 GB, and while it does it needs room for both the inputs and
+    the output. Capping a single merge at 10 GiB keeps the worst case bounded on
+    a disk measured in tens of gigabytes. Larger parts simply stay unmerged,
+    which costs a little read performance and nothing else.
+  -->
+  <merge_tree>
+    <max_bytes_to_merge_at_max_space_in_pool>10737418240</max_bytes_to_merge_at_max_space_in_pool>
+
+    <!--
+      These two exist because background_pool_size was lowered above, and they
+      are measured in slots of that pool. A mutation refuses to start unless
+      that many entries are free, and ClickHouse checks at boot that the
+      threshold is reachable at all: the shipped defaults of 20 and 25 are
+      larger than the 16 slots that background_pool_size 8 times the default
+      concurrency ratio of 2 provides, and the server exits rather than start
+      with settings under which a mutation could never run. Halving the pool
+      means halving these with it.
+    -->
+    <number_of_free_entries_in_pool_to_execute_mutation>8</number_of_free_entries_in_pool_to_execute_mutation>
+    <number_of_free_entries_in_pool_to_execute_optimize_entire_partition>12</number_of_free_entries_in_pool_to_execute_optimize_entire_partition>
+  </merge_tree>
+
+  <!--
+    Releases the hard links that ALTER TABLE ... FREEZE makes, which is how
+    backup.sh finishes a backup. It is off by default, and with it off the
+    frozen copy stays behind forever: those links pin the parts they point at,
+    so dropping an old partition then frees no disk at all and the server fills
+    up for reasons nothing in it explains. Enabling it makes the tidy-up a
+    server command rather than a recursive delete inside the data directory.
+  -->
+  <enable_system_unfreeze>true</enable_system_unfreeze>
+
+  <!--
+    Logging. `warning` because at the default `trace` level ClickHouse writes
+    hundreds of megabytes a day describing its own merges, and on this class of
+    machine the disk is the scarce resource. Rotation is capped at 3 x 50 MB so
+    the log volume cannot grow without bound either.
+
+    If you are diagnosing something, change `warning` to `debug` here and
+    `docker compose restart clickhouse`. Do not leave it there.
+  -->
+  <logger>
+    <level>warning</level>
+    <size>50M</size>
+    <count>3</count>
+    <console>1</console>
+  </logger>
+
+  <!--
+    ClickHouse's own system tables are the second thing that fills a small disk,
+    because they are written continuously whether or not anyone reads them.
+
+    Kept, with a 7 day life: query_log and part_log. Between them they answer
+    "which query was slow" and "why did that merge happen", which are the two
+    questions an operator of this stack actually asks.
+
+    Removed: metric_log, asynchronous_metric_log and trace_log. They sample the
+    server every few hundred milliseconds forever, they are for profiling a
+    cluster, and on a single node they are pure write amplification. Re-enable
+    them by deleting the matching line here if you are chasing a performance
+    problem.
+  -->
+  <query_log>
+    <ttl>event_date + INTERVAL 7 DAY DELETE</ttl>
+  </query_log>
+  <part_log>
+    <ttl>event_date + INTERVAL 7 DAY DELETE</ttl>
+  </part_log>
+  <metric_log remove="1"/>
+  <asynchronous_metric_log remove="1"/>
+  <trace_log remove="1"/>
+
+</clickhouse>

@@ -1,0 +1,64 @@
+[package]
+name = "micaforge-jobs"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+description = "The background worker: crawls, imports, alerts, reports and retention for Micaforge."
+
+[lib]
+name = "micaforge_jobs"
+path = "src/lib.rs"
+
+[dependencies]
+micaforge-core = { workspace = true }
+micaforge-store = { workspace = true }
+micaforge-agents = { workspace = true }
+micaforge-enrich = { workspace = true }
+micaforge-mail = { workspace = true }
+# `detect_decay` runs `gap::decay` on a schedule and caches the answer. The
+# analysis itself stays in the query engine: the Citation Gap is the metric this
+# product exists for, and a second implementation of it living in the worker
+# would eventually disagree with the one behind the endpoint.
+micaforge-query = { workspace = true }
+
+# The queue lives in Postgres and `micaforge_store::models::jobs` owns almost all
+# of it. This crate reaches for `sqlx` directly in exactly two places, both in
+# `schedule.rs`: seeding a recurring job only when one is not already queued, and
+# the worker's own retry schedule. See `schedule::fail_with_backoff` for why the
+# worker sets a longer backoff than the generic queue default.
+sqlx = { workspace = true }
+
+# `#[derive(clickhouse::Row)]` on the aggregate result rows in `metrics`, and the
+# `Ch` handle's driver client for every read this crate does.
+clickhouse = { workspace = true }
+
+tokio = { workspace = true }
+
+# Every job payload crosses `jobs.payload` as jsonb, so all of them serialise.
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+# Report cadences and alert baselines are calendar operations in the *site's*
+# zone: "the same hour last Tuesday" and "the first of next month" are both
+# wrong when computed in UTC for a site in Auckland.
+chrono-tz = { workspace = true }
+
+# Crawling: robots.txt, llms.txt, sitemaps, the site's own pages, and the
+# operators' published IP-range documents.
+reqwest = { workspace = true }
+url = { workspace = true }
+# Sitemaps are routinely served as `.xml.gz`, which `reqwest`'s transparent
+# `Content-Encoding` handling does not cover: the gzip is the file, not the
+# transfer encoding.
+flate2 = { workspace = true }
+
+# GA4, Plausible and Umami all export CSV.
+csv = { workspace = true }
+
+tracing = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }

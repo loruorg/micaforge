@@ -1,0 +1,69 @@
+---
+title: "Web Vitals"
+description: "The five metrics collected, how they are measured, and where they surface."
+group: "tracking"
+order: 6
+updated: 2026-08-22
+---
+
+On by default. No library, no polyfill: the tracker reads `PerformanceObserver`
+directly, which is why the whole feature costs a few hundred bytes.
+
+| Metric | What it is | Unit |
+| --- | --- | --- |
+| `lcp` | Largest Contentful Paint | ms |
+| `cls` | Cumulative Layout Shift | unitless |
+| `inp` | Interaction to Next Paint | ms |
+| `fcp` | First Contentful Paint | ms |
+| `ttfb` | Time to First Byte | ms |
+
+## When they are sent
+
+Once per document, on the way out: the first time the page is hidden or unloaded. That
+is the only honest moment: LCP is not final until the page stops loading, and INP is not
+final until the reader stops interacting.
+
+They travel as a `web_vitals` event with the values under `e`:
+
+```json
+{ "s": 1, "t": "web_vitals", "u": "https://example.com/docs/x", "e": { "lcp": 1180, "cls": 0.04, "inp": 96 } }
+```
+
+A metric the browser did not report is simply absent. Nothing is estimated and nothing is
+filled in with a zero, so a p75 is computed over the pages that actually measured it.
+
+## How each is measured
+
+- **LCP** is the last `largest-contentful-paint` entry, using `renderTime` where the
+  browser gives one.
+- **CLS** is the worst 5-second session window, the way the metric is defined: shifts
+  within a second of each other and inside five seconds of the window's start accumulate,
+  and a shift after user input is ignored.
+- **INP** is the longest interaction over 40 ms, read from the `event` timing entries.
+- **FCP** and **TTFB** need no observer at all: both are already on the navigation
+  timeline when the page hides.
+
+Browsers that do not implement an entry type report nothing for it. Safari has no INP
+today, so an INP p75 is a Chromium-and-Firefox figure, and the report says how many
+samples it is built on.
+
+## Turning it off
+
+```html
+<script defer data-site="1" data-vitals="false" src="/mf.js"></script>
+```
+
+## Where they surface
+
+`GET /api/stats/performance` returns p50, p75 and p95 for each metric, and it takes the
+standard [query envelope](/docs/api/stats-api), so every one of them can be cut by any
+dimension: by page, by country, by device type, by browser.
+
+That last part is the useful bit. A site-wide LCP is a number to feel bad about; LCP on
+your five most-read pages, on mobile, is a number you can act on.
+
+## What it does not do
+
+There is no synthetic run, no lab measurement and no scheduled audit. These are field
+metrics from real readers only. A page nobody visited has no Vitals, and Micaforge will
+show it as absent rather than as zero.

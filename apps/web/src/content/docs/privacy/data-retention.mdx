@@ -1,0 +1,73 @@
+---
+title: "Data retention"
+description: "What expires, when, and how deletion is actually done."
+group: "privacy"
+order: 4
+updated: 2026-08-22
+---
+
+```sh
+MICAFORGE_RETENTION_DAYS=0        # events. 0 means forever, and is the default
+MICAFORGE_REPLAY_RETENTION_DAYS=30
+```
+
+Applied as a ClickHouse TTL at boot, and re-applied whenever it changes.
+
+## Forever is the default, on purpose
+
+An analytics tool that quietly deleted history because a variable was unset would be
+indefensible. Nothing expires until you say so.
+
+If your organisation has a retention policy, set it. If it does not, leave it, and know
+that "we keep it forever" is itself a statement your privacy notice should make.
+
+## What has its own clock
+
+| Data | Default | Set with |
+| --- | --- | --- |
+| Events, agent events, page index | Forever | `MICAFORGE_RETENTION_DAYS` |
+| Session replay | 30 days | `MICAFORGE_REPLAY_RETENTION_DAYS` |
+| Suspected-bot rows | 3 months | Fixed |
+| The daily visitor salt | 48 hours at most | Fixed |
+
+Replay is metered separately because one recorded session outweighs a month of events on
+disk. No recorder ships yet, so today that clock guards an empty table. See
+[session replay](/docs/tracking/session-replay).
+
+The salt is the one that matters most for privacy, and it is not configurable. It rotates at
+midnight in the site's own timezone and is discarded within 48 hours, which is what makes
+the visitor hash un-reversible.
+
+## How deletion actually works
+
+Every event table is partitioned by month, so expiry drops whole partitions rather than
+rewriting them. That makes retention close to free: no long-running mutation, no
+compaction storm, no window where the store is slow because it is busy deleting.
+
+It also means expiry is granular to a month at the storage level. A 90-day policy removes
+data as its partition passes out of range, not to the hour.
+
+## Changing it
+
+Set the variable and restart the server. It converges the TTLs on boot.
+
+Lowering it deletes data that is now out of range, and there is no undo except a backup.
+Raising it does not bring anything back: what was dropped is gone.
+
+## Backups keep what retention deletes
+
+`./backup.sh` copies what exists at the time it runs. A backup taken before an expiry still
+holds the expired data, so if your retention policy exists for legal reasons, your backup
+rotation has to match it. Otherwise the policy is theatre and the data is still on the disk.
+
+## Deleting one thing rather than everything
+
+The event store is append-only by design. There is no "delete this visitor" button today.
+
+- **An import** can be undone: every imported row carries an `import_id`, and removing an
+  import is a delete on that id.
+- **A site** can be deleted, which removes its rows.
+- **A `identified_id`** can be found (it is a filter dimension) and deleted as an
+  operational task against ClickHouse.
+- **An anonymous visitor** cannot be found after 48 hours, because the salt needed to
+  recompute the hash no longer exists. That is the design working, not a gap in it.

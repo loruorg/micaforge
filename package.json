@@ -1,0 +1,29 @@
+{
+  "name": "micaforge",
+  "description": "Micaforge — open-source, cookieless analytics that treats machine readers as a first-class audience",
+  "license": "AGPL-3.0-only",
+  "private": true,
+  "packageManager": "pnpm@11.20.0",
+  "scripts": {
+    "dev": "turbo run dev --filter=@micaforge/web",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "web:dev": "pnpm --filter @micaforge/web dev",
+    "sdk:build": "pnpm --filter @micaforge/sdk build",
+    "sdk-server:build": "pnpm --filter @micaforge/sdk-server build",
+    "backend:dev": "cargo run --manifest-path apps/backend/Cargo.toml -p micaforge-server",
+    "backend:build": "cargo build --manifest-path apps/backend/Cargo.toml --release",
+    "backend:check": "cargo check --manifest-path apps/backend/Cargo.toml --workspace",
+    "backend:test": "cargo test --manifest-path apps/backend/Cargo.toml --workspace",
+    "stack:up": "docker compose up -d",
+    "stack:down": "docker compose down"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

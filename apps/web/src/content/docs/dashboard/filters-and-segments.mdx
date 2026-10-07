@@ -1,0 +1,106 @@
+---
+title: "Filters and segments"
+description: "Every dimension you can filter on, the operators, and how to save a set of them."
+group: "dashboard"
+order: 1
+updated: 2026-08-22
+---
+
+Every read endpoint and every screen takes the same filter shape, so a question you can
+ask on one screen you can ask on all of them.
+
+## The shape
+
+```json
+[
+  { "dimension": "pathname", "op": "starts_with", "value": "/docs" },
+  { "dimension": "channel", "op": "is", "value": ["answer_engine", "search"] }
+]
+```
+
+Filters in one array are combined with `and`. For `or`, and for nesting, use a group:
+
+```json
+{
+  "logic": "or",
+  "filters": [
+    { "dimension": "country", "op": "is", "value": "GB" },
+    { "logic": "and", "filters": [
+      { "dimension": "country", "op": "is", "value": "US" },
+      { "dimension": "device_type", "op": "is", "value": "mobile" }
+    ] }
+  ]
+}
+```
+
+## Operators
+
+`is` · `is_not` · `contains` · `not_contains` · `starts_with` · `ends_with` · `gt` · `lt`
+· `gte` · `lte` · `matches` · `is_set` · `is_not_set`
+
+`is` and `is_not` take an array as well as a single value, which is how you say "any of
+these" without a group.
+
+## Dimensions
+
+**Page**: `pathname`, `entry_path`, `exit_path`, `hostname`, `page_title`, `querystring`,
+`hash`
+
+**Acquisition**: `referrer`, `referrer_host`, `channel`, `source`, `utm_source`,
+`utm_medium`, `utm_campaign`, `utm_term`, `utm_content`
+
+**Client**: `browser`, `browser_version`, `os`, `os_version`, `device_type`,
+`screen_class`, `language`, `timezone`
+
+**Place**: `country`, `region`, `city`, `asn_org`, `is_datacenter`
+
+**Behaviour**: `event_name`, `props.<key>`, `goal`, `visitor_id`, `identified_id`,
+`experiment`, `variant`, `flag.<key>`, `revenue`
+
+**Machines**: `agent_id`, `operator`, `purpose`, `verified`, `robots_allowed`, `status`,
+`content_type`
+
+`props.<key>` and `flag.<key>` are open: any property you have ever sent is filterable by
+name.
+
+`channel` is where this product differs from its neighbours. Its values are `direct`,
+`search`, `answer_engine`, `social`, `referral`, `email`, `paid` and `internal`. The
+second of those is a first-class sibling of `search`, not a slice of `referral`.
+
+## The audience is not a filter
+
+`audience` sits outside the filter array and takes `human`, `agent` or `all`. It selects
+which table is being read, so it cannot be expressed as a condition on a column.
+
+Agent dimensions only mean something with `audience=agent`, and human ones only with
+`audience=human`. Asking for a bounce rate on crawlers returns no value rather than a
+zero, because a crawler has no session to bounce out of and a zero there would read as a
+measurement.
+
+## Segments
+
+A segment is a saved filter set with a name. Save one on any screen; it then appears
+everywhere, and can be shared with the rest of the team or kept to yourself.
+
+```http
+GET /api/stats/pages?site=1&range=30d&segment=<id>
+```
+
+A segment passed on a request is merged into the filters on that request, so a saved
+segment plus one ad-hoc condition is the normal way to work.
+
+Segments worth having on a documentation site:
+
+- **Answer-engine readers**: `channel is answer_engine`
+- **Training crawls**: `audience=agent` with `purpose is training`
+- **Disallowed fetches**: `audience=agent` with `robots_allowed is 0`
+- **The docs**: `pathname starts_with /docs`
+
+## Time
+
+The window is not a filter either. Every request takes either `start` and `end`, or a
+`range` of `today`, `yesterday`, `24h`, `7d`, `30d`, `90d`, `12mo`, `mtd`, `ytd` or `all`,
+plus a `tz` and an optional `compare` of `previous` or `year`.
+
+Comparison runs the same query twice with everything else held identical, so a delta can
+only ever be a change in the data and never a change in the question.

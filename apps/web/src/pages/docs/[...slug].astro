@@ -1,0 +1,36 @@
+---
+/**
+ * One page of the manual.
+ *
+ * The MDX is rendered with `pre` replaced by the code block, so an ordinary fenced
+ * sample in a document comes out framed, named and copyable with nothing asked of the
+ * person writing the page.
+ */
+import { getCollection, render } from "astro:content";
+import type { GetStaticPaths } from "astro";
+import Docs from "../../layouts/Docs.astro";
+import CodeBlock from "../../components/CodeBlock.astro";
+import OnThisPage from "../../components/OnThisPage.astro";
+import { published } from "../../lib/docs";
+
+export const getStaticPaths = (async () => {
+  const entries = published(await getCollection("docs"));
+  return entries.map((entry) => ({ params: { slug: entry.id }, props: { entry } }));
+}) satisfies GetStaticPaths;
+
+const { entry } = Astro.props;
+const { Content, headings } = await render(entry);
+---
+
+<Docs
+  title={`${entry.data.title} · Micaforge`}
+  description={entry.data.description}
+  section="docs"
+  current={entry.id}
+  heading={entry.data.title}
+  standfirst={entry.data.description}
+  updated={entry.data.updated}
+>
+  <OnThisPage slot="rail" headings={headings} />
+  <Content components={{ pre: CodeBlock }} />
+</Docs>

@@ -1,0 +1,423 @@
+---
+/**
+ * Micaforge against Plausible.
+ *
+ * The concession comes FIRST. Plausible has been shipping since 2018, is funded
+ * by the people who use it, and does the human half better than this project
+ * does today.
+ *
+ * Two rows on this page were wrong in an earlier draft and are worth naming, so
+ * nobody re-introduces them: Plausible DOES report AI-assistant referrals as
+ * their own acquisition channel, and it DOES recognise crawlers such as GPTBot.
+ * The difference is narrower than a marketing page would like, and stating it
+ * narrowly is the whole point.
+ */
+import Base from "../../layouts/Base.astro";
+import SiteHeader from "../../components/SiteHeader.astro";
+import SiteFooter from "../../components/SiteFooter.astro";
+import Prose from "../../components/Prose.astro";
+import SheetRegister from "../../components/SheetRegister.astro";
+import { IconCheck, IconPartial, IconClose, IconInfo, IconOut } from "../../components/react/icons.tsx";
+
+type State = "yes" | "partial" | "no";
+interface Cell { s: State; w: string; n?: string }
+
+const rows: { q: string; cells: [Cell, Cell, Cell] }[] = [
+  {
+    q: "Licence",
+    cells: [
+      { s: "yes", w: "AGPL-3.0", n: "Tracker and SDK under MIT, so embedding them does not reach your code." },
+      { s: "yes", w: "AGPL-3.0", n: "Tracker under MIT, for the same reason." },
+      { s: "yes", w: "Same code, hosted" },
+    ],
+  },
+  {
+    q: "Self-hosting",
+    cells: [
+      { s: "yes", w: "The whole build", n: "One command, five containers, no feature gate." },
+      { s: "yes", w: "Community Edition" },
+      { s: "no", w: "Not applicable", n: "The managed service is the product." },
+    ],
+  },
+  {
+    q: "Features held back from the self-hosted build",
+    cells: [
+      { s: "yes", w: "None", n: "What a hosted build would run is what docker compose up runs." },
+      { s: "no", w: "Four", n: "Their README lists marketing funnels, ecommerce revenue goals, SSO and the sites API as unavailable in CE." },
+      { s: "yes", w: "None", n: "Everything in their pricing plans." },
+    ],
+  },
+  {
+    q: "Release cadence",
+    cells: [
+      { s: "no", w: "Pre-release", n: "No tagged release, no production install, no track record. That is the honest state today." },
+      { s: "partial", w: "Twice a year", n: "Their README calls CE a long term release, so new work reaches it late." },
+      { s: "yes", w: "Continuously", n: "Their README says multiple times per week." },
+    ],
+  },
+  {
+    q: "Cookieless, no personal data",
+    cells: [
+      { s: "yes", w: "Yes", n: "Daily-rotating salted hash. No raw IP on a human event row." },
+      { s: "yes", w: "Yes" },
+      { s: "yes", w: "Yes", n: "GDPR, CCPA and PECR compliance is their headline claim." },
+    ],
+  },
+  {
+    q: "Answer-engine referrals grouped as their own channel",
+    cells: [
+      { s: "yes", w: "Yes", n: "Channel answer_engine, beside search, social and direct." },
+      { s: "yes", w: "Yes", n: "AI assistant referrals are reported as their own AI Assistants channel. This is not a difference between the two products." },
+      { s: "yes", w: "Yes", n: "Same as the cloud service." },
+    ],
+  },
+  {
+    q: "Where non-human traffic is counted from",
+    cells: [
+      { s: "yes", w: "The server access log", n: "A shipper reads the log your web server already writes. Crawlers never run JavaScript, so this is the only place they can be counted." },
+      { s: "no", w: "The tracking script", n: "A client that does not execute JavaScript never reaches the endpoint, so it can be neither counted nor filtered there. Their events API accepts server-side hits, but those land as pageviews in the same table." },
+      { s: "no", w: "The tracking script" },
+    ],
+  },
+  {
+    q: "What happens to a crawler once recognised",
+    cells: [
+      { s: "yes", w: "Kept and named", n: "Its own table, with operator, purpose, robots verdict and a verification result. Excluded from the human report by default, never deleted." },
+      { s: "no", w: "Excluded", n: "Recognised crawlers, GPTBot among them, are filtered out of the stats. The classification is used and then discarded." },
+      { s: "no", w: "Excluded", n: "Their README: non-human traffic patterns plus roughly 32,000 data-centre IP ranges." },
+    ],
+  },
+  {
+    q: "Agents grouped by operator and by purpose",
+    cells: [
+      { s: "yes", w: "Yes", n: "Training, retrieval, search index, preview, evaluation. Blocking a corpus crawler and blocking the fetch behind a person's question are different decisions." },
+      { s: "no", w: "No" },
+      { s: "no", w: "No" },
+    ],
+  },
+  {
+    q: "Agent verified against published address ranges",
+    cells: [
+      { s: "yes", w: "Yes, or honestly unverified", n: "A user agent is an assertion. Where an operator publishes ranges or reverse-DNS suffixes, the row says verified, unverified or failed." },
+      { s: "no", w: "No" },
+      { s: "no", w: "No" },
+    ],
+  },
+  {
+    q: "Citation Gap per URL",
+    cells: [
+      { s: "yes", w: "Yes", n: "Fetches against answer arrivals, per page, with a published threshold behind every verdict." },
+      { s: "no", w: "No", n: "They hold the returned half. The taken half is not stored, so the ratio cannot be formed." },
+      { s: "no", w: "No" },
+    ],
+  },
+  {
+    q: "robots.txt and llms.txt against observed behaviour",
+    cells: [
+      { s: "yes", w: "Yes", n: "Your own policy read back against what actually fetched, and what fetched anyway." },
+      { s: "no", w: "No" },
+      { s: "no", w: "No" },
+    ],
+  },
+  {
+    q: "Session replay",
+    cells: [
+      { s: "yes", w: "Yes", n: "Thirty-day retention by default, on a clock of its own." },
+      { s: "no", w: "Not part of the product", n: "Plausible is deliberately one simple page." },
+      { s: "no", w: "Not part of the product" },
+    ],
+  },
+  {
+    q: "Funnels",
+    cells: [
+      { s: "yes", w: "Yes" },
+      { s: "no", w: "Not in CE", n: "Listed among the premium features in their README." },
+      { s: "yes", w: "Yes" },
+    ],
+  },
+  {
+    q: "Google Search Console integration",
+    cells: [
+      { s: "no", w: "Not built", n: "There is no route for it in this repository. Claiming it would be the first lie on the page." },
+      { s: "yes", w: "Yes" },
+      { s: "yes", w: "Yes" },
+    ],
+  },
+  {
+    q: "Managed hosting",
+    cells: [
+      { s: "no", w: "None", n: "There is no hosted Micaforge. You run it, or you do not use it." },
+      { s: "no", w: "Not applicable" },
+      { s: "yes", w: "EU only", n: "Their README: EU-owned infrastructure, servers in Germany." },
+    ],
+  },
+  {
+    q: "Support",
+    cells: [
+      { s: "no", w: "Issues, and nothing else", n: "No company, no inbox, no promise." },
+      { s: "partial", w: "Community forum", n: "Their README says CE is community supported only." },
+      { s: "yes", w: "The people who build it" },
+    ],
+  },
+];
+
+/** The sheet's own register, written down the wide margin. Every id is a
+    heading below. */
+const sections = [
+  { id: "ahead-h", label: "Where Plausible is ahead" },
+  { id: "same-h", label: "What is not a difference" },
+  { id: "diff-h", label: "What is a difference" },
+  { id: "cmp-h", label: "Row by row" },
+  { id: "move-h", label: "Moving between them" },
+];
+---
+
+<Base
+  title="Micaforge vs Plausible"
+  description="An honest comparison. Plausible has been shipping since 2018 and does the human half better than Micaforge does today. What actually differs, sourced from Plausible's own README and documentation."
+>
+  <SiteHeader />
+
+  <main id="main">
+    <article class="mf-wrap mf-doc mf-doc--reg">
+      <SheetRegister sections={sections} />
+
+      <header class="mf-doc__head">
+        <h1 class="mf-doc__title">Plausible does less, deliberately</h1>
+        <p class="mf-doc__lede">
+          It has shipped since 2018, it is paid for by the people who use it, and on the human
+          half of analytics it is the more finished product. This page is about the half it
+          does not measure, and about when you should stay exactly where you are.
+        </p>
+        <div class="mf-doc__meta">
+          <span><strong>Sourced</strong> from Plausible's README, documentation and product</span>
+          <span>Micaforge rows describe the build in this repository</span>
+          <span>Out of date? That is a bug. Open an issue.</span>
+        </div>
+      </header>
+
+      <Prose class="cmp-sec">
+        <h2 id="ahead-h">Where Plausible is ahead</h2>
+        <p>
+          Not throat-clearing. These are the reasons a sensible person picks them over this
+          project today.
+        </p>
+        <dl>
+          <dt>It is finished, and this is not</dt>
+          <dd>
+            Micaforge has no tagged release, no production install and no benchmark. Plausible
+            has years of other people's edge cases already found and fixed. That is worth more
+            than any row in the table below.
+          </dd>
+          <dt>Somebody is accountable for it</dt>
+          <dd>
+            A company, an inbox, a managed service on EU infrastructure, and support from the
+            people who wrote the code. Micaforge offers an issue tracker.
+          </dd>
+          <dt>The dashboard is genuinely simpler</dt>
+          <dd>
+            One page, no menus, no training. Simplicity is their product decision rather than a
+            gap in it. Micaforge is a denser instrument, and density costs something.
+          </dd>
+          <dt>Search Console</dt>
+          <dd>
+            Keyword data in the dashboard. Micaforge has not built it, and there is no route for
+            it in the repository.
+          </dd>
+          <dt>Their bot filtering is better than ours at being a filter</dt>
+          <dd>
+            The cloud build excludes roughly 32,000 data-centre ranges on top of user-agent and
+            referrer-spam rules. If all you want is a clean human number, that is the shorter
+            road.
+          </dd>
+        </dl>
+
+        <h2 id="same-h">What is not a difference</h2>
+        <p>
+          Two claims a comparison page would love to make, which happen to be false.
+        </p>
+        <p>
+          <strong>Plausible already treats AI assistants as a channel.</strong> Referrals from
+          AI assistants are reported as an <em>AI Assistants</em> channel, next to Organic
+          Search rather than buried in Referral. Micaforge does the same thing under a
+          different name.
+        </p>
+        <p>
+          <strong>Plausible can already recognise an AI crawler.</strong> GPTBot and its peers
+          are known to it. What happens next is the difference: a recognised crawler's hit is
+          dropped, so nothing about it survives to be reported.
+        </p>
+
+        <h2 id="diff-h">What is a difference</h2>
+        <p>
+          One thing, from which everything else on this page follows. Both products hold the{" "}
+          <em>returned</em> half of the exchange, the reader who arrived from an answer. Only
+          Micaforge holds the <em>taken</em> half, the crawl that produced the answer, in the
+          same place and against the same URL.
+        </p>
+        <p>
+          That half cannot be collected by a script tag at all. Crawlers do not run JavaScript,
+          so they never reach an endpoint a browser calls; the only record of them is your web
+          server's log. Micaforge reads that log into a table of its own, with an operator, a
+          purpose and a verification result on every row, and then reports the two counts as one
+          ratio per page.
+        </p>
+        <p>
+          If nothing is fetching your pages to answer questions about them, all of that is
+          weight you do not need. If something is, no amount of filtering will tell you what it
+          took, and no configuration of Plausible will either, because half the arithmetic is
+          not there.
+        </p>
+      </Prose>
+
+      <section class="cmp-table" aria-labelledby="cmp-h">
+        <h2 id="cmp-h" class="cmp-h">Row by row</h2>
+        <div class="mf-sheet-wrap">
+          <table class="mf-cmp">
+            <caption>
+              Three columns, because Plausible's self-hosted edition and its cloud service are
+              not the same product. Every Plausible cell restates something published in their
+              README or their documentation, or describes how their product behaves.
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Question</th>
+                <th scope="col">
+                  <span class="mf-cmp__who">Micaforge</span>
+                  <span class="mf-cmp__who-note">AGPL-3.0, pre-release</span>
+                </th>
+                <th scope="col">
+                  <span class="mf-cmp__who">Plausible CE</span>
+                  <span class="mf-cmp__who-note">Self-hosted community edition</span>
+                </th>
+                <th scope="col">
+                  <span class="mf-cmp__who">Plausible Cloud</span>
+                  <span class="mf-cmp__who-note">Their managed service</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {
+                rows.map((r) => (
+                  <tr>
+                    <th scope="row">{r.q}</th>
+                    {r.cells.map((c) => (
+                      <td>
+                        <span class="mf-cmp__mark" data-state={c.s}>
+                          {c.s === "yes" && <IconCheck size={14} />}
+                          {c.s === "partial" && <IconPartial size={14} />}
+                          {c.s === "no" && <IconClose size={14} />}
+                          {c.w}
+                        </span>
+                        {c.n && <span class="mf-cmp__note">{c.n}</span>}
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              }
+            </tbody>
+            <tfoot>
+              <tr>
+                <th scope="row">Next</th>
+                <td>
+                  <a class="mf-btn mf-btn--primary" href="/self-host">
+                    <span class="mf-btn__label">Install Micaforge</span>
+                  </a>
+                </td>
+                <td>
+                  <a class="mf-link" href="https://github.com/plausible/community-edition/" rel="noopener">
+                    Plausible CE<IconOut size={13} />
+                  </a>
+                </td>
+                <td>
+                  <a class="mf-link" href="https://plausible.io/" rel="noopener">
+                    plausible.io<IconOut size={13} />
+                  </a>
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </section>
+
+      <Prose class="cmp-sec">
+        <h2 id="move-h">Moving between them</h2>
+        <p>
+          Micaforge imports Plausible's CSV exports. Both count a session on a thirty-minute
+          inactivity gap and neither has ever stored a personal identifier, so the human numbers
+          should land close together. Two things will move: crawler traffic becomes a second set
+          of numbers beside your own instead of nothing, and the AI Assistants channel you
+          already have gains a second column showing what those assistants took to build the
+          answers.
+        </p>
+        <p>
+          Running both for a fortnight costs a few kilobytes on the page and settles the
+          question better than this table can.
+        </p>
+
+        <div class="mf-note mf-note--plain">
+          <div class="mf-note__head"><IconInfo size={18} />About these claims</div>
+          <p>
+            Plausible's rows restate their README and their public documentation, and
+            describe how their product behaves, as of August 2026. Micaforge's rows describe
+            the code in this repository. Nothing here is a benchmark, because this project has
+            benchmarked neither product, and nothing here is a customer's opinion, because
+            Micaforge has no customers.
+          </p>
+        </div>
+      </Prose>
+
+      <div class="mf-pick">
+        <div class="mf-pick__col">
+          <h2 class="mf-pick__title">Stay with Plausible if</h2>
+          <ul>
+            <li>You want one simple page anyone on the team can read.</li>
+            <li>You want somebody to call when it breaks.</li>
+            <li>You would rather never think about crawlers again.</li>
+            <li>Search Console keywords in the dashboard matter to you.</li>
+            <li>You need software that has already proven itself in production.</li>
+          </ul>
+          <div class="mf-pick__foot">
+            <a class="mf-link" href="https://plausible.io/" rel="noopener">
+              plausible.io<IconOut size={13} />
+            </a>
+          </div>
+        </div>
+        <div class="mf-pick__col">
+          <h2 class="mf-pick__title">Try Micaforge if</h2>
+          <ul>
+            <li>Your traffic is documentation, a changelog, a blog, an API reference.</li>
+            <li>You want to know what the crawl took, not only what came back.</li>
+            <li>You want both halves on one time axis and one ratio per page.</li>
+            <li>You can get at your web server's access log.</li>
+            <li>You are comfortable running pre-release software you can read.</li>
+          </ul>
+          <div class="mf-pick__foot">
+            <a class="mf-btn mf-btn--primary" href="/self-host">
+              <span class="mf-btn__label">Install it</span>
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <div class="mf-next">
+        <a class="mf-link" href="/why-agent-analytics">The argument in full<IconOut size={13} /></a>
+        <a class="mf-link" href="/docs/migrating/from-plausible">Importing your Plausible history<IconOut size={13} /></a>
+        <a class="mf-link" href="/vs/google-analytics">Micaforge vs Google Analytics<IconOut size={13} /></a>
+      </div>
+    </article>
+  </main>
+
+  <SiteFooter />
+</Base>
+
+<style>
+  .cmp-sec { margin-top: var(--mf-16); }
+  .cmp-table { margin-top: var(--mf-16); }
+  .cmp-h {
+    font-size: var(--mf-t-xl);
+    color: var(--mf-ink);
+    margin-bottom: var(--mf-5);
+  }
+  .mf-pick { margin-top: var(--mf-16); }
+</style>

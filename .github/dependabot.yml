@@ -1,0 +1,40 @@
+# Dependency updates, grouped so a week of them is one pull request per
+# ecosystem rather than thirty. CI runs on each, which is the point: an update
+# that breaks the build is found here and not on an operator's machine.
+#
+# Not covered on purpose: the store images in docker-compose.yml. They are
+# pinned to a major version or an LTS line and move by deliberate decision
+# (see .env.example, section 8), because ClickHouse cannot be downgraded.
+
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /apps/backend
+    schedule:
+      interval: weekly
+    groups:
+      cargo:
+        patterns: ["*"]
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      npm:
+        patterns: ["*"]
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
