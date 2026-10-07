@@ -28,6 +28,7 @@ import {
   count,
   errorDetail,
   n,
+  percentOf100,
   ratio,
   secs,
   useAudienceQuery,
@@ -264,7 +265,7 @@ export function SourcesScreen() {
       numeric: true,
       render: (r) => count(n(r, "sessions")),
     },
-    { key: "bounce", head: "Bounce", numeric: true, render: (r) => ratio(n(r, "bounce_rate")) },
+    { key: "bounce", head: "Bounce", numeric: true, render: (r) => percentOf100(n(r, "bounce_rate")) },
     {
       key: "time",
       head: "Avg visit",
@@ -288,7 +289,7 @@ export function SourcesScreen() {
       render: (r) => count(n(r, "visitors")),
     },
     { key: "sessions", head: "Sessions", numeric: true, render: (r) => count(n(r, "sessions")) },
-    { key: "bounce", head: "Bounce", numeric: true, render: (r) => ratio(n(r, "bounce_rate")) },
+    { key: "bounce", head: "Bounce", numeric: true, render: (r) => percentOf100(n(r, "bounce_rate")) },
     {
       key: "time",
       head: "Avg visit",

@@ -494,7 +494,7 @@ export function ShareScreen() {
                   {
                     key: "bounce",
                     label: "Bounce rate",
-                    value: overview.isPending ? "—" : pct(overview.data?.bounce_rate ?? 0),
+                    value: overview.isPending ? "—" : pct((overview.data?.bounce_rate ?? 0) / 100),
                     delta: overview.data ? delta(overview.data.bounce_rate, before?.bounce_rate) : null,
                     inverse: true,
                   },

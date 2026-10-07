@@ -374,7 +374,7 @@ export function PagesScreen() {
       {
         key: "bounce",
         label: "Bounce rate",
-        value: ratio(o?.bounce_rate),
+        value: percentOf100(o?.bounce_rate),
         delta: o ? delta(o.bounce_rate, before?.bounce_rate) : null,
         inverse: true,
         note: machines ? "readers only" : undefined,
@@ -438,7 +438,7 @@ export function PagesScreen() {
       key: "bounce",
       head: "Bounce",
       numeric: true,
-      render: (r) => ratio(n(r, "bounce_rate")),
+      render: (r) => percentOf100(n(r, "bounce_rate")),
     };
     const time: Column<PageRow> = {
       key: "time",

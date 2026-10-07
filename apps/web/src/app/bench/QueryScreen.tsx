@@ -73,7 +73,7 @@ export const METRICS: MetricDef[] = [
   { v: "visitors", label: "Visitors", fmt: num },
   { v: "sessions", label: "Sessions", fmt: num },
   { v: "pageviews", label: "Pageviews", fmt: num },
-  { v: "bounce_rate", label: "Bounce rate", fmt: (n) => pct(n), inverse: true },
+  { v: "bounce_rate", label: "Bounce rate", fmt: (n) => pct(n / 100), inverse: true },
   { v: "avg_duration_s", label: "Average session", fmt: duration },
   { v: "views_per_session", label: "Views per session", fmt: (n) => n.toFixed(2) },
 ];
