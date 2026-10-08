@@ -225,7 +225,7 @@ export function SiteChooserScreen() {
     },
     {
       key: "record",
-      head: "Live record",
+      head: "Traffic",
       width: "15ch",
       render: (r) => {
         if (r.realtimePending) return <span className="mf-wait" style={{ width: "100%" }} aria-hidden="true" />;
@@ -297,8 +297,8 @@ export function SiteChooserScreen() {
         <div>
           <h1 className="mf-chooser__title">Your sites</h1>
           <p className="mf-chooser__sub">
-            Two pens per site: what the machines fetched, what the readers read. The gap is how many
-            agent fetches it took to bring one reader back from an answer engine.
+            People and AI crawlers for every site. The gap is how many AI crawls it took to bring one
+            visitor back from an AI answer.
           </p>
         </div>
         <div className="mf-chooser__tools">
@@ -326,7 +326,7 @@ export function SiteChooserScreen() {
 
       <Panel ruled>
         <PanelHead
-          title="Writing now"
+          title="Right now"
           note="The last five minutes, across every site you can read."
         />
         <Readout
@@ -356,7 +356,7 @@ export function SiteChooserScreen() {
       <Panel>
         <PanelHead
           title="Choose a site"
-          note="Each row opens that site's record, and a site that has never reported opens its install steps instead. The ink behind a name is that site's share of the agent fetches across your whole account."
+          note="Each row opens that site's dashboard; a site that has never reported opens its install steps instead. The bar behind a name is that site's share of AI crawls across your account."
         />
         {sitesQuery.isError ? (
           <ErrorState

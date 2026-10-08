@@ -120,7 +120,7 @@ export function delta(now: number, before: number | null | undefined): number | 
 const CHANNEL_LABELS: Record<string, string> = {
   direct: "Direct",
   search: "Search",
-  answer_engine: "Answer engines",
+  answer_engine: "AI answers",
   social: "Social",
   referral: "Referral",
   email: "Email",

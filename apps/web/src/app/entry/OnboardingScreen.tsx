@@ -99,7 +99,7 @@ export function OnboardingScreen({ recordPath = ENTRY_PATHS.record }: Onboarding
     return (
       <div className="mf-stack mf-stack--task">
         <Panel ruled feed>
-          <PanelHead title="Bring the site online" note="Reading the site record." />
+          <PanelHead title="Bring the site online" note="Loading the site." />
           <div className="mf-panel-form">
             <Waiting label="Reading the site" lines={3} />
           </div>
@@ -139,9 +139,8 @@ export function OnboardingScreen({ recordPath = ENTRY_PATHS.record }: Onboarding
         <div>
           <h1 className="mf-chooser__title">Bring {site.domain} online</h1>
           <p className="mf-chooser__sub">
-            The snippet records the people. The server log records the machines. Both pens need
-            connecting before the record means anything, and the second one is the half nobody else
-            measures.
+            The script counts people. Your server log or edge middleware counts AI crawlers. Connect
+            both to see the whole picture; the second is the part no other tool measures.
           </p>
         </div>
       </div>
@@ -254,7 +253,7 @@ export function OnboardingScreen({ recordPath = ENTRY_PATHS.record }: Onboarding
           </p>
           <div className="mf-form__foot">
             <Button tone={humanDone ? "primary" : "key"} onClick={() => navigate(recordPath(site.site_id))}>
-              {humanDone ? "Go to the record" : "Skip for now"}
+              {humanDone ? "Go to the dashboard" : "Skip for now"}
             </Button>
           </div>
         </div>

@@ -225,8 +225,8 @@ export function ShareScreen() {
     return (
       <AuthFrame
         title="That share link is incomplete"
-        note="This address does not name a shared record."
-        aside={<p>A shared Micaforge record lives at /share/ followed by its link name.</p>}
+        note="This address does not name a shared dashboard."
+        aside={<p>A shared Micaforge dashboard lives at /share/ followed by its link name.</p>}
       >
         <p className="mf-form__body">
           Open the link you were given rather than retyping it, or ask whoever shared it to send it
@@ -238,8 +238,8 @@ export function ShareScreen() {
 
   if (meta.isPending) {
     return (
-      <AuthFrame title="Opening the shared record" note="Checking what this link publishes.">
-        <Waiting label="Opening the shared record" lines={3} />
+      <AuthFrame title="Opening the shared dashboard" note="Checking what this link publishes.">
+        <Waiting label="Opening the shared dashboard" lines={3} />
       </AuthFrame>
     );
   }
@@ -256,7 +256,7 @@ export function ShareScreen() {
         }
         aside={
           <p>
-            A share link is set to expire by whoever created it. The record itself is untouched; only
+            A share link is set to expire by whoever created it. The dashboard itself is untouched; only
             this way in has closed.
           </p>
         }
@@ -273,7 +273,7 @@ export function ShareScreen() {
     return (
       <AuthFrame
         title="Nothing is published here"
-        note="No shared record is using this link name."
+        note="No shared dashboard is using this link name."
         aside={<p>A share link that has been deleted stops resolving immediately, by design.</p>}
       >
         <p className="mf-form__body">
@@ -300,11 +300,11 @@ export function ShareScreen() {
 
     return (
       <AuthFrame
-        title="This record is private"
+        title="This dashboard is private"
         note={
           info?.site?.domain
-            ? `The record for ${info.site.domain} is behind a password. Whoever shared the link has it.`
-            : "This record is behind a password. Whoever shared the link has it."
+            ? `The dashboard for ${info.site.domain} is behind a password. Whoever shared the link has it.`
+            : "This dashboard is behind a password. Whoever shared the link has it."
         }
         aside={
           <p>
@@ -337,7 +337,7 @@ export function ShareScreen() {
 
           <div className="mf-form__foot">
             <Button tone="primary" type="submit" disabled={unlock.isPending}>
-              {unlock.isPending ? "Opening…" : "Open the record"}
+              {unlock.isPending ? "Opening…" : "Open the dashboard"}
             </Button>
           </div>
         </form>
@@ -456,11 +456,11 @@ export function ShareScreen() {
         {can(SCOPE_OVERVIEW) ? (
           <Panel ruled feed>
             <PanelHead
-              title="The record"
+              title="Traffic"
               note={
                 can(SCOPE_AGENTS)
-                  ? "The machine pen writes upward, the reader pen downward. The space between them is what was taken and never came back."
-                  : "Readers over the chosen interval. This link does not publish the machine pen."
+                  ? "AI crawls above the line, people below it. The space between them is crawling that never sent a visitor back."
+                  : "People over the chosen period. This link does not include AI crawler traffic."
               }
             />
 
@@ -524,7 +524,7 @@ export function ShareScreen() {
                   mode={can(SCOPE_AGENTS) ? "mirrored" : "stacked"}
                   height={296}
                   formatTime={formatTime}
-                  emptyLabel="No record over this interval. Neither pen wrote anything."
+                  emptyLabel="No traffic in this period."
                 />
               )}
             </div>
