@@ -1,102 +1,45 @@
 {
-  "$comment": "Extensions the DESIGN.md frontmatter schema cannot hold: tonal ramps, the shadow vocabulary, motion, breakpoints, and the narrative. Regenerate alongside DESIGN.md.",
-  "northStar": "The Smoked Drum Record",
-  "antiReference": "The category's near-black dashboard with a neon accent, glowing card borders and a grid of same-size stat cards.",
-  "ramps": {
-    "series": {
-      "$comment": "Five lightness steps of ONE hue, so every chart survives greyscale and colour-vision deficiency.",
-      "s1": "#f2d9ae",
-      "s2": "#e3ba7e",
-      "s3": "#c98a46",
-      "s4": "#a76b33",
-      "s5": "#8a552a"
-    },
-    "traces": {
-      "human": "#f5f0e4",
-      "agent": "#c98a46",
-      "human-fill": "rgba(245, 240, 228, 0.10)",
-      "agent-fill": "rgba(201, 138, 70, 0.16)"
-    },
-    "washes": {
-      "shellac": "rgba(201, 138, 70, 0.13)",
-      "oxide": "rgba(180, 85, 63, 0.14)",
-      "verdigris": "rgba(94, 140, 114, 0.14)"
-    },
-    "edges": {
-      "rule": "rgba(233, 227, 214, 0.085)",
-      "rule-strong": "rgba(233, 227, 214, 0.17)",
-      "lip": "rgba(245, 240, 228, 0.055)",
-      "rule-minor": "rgba(233, 227, 214, 0.045)",
-      "rule-major": "rgba(233, 227, 214, 0.10)"
-    }
+  "$comment": "Extensions the DESIGN.md frontmatter cannot hold: shadows, motion, breakpoints, and the narrative. Regenerate alongside DESIGN.md.",
+  "northStar": "The Morning Report",
+  "antiReference": "The GA4 report wall, and interface metaphors that need explaining (the previous smoked-drum design).",
+  "audiences": {
+    "people": "#2f6bff",
+    "ai": "#f25a1d",
+    "rule": "Blue is people, orange is AI, on every surface; never colour alone."
   },
   "elevation": {
-    "philosophy": "Tonal, with one directional cut. No ambient shadow system exists. Surfaces separate by value, by a self-coloured 1px edge, and by an inner top highlight.",
-    "burr": {
-      "value": "0 1px 0 rgba(9, 8, 6, 0.9)",
-      "role": "The scratch ridge: soot displaced to one side of a cut. The house depth treatment, and the reason nothing in this product glows.",
-      "paper": "0 1px 0 rgba(255, 253, 246, 0.75)"
-    },
-    "lift": {
-      "value": "0 1px 2px rgba(9, 8, 6, 0.55), 0 3px 10px rgba(9, 8, 6, 0.35)",
-      "role": "Reserved for the one element that genuinely floats: the rail when it becomes a drawer. Not available as card decoration."
-    },
-    "press": {
-      "value": "inset 0 1px 2px rgba(9, 8, 6, 0.7)",
-      "role": "A pressed key and a sunken well."
-    }
+    "xs": "0 1px 2px rgba(16,24,40,.05)",
+    "md": "0 1px 2px rgba(16,24,40,.04), 0 4px 12px rgba(16,24,40,.06)",
+    "lg": "0 2px 4px rgba(16,24,40,.04), 0 12px 32px rgba(16,24,40,.10)",
+    "hero": "0 1px 2px rgba(16,24,40,.04), 0 24px 64px -12px rgba(16,24,40,.14)",
+    "philosophy": "Hairline edge plus soft offset shadow. No glow."
   },
+  "focus": "2px solid #2f6bff outline, 2px offset; inputs: blue border plus 0 0 0 3px rgba(47,107,255,.1)",
   "motion": {
-    "philosophy": "One authored moment: the pen advance. Nothing lifts, scales or bounces. Controls change by tone and fill.",
-    "easing": {
-      "pen": "cubic-bezier(0.16, 1, 0.3, 1)",
-      "snap": "cubic-bezier(0.32, 0.72, 0, 1)"
+    "philosophy": "A few useful first-appearance moments. Complete without motion; none under prefers-reduced-motion.",
+    "easeOut": "cubic-bezier(0.16, 1, 0.3, 1)",
+    "durations": {
+      "micro": "120ms",
+      "short": "220ms",
+      "medium": "420ms",
+      "chart": "900ms to 1.6s"
     },
-    "duration": { "1": "120ms", "2": "220ms", "3": "420ms", "drum": "900ms" },
-    "rules": [
-      "All motion is gated behind prefers-reduced-motion.",
-      "No content's existence ever depends on an animation running.",
-      "Animate a clip or a width with stable caps, never scaleY on a rounded shape."
+    "moments": [
+      "Hero chart draws in left to right (clip-path), held from first paint by html.hm",
+      "Hero figures tick from 86% to their value",
+      "Live feed adds a visit every 2.6s while visible and the tab is shown",
+      "Homepage feature visuals build once when scrolled into view",
+      "App charts draw in on first view and on range change"
     ]
   },
   "breakpoints": {
-    "rail-drawer": "1080px",
-    "stack-columns": "1000px",
-    "reflow-readout": "760px",
-    "dense-panels": "700px",
-    "drum-narrow": "620px",
-    "hide-units": "560px"
+    "siteNavDrawer": "960px",
+    "appRailDrawer": "1080px",
+    "phone": "560px",
+    "minimum": "390px"
   },
-  "layout": {
-    "rail": "232px",
-    "railCollapsed": "60px",
-    "shellMax": "1560px",
-    "headerHeight": "56px",
-    "measure": "68ch",
-    "feed": { "gutter": "22px", "pitch": "16px", "hole": "4px" }
-  },
-  "signatures": {
-    "scratch": "Every trace is drawn twice: a well-coloured ridge offset 1.1px, then the bright line over it.",
-    "twoPens": "The machine pen steps (discrete fetches); the human pen is written (continuous arrival). Channel identity is carried by line character before colour.",
-    "pinFeed": "A 22px sprocket gutter down the left edge of a primary record panel, with content padded clear of the cut.",
-    "registrationTick": "Exactly one filled 1.4-square fiducial per icon glyph. The invented detail that makes the icon set this product's own.",
-    "panelRuling": "24px instrument ruling, masked at the panel's top and bottom edges and clipped to the panel. The only grid in the product."
-  },
-  "namedRules": [
-    { "name": "The Value Ramp Rule", "text": "Categorical series are five lightness steps of one hue, never five hues. A chart that needs six colours has too many series." },
-    { "name": "The Two Pens Rule", "text": "Colour is never the only encoding. The line's own character carries channel identity, in the plot and in the legend alike." },
-    { "name": "The No Glow Rule", "text": "No glow, halo, bloom or zero-offset coloured shadow anywhere. Depth is the scratch ridge, cast in one direction." },
-    { "name": "The Data Face Rule", "text": "Tabular is for genuine data only. A monospace worn by eyebrows and captions is the loudest tell that nobody chose the typography." },
-    { "name": "The Honest Scale Rule", "text": "Two channels are never forced onto one scale. Each pen's full-scale value is printed, and a clipped sample is marked and its true value stated, never silently cropped." }
-  ],
-  "contrastFloor": {
-    "body": 4.5,
-    "large": 3.0,
-    "$comment": "Every pair in DESIGN.md was computed, not eyeballed. --mf-ink-3 at 5.1:1 is the dimmest text permitted, and it is not permitted below 11px."
-  },
-  "provenance": {
-    "seed": "36373d06",
-    "form": "continuous-trace recorder, candidate 3 of 7",
-    "fonts": "Trench Slab and Tabular, self-hosted woff2, chosen against rendered specimens rather than by reputation"
+  "fonts": {
+    "ui": "Geist (variable, public/fonts, OFL)",
+    "data": "Geist Mono (variable, public/fonts, OFL)"
   }
 }
