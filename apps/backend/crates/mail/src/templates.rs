@@ -8,9 +8,12 @@
 //!
 //! # The house rules these bodies follow
 //!
-//! * **One 560px card**, `<table>`-based, spacing done with cell padding.
-//!   Outlook for Windows renders mail with Word, which has no flex, ignores
-//!   `max-width` and honours margins only some of the time.
+//! * **One 520px column on a white page**, `<table>`-based, spacing done with
+//!   cell padding. No card, no border: the brand is the mark, the blue and
+//!   orange stripe under it, and the same two colours on every figure that
+//!   belongs to people or to AI. Outlook for Windows renders mail with Word,
+//!   which has no flex, ignores `max-width` and honours margins only some of
+//!   the time.
 //! * **Every style that matters is inline.** Gmail drops a whole `<style>`
 //!   block for reasons it does not report, so the one block in [`head_style`]
 //!   only adds what a client may ignore: the dark palette, phone padding and
@@ -25,8 +28,8 @@
 //! * **No images and no tracking pixel.** Micaforge sells the claim that it does
 //!   not follow people around; an open-tracking pixel in its own mail would
 //!   contradict the product in the one place a customer would notice. The brand
-//!   mark is a table cell painted in the accent colour beside the wordmark, so
-//!   even the masthead needs no image.
+//!   mark, the stripe and the share bars are table cells painted in colour, so
+//!   nothing in a message needs an image.
 //!
 //! The escape boundary is [`render`] and the fragment builders it calls: every
 //! field of a [`Letter`] is plain text and is escaped there, except
@@ -39,46 +42,50 @@ use crate::{AlertPayload, ReportPayload};
 // Palette. Every colour any message uses is named here and nowhere else, so a
 // change of brand is a change to this block. The light set is inlined on every
 // element; the dark set only reaches the clients that read the `<style>` block.
+// The values are the site's own tokens (apps/web/src/styles/tokens.css).
 // ---------------------------------------------------------------------------
 
-/// The brand orange, text-safe on white (5.2:1): the dot in the mark and the
-/// figures a report sets in the accent. It is the colour of AI traffic on the
-/// site and in the dashboard, and means the same thing here.
+/// People. The blue the site, the dashboard and every chart use for a person,
+/// here as the first half of the brand stripe and the bars of people lists.
+const BLUE: &str = "#2f6bff";
+/// AI. The orange the site uses for AI traffic: the second half of the brand
+/// stripe, the dot in the mark and the bars of crawler lists.
+const ORANGE: &str = "#f25a1d";
+/// The text-safe orange (5.2:1 on white), for the one figure a message exists
+/// to deliver.
 const ACCENT: &str = "#c2410c";
 /// The orange of the mark's dot, the same value the site's logo uses.
-const MARK_DOT: &str = "#f25a1d";
+const MARK_DOT: &str = ORANGE;
 /// The button, and the mark's tile: the near-black the site's buttons use.
 const BUTTON: &str = "#18181b";
 /// Text set on [`BUTTON`].
 const ON_BUTTON: &str = "#ffffff";
 
-/// The ground around the card.
-const PAGE: &str = "#f4f4f5";
-/// The card itself.
-const CARD: &str = "#ffffff";
-/// The card's edge.
-const CARD_EDGE: &str = "#e4e4e7";
+/// The page. White, with no card around the column: the message is the page.
+const PAGE: &str = "#ffffff";
+/// The ground of the code panel and the bar tracks.
+const PANEL: &str = "#f4f4f5";
+/// The empty part of a share bar.
+const TRACK: &str = "#ececee";
 /// Headings, figures and anything set in weight.
 const INK: &str = "#09090b";
 /// Running copy. Softer than [`INK`] so a paragraph does not glare.
 const TEXT: &str = "#3f3f46";
-/// Labels, notes and the footer. Still clears 4.5:1 on [`PANEL`].
+/// Labels, notes and the footer. 4.8:1 on white.
 const MUTE: &str = "#71717a";
-/// Hairlines between rows and above the note.
+/// Hairlines.
 const LINE: &str = "#e4e4e7";
-/// The ground of the code, details and list panels.
-const PANEL: &str = "#fafafa";
 /// A rise, in a report. Never the only encoding: the sign is always printed.
-const RISE: &str = "#1d7a52";
+const RISE: &str = "#067647";
 /// A fall, in a report.
-const FALL: &str = "#b5432c";
+const FALL: &str = "#b42318";
 
 /// [`PAGE`] in dark mode.
-const PAGE_DARK: &str = "#09090b";
-/// [`CARD`] in dark mode.
-const CARD_DARK: &str = "#18181b";
-/// [`CARD_EDGE`] in dark mode.
-const CARD_EDGE_DARK: &str = "#27272a";
+const PAGE_DARK: &str = "#0b0b0c";
+/// [`PANEL`] in dark mode.
+const PANEL_DARK: &str = "#18181b";
+/// [`TRACK`] in dark mode.
+const TRACK_DARK: &str = "#27272a";
 /// [`INK`] in dark mode.
 const INK_DARK: &str = "#fafafa";
 /// [`TEXT`] in dark mode.
@@ -87,9 +94,7 @@ const TEXT_DARK: &str = "#d4d4d8";
 const MUTE_DARK: &str = "#a1a1aa";
 /// [`LINE`] in dark mode.
 const LINE_DARK: &str = "#27272a";
-/// [`PANEL`] in dark mode.
-const PANEL_DARK: &str = "#202023";
-/// [`ACCENT`] as text on a dark card, lifted so accent figures clear 4.5:1.
+/// [`ACCENT`] in dark mode, lifted so it clears 4.5:1 on the dark page.
 const ACCENT_DARK: &str = "#ff8a5c";
 /// [`RISE`] in dark mode.
 const RISE_DARK: &str = "#5fc79a";
@@ -104,9 +109,9 @@ const SANS: &str =
 const MONO: &str =
     "ui-monospace,'SF Mono',SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace";
 
-/// The card's width, in pixels. Narrow enough to read on a phone held
-/// sideways, wide enough for a three-row figure panel.
-const CARD_WIDTH: u32 = 560;
+/// The column's width, in pixels: a comfortable measure for 15px copy, and wide
+/// enough for a row of three figures.
+const COLUMN_WIDTH: u32 = 520;
 
 /// One rendered message: the subject line and both MIME alternatives.
 ///
@@ -148,20 +153,22 @@ pub fn invitation_link(base_url: &str, token: &str) -> String {
 pub fn sign_in_code(code: &str, ttl_minutes: u32) -> Rendered {
     let subject = "Your Micaforge sign-in code".to_string();
     let expiry = minutes(ttl_minutes);
-    let sentence = format!(
-        "Enter this code on the Micaforge sign-in page. It works once and expires in {expiry}."
-    );
+    let sentence = "Enter this code on the Micaforge sign-in page.";
+    let caption = format!("Expires in {expiry}. Works once.");
     let note = "If you did not ask for this code, you can ignore this email. Nobody can sign in \
                 without it.";
 
     let html = render(&Letter {
         title: &subject,
         preheader: &format!("{code} is your code. It expires in {expiry}."),
-        eyebrow: "Sign in",
         heading: "Your sign-in code",
+        meta: "",
         blocks: vec![
-            Block::Paragraph(escape(&sentence)),
-            Block::Code(code.to_string()),
+            Block::Paragraph(escape(sentence)),
+            Block::Code {
+                code: code.to_string(),
+                caption,
+            },
         ],
         action: None,
         note,
@@ -171,7 +178,9 @@ pub fn sign_in_code(code: &str, ttl_minutes: u32) -> Rendered {
         "Sign in",
         &format!(
             "YOUR SIGN-IN CODE\n\n    {code}\n\n{}\n\n{}",
-            wrap(&sentence),
+            wrap(&format!(
+                "{sentence} It works once and expires in {expiry}."
+            )),
             wrap(note)
         ),
     );
@@ -188,16 +197,17 @@ pub fn invitation(base_url: &str, org: &str, token: &str) -> Rendered {
     let link = invitation_link(base_url, token);
     let subject = format!("You have been invited to {org} on Micaforge");
     let pitch = "measures its traffic with Micaforge: who visits its pages, and which AI \
-                 crawlers read them. Accept to get access.";
+                 crawlers read them.";
     let no_password = "There is no password to choose. Micaforge signs you in with a code it \
                        sends to this address.";
-    let note = "If you were not expecting this, ignore it.";
+    let note = "The invitation expires in seven days. If you were not expecting it, you can \
+                ignore this email.";
 
     let html = render(&Letter {
         title: &subject,
-        preheader: &format!("Access to {org}."),
-        eyebrow: "Invitation",
-        heading: &format!("Join {org}"),
+        preheader: &format!("Accept to see {org} in Micaforge."),
+        heading: &format!("Join {org} on Micaforge"),
+        meta: "",
         blocks: vec![
             Block::Paragraph(format!("{} {}", strong(org), escape(pitch))),
             Block::Paragraph(escape(no_password)),
@@ -213,10 +223,11 @@ pub fn invitation(base_url: &str, org: &str, token: &str) -> Rendered {
     let text = text_page(
         org,
         &format!(
-            "JOIN {}\n\n{}\n\n{}\n\n{link}\n\n{note}",
+            "JOIN {} ON MICAFORGE\n\n{}\n\n{}\n\nAccept the invitation:\n{link}\n\n{}",
             org.to_uppercase(),
             wrap(&format!("{org} {pitch}")),
             wrap(no_password),
+            wrap(note),
         ),
     );
 
@@ -241,36 +252,44 @@ pub fn report(base_url: &str, site: &str, period: &str, r: &ReportPayload) -> Re
     let html = render(&Letter {
         title: &subject,
         preheader: &format!(
-            "{} visitors, {} agent fetches.",
+            "{} visitors, {} from AI answers, {} AI crawler visits.",
             fmt_int(r.visitors),
+            fmt_int(r.answer_arrivals),
             fmt_int(r.agent_fetches)
         ),
-        eyebrow: &subject,
         heading: &heading,
+        meta: &subject,
         blocks: vec![
             Block::Paragraph(format!(
                 "{} {}",
                 inked(&delta_text, delta_ink),
                 escape("on the period before.")
             )),
-            Block::Details(vec![
-                Detail::plain("Pageviews", fmt_int(r.pageviews)),
-                Detail::plain("Sessions", fmt_int(r.sessions)),
-                Detail::plain("Bounce rate", fmt_pct(r.bounce_rate)),
+            Block::Section {
+                title: "People".to_string(),
+                dot: BLUE,
+            },
+            Block::Stats(vec![
+                Stat::plain("Pageviews", fmt_int(r.pageviews)),
+                Stat::plain("Sessions", fmt_int(r.sessions)),
+                Stat::plain("Bounce rate", fmt_pct(r.bounce_rate)),
             ]),
-            Block::Subheading("AI traffic".to_string()),
-            Block::Details(vec![
-                Detail::plain("AI crawler visits", fmt_int(r.agent_fetches)),
-                Detail::plain("Visitors from AI answers", fmt_int(r.answer_arrivals)),
+            Block::Section {
+                title: "AI traffic".to_string(),
+                dot: ORANGE,
+            },
+            Block::Stats(vec![
+                Stat::plain("AI crawler visits", fmt_int(r.agent_fetches)),
+                Stat::plain("From AI answers", fmt_int(r.answer_arrivals)),
                 // The number the message exists to deliver: the Citation Gap.
-                Detail::accent("Fetched per arrival", fmt_ratio(r.gap_ratio)),
+                Stat::accent("Citation gap", fmt_ratio(r.gap_ratio)),
             ]),
-            Block::Ranked(Ranked::new("Pages", "visitors", &r.top_pages)),
-            Block::Ranked(Ranked::new("Sources", "visitors", &r.top_sources)),
-            Block::Ranked(Ranked::new("Agents", "fetches", &r.top_agents)),
+            Block::Ranked(Ranked::new("Top pages", "visitors", BLUE, &r.top_pages)),
+            Block::Ranked(Ranked::new("Top sources", "visitors", BLUE, &r.top_sources)),
+            Block::Ranked(Ranked::new("AI crawlers", "visits", ORANGE, &r.top_agents)),
         ],
         action: Some(Action {
-            label: "Open the record",
+            label: "Open the dashboard",
             href: &link,
             show_url: false,
         }),
@@ -291,11 +310,11 @@ pub fn report(base_url: &str, site: &str, period: &str, r: &ReportPayload) -> Re
         "Visitors from AI answers",
         &fmt_int(r.answer_arrivals),
     ));
-    t.push_str(&text_row("Fetched per arrival", &fmt_ratio(r.gap_ratio)));
-    t.push_str(&text_list("PAGES (visitors)", &r.top_pages));
-    t.push_str(&text_list("SOURCES (visitors)", &r.top_sources));
-    t.push_str(&text_list("AGENTS (fetches)", &r.top_agents));
-    t.push_str(&format!("\nOpen the record: {link}\n"));
+    t.push_str(&text_row("Citation gap", &fmt_ratio(r.gap_ratio)));
+    t.push_str(&text_list("TOP PAGES (visitors)", &r.top_pages));
+    t.push_str(&text_list("TOP SOURCES (visitors)", &r.top_sources));
+    t.push_str(&text_list("AI CRAWLERS (visits)", &r.top_agents));
+    t.push_str(&format!("\nOpen the dashboard: {link}\n"));
     t.push_str(&format!("\n{note}"));
 
     let text = text_page(&subject, &t);
@@ -330,22 +349,22 @@ pub fn alert(base_url: &str, site: &str, a: &AlertPayload) -> Rendered {
     let html = render(&Letter {
         title: &subject,
         preheader: &a.detail,
-        eyebrow: &context,
         heading: &a.headline,
+        meta: &context,
         blocks: vec![
             Block::Paragraph(escape(&a.detail)),
             // The deviation is set in the accent rather than in a rise or fall
             // colour. A spike is not automatically good and a drop is not
             // automatically bad, and colour that pretends otherwise reads as a
             // judgement the tool has not earned.
-            Block::Details(vec![
-                Detail::plain(&a.metric, fmt_num(a.observed)),
-                Detail::plain("Expected", fmt_num(a.expected)),
-                Detail::accent("Against expected", deviation.clone()),
+            Block::Stats(vec![
+                Stat::plain(&humanise(&a.metric), fmt_num(a.observed)),
+                Stat::plain("Expected", fmt_num(a.expected)),
+                Stat::accent("Change", deviation.clone()),
             ]),
         ],
         action: Some(Action {
-            label: "See it in the record",
+            label: "Open the dashboard",
             href: &link,
             show_url: false,
         }),
@@ -360,8 +379,8 @@ pub fn alert(base_url: &str, site: &str, a: &AlertPayload) -> Rendered {
     ));
     t.push_str(&text_row(&a.metric, &fmt_num(a.observed)));
     t.push_str(&text_row("Expected", &fmt_num(a.expected)));
-    t.push_str(&text_row("Against expected", &deviation));
-    t.push_str(&format!("\nSee it in the record: {link}\n"));
+    t.push_str(&text_row("Change", &deviation));
+    t.push_str(&format!("\nOpen the dashboard: {link}\n"));
     t.push_str(&format!("\n{note}"));
 
     let text = text_page(&context, &t);
@@ -380,22 +399,22 @@ pub fn alert(base_url: &str, site: &str, a: &AlertPayload) -> Rendered {
 /// One message, as [`render`] lays it out, top to bottom.
 ///
 /// Every field is plain text and is escaped by [`render`], except
-/// [`Block::Paragraph`]. An empty `eyebrow`, `heading` or `note` is left out.
+/// [`Block::Paragraph`]. An empty `meta` or `note` is left out.
 struct Letter<'a> {
     /// The document `<title>`, which some clients show in a tab or a print.
     title: &'a str,
     /// The inbox preview line shown after the subject.
     preheader: &'a str,
-    /// A short label above the heading: what kind of message this is, or
-    /// which site and period it covers.
-    eyebrow: &'a str,
     /// The heading.
     heading: &'a str,
+    /// A quiet line under the heading: which site and period a report covers,
+    /// or what kind of alert fired. Never a label above the heading.
+    meta: &'a str,
     /// The body, in order.
     blocks: Vec<Block>,
     /// The one button, if the message has somewhere to send the reader.
     action: Option<Action<'a>>,
-    /// Fine print under a hairline at the end of the card.
+    /// Fine print at the end of the message, above the footer.
     note: &'a str,
 }
 
@@ -414,13 +433,13 @@ struct Action<'a> {
 enum Block {
     /// Running copy. HTML, built from [`escape`] and [`strong`] only.
     Paragraph(String),
-    /// A one-time code, set large and letter-spaced in a panel.
-    Code(String),
-    /// Label and value pairs in a panel.
-    Details(Vec<Detail>),
-    /// A heading that opens a second section of the card.
-    Subheading(String),
-    /// A ranked list in a panel, with its unit in the header.
+    /// A one-time code, set large and letter-spaced in a panel, with a caption.
+    Code { code: String, caption: String },
+    /// A row of figures, each with its label above it.
+    Stats(Vec<Stat>),
+    /// A heading that opens a section, led by a dot in the audience's colour.
+    Section { title: String, dot: &'static str },
+    /// A ranked list with a share bar under each row.
     Ranked(Ranked),
 }
 
@@ -429,7 +448,7 @@ enum Block {
 enum Ink {
     /// The ordinary case.
     Plain,
-    /// The number the message exists to deliver; at most one per panel.
+    /// The number the message exists to deliver; at most one per row.
     Accent,
     /// A rise.
     Rise,
@@ -452,17 +471,17 @@ impl Ink {
     }
 }
 
-/// One row of a details panel.
-struct Detail {
+/// One figure in a [`Block::Stats`] row.
+struct Stat {
     label: String,
     value: String,
     ink: Ink,
 }
 
-impl Detail {
+impl Stat {
     /// A value in ink.
-    fn plain(label: &str, value: String) -> Detail {
-        Detail {
+    fn plain(label: &str, value: String) -> Stat {
+        Stat {
             label: label.to_string(),
             value,
             ink: Ink::Plain,
@@ -470,8 +489,8 @@ impl Detail {
     }
 
     /// A value in the accent.
-    fn accent(label: &str, value: String) -> Detail {
-        Detail {
+    fn accent(label: &str, value: String) -> Stat {
+        Stat {
             label: label.to_string(),
             value,
             ink: Ink::Accent,
@@ -479,18 +498,21 @@ impl Detail {
     }
 }
 
-/// A ranked list: a title, the unit of its right-hand column, and the rows.
+/// A ranked list: a title, the unit of its figures, the colour of its bars,
+/// and the rows.
 struct Ranked {
     title: String,
     unit: String,
+    bar: &'static str,
     rows: Vec<(String, u64)>,
 }
 
 impl Ranked {
-    fn new(title: &str, unit: &str, rows: &[(String, u64)]) -> Ranked {
+    fn new(title: &str, unit: &str, bar: &'static str, rows: &[(String, u64)]) -> Ranked {
         Ranked {
             title: title.to_string(),
             unit: unit.to_string(),
+            bar,
             rows: rows.to_vec(),
         }
     }
@@ -506,21 +528,22 @@ table {{ mso-table-lspace:0pt; mso-table-rspace:0pt; }}
 td {{ mso-line-height-rule:exactly; }}
 a[x-apple-data-detectors], .mf-nolink a {{ color:inherit !important; text-decoration:none !important; font:inherit !important; }}
 @media only screen and (max-width:600px) {{
-  .mf-outer {{ padding:24px 12px 32px !important; }}
-  .mf-card {{ padding:30px 22px !important; }}
-  .mf-h {{ font-size:22px !important; line-height:28px !important; }}
-  .mf-code {{ font-size:32px !important; letter-spacing:6px !important; padding-left:6px !important; }}
+  .mf-outer {{ padding:32px 20px 40px !important; }}
+  .mf-h {{ font-size:24px !important; line-height:30px !important; }}
+  .mf-code {{ font-size:34px !important; letter-spacing:8px !important; padding-left:8px !important; }}
+  .mf-stat {{ font-size:18px !important; line-height:24px !important; }}
 }}
 @media (prefers-color-scheme: dark) {{
   .mf-page {{ background:{PAGE_DARK} !important; }}
-  .mf-card {{ background:{CARD_DARK} !important; border-color:{CARD_EDGE_DARK} !important; }}
   .mf-ink {{ color:{INK_DARK} !important; }}
   .mf-text {{ color:{TEXT_DARK} !important; }}
   .mf-mute {{ color:{MUTE_DARK} !important; }}
-  .mf-panel {{ background:{PANEL_DARK} !important; border-color:{LINE_DARK} !important; }}
-  .mf-row, .mf-rule {{ border-color:{LINE_DARK} !important; }}
+  .mf-panel {{ background:{PANEL_DARK} !important; }}
+  .mf-track {{ background:{TRACK_DARK} !important; }}
+  .mf-rule {{ border-color:{LINE_DARK} !important; }}
   .mf-accent {{ color:{ACCENT_DARK} !important; }}
   .mf-link {{ color:{INK_DARK} !important; }}
+  .mf-tile {{ background:{INK_DARK} !important; }}
   .mf-btn {{ background:{INK_DARK} !important; }}
   .mf-btn a {{ color:{BUTTON} !important; }}
   .mf-rise {{ color:{RISE_DARK} !important; }}
@@ -535,44 +558,41 @@ fn render(letter: &Letter<'_>) -> String {
     // (space above, html). The first block's space is dropped.
     let mut parts: Vec<(u32, String)> = Vec::new();
 
-    if !letter.eyebrow.is_empty() {
-        parts.push((
-            0,
-            format!(
-                "<p class=\"mf-mute\" style=\"margin:0;font-family:{SANS};font-size:12px;\
-                 line-height:16px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;\
-                 color:{MUTE};\">{}</p>",
-                escape(letter.eyebrow)
-            ),
-        ));
-    }
+    parts.push((
+        0,
+        format!(
+            "<h1 class=\"mf-ink mf-h\" style=\"margin:0;font-family:{SANS};font-size:28px;\
+             line-height:34px;font-weight:700;letter-spacing:-0.025em;color:{INK};\">{}</h1>",
+            escape(letter.heading)
+        ),
+    ));
 
-    if !letter.heading.is_empty() {
+    if !letter.meta.is_empty() {
         parts.push((
-            10,
+            6,
             format!(
-                "<h1 class=\"mf-ink mf-h\" style=\"margin:0;font-family:{SANS};font-size:24px;\
-                 line-height:31px;font-weight:600;letter-spacing:-0.02em;color:{INK};\">{}</h1>",
-                escape(letter.heading)
+                "<p class=\"mf-mute\" style=\"margin:0;font-family:{SANS};font-size:14px;\
+                 line-height:20px;color:{MUTE};\">{}</p>",
+                escape(letter.meta)
             ),
         ));
     }
 
     for block in &letter.blocks {
         parts.push(match block {
-            Block::Paragraph(html) => (14, paragraph(html)),
-            Block::Code(code) => (24, code_panel(code)),
-            Block::Details(rows) => (24, details_panel(rows)),
-            Block::Subheading(text) => (32, subheading(text)),
-            Block::Ranked(list) => (24, ranked_panel(list)),
+            Block::Paragraph(html) => (16, paragraph(html)),
+            Block::Code { code, caption } => (24, code_panel(code, caption)),
+            Block::Stats(stats) => (14, stats_row(stats)),
+            Block::Section { title, dot } => (32, section(title, dot)),
+            Block::Ranked(list) => (32, ranked(list)),
         });
     }
 
     if let Some(action) = &letter.action {
         let href = safe_href(action.href);
-        parts.push((28, button(&href, action.label)));
+        parts.push((32, button(&href, action.label)));
         if action.show_url && !href.is_empty() {
-            parts.push((18, link_fallback(&href)));
+            parts.push((16, link_fallback(&href)));
         }
     }
 
@@ -580,10 +600,8 @@ fn render(letter: &Letter<'_>) -> String {
         parts.push((
             32,
             format!(
-                "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" \
-                 border=\"0\"><tr><td class=\"mf-mute mf-rule\" style=\"border-top:1px solid {LINE};\
-                 padding-top:20px;font-family:{SANS};font-size:13px;line-height:20px;color:{MUTE};\">\
-                 {}</td></tr></table>",
+                "<p class=\"mf-mute\" style=\"margin:0;font-family:{SANS};font-size:13px;\
+                 line-height:20px;color:{MUTE};\">{}</p>",
                 escape(letter.note)
             ),
         ));
@@ -630,123 +648,159 @@ fn render(letter: &Letter<'_>) -> String {
     h.push_str(&format!(
         "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" \
          class=\"mf-page\" bgcolor=\"{PAGE}\" style=\"background:{PAGE};\">\n\
-         <tr><td align=\"center\" class=\"mf-outer\" style=\"padding:40px 16px 48px;\">\n\
-         <!--[if mso]><table role=\"presentation\" width=\"{CARD_WIDTH}\" cellpadding=\"0\" \
+         <tr><td align=\"center\" class=\"mf-outer\" style=\"padding:48px 24px 56px;\">\n\
+         <!--[if mso]><table role=\"presentation\" width=\"{COLUMN_WIDTH}\" cellpadding=\"0\" \
          cellspacing=\"0\" border=\"0\"><tr><td><![endif]-->\n\
          <table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" \
-         style=\"max-width:{CARD_WIDTH}px;\">\n"
+         style=\"max-width:{COLUMN_WIDTH}px;\">\n"
     ));
     h.push_str(&masthead());
     h.push_str(&format!(
-        "<tr><td class=\"mf-card\" bgcolor=\"{CARD}\" style=\"background:{CARD};\
-         border:1px solid {CARD_EDGE};border-radius:16px;padding:40px;\">\n\
+        "<tr><td style=\"padding-top:40px;\">\n\
          <table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\">\n\
          {body}</table>\n</td></tr>\n"
     ));
-    h.push_str(&format!(
-        "<tr><td class=\"mf-mute\" style=\"padding:24px 4px 0;font-family:{SANS};font-size:12px;\
-         line-height:19px;color:{MUTE};\">No images and no tracking pixel. Micaforge cannot tell \
-         whether this email was opened.</td></tr>\n"
-    ));
+    h.push_str(&footer());
     h.push_str("</table>\n<!--[if mso]></td></tr></table><![endif]-->\n");
     h.push_str("</td></tr>\n</table>\n</body>\n</html>\n");
     h
 }
 
-/// The brand mark and the wordmark, above the card.
+/// The brand at the top of the column: the mark, the wordmark, and under them
+/// the brand stripe, one short bar in the people blue and one in the AI orange,
+/// the pair every chart in the product is drawn in.
 ///
 /// The mark is the site logo reduced to what a table can draw: a near-black
 /// tile with the orange dot in it. Drawn rather than loaded, so it is there with
-/// images off and costs no request. It sits in a table of its own, because a
-/// cell in the wordmark's row would stretch to the wordmark's line height and
-/// stop being square.
+/// images off and costs no request. Each square sits in a table of its own,
+/// because a cell in the wordmark's row would stretch to the wordmark's line
+/// height and stop being square.
 fn masthead() -> String {
     format!(
-        "<tr><td style=\"padding:0 4px 20px;\">\
+        "<tr><td>\
          <table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\"><tr>\
          <td valign=\"middle\" style=\"vertical-align:middle;\">\
          <table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\"><tr>\
-         <td width=\"22\" height=\"22\" bgcolor=\"{BUTTON}\" align=\"center\" valign=\"middle\" \
-         style=\"width:22px;height:22px;background:{BUTTON};border-radius:6px;\">\
+         <td class=\"mf-tile\" width=\"26\" height=\"26\" bgcolor=\"{BUTTON}\" align=\"center\" \
+         valign=\"middle\" style=\"width:26px;height:26px;background:{BUTTON};border-radius:7px;\">\
          <table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" align=\"center\"><tr>\
-         <td width=\"8\" height=\"8\" bgcolor=\"{MARK_DOT}\" style=\"width:8px;height:8px;\
-         background:{MARK_DOT};border-radius:4px;font-size:0;line-height:0;\">&nbsp;</td>\
+         <td width=\"9\" height=\"9\" bgcolor=\"{MARK_DOT}\" style=\"width:9px;height:9px;\
+         background:{MARK_DOT};border-radius:5px;font-size:0;line-height:0;\">&nbsp;</td>\
          </tr></table></td>\
          </tr></table></td>\
          <td valign=\"middle\" class=\"mf-ink\" style=\"vertical-align:middle;padding-left:10px;\
-         font-family:{SANS};font-size:16px;line-height:20px;font-weight:600;\
-         letter-spacing:-0.01em;color:{INK};\">Micaforge</td>\
-         </tr></table></td></tr>\n"
+         font-family:{SANS};font-size:17px;line-height:22px;font-weight:700;\
+         letter-spacing:-0.02em;color:{INK};\">Micaforge</td>\
+         </tr></table>\
+         <table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" \
+         style=\"margin-top:20px;\"><tr>\
+         <td width=\"28\" height=\"3\" bgcolor=\"{BLUE}\" style=\"width:28px;height:3px;\
+         background:{BLUE};border-radius:2px 0 0 2px;font-size:0;line-height:0;\">&nbsp;</td>\
+         <td width=\"14\" height=\"3\" bgcolor=\"{ORANGE}\" style=\"width:14px;height:3px;\
+         background:{ORANGE};border-radius:0 2px 2px 0;font-size:0;line-height:0;\">&nbsp;</td>\
+         </tr></table>\
+         </td></tr>\n"
+    )
+}
+
+/// The footer: a hairline, what Micaforge is, and the privacy statement the
+/// product makes about its own mail.
+fn footer() -> String {
+    format!(
+        "<tr><td style=\"padding-top:48px;\">\
+         <table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\">\
+         <tr><td class=\"mf-mute mf-rule\" style=\"border-top:1px solid {LINE};padding-top:20px;\
+         font-family:{SANS};font-size:12px;line-height:19px;color:{MUTE};\">\
+         <strong class=\"mf-ink\" style=\"font-weight:600;color:{INK};\">Micaforge</strong> \
+         &nbsp;·&nbsp; Open-source, cookie-free web analytics<br>\
+         No images and no tracking pixel. Micaforge cannot tell whether this email was opened.\
+         </td></tr></table></td></tr>\n"
     )
 }
 
 /// A paragraph of running copy. `html` is already escaped.
 fn paragraph(html: &str) -> String {
     format!(
-        "<p class=\"mf-text\" style=\"margin:0;font-family:{SANS};font-size:15px;line-height:24px;\
+        "<p class=\"mf-text\" style=\"margin:0;font-family:{SANS};font-size:16px;line-height:26px;\
          color:{TEXT};\">{html}</p>"
     )
 }
 
-/// A section heading inside the card.
-fn subheading(text: &str) -> String {
+/// A section heading, led by a small dot in the colour of the audience it is
+/// about: blue for people, orange for AI.
+fn section(title: &str, dot: &str) -> String {
     format!(
-        "<h2 class=\"mf-ink\" style=\"margin:0;font-family:{SANS};font-size:17px;line-height:24px;\
-         font-weight:600;letter-spacing:-0.01em;color:{INK};\">{}</h2>",
-        escape(text)
+        "<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\"><tr>\
+         <td valign=\"middle\" style=\"vertical-align:middle;\">\
+         <table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\"><tr>\
+         <td width=\"8\" height=\"8\" bgcolor=\"{dot}\" style=\"width:8px;height:8px;\
+         background:{dot};border-radius:2px;font-size:0;line-height:0;\">&nbsp;</td>\
+         </tr></table></td>\
+         <td valign=\"middle\" class=\"mf-ink\" style=\"vertical-align:middle;padding-left:8px;\
+         font-family:{SANS};font-size:15px;line-height:22px;font-weight:600;color:{INK};\">{}</td>\
+         </tr></table>",
+        escape(title)
     )
 }
 
-/// The code, large, monospaced and letter-spaced, alone in a panel.
+/// The code, large, monospaced and letter-spaced, in a soft panel, with its
+/// caption under it.
 ///
 /// The left padding equals the letter spacing, so the trailing space a client
 /// adds after the last digit does not push the code off centre. `mf-nolink`
 /// stops a client from turning six digits into a telephone link.
-fn code_panel(code: &str) -> String {
+fn code_panel(code: &str, caption: &str) -> String {
     format!(
         "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\">\
          <tr><td align=\"center\" class=\"mf-panel\" bgcolor=\"{PANEL}\" style=\"background:{PANEL};\
-         border:1px solid {LINE};border-radius:12px;padding:22px 12px;\">\
-         <span class=\"mf-ink mf-code mf-nolink\" style=\"font-family:{MONO};font-size:36px;\
-         line-height:42px;font-weight:600;letter-spacing:8px;padding-left:8px;white-space:nowrap;\
-         color:{INK};\">{}</span></td></tr></table>",
-        escape(code)
+         border-radius:14px;padding:28px 12px 22px;\">\
+         <span class=\"mf-ink mf-code mf-nolink\" style=\"font-family:{MONO};font-size:40px;\
+         line-height:46px;font-weight:700;letter-spacing:10px;padding-left:10px;white-space:nowrap;\
+         color:{INK};\">{}</span>\
+         <p class=\"mf-mute\" style=\"margin:12px 0 0;font-family:{SANS};font-size:13px;\
+         line-height:18px;color:{MUTE};\">{}</p></td></tr></table>",
+        escape(code),
+        escape(caption)
     )
 }
 
-/// Label and value pairs in a panel, one hairline between rows.
-fn details_panel(rows: &[Detail]) -> String {
-    let mut out = String::new();
-    for (i, row) in rows.iter().enumerate() {
-        let rule = if i + 1 < rows.len() {
-            format!("border-bottom:1px solid {LINE};")
-        } else {
-            String::new()
-        };
-        let cell =
-            format!("font-family:{SANS};font-size:14px;line-height:20px;padding:13px 18px;{rule}");
-        let (class, colour) = row.ink.class_and_colour();
-        out.push_str(&format!(
-            "<tr><td class=\"mf-mute mf-row\" style=\"{cell}color:{MUTE};\">{}</td>\
-             <td align=\"right\" class=\"{class} mf-row mf-nolink\" style=\"{cell}font-weight:600;\
-             text-align:right;white-space:nowrap;color:{colour};\">{}</td></tr>",
-            escape(&row.label),
-            escape(&row.value)
-        ));
-    }
-    panel(&out)
+/// A row of figures: label above, value below, in up to three columns. No
+/// boxes and no borders; the space between columns is the separation.
+fn stats_row(stats: &[Stat]) -> String {
+    let width = 100 / stats.len().max(1);
+    let cells: String = stats
+        .iter()
+        .map(|s| {
+            let (class, colour) = s.ink.class_and_colour();
+            format!(
+                "<td width=\"{width}%\" valign=\"top\" style=\"width:{width}%;vertical-align:top;\
+                 padding-right:12px;\">\
+                 <p class=\"mf-mute\" style=\"margin:0;font-family:{SANS};font-size:13px;\
+                 line-height:18px;color:{MUTE};\">{}</p>\
+                 <p class=\"{class} mf-stat mf-nolink\" style=\"margin:4px 0 0;font-family:{SANS};\
+                 font-size:22px;line-height:28px;font-weight:700;letter-spacing:-0.02em;\
+                 white-space:nowrap;color:{colour};\">{}</p></td>",
+                escape(&s.label),
+                escape(&s.value)
+            )
+        })
+        .collect();
+    format!(
+        "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\">\
+         <tr>{cells}</tr></table>"
+    )
 }
 
-/// A ranked list in a panel: a header row naming the list and its unit, then
-/// the rows, labels shortened and figures in the monospaced face so they read
-/// down a column.
-fn ranked_panel(list: &Ranked) -> String {
-    let edge = format!("border-bottom:1px solid {LINE};");
+/// A ranked list: its title and unit, then each row as a label and a figure
+/// with a thin share bar under them, drawn in the audience's colour against a
+/// grey track. The bars are table cells, so they render with images off and in
+/// every client that renders a table.
+fn ranked(list: &Ranked) -> String {
     let mut out = format!(
-        "<tr><td class=\"mf-ink mf-row\" style=\"font-family:{SANS};font-size:14px;line-height:20px;\
-         font-weight:600;padding:13px 18px;{edge}color:{INK};\">{}</td>\
-         <td align=\"right\" class=\"mf-mute mf-row\" style=\"font-family:{SANS};font-size:12px;\
-         line-height:20px;padding:13px 18px;text-align:right;{edge}color:{MUTE};\">{}</td></tr>",
+        "<tr><td class=\"mf-ink\" style=\"font-family:{SANS};font-size:15px;line-height:22px;\
+         font-weight:600;padding-bottom:4px;color:{INK};\">{}</td>\
+         <td align=\"right\" class=\"mf-mute\" style=\"font-family:{SANS};font-size:13px;\
+         line-height:22px;text-align:right;padding-bottom:4px;color:{MUTE};\">{}</td></tr>",
         escape(&list.title),
         escape(&list.unit)
     );
@@ -756,35 +810,43 @@ fn ranked_panel(list: &Ranked) -> String {
         // number and it never shows a plausible-looking zero-filled row.
         out.push_str(&format!(
             "<tr><td colspan=\"2\" class=\"mf-mute\" style=\"font-family:{SANS};font-size:14px;\
-             line-height:20px;padding:13px 18px;color:{MUTE};\">Nothing recorded in this period.</td></tr>"
+             line-height:20px;padding-top:10px;color:{MUTE};\">Nothing recorded in this period.</td></tr>"
         ));
     } else {
-        for (i, (label, value)) in list.rows.iter().enumerate() {
-            let rule = if i + 1 < list.rows.len() {
-                edge.as_str()
+        let peak = list.rows.iter().map(|(_, v)| *v).max().unwrap_or(0).max(1);
+        for (label, value) in &list.rows {
+            // At least one percent, so a row that counted anything shows a mark.
+            let share = ((*value as f64 / peak as f64) * 100.0)
+                .round()
+                .clamp(1.0, 100.0) as u32;
+            let rest = 100 - share;
+            let track = if rest > 0 {
+                format!(
+                    "<td class=\"mf-track\" width=\"{rest}%\" height=\"4\" bgcolor=\"{TRACK}\" \
+                     style=\"width:{rest}%;height:4px;background:{TRACK};font-size:0;line-height:0;\">&nbsp;</td>"
+                )
             } else {
-                ""
+                String::new()
             };
             out.push_str(&format!(
-                "<tr><td class=\"mf-text mf-row\" style=\"font-family:{SANS};font-size:14px;\
-                 line-height:20px;padding:11px 18px;{rule}color:{TEXT};\">{}</td>\
-                 <td align=\"right\" class=\"mf-ink mf-row mf-nolink\" style=\"font-family:{MONO};\
-                 font-size:14px;line-height:20px;padding:11px 18px;text-align:right;white-space:nowrap;\
-                 {rule}color:{INK};\">{}</td></tr>",
+                "<tr><td class=\"mf-text\" style=\"font-family:{SANS};font-size:14px;line-height:20px;\
+                 padding-top:12px;color:{TEXT};\">{}</td>\
+                 <td align=\"right\" class=\"mf-ink mf-nolink\" style=\"font-family:{MONO};font-size:14px;\
+                 line-height:20px;padding-top:12px;text-align:right;white-space:nowrap;color:{INK};\">{}</td></tr>\
+                 <tr><td colspan=\"2\" style=\"padding-top:6px;\">\
+                 <table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" \
+                 style=\"border-radius:2px;\"><tr>\
+                 <td width=\"{share}%\" height=\"4\" bgcolor=\"{bar}\" style=\"width:{share}%;height:4px;\
+                 background:{bar};font-size:0;line-height:0;\">&nbsp;</td>{track}</tr></table></td></tr>",
                 escape(&truncate(label, 46)),
-                fmt_int(*value)
+                fmt_int(*value),
+                bar = list.bar,
             ));
         }
     }
-    panel(&out)
-}
-
-/// The rounded panel the details and lists sit in.
-fn panel(rows: &str) -> String {
     format!(
-        "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" \
-         class=\"mf-panel\" bgcolor=\"{PANEL}\" style=\"background:{PANEL};border:1px solid {LINE};\
-         border-radius:12px;border-collapse:separate;\">{rows}</table>"
+        "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\">\
+         {out}</table>"
     )
 }
 
@@ -813,7 +875,7 @@ fn button(href: &str, label: &str) -> String {
 fn link_fallback(href: &str) -> String {
     format!(
         "<p class=\"mf-mute\" style=\"margin:0;font-family:{SANS};font-size:13px;line-height:20px;\
-         color:{MUTE};\">If the button does not open, use this address:<br>\
+         color:{MUTE};\">Or open this address:<br>\
          <a href=\"{0}\" target=\"_blank\" class=\"mf-link\" style=\"color:{INK};\
          text-decoration:underline;word-break:break-all;\">{0}</a></p>",
         escape(href)
@@ -961,9 +1023,15 @@ fn safe_href(href: &str) -> String {
 /// Turn a database slug into something a person reads.
 ///
 /// `alerts.kind` is stored as `agent_surge` because Postgres and the API want a
-/// stable token. An eyebrow is not the place to show one.
+/// stable token. A heading or a label is not the place to show one, so this
+/// spaces it out and starts it with a capital.
 fn humanise(slug: &str) -> String {
-    slug.replace('_', " ")
+    let spaced = slug.replace('_', " ");
+    let mut chars = spaced.chars();
+    match chars.next() {
+        Some(first) => first.to_uppercase().chain(chars).collect(),
+        None => spaced,
+    }
 }
 
 /// Drop a trailing slash so a joined path never doubles it.
@@ -1159,9 +1227,9 @@ mod tests {
         assert!(r.html.contains("prefers-color-scheme: dark"));
         assert!(r
             .html
-            .contains(&format!("background:{CARD_DARK} !important")));
+            .contains(&format!("background:{PAGE_DARK} !important")));
         // The base every client sees is the light one, inline.
-        assert!(r.html.contains(&format!("background:{CARD};")));
+        assert!(r.html.contains(&format!("background:{PAGE};")));
         assert!(r.html.contains("content=\"light dark\""));
     }
 
@@ -1254,6 +1322,13 @@ mod tests {
         let out = truncate(&long, 20);
         assert_eq!(out.chars().count(), 20);
         assert!(out.ends_with('\u{2026}'));
+    }
+
+    #[test]
+    fn a_slug_reads_as_a_sentence() {
+        assert_eq!(humanise("agent_surge"), "Agent surge");
+        assert_eq!(humanise("fetches, 6h"), "Fetches, 6h");
+        assert_eq!(humanise(""), "");
     }
 
     #[test]
