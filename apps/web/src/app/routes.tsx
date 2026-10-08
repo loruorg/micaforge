@@ -361,6 +361,8 @@ export function AppRoutes() {
           {/* this site's setup */}
           <Route path="settings" element={<SettingsLayout scope="site" />}>
             <Route index element={<TrackingSetup />} />
+            {/* The address onboarding and older links use for the same screen. */}
+            <Route path="tracking" element={<TrackingSetup />} />
             <Route path="site" element={<SiteSettings />} />
             <Route path="alerts" element={<AlertsSettings />} />
             <Route path="reports" element={<ReportsSettings />} />
