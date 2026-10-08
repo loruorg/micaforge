@@ -1,36 +1,21 @@
 /* ============================================================================
-   ENTRY, the way in: authentication, the site chooser, first-run onboarding
-   and the public share view.
+   ENTRY, the way in: sign-in, invitations, the site chooser, first-run
+   onboarding and the public share view.
 
-   These screens are the first thing anyone sees, so they are composed as the
-   station's own paperwork rather than as a centred box on an empty field. The
-   unauthenticated frame IS a sheet of chart paper: perforations down the left
-   gutter, a fragment of a two-pen record written across the top, and the form
-   pinned onto the sheet below it as a log slip.
-
-   Every value here is a var(--mf-*). Depth is the scratch ridge, never a glow.
+   Unauthenticated screens are one centred card on the light page, with the
+   brand above it. Every value here is a var(--mf-*).
    ========================================================================= */
 
-/* Area geometry that the shared space scale does not cover: each of these is
-   tied one-to-one to an SVG user unit in this area's components, so the scratch
-   ridge stays a true one-pixel offset instead of a scaled smear. */
 :root {
-  --mf-entry-band-h: 150px;
-  --mf-entry-band-h-sm: 108px;
-  --mf-entry-band-h-xs: 92px;
   --mf-entry-max: 1080px;
-  --mf-entry-slip: 400px;
+  --mf-entry-card: 420px;
   --mf-entry-share-col: 340px;
   --mf-entry-search-w: 26ch;
   --mf-entry-form-measure: 44ch;
 }
 
-/* ── the sheet ──────────────────────────────────────────────────────────── */
+/* ── the frame ──────────────────────────────────────────────────────────── */
 
-/* The masthead, the sheet and the colophon are ONE composed group centred in
-   the viewport, rather than three things pinned to the top, middle and bottom
-   edges with two voids between them. `safe center` keeps the top reachable when
-   the group is taller than the screen. */
 .mf-entry {
   position: relative;
   z-index: 1;
@@ -38,166 +23,72 @@
   align-content: center;
   align-content: safe center;
   justify-items: center;
+  gap: var(--mf-6);
   min-height: 100dvh;
-  padding: var(--mf-10) var(--mf-6);
-  gap: var(--mf-5);
-}
-
-.mf-entry__mast,
-.mf-entry__stage,
-.mf-entry__colophon {
-  width: 100%;
-  max-width: var(--mf-entry-max);
-}
-
-.mf-entry__mast {
-  display: flex;
-  align-items: center;
-  gap: var(--mf-4);
+  padding: var(--mf-10) var(--mf-4);
+  background: var(--mf-ground);
 }
 
 .mf-entry__brand {
   display: inline-flex;
   align-items: center;
-  gap: var(--mf-3);
-  color: var(--mf-ink);
+  gap: 10px;
+  color: var(--mf-ink-strong);
   text-decoration: none;
 }
 
 .mf-entry__wordmark {
-  font-family: var(--mf-font-display);
-  font-size: var(--mf-t-md);
+  font-size: var(--mf-t-lg);
   font-weight: 600;
-  letter-spacing: -0.005em;
+  letter-spacing: -0.025em;
 }
 
-.mf-entry__sheet {
+.mf-entry__card {
   width: 100%;
-  max-width: var(--mf-entry-max);
-  overflow: hidden;
+  max-width: var(--mf-entry-card);
+  padding: var(--mf-8);
+  background: var(--mf-ground-2);
+  border: 1px solid var(--mf-rule);
+  border-radius: var(--mf-r-lg);
+  box-shadow: var(--mf-shadow-md);
 }
 
-/* ── the specimen trace ─────────────────────────────────────────────────── */
-
-.mf-entry__band {
-  border-bottom: 1px solid var(--mf-rule);
-  background: var(--mf-well);
-}
-
-/* The record is a fixed 150 user units tall so the scratch ridge stays a true
-   one-pixel offset; only the time axis stretches with the viewport. */
-.mf-entry__trace {
-  display: block;
-  width: 100%;
-  height: var(--mf-entry-band-h);
-}
-
-.mf-entry__legend {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: var(--mf-2) var(--mf-6);
-  padding: var(--mf-3) var(--mf-5) var(--mf-3) 0;
-  border-bottom: 1px solid var(--mf-rule);
-}
-
-.mf-entry__chan {
-  display: inline-flex;
-  align-items: baseline;
-  gap: var(--mf-2);
-  font-size: var(--mf-t-sm);
-  color: var(--mf-ink-2);
-}
-
-/* The swatch repeats the pen's own line character, so the two channels are
-   told apart by SHAPE before colour is involved at all. */
-.mf-entry__pen {
-  position: relative;
-  align-self: center;
-  display: inline-block;
-  width: 18px;
-  height: 2px;
-  border-radius: 1px;
-  background: var(--mf-people);
-}
-
-.mf-entry__pen[data-pen="stepped"] {
-  width: 9px;
-  height: 8px;
-  margin-right: 9px;
-  background: none;
-  border-top: 2px solid var(--mf-ai);
-  border-right: 2px solid var(--mf-ai);
-  border-radius: 0;
-}
-
-.mf-entry__pen[data-pen="stepped"]::after {
-  content: "";
-  position: absolute;
-  left: 100%;
-  bottom: -2px;
-  width: 9px;
-  border-bottom: 2px solid var(--mf-ai);
-}
-
-.mf-entry__specimen { margin-left: auto; }
-
-/* ── the log slip ───────────────────────────────────────────────────────── */
-
-.mf-entry__body {
-  display: grid;
-  grid-template-columns: minmax(0, var(--mf-entry-slip)) minmax(0, 1fr);
-  align-items: stretch;
-  gap: var(--mf-8) var(--mf-12);
-  padding: var(--mf-8) var(--mf-8) var(--mf-8) 0;
-}
-
-/* The standing explanation ends level with the slip, so the two columns share a
-   bottom edge instead of one hanging short of the other. */
 .mf-entry__aside {
-  max-width: 48ch;
-  display: grid;
-  align-content: end;
-  gap: var(--mf-4);
-  justify-items: start;
-}
-
-.mf-entry__aside p {
+  width: 100%;
+  max-width: var(--mf-entry-card);
   font-size: var(--mf-t-sm);
   line-height: var(--mf-lead-body);
   color: var(--mf-ink-2);
+  text-align: center;
 }
 
 .mf-entry__colophon {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--mf-2) var(--mf-4);
+  max-width: var(--mf-entry-card);
   font-size: var(--mf-t-xs);
+  line-height: 1.6;
   color: var(--mf-ink-3);
+  text-align: center;
 }
 
-.mf-entry__dot { color: var(--mf-rule-strong); }
-
-/* A link carries a static rule that is present at rest. It never grows,
-   wipes or travels in on hover; only its tone changes. */
 .mf-entry__link {
   display: inline-flex;
-  /* A link is as wide as its words: inside a grid it must not stretch, or its
-     rule runs on past the text it belongs to. */
-  justify-self: start;
-  align-self: start;
   align-items: center;
-  gap: var(--mf-2);
-  font-size: var(--mf-t-sm);
+  gap: 4px;
+  font-size: inherit;
+  font-weight: 500;
   color: var(--mf-ink-2);
-  text-decoration: none;
-  border-bottom: 1px solid var(--mf-rule-strong);
-  padding-bottom: 2px;
-  transition: color var(--mf-dur-1) linear, border-color var(--mf-dur-1) linear;
+  text-decoration: underline;
+  text-decoration-color: var(--mf-rule-strong);
+  text-underline-offset: 3px;
+  transition: color var(--mf-dur-1) linear, text-decoration-color var(--mf-dur-1) linear;
 }
-.mf-entry__link:hover { color: var(--mf-ink); border-color: var(--mf-ink-3); }
+.mf-entry__link:hover { color: var(--mf-ink-strong); text-decoration-color: currentColor; }
 .mf-entry__link--sm { font-size: var(--mf-t-xs); }
+
+@media (max-width: 480px) {
+  .mf-entry { align-content: start; padding-top: var(--mf-12); }
+  .mf-entry__card { padding: var(--mf-6) var(--mf-5); }
+}
 
 /* ── forms ──────────────────────────────────────────────────────────────── */
 
@@ -205,11 +96,11 @@
 
 .mf-form__title {
   font-family: var(--mf-font-display);
-  font-size: var(--mf-t-xl);
+  font-size: var(--mf-t-lg);
   font-weight: 600;
-  line-height: 1.1;
-  letter-spacing: var(--mf-track-display);
-  color: var(--mf-ink);
+  line-height: 1.2;
+  letter-spacing: -0.025em;
+  color: var(--mf-ink-strong);
   margin: 0;
 }
 
@@ -217,7 +108,7 @@
   margin-top: var(--mf-2);
   font-size: var(--mf-t-sm);
   line-height: var(--mf-lead-body);
-  color: var(--mf-ink-3);
+  color: var(--mf-ink-2);
   max-width: 54ch;
 }
 
@@ -231,15 +122,13 @@
   max-width: 54ch;
 }
 
-/* A failure is written across the slip on its own ruled line, no tinted box,
-   no chip. The rules above and below are the containment. */
 .mf-form__err {
   display: flex;
   align-items: flex-start;
   gap: var(--mf-2);
-  padding: var(--mf-3) 0;
-  border-top: 1px solid var(--mf-danger-wash);
-  border-bottom: 1px solid var(--mf-danger-wash);
+  padding: var(--mf-3);
+  background: var(--mf-danger-wash);
+  border-radius: var(--mf-r-sm);
   font-size: var(--mf-t-sm);
   line-height: var(--mf-lead-snug);
   color: var(--mf-danger);
@@ -250,9 +139,9 @@
   display: flex;
   align-items: flex-start;
   gap: var(--mf-2);
-  padding: var(--mf-3) 0;
-  border-top: 1px solid var(--mf-success-wash);
-  border-bottom: 1px solid var(--mf-success-wash);
+  padding: var(--mf-3);
+  background: var(--mf-success-wash);
+  border-radius: var(--mf-r-sm);
   font-size: var(--mf-t-sm);
   line-height: var(--mf-lead-snug);
   color: var(--mf-success);
@@ -278,8 +167,9 @@
 }
 
 .mf-field__label {
-  font-size: var(--mf-t-xs);
-  color: var(--mf-ink-2);
+  font-size: var(--mf-t-sm);
+  font-weight: 500;
+  color: var(--mf-ink);
 }
 
 .mf-field__hint {
@@ -298,8 +188,6 @@
 }
 .mf-field__err svg { flex: none; margin-top: 1px; }
 
-/* An input is a sunken well cut into the sheet: the press shadow is the cut,
-   not a drop shadow under a floating box. */
 .mf-input {
   width: 100%;
   min-width: 0;
@@ -311,16 +199,17 @@
   background: var(--mf-well);
   border: 1px solid var(--mf-rule-strong);
   border-radius: var(--mf-r-sm);
-  box-shadow: var(--mf-inset);
+  box-shadow: var(--mf-shadow-xs);
+  min-height: 40px;
   padding: var(--mf-2) var(--mf-3);
-  transition: border-color var(--mf-dur-1) linear;
+  transition: border-color var(--mf-dur-1) linear, box-shadow var(--mf-dur-1) linear;
 }
 
 /* A placeholder is text, so it clears the same contrast floor as any other
    text. `opacity: 1` undoes the dimming some engines add on top of the colour. */
-.mf-input::placeholder { color: var(--mf-ink-2); opacity: 1; }
+.mf-input::placeholder { color: var(--mf-ink-3); opacity: 1; }
 .mf-input:hover { border-color: var(--mf-ink-3); }
-.mf-input:focus { border-color: var(--mf-accent); }
+.mf-input:focus { border-color: var(--mf-blue); box-shadow: 0 0 0 3px var(--mf-blue-wash); outline: none; }
 .mf-input[aria-invalid="true"] { border-color: var(--mf-danger); }
 /* A disabled field still shows real content (the address an invitation was sent
    to, for one), so it stays readable; the quiet surface carries "inactive". */
@@ -397,26 +286,8 @@
   padding: var(--mf-4) 0;
 }
 
-@media (max-width: 900px) {
-  .mf-entry { padding: var(--mf-5) var(--mf-4); gap: var(--mf-4); }
-  .mf-entry__trace { height: var(--mf-entry-band-h-sm); }
-  .mf-entry__body {
-    grid-template-columns: minmax(0, 1fr);
-    gap: var(--mf-6);
-    padding: var(--mf-5) var(--mf-5) var(--mf-6) 0;
-  }
-  .mf-entry__aside { align-content: start; }
-  .mf-entry__legend { padding-right: var(--mf-4); }
-  .mf-entry__specimen { margin-left: 0; }
-}
-
 @media (max-width: 560px) {
   .mf-panel-form { padding: 0 var(--mf-4) var(--mf-4); }
-}
-
-@media (max-width: 480px) {
-  .mf-entry__trace { height: var(--mf-entry-band-h-xs); }
-  .mf-form__title { font-size: var(--mf-t-lg); }
 }
 
 /* ── the site chooser ───────────────────────────────────────────────────── */
@@ -728,3 +599,10 @@
   }
   .mf-share__tools > * { flex: none; }
 }
+
+/* In the sign-in card the one action runs the card's full width, and the quiet
+   follow-ups (a new code, another address) sit under it. */
+.mf-entry__card .mf-form__foot { flex-direction: column; align-items: stretch; gap: var(--mf-2); }
+.mf-entry__card .mf-form__foot .mf-btn--primary { width: 100%; min-height: 40px; font-size: var(--mf-t-base); }
+.mf-entry__card .mf-form__foot .mf-btn--quiet { justify-content: center; }
+.mf-entry__card .mf-input--code { max-width: none; text-align: center; }

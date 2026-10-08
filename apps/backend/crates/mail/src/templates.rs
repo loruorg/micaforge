@@ -41,51 +41,56 @@ use crate::{AlertPayload, ReportPayload};
 // element; the dark set only reaches the clients that read the `<style>` block.
 // ---------------------------------------------------------------------------
 
-/// The one brand colour: the mark beside the wordmark, the button, links.
-const ACCENT: &str = "#5b5bf0";
-/// Text set on [`ACCENT`]. White clears 4.5:1 on it.
-const ON_ACCENT: &str = "#ffffff";
+/// The brand orange, text-safe on white (5.2:1): the dot in the mark and the
+/// figures a report sets in the accent. It is the colour of AI traffic on the
+/// site and in the dashboard, and means the same thing here.
+const ACCENT: &str = "#c2410c";
+/// The orange of the mark's dot, the same value the site's logo uses.
+const MARK_DOT: &str = "#f25a1d";
+/// The button, and the mark's tile: the near-black the site's buttons use.
+const BUTTON: &str = "#18181b";
+/// Text set on [`BUTTON`].
+const ON_BUTTON: &str = "#ffffff";
 
 /// The ground around the card.
-const PAGE: &str = "#f3f3f6";
+const PAGE: &str = "#f4f4f5";
 /// The card itself.
 const CARD: &str = "#ffffff";
 /// The card's edge.
-const CARD_EDGE: &str = "#e4e4ea";
+const CARD_EDGE: &str = "#e4e4e7";
 /// Headings, figures and anything set in weight.
-const INK: &str = "#111117";
+const INK: &str = "#09090b";
 /// Running copy. Softer than [`INK`] so a paragraph does not glare.
-const TEXT: &str = "#3d3d47";
+const TEXT: &str = "#3f3f46";
 /// Labels, notes and the footer. Still clears 4.5:1 on [`PANEL`].
-const MUTE: &str = "#676773";
+const MUTE: &str = "#71717a";
 /// Hairlines between rows and above the note.
-const LINE: &str = "#e8e8ee";
+const LINE: &str = "#e4e4e7";
 /// The ground of the code, details and list panels.
-const PANEL: &str = "#f6f6f9";
+const PANEL: &str = "#fafafa";
 /// A rise, in a report. Never the only encoding: the sign is always printed.
 const RISE: &str = "#1d7a52";
 /// A fall, in a report.
 const FALL: &str = "#b5432c";
 
 /// [`PAGE`] in dark mode.
-const PAGE_DARK: &str = "#0e0e13";
+const PAGE_DARK: &str = "#09090b";
 /// [`CARD`] in dark mode.
-const CARD_DARK: &str = "#16161d";
+const CARD_DARK: &str = "#18181b";
 /// [`CARD_EDGE`] in dark mode.
-const CARD_EDGE_DARK: &str = "#272731";
+const CARD_EDGE_DARK: &str = "#27272a";
 /// [`INK`] in dark mode.
-const INK_DARK: &str = "#f2f2f6";
+const INK_DARK: &str = "#fafafa";
 /// [`TEXT`] in dark mode.
-const TEXT_DARK: &str = "#c8c8d2";
+const TEXT_DARK: &str = "#d4d4d8";
 /// [`MUTE`] in dark mode.
-const MUTE_DARK: &str = "#8e8e9b";
+const MUTE_DARK: &str = "#a1a1aa";
 /// [`LINE`] in dark mode.
-const LINE_DARK: &str = "#2a2a35";
+const LINE_DARK: &str = "#27272a";
 /// [`PANEL`] in dark mode.
-const PANEL_DARK: &str = "#1c1c25";
-/// [`ACCENT`] as text on a dark card, lifted so links and accent figures
-/// clear 4.5:1. The button keeps [`ACCENT`], which white text reads on.
-const ACCENT_DARK: &str = "#9b9bfa";
+const PANEL_DARK: &str = "#202023";
+/// [`ACCENT`] as text on a dark card, lifted so accent figures clear 4.5:1.
+const ACCENT_DARK: &str = "#ff8a5c";
 /// [`RISE`] in dark mode.
 const RISE_DARK: &str = "#5fc79a";
 /// [`FALL`] in dark mode.
@@ -182,8 +187,8 @@ pub fn sign_in_code(code: &str, ttl_minutes: u32) -> Rendered {
 pub fn invitation(base_url: &str, org: &str, token: &str) -> Rendered {
     let link = invitation_link(base_url, token);
     let subject = format!("You have been invited to {org} on Micaforge");
-    let pitch = "measures its traffic with Micaforge: who reads its pages, and which machines \
-                 fetch them. Accept to get access.";
+    let pitch = "measures its traffic with Micaforge: who visits its pages, and which AI \
+                 crawlers read them. Accept to get access.";
     let no_password = "There is no password to choose. Micaforge signs you in with a code it \
                        sends to this address.";
     let note = "If you were not expecting this, ignore it.";
@@ -253,10 +258,10 @@ pub fn report(base_url: &str, site: &str, period: &str, r: &ReportPayload) -> Re
                 Detail::plain("Sessions", fmt_int(r.sessions)),
                 Detail::plain("Bounce rate", fmt_pct(r.bounce_rate)),
             ]),
-            Block::Subheading("What the machines did".to_string()),
+            Block::Subheading("AI traffic".to_string()),
             Block::Details(vec![
-                Detail::plain("Agent fetches", fmt_int(r.agent_fetches)),
-                Detail::plain("Answer arrivals", fmt_int(r.answer_arrivals)),
+                Detail::plain("AI crawler visits", fmt_int(r.agent_fetches)),
+                Detail::plain("Visitors from AI answers", fmt_int(r.answer_arrivals)),
                 // The number the message exists to deliver: the Citation Gap.
                 Detail::accent("Fetched per arrival", fmt_ratio(r.gap_ratio)),
             ]),
@@ -280,9 +285,12 @@ pub fn report(base_url: &str, site: &str, period: &str, r: &ReportPayload) -> Re
     t.push_str(&text_row("Pageviews", &fmt_int(r.pageviews)));
     t.push_str(&text_row("Sessions", &fmt_int(r.sessions)));
     t.push_str(&text_row("Bounce rate", &fmt_pct(r.bounce_rate)));
-    t.push_str("\nWHAT THE MACHINES DID\n\n");
-    t.push_str(&text_row("Agent fetches", &fmt_int(r.agent_fetches)));
-    t.push_str(&text_row("Answer arrivals", &fmt_int(r.answer_arrivals)));
+    t.push_str("\nAI TRAFFIC\n\n");
+    t.push_str(&text_row("AI crawler visits", &fmt_int(r.agent_fetches)));
+    t.push_str(&text_row(
+        "Visitors from AI answers",
+        &fmt_int(r.answer_arrivals),
+    ));
     t.push_str(&text_row("Fetched per arrival", &fmt_ratio(r.gap_ratio)));
     t.push_str(&text_list("PAGES (visitors)", &r.top_pages));
     t.push_str(&text_list("SOURCES (visitors)", &r.top_sources));
@@ -511,7 +519,10 @@ a[x-apple-data-detectors], .mf-nolink a {{ color:inherit !important; text-decora
   .mf-mute {{ color:{MUTE_DARK} !important; }}
   .mf-panel {{ background:{PANEL_DARK} !important; border-color:{LINE_DARK} !important; }}
   .mf-row, .mf-rule {{ border-color:{LINE_DARK} !important; }}
-  .mf-accent, .mf-link {{ color:{ACCENT_DARK} !important; }}
+  .mf-accent {{ color:{ACCENT_DARK} !important; }}
+  .mf-link {{ color:{INK_DARK} !important; }}
+  .mf-btn {{ background:{INK_DARK} !important; }}
+  .mf-btn a {{ color:{BUTTON} !important; }}
   .mf-rise {{ color:{RISE_DARK} !important; }}
   .mf-fall {{ color:{FALL_DARK} !important; }}
 }}
@@ -644,18 +655,23 @@ fn render(letter: &Letter<'_>) -> String {
 
 /// The brand mark and the wordmark, above the card.
 ///
-/// The mark is a solid square cell in [`ACCENT`]: drawn by the table rather
-/// than loaded, so it is there with images off and costs no request. It sits in
-/// a table of its own, because a cell in the wordmark's row would stretch to
-/// the wordmark's line height and stop being square.
+/// The mark is the site logo reduced to what a table can draw: a near-black
+/// tile with the orange dot in it. Drawn rather than loaded, so it is there with
+/// images off and costs no request. It sits in a table of its own, because a
+/// cell in the wordmark's row would stretch to the wordmark's line height and
+/// stop being square.
 fn masthead() -> String {
     format!(
         "<tr><td style=\"padding:0 4px 20px;\">\
          <table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\"><tr>\
          <td valign=\"middle\" style=\"vertical-align:middle;\">\
          <table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\"><tr>\
-         <td width=\"14\" height=\"14\" bgcolor=\"{ACCENT}\" style=\"width:14px;height:14px;\
-         background:{ACCENT};border-radius:3px;font-size:0;line-height:0;\">&nbsp;</td>\
+         <td width=\"22\" height=\"22\" bgcolor=\"{BUTTON}\" align=\"center\" valign=\"middle\" \
+         style=\"width:22px;height:22px;background:{BUTTON};border-radius:6px;\">\
+         <table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" align=\"center\"><tr>\
+         <td width=\"8\" height=\"8\" bgcolor=\"{MARK_DOT}\" style=\"width:8px;height:8px;\
+         background:{MARK_DOT};border-radius:4px;font-size:0;line-height:0;\">&nbsp;</td>\
+         </tr></table></td>\
          </tr></table></td>\
          <td valign=\"middle\" class=\"mf-ink\" style=\"vertical-align:middle;padding-left:10px;\
          font-family:{SANS};font-size:16px;line-height:20px;font-weight:600;\
@@ -772,7 +788,8 @@ fn panel(rows: &str) -> String {
     )
 }
 
-/// The one call to action: a solid accent block with white type on it.
+/// The one call to action: a near-black block with white type on it, the way
+/// the site's own buttons look.
 ///
 /// No gradient and no shadow. A mail client will not render a shadow honestly,
 /// so the button does not ask for one. An unsafe `href` arrives here empty and
@@ -783,10 +800,10 @@ fn button(href: &str, label: &str) -> String {
     }
     format!(
         "<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\"><tr>\
-         <td bgcolor=\"{ACCENT}\" style=\"background:{ACCENT};border-radius:10px;\">\
+         <td class=\"mf-btn\" bgcolor=\"{BUTTON}\" style=\"background:{BUTTON};border-radius:8px;\">\
          <a href=\"{}\" target=\"_blank\" style=\"display:inline-block;padding:13px 22px;\
-         font-family:{SANS};font-size:15px;line-height:20px;font-weight:600;color:{ON_ACCENT};\
-         text-decoration:none;border-radius:10px;\">{}</a></td></tr></table>",
+         font-family:{SANS};font-size:15px;line-height:20px;font-weight:600;color:{ON_BUTTON};\
+         text-decoration:none;border-radius:8px;\">{}</a></td></tr></table>",
         escape(href),
         escape(label)
     )
@@ -797,7 +814,7 @@ fn link_fallback(href: &str) -> String {
     format!(
         "<p class=\"mf-mute\" style=\"margin:0;font-family:{SANS};font-size:13px;line-height:20px;\
          color:{MUTE};\">If the button does not open, use this address:<br>\
-         <a href=\"{0}\" target=\"_blank\" class=\"mf-link\" style=\"color:{ACCENT};\
+         <a href=\"{0}\" target=\"_blank\" class=\"mf-link\" style=\"color:{INK};\
          text-decoration:underline;word-break:break-all;\">{0}</a></p>",
         escape(href)
     )
@@ -1129,7 +1146,8 @@ mod tests {
     #[test]
     fn the_brand_mark_is_drawn_not_loaded() {
         let r = sign_in_code("123456", 10);
-        assert!(r.html.contains(&format!("bgcolor=\"{ACCENT}\"")));
+        assert!(r.html.contains(&format!("bgcolor=\"{BUTTON}\"")));
+        assert!(r.html.contains(&format!("bgcolor=\"{MARK_DOT}\"")));
         assert!(r.html.contains(">Micaforge</td>"));
         assert!(!r.html.contains("<img"));
         assert!(!r.html.contains("url("), "no background image either");

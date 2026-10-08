@@ -1,20 +1,9 @@
 /**
- * The frame every unauthenticated screen is written on.
+ * The frame every unauthenticated screen sits in: the brand, one centred card
+ * holding the form, and a short line about what Micaforge is.
  *
- * This is the first sight anyone gets of Micaforge, so it is not a centred box
- * on an empty field. The page IS a sheet of the instrument's chart paper: the
- * sprocket perforations run down the left gutter, a fragment of a real two-pen
- * record is written across the top of the sheet, and the form is pinned onto
- * the sheet below it as a log slip. Someone who never signs in still leaves
- * knowing what the product measures.
- *
- * The trace is a SPECIMEN: a deterministic figure computed from two closed
- * formulae, carrying no axis and no figures, and stamped as a specimen. It is
- * drawn in full on first paint. Nothing here fades, slides or waits on an
- * observer; the only state that changes is what the reader types.
- *
- * The form primitives every entry screen shares live here too, because they
- * belong to the same slip.
+ * The form primitives every entry screen shares live here too, so the sign-in,
+ * invitation and share screens draw their fields the same way.
  */
 import type { ReactNode } from "react";
 import { useId, useState } from "react";
@@ -38,230 +27,44 @@ export const ENTRY_PATHS = {
   tracking: (site: string | number) => `/app/${site}/settings/tracking`,
 } as const;
 
-/* ── the specimen trace ──────────────────────────────────────────────────── */
-
-const SAMPLES = 44;
-const BAND_W = 1200;
-const BAND_H = 150;
-const MID = BAND_H / 2;
-/* Each pen has its own gain, the way a two-pen recorder gives each channel its
-   own gain knob: at this size a shared scale flattens the reader pen onto the
-   centre rule and the sheet reads as "no readers" rather than "far fewer". */
-const GAIN_MACHINE = 60;
-const GAIN_HUMAN = 56;
-
-/**
- * Two closed formulae, no randomness, so the specimen is identical on every
- * build and in every session. The shapes are the argument the product makes:
- * machines arrive in bursts around a publish and then settle into a re-crawl
- * floor that keeps climbing; readers follow a weekly rhythm and stay small.
- */
-const MACHINE = Array.from({ length: SAMPLES }, (_, i) => {
-  const floor = 0.17 + 0.0042 * i;
-  const burst1 = 0.7 * Math.exp(-Math.abs(i - 9) / 2.1);
-  const burst2 = 0.58 * Math.exp(-Math.abs(i - 28) / 2.6);
-  const chatter = 0.045 * Math.abs(Math.sin(i * 1.73));
-  return Math.min(0.98, floor + burst1 + burst2 + chatter);
-});
-
-const HUMAN = Array.from({ length: SAMPLES }, (_, i) => {
-  const week = 0.082 * Math.sin((i / 7) * Math.PI * 2);
-  const daily = 0.031 * Math.sin(i * 1.31 + 0.7);
-  const drift = 0.026 * Math.sin(i * 0.43 + 2.1);
-  // The tail lifts: the answer engines start sending readers back late in the
-  // window, which is the one thing on this sheet worth noticing.
-  const lift = i > 29 ? (0.06 * (i - 29)) / 14 : 0;
-  return Math.max(0.05, 0.148 + week + daily + drift + lift + 0.0016 * i);
-});
-
-const HUMAN_PEAK = Math.max(...HUMAN);
-const xAt = (i: number) => (i / (SAMPLES - 1)) * BAND_W;
-
-/** Catmull-Rom through the points: a written pen curves between samples. */
-function written(pts: [number, number][]): string {
-  if (!pts.length) return "";
-  let d = `M${pts[0][0].toFixed(2)},${pts[0][1].toFixed(2)}`;
-  for (let i = 0; i < pts.length - 1; i++) {
-    const p0 = pts[i === 0 ? 0 : i - 1];
-    const p1 = pts[i];
-    const p2 = pts[i + 1];
-    const p3 = pts[i + 2] ?? p2;
-    const c1x = p1[0] + (p2[0] - p0[0]) / 6;
-    const c1y = p1[1] + (p2[1] - p0[1]) / 6;
-    const c2x = p2[0] - (p3[0] - p1[0]) / 6;
-    const c2y = p2[1] - (p3[1] - p1[1]) / 6;
-    d += `C${c1x.toFixed(2)},${c1y.toFixed(2)} ${c2x.toFixed(2)},${c2y.toFixed(2)} ${p2[0].toFixed(2)},${p2[1].toFixed(2)}`;
-  }
-  return d;
-}
-
-/** A crawler fetches in discrete jumps, so its pen steps rather than curves. */
-function stepped(pts: [number, number][]): string {
-  if (!pts.length) return "";
-  let d = `M${pts[0][0].toFixed(2)},${pts[0][1].toFixed(2)}`;
-  for (let i = 1; i < pts.length; i++) {
-    const mid = ((pts[i - 1][0] + pts[i][0]) / 2).toFixed(2);
-    d += `L${mid},${pts[i - 1][1].toFixed(2)}L${mid},${pts[i][1].toFixed(2)}L${pts[i][0].toFixed(2)},${pts[i][1].toFixed(2)}`;
-  }
-  return d;
-}
-
-const MACHINE_PTS = MACHINE.map((v, i) => [xAt(i), MID - v * GAIN_MACHINE] as [number, number]);
-const HUMAN_PTS = HUMAN.map((v, i) => [xAt(i), MID + (v / HUMAN_PEAK) * GAIN_HUMAN] as [number, number]);
-
-const MACHINE_LINE = stepped(MACHINE_PTS);
-const HUMAN_LINE = written(HUMAN_PTS);
-const MACHINE_AREA = `${MACHINE_LINE}L${BAND_W},${MID}L0,${MID}Z`;
-const HUMAN_AREA = `${HUMAN_LINE}L${BAND_W},${MID}L0,${MID}Z`;
-
-/** The debt between the pens, ruled out exactly as the brand mark rules it. */
-const DEBT = MACHINE_PTS.map((m, i) => ({ x: m[0], top: m[1] + 5, bottom: HUMAN_PTS[i][1] - 5 })).filter(
-  (d, i) => i % 3 === 1 && d.bottom - d.top > 8,
-);
-
-function SpecimenTrace() {
-  return (
-    <svg
-      className="mf-entry__trace"
-      viewBox={`0 0 ${BAND_W} ${BAND_H}`}
-      preserveAspectRatio="none"
-      aria-hidden="true"
-      focusable="false"
-    >
-      {/* the paper's own ruling, clipped to this band and nowhere else */}
-      <g stroke="var(--mf-rule-minor)" strokeWidth={1} vectorEffect="non-scaling-stroke" shapeRendering="crispEdges">
-        {[25, 50, 100, 125].map((y) => (
-          <line key={y} x1={0} x2={BAND_W} y1={y} y2={y} />
-        ))}
-        {Array.from({ length: 19 }, (_, i) => (i + 1) * 60).map((x) => (
-          <line key={x} x1={x} x2={x} y1={0} y2={BAND_H} />
-        ))}
-      </g>
-      {/* fiducial notches: the recorder's interval marks along the bottom edge */}
-      <g stroke="var(--mf-rule-strong)" strokeWidth={1} vectorEffect="non-scaling-stroke" shapeRendering="crispEdges">
-        {MACHINE.map((_, i) => (i % 6 === 0 ? <line key={i} x1={xAt(i)} x2={xAt(i)} y1={BAND_H - 7} y2={BAND_H} /> : null))}
-      </g>
-
-      <path d={MACHINE_AREA} fill="var(--mf-ai-fill)" />
-      <path d={HUMAN_AREA} fill="var(--mf-people-fill)" />
-
-      {/* the zero rule the two pens are opposed about, drawn over their fills */}
-      <line
-        x1={0}
-        x2={BAND_W}
-        y1={MID}
-        y2={MID}
-        stroke="var(--mf-rule-major)"
-        strokeWidth={1}
-        vectorEffect="non-scaling-stroke"
-        shapeRendering="crispEdges"
-      />
-
-      <g stroke="var(--mf-ink-3)" strokeWidth={1} opacity={0.34} vectorEffect="non-scaling-stroke">
-        {DEBT.map((d) => (
-          <line key={d.x} x1={d.x} x2={d.x} y1={d.top} y2={d.bottom} />
-        ))}
-      </g>
-
-      {/* Each pen is drawn twice: the ridge of soot the stylus displaced, then
-          the bright scratch over it. That ridge is the whole depth treatment. */}
-      <g fill="none" strokeLinecap="butt" strokeLinejoin="round" vectorEffect="non-scaling-stroke">
-        <path d={MACHINE_LINE} stroke="var(--mf-well)" strokeWidth={3} opacity={0.85} transform="translate(0,1.2)" />
-        <path d={MACHINE_LINE} stroke="var(--mf-ai)" strokeWidth={1.8} />
-        <path d={HUMAN_LINE} stroke="var(--mf-well)" strokeWidth={3} opacity={0.85} transform="translate(0,1.2)" />
-        <path d={HUMAN_LINE} stroke="var(--mf-people)" strokeWidth={1.8} />
-      </g>
-    </svg>
-  );
-}
-
 /* ── the frame ───────────────────────────────────────────────────────────── */
 
 export interface AuthFrameProps {
-  /** The slip's heading. Rendered as the page's h1. */
+  /** The card's heading. Rendered as the page's h1. */
   title: ReactNode;
   note?: ReactNode;
   children: ReactNode;
-  /** Replaces the standing explanation of the two pens. */
+  /** A line of context under the card, for screens that need one. */
   aside?: ReactNode;
 }
 
 export function AuthFrame({ title, note, children, aside }: AuthFrameProps) {
   return (
     <div className="mf-entry">
-      <div className="mf-entry__mast">
-        <a className="mf-entry__brand" href="/" aria-label="Micaforge home">
-          <Mark size={26} />
-          <span className="mf-entry__wordmark">Micaforge</span>
-        </a>
-      </div>
+      <a className="mf-entry__brand" href="/" aria-label="Micaforge home">
+        <Mark size={30} />
+        <span className="mf-entry__wordmark">Micaforge</span>
+      </a>
 
-      <div className="mf-entry__stage">
-        <div className="mf-entry__sheet mf-panel mf-panel--feed">
-          <div className="mf-entry__band">
-            <SpecimenTrace />
+      <main id="main" className="mf-entry__card">
+        <div className="mf-form">
+          <div>
+            <h1 className="mf-form__title">{title}</h1>
+            {note ? <p className="mf-form__note">{note}</p> : null}
           </div>
-
-          <div className="mf-entry__legend">
-            <span className="mf-entry__chan">
-              <span className="mf-entry__pen" data-pen="stepped" aria-hidden="true" />
-              Machines fetching
-            </span>
-            <span className="mf-entry__chan">
-              <span className="mf-entry__pen" data-pen="written" aria-hidden="true" />
-              Readers arriving from answers
-            </span>
-            <span className="mf-stamp mf-entry__specimen">Specimen trace, not measured traffic</span>
-          </div>
-
-          <div className="mf-entry__body">
-            <div className="mf-entry__slip">
-              <div className="mf-form">
-                <div>
-                  <h1 className="mf-form__title">{title}</h1>
-                  {note ? <p className="mf-form__note">{note}</p> : null}
-                </div>
-                {children}
-              </div>
-            </div>
-
-            <div className="mf-entry__aside">
-              {aside ?? (
-                <>
-                  <p>
-                    Two pens on one sheet. The upper trace is every AI crawler that fetched a page.
-                    The lower trace is every reader who arrived from an answer engine. The ratio
-                    between them is the Citation Gap, and it is the number no other analytics tool
-                    holds.
-                  </p>
-                  <a className="mf-entry__link" href="/why-agent-analytics">
-                    Why this is a different measurement
-                    <IconOut size={13} />
-                  </a>
-                </>
-              )}
-            </div>
-          </div>
+          {children}
         </div>
-      </div>
+      </main>
 
-      <div className="mf-entry__colophon">
-        <span>AGPL-3.0</span>
-        <span className="mf-entry__dot" aria-hidden="true">
-          ·
-        </span>
-        <span>Cookieless</span>
-        <span className="mf-entry__dot" aria-hidden="true">
-          ·
-        </span>
-        <span>No raw IP is ever stored</span>
-        <span className="mf-entry__dot" aria-hidden="true">
-          ·
-        </span>
-        <a className="mf-entry__link mf-entry__link--sm" href="/self-host">
-          Self-host it
+      {aside ? <div className="mf-entry__aside">{aside}</div> : null}
+
+      <p className="mf-entry__colophon">
+        Cookie-free, open-source web analytics.{" "}
+        <a className="mf-entry__link" href="/why-agent-analytics">
+          See what AI does with your site
+          <IconOut size={12} />
         </a>
-      </div>
+      </p>
     </div>
   );
 }
