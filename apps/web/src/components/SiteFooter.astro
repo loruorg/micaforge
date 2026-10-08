@@ -1,14 +1,6 @@
 ---
 /**
- * The sheet foot.
- *
- * The head of the page carries the sprocket strip the paper was fed in on; the
- * foot carries the one it was torn off at. Between them the whole page reads as
- * a single sheet, which is the point.
- *
- * Everything sits on the same grid, at the same margins, as the content above:
- * five tracks, the brand occupying the first, no tagline flung to one rim with
- * the link columns jammed against the other.
+ * The site footer: the brand line, four short link columns, and the licence.
  */
 import "../styles/site.css";
 import { Mark, IconOut } from "./react/icons.tsx";
@@ -18,29 +10,27 @@ const REPO = "https://github.com/loruorg/micaforge";
 
 const COLUMNS: { title: string; links: { href: string; label: string; out?: boolean }[] }[] = [
   {
-    title: "The record",
+    title: "Product",
     links: [
-      { href: "/why-agent-analytics", label: "Why agent analytics" },
-      { href: "/why-agent-analytics#citation-gap", label: "The Citation Gap" },
+      { href: "/#features", label: "Features" },
+      { href: "/why-agent-analytics", label: "AI traffic analytics" },
       { href: "/self-host", label: "Self-host" },
-      { href: "/docs", label: "Documentation" },
-    ],
-  },
-  {
-    title: "Comparisons",
-    links: [
-      { href: "/vs/plausible", label: "vs Plausible" },
-      { href: "/vs/google-analytics", label: "vs Google Analytics" },
-    ],
-  },
-  {
-    title: "Project",
-    links: [
-      { href: "/blog", label: "Writing" },
       { href: "/changelog", label: "Changelog" },
-      { href: REPO, label: "Source", out: true },
-      { href: `${REPO}/blob/main/docs/CONTRACT.md`, label: "Build contract", out: true },
-      { href: `${REPO}/blob/main/LICENSE`, label: "AGPL-3.0 licence", out: true },
+    ],
+  },
+  {
+    title: "Compare",
+    links: [
+      { href: "/vs/google-analytics", label: "vs Google Analytics" },
+      { href: "/vs/plausible", label: "vs Plausible" },
+    ],
+  },
+  {
+    title: "Resources",
+    links: [
+      { href: "/docs", label: "Documentation" },
+      { href: "/blog", label: "Blog" },
+      { href: REPO, label: "GitHub", out: true },
     ],
   },
   {
@@ -57,14 +47,11 @@ const COLUMNS: { title: string; links: { href: string; label: string; out?: bool
 <footer class="mf-foot">
   <div class="mf-wrap mf-foot__grid">
     <div class="mf-foot__brand">
-      <a class="mf-foot__mark" href="/">
-        <Mark size={30} />
+      <a class="mf-foot__mark" href="/" aria-label="Micaforge home">
+        <Mark size={26} />
         <span class="mf-foot__wordmark">Micaforge</span>
       </a>
-      <p class="mf-foot__line">
-        Cookieless analytics that counts machine readers as an audience, then reports what
-        came back.
-      </p>
+      <p class="mf-foot__line">Open-source web analytics that shows what AI does with your site.</p>
     </div>
 
     {
@@ -92,11 +79,9 @@ const COLUMNS: { title: string; links: { href: string; label: string; out?: bool
 
   <div class="mf-wrap">
     <div class="mf-foot__colophon">
-      <span><strong>AGPL-3.0</strong> server and dashboard · <strong>MIT</strong> tracker and SDK</span>
-      <span>Pre-release. No hosted service, no tagged release.</span>
-      <span>Self-hosted installs make no outbound call at runtime.</span>
+      <span>© {new Date().getFullYear()} Micaforge</span>
+      <span>Server and dashboard AGPL-3.0, tracker and SDK MIT</span>
+      <span>No cookies, no personal data</span>
     </div>
   </div>
-
-  <div class="mf-feed mf-feed--foot" aria-hidden="true"></div>
 </footer>

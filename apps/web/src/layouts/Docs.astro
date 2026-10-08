@@ -14,7 +14,7 @@
 import { getCollection } from "astro:content";
 import Base from "./Base.astro";
 import DocsNav from "../components/DocsNav.astro";
-import { IconOut, IconPaper, IconSmoked, Mark } from "../components/react/icons";
+import { IconOut, Mark } from "../components/react/icons";
 import { docHref, isoDay, neighbours } from "../lib/docs";
 import "../styles/docs.css";
 
@@ -93,60 +93,12 @@ const SOURCE = "https://github.com/loruorg/micaforge";
           }
         </nav>
         <div class="doc-bar__right">
-          <div class="mf-medium doc-medium" role="group" aria-label="Recording medium">
-            <button type="button" class="mf-medium__opt" data-medium="smoked" aria-pressed="false">
-              <IconSmoked size={14} />
-              <span>Smoked</span>
-            </button>
-            <button type="button" class="mf-medium__opt" data-medium="paper" aria-pressed="false">
-              <IconPaper size={14} />
-              <span>Paper</span>
-            </button>
-          </div>
+          <a class="doc-bar__out" href="/app/">Sign in</a>
         </div>
       </div>
       <span class="doc-bar__pen" aria-hidden="true"></span>
     </header>
 
-    <!--
-      Inline and synchronous, next to the control it drives: the pressed state has to be
-      right in the first frame, exactly as the medium itself is applied before paint.
-    -->
-    <script is:inline>
-      (function () {
-        var root = document.documentElement;
-        var group = document.querySelector(".doc-medium");
-        if (!group) return;
-        var keys = group.querySelectorAll("[data-medium]");
-        function current() {
-          var set = root.getAttribute("data-record");
-          if (set === "paper" || set === "smoked") return set;
-          try {
-            return window.matchMedia("(prefers-color-scheme: light)").matches ? "paper" : "smoked";
-          } catch (e) {
-            return "smoked";
-          }
-        }
-        function paint(medium) {
-          for (var i = 0; i < keys.length; i++) {
-            keys[i].setAttribute("aria-pressed", keys[i].dataset.medium === medium ? "true" : "false");
-          }
-        }
-        paint(current());
-        group.addEventListener("click", function (event) {
-          var key = event.target.closest("[data-medium]");
-          if (!key) return;
-          var medium = key.dataset.medium;
-          root.setAttribute("data-record", medium);
-          try {
-            localStorage.setItem("mf-record", medium);
-          } catch (e) {
-            /* private mode: the choice holds for this page only */
-          }
-          paint(medium);
-        });
-      })();
-    </script>
 
     <div class="doc-body" data-rail={String(rail)} data-index={String(index)}>
       {

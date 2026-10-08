@@ -168,7 +168,7 @@ export function HeroRecord() {
               {
                 id: "machines",
                 label: "Machine fetches",
-                color: "var(--mf-trace-agent)",
+                color: "var(--mf-ai)",
                 pen: "stepped",
                 values: rec.machines,
                 format: num,
@@ -176,7 +176,7 @@ export function HeroRecord() {
               {
                 id: "readers",
                 label: "Arrived from an answer engine",
-                color: "var(--mf-trace-human)",
+                color: "var(--mf-people)",
                 pen: "written",
                 values: rec.answers,
                 format: num,

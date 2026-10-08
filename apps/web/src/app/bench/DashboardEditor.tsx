@@ -263,7 +263,7 @@ function CardReading({ card }: { card: DashCard }) {
               {
                 id: card.id,
                 label: def.label,
-                color: aud === "agent" ? "var(--mf-trace-agent)" : "var(--mf-trace-human)",
+                color: aud === "agent" ? "var(--mf-ai)" : "var(--mf-people)",
                 pen: aud === "agent" ? "stepped" : "written",
                 values: (data as Series).buckets.map((b) => b.v),
                 format: def.fmt,

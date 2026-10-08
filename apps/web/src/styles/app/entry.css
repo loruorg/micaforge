@@ -118,7 +118,7 @@
   width: 18px;
   height: 2px;
   border-radius: 1px;
-  background: var(--mf-trace-human);
+  background: var(--mf-people);
 }
 
 .mf-entry__pen[data-pen="stepped"] {
@@ -126,8 +126,8 @@
   height: 8px;
   margin-right: 9px;
   background: none;
-  border-top: 2px solid var(--mf-trace-agent);
-  border-right: 2px solid var(--mf-trace-agent);
+  border-top: 2px solid var(--mf-ai);
+  border-right: 2px solid var(--mf-ai);
   border-radius: 0;
 }
 
@@ -137,7 +137,7 @@
   left: 100%;
   bottom: -2px;
   width: 9px;
-  border-bottom: 2px solid var(--mf-trace-agent);
+  border-bottom: 2px solid var(--mf-ai);
 }
 
 .mf-entry__specimen { margin-left: auto; }
@@ -238,11 +238,11 @@
   align-items: flex-start;
   gap: var(--mf-2);
   padding: var(--mf-3) 0;
-  border-top: 1px solid var(--mf-oxide-wash);
-  border-bottom: 1px solid var(--mf-oxide-wash);
+  border-top: 1px solid var(--mf-danger-wash);
+  border-bottom: 1px solid var(--mf-danger-wash);
   font-size: var(--mf-t-sm);
   line-height: var(--mf-lead-snug);
-  color: var(--mf-oxide);
+  color: var(--mf-danger);
 }
 .mf-form__err svg { flex: none; margin-top: 1px; }
 
@@ -251,11 +251,11 @@
   align-items: flex-start;
   gap: var(--mf-2);
   padding: var(--mf-3) 0;
-  border-top: 1px solid var(--mf-verdigris-wash);
-  border-bottom: 1px solid var(--mf-verdigris-wash);
+  border-top: 1px solid var(--mf-success-wash);
+  border-bottom: 1px solid var(--mf-success-wash);
   font-size: var(--mf-t-sm);
   line-height: var(--mf-lead-snug);
-  color: var(--mf-verdigris);
+  color: var(--mf-success);
 }
 .mf-form__ok svg { flex: none; margin-top: 1px; }
 
@@ -294,7 +294,7 @@
   gap: var(--mf-2);
   font-size: var(--mf-t-xs);
   line-height: var(--mf-lead-snug);
-  color: var(--mf-oxide);
+  color: var(--mf-danger);
 }
 .mf-field__err svg { flex: none; margin-top: 1px; }
 
@@ -311,7 +311,7 @@
   background: var(--mf-well);
   border: 1px solid var(--mf-rule-strong);
   border-radius: var(--mf-r-sm);
-  box-shadow: var(--mf-press);
+  box-shadow: var(--mf-inset);
   padding: var(--mf-2) var(--mf-3);
   transition: border-color var(--mf-dur-1) linear;
 }
@@ -320,8 +320,8 @@
    text. `opacity: 1` undoes the dimming some engines add on top of the colour. */
 .mf-input::placeholder { color: var(--mf-ink-2); opacity: 1; }
 .mf-input:hover { border-color: var(--mf-ink-3); }
-.mf-input:focus { border-color: var(--mf-shellac); }
-.mf-input[aria-invalid="true"] { border-color: var(--mf-oxide); }
+.mf-input:focus { border-color: var(--mf-accent); }
+.mf-input[aria-invalid="true"] { border-color: var(--mf-danger); }
 /* A disabled field still shows real content (the address an invitation was sent
    to, for one), so it stays readable; the quiet surface carries "inactive". */
 .mf-input[disabled] { color: var(--mf-ink-2); cursor: not-allowed; }
@@ -501,12 +501,12 @@
   font-size: var(--mf-t-sm);
 }
 .mf-cell-quiet { color: var(--mf-ink-3); }
-.mf-cell-warn { color: var(--mf-oxide); }
+.mf-cell-warn { color: var(--mf-danger); }
 
 /* The ink behind a row is the trace of the audience the sheet is reading. The
    base rule draws it in the machine pen's shellac, which is right for the agent
    panels on a published record and wrong for the reader panels beside them. */
-.mf-share--human .mf-sheet__ink { background: var(--mf-trace-human-fill); }
+.mf-share--human .mf-sheet__ink { background: var(--mf-people-fill); }
 
 /* ── onboarding ─────────────────────────────────────────────────────────── */
 
@@ -530,7 +530,7 @@
   color: var(--mf-ink-3);
   font-variant-numeric: tabular-nums lining-nums;
 }
-.mf-step[data-done="true"] .mf-step__n { color: var(--mf-verdigris); }
+.mf-step[data-done="true"] .mf-step__n { color: var(--mf-success); }
 
 .mf-step__head {
   display: flex;
@@ -555,7 +555,7 @@
   font-size: var(--mf-t-xs);
   color: var(--mf-ink-3);
 }
-.mf-step[data-done="true"] .mf-step__state { color: var(--mf-verdigris); }
+.mf-step[data-done="true"] .mf-step__state { color: var(--mf-success); }
 
 /* A copied snippet is set in `white-space: pre`, so its min-content width is the
    whole line. Without this the grid track sizes to that line and the step, not

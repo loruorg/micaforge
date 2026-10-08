@@ -359,16 +359,9 @@ export function AppRoot({ children }: { children?: ReactNode }) {
     retry: false,
   });
 
-  const stationCode = useMemo(() => {
-    if (!domain) return undefined;
-    const label = domain.replace(/^www\./, "").split(".")[0] ?? domain;
-    return label.slice(0, 12).toUpperCase();
-  }, [domain]);
-
   return (
     <AppShell
       siteDomain={domain}
-      stationCode={stationCode}
       liveHumans={live.data?.visitors_now ?? 0}
       liveAgents={live.data?.agents_now ?? 0}
       right={<StationControls hasSite={siteId != null} pathname={pathname} />}

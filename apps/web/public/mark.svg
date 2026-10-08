@@ -1,9 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none">
-  <!-- Micaforge's mark: the product, drawn. An upper stepped trace (what the
-       machines took), a lower written trace (what came back), and the debt ruled
-       out between them. No tile, no chip, no rounded square behind it. -->
-  <path d="M1.5 7.5h4v-3h4v3h5v-3h4" stroke="#c98a46" stroke-width="1.7" stroke-linecap="square"/>
-  <path d="M4 9.4v5.2M9 9.4v5.2M14 9.4v5.2M19 9.4v5.2" stroke="#8c8474" stroke-width="1" opacity=".55"/>
-  <path d="M1.5 16.5c3 0 3.4-3 5.5-3s2.6 4 5 4 3.6-2.6 5-2.6h5.5" stroke="#e9e3d6" stroke-width="1.7" stroke-linecap="square" fill="none"/>
-  <rect x="21.4" y="3.3" width="1.6" height="1.6" fill="#c98a46"/>
+  <rect width="24" height="24" rx="6.5" fill="#18181b"/>
+  <path d="M5 16.2 9.2 11.6l3.3 2.7 4.3-5.6" stroke="#fff" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="18.1" cy="7.6" r="2.3" fill="#f25a1d"/>
 </svg>

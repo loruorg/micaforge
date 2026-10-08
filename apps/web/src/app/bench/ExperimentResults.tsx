@@ -288,7 +288,7 @@ function pts(x: number): string {
  * Marks differ by SHAPE as well as tone, and every row carries its variant key
  * in text, so the plot reads with no colour at all.
  */
-const MARK_TONES = ["var(--mf-trace-human)", "var(--mf-s2)", "var(--mf-s3)", "var(--mf-s4)", "var(--mf-s5)"];
+const MARK_TONES = ["var(--mf-people)", "var(--mf-s2)", "var(--mf-s3)", "var(--mf-s4)", "var(--mf-s5)"];
 
 function IntervalPlot({ arms }: { arms: Arm[] }) {
   const control = arms.find((a) => a.isControl);

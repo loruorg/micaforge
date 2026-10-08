@@ -1066,7 +1066,7 @@ export function Drum({
                   y={0}
                   width={Math.abs(x(caliper.b) - x(caliper.a))}
                   height={innerH}
-                  fill="var(--mf-shellac)"
+                  fill="var(--mf-accent)"
                   opacity={0.1}
                 />
                 {[caliper.a, caliper.b].map((i, k) => (
@@ -1076,7 +1076,7 @@ export function Drum({
                     x2={x(i)}
                     y1={0}
                     y2={innerH}
-                    stroke="var(--mf-shellac)"
+                    stroke="var(--mf-accent)"
                     strokeWidth={1.2}
                     shapeRendering="crispEdges"
                   />
@@ -1117,9 +1117,9 @@ export function Drum({
                 y2={innerH + 6}
                 stroke={
                   a.tone === "warn"
-                    ? "var(--mf-oxide)"
+                    ? "var(--mf-danger)"
                     : a.tone === "good"
-                      ? "var(--mf-verdigris)"
+                      ? "var(--mf-success)"
                       : "var(--mf-drum-label)"
                 }
                 strokeWidth={2}
@@ -1137,9 +1137,9 @@ export function Drum({
               const label = a.label.length > 22 ? `${a.label.slice(0, 21)}…` : a.label;
               const tone =
                 a.tone === "warn"
-                  ? "var(--mf-oxide)"
+                  ? "var(--mf-danger)"
                   : a.tone === "good"
-                    ? "var(--mf-verdigris)"
+                    ? "var(--mf-success)"
                     : "var(--mf-drum-label)";
               const mark = a.mark ?? tone;
               return (

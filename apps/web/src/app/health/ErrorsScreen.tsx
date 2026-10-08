@@ -144,7 +144,7 @@ export function ErrorTrace({ values, label }: { values?: number[] | null; label:
         transform="translate(0,1)"
         opacity={0.85}
       />
-      <path d={d} fill="none" stroke="var(--mf-oxide)" strokeWidth={1.3} />
+      <path d={d} fill="none" stroke="var(--mf-danger)" strokeWidth={1.3} />
     </svg>
   );
 }

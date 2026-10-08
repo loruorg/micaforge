@@ -11,7 +11,7 @@
        else. The only bare numbers are 1px hairlines and the 7px/4px control
        padding, both of which global.css already established so a field lines up
        with a key to the pixel.
-     · depth is the scratch ridge (--mf-burr, --mf-lift, --mf-press). No glow,
+     · depth is the scratch ridge (--mf-shadow-xs, --mf-shadow-lg, --mf-inset). No glow,
        no halo, no bloom.
      · hover changes tone and fill. Nothing rises, grows or bounces.
      · ruling lives inside a panel, clipped to it, and appears on the paste-up
@@ -75,7 +75,7 @@
 }
 .mf-bn-field__err {
   font-size: var(--mf-t-xs);
-  color: var(--mf-oxide);
+  color: var(--mf-danger);
   max-width: 56ch;
 }
 
@@ -90,7 +90,7 @@
   background: var(--mf-well);
   border: 1px solid var(--mf-rule);
   border-radius: var(--mf-r-sm);
-  box-shadow: var(--mf-press);
+  box-shadow: var(--mf-inset);
   transition: border-color var(--mf-dur-1) linear, background-color var(--mf-dur-1) linear;
 }
 .mf-bn-input::placeholder {
@@ -100,7 +100,7 @@
   border-color: var(--mf-rule-strong);
 }
 .mf-bn-input[aria-invalid="true"] {
-  border-color: var(--mf-oxide);
+  border-color: var(--mf-danger);
 }
 .mf-bn-input--area {
   resize: vertical;
@@ -125,7 +125,7 @@
   background: var(--mf-well);
   border: 1px solid var(--mf-rule);
   border-radius: var(--mf-r-sm);
-  box-shadow: var(--mf-press);
+  box-shadow: var(--mf-inset);
   cursor: pointer;
   transition: border-color var(--mf-dur-1) linear;
 }
@@ -231,7 +231,7 @@
   box-shadow: inset 0 1px 0 var(--mf-lip);
 }
 .mf-bn-throw__pos:last-child[aria-pressed="true"] {
-  background: var(--mf-shellac);
+  background: var(--mf-accent);
   color: var(--mf-ground);
 }
 
@@ -250,7 +250,7 @@
 }
 .mf-bn-check input,
 .mf-bn-vars__base input {
-  accent-color: var(--mf-shellac);
+  accent-color: var(--mf-accent);
   margin: 0;
 }
 
@@ -359,12 +359,12 @@
   background: var(--mf-well);
   border: 1px solid var(--mf-rule-strong);
   border-radius: var(--mf-r-sm);
-  box-shadow: var(--mf-burr);
+  box-shadow: var(--mf-shadow-xs);
 }
 
 .mf-bn-dirty {
   font-size: var(--mf-t-xs);
-  color: var(--mf-shellac);
+  color: var(--mf-accent);
 }
 
 /* The tape: the request as it will actually be sent, on its own sunken strip
@@ -412,7 +412,7 @@
   word-break: break-all;
 }
 .mf-bn-tape__verb {
-  color: var(--mf-shellac);
+  color: var(--mf-accent);
   margin-right: var(--mf-2);
 }
 .mf-bn-tape__body {
@@ -423,7 +423,7 @@
   background: var(--mf-well);
   border: 1px solid var(--mf-rule);
   border-radius: var(--mf-r-sm);
-  box-shadow: var(--mf-press);
+  box-shadow: var(--mf-inset);
   padding: var(--mf-3);
   overflow-x: auto;
   white-space: pre;
@@ -444,7 +444,7 @@
   background: var(--mf-well);
   border: 1px solid var(--mf-rule);
   border-radius: var(--mf-r-sm);
-  box-shadow: var(--mf-press);
+  box-shadow: var(--mf-inset);
   padding: 6px var(--mf-2);
   line-height: var(--mf-lead-snug);
   word-break: break-all;
@@ -535,7 +535,7 @@
   transition: color var(--mf-dur-1) linear;
 }
 .mf-bn-saved__load:hover {
-  color: var(--mf-shellac);
+  color: var(--mf-accent);
 }
 .mf-bn-saved__desc {
   font-size: var(--mf-t-xs);
@@ -564,7 +564,7 @@
   padding: var(--mf-4) var(--mf-5);
   background: var(--mf-ground);
   border-top: 1px solid var(--mf-rule);
-  box-shadow: var(--mf-press);
+  box-shadow: var(--mf-inset);
 }
 .mf-bn-compose__label {
   font-size: var(--mf-t-sm);
@@ -602,7 +602,7 @@
   background: var(--mf-well);
   border: 1px solid var(--mf-rule);
   border-radius: var(--mf-r-sm);
-  box-shadow: var(--mf-press);
+  box-shadow: var(--mf-inset);
 }
 .mf-bn-plan {
   display: block;
@@ -623,7 +623,7 @@
   transition: color var(--mf-dur-1) linear;
 }
 .mf-bn-index__name:hover {
-  color: var(--mf-shellac);
+  color: var(--mf-accent);
 }
 .mf-bn-index__meta,
 .mf-bn-index__cards {
@@ -652,7 +652,7 @@
 }
 .mf-bn-index__ask {
   font-size: var(--mf-t-xs);
-  color: var(--mf-oxide);
+  color: var(--mf-danger);
 }
 
 /* ── the paste-up sheet ──────────────────────────────────────────────────── */
@@ -782,7 +782,7 @@
   position: absolute;
   width: var(--mf-4);
   height: var(--mf-4);
-  border: 0 solid var(--mf-shellac);
+  border: 0 solid var(--mf-accent);
 }
 .mf-bn-slot span:nth-child(1) {
   top: 0;
@@ -821,12 +821,12 @@
   background: var(--mf-ground-2);
   border: 1px solid var(--mf-rule);
   border-radius: var(--mf-r-md);
-  box-shadow: inset 0 1px 0 var(--mf-lip), var(--mf-burr);
+  box-shadow: inset 0 1px 0 var(--mf-lip), var(--mf-shadow-xs);
 }
 .mf-bn-card.is-dragging {
   z-index: 4;
-  box-shadow: inset 0 1px 0 var(--mf-lip), var(--mf-lift);
-  border-color: var(--mf-shellac-dim);
+  box-shadow: inset 0 1px 0 var(--mf-lip), var(--mf-shadow-lg);
+  border-color: var(--mf-accent-dim);
 }
 
 .mf-bn-card__head {
@@ -969,7 +969,7 @@
 }
 .mf-bn-card__scale:hover span {
   opacity: 1;
-  border-color: var(--mf-shellac);
+  border-color: var(--mf-accent);
 }
 
 /* ── the distribution band ───────────────────────────────────────────────── */
@@ -986,7 +986,7 @@
   border-radius: var(--mf-r-sm);
   overflow: hidden;
   background: var(--mf-well);
-  box-shadow: var(--mf-press);
+  box-shadow: var(--mf-inset);
 }
 .mf-bn-dist__seg {
   display: block;
@@ -1069,7 +1069,7 @@
 }
 .mf-bn-flags__row.is-open {
   background: var(--mf-ground);
-  box-shadow: var(--mf-press);
+  box-shadow: var(--mf-inset);
 }
 .mf-bn-flags__ident {
   min-width: 0;
@@ -1120,7 +1120,7 @@
   background: var(--mf-well);
   border: 1px solid var(--mf-rule);
   border-radius: var(--mf-r-sm);
-  box-shadow: var(--mf-press);
+  box-shadow: var(--mf-inset);
   overflow: hidden;
 }
 .mf-bn-band__in {
@@ -1209,7 +1209,7 @@
 }
 .mf-bn-band__mark--stray {
   background: none;
-  border: 1px solid var(--mf-oxide);
+  border: 1px solid var(--mf-danger);
 }
 .mf-bn-band__name {
   color: var(--mf-ink);
@@ -1228,7 +1228,7 @@
   text-align: right;
 }
 .mf-bn-band__stray .mf-bn-band__set {
-  color: var(--mf-oxide);
+  color: var(--mf-danger);
 }
 
 .mf-bn-band--compact {
@@ -1293,7 +1293,7 @@
 }
 .mf-bn-editor__ask {
   font-size: var(--mf-t-xs);
-  color: var(--mf-oxide);
+  color: var(--mf-danger);
 }
 
 .mf-bn-vars {
@@ -1339,7 +1339,7 @@
   border-radius: var(--mf-r-sm);
   overflow: hidden;
   background: var(--mf-well);
-  box-shadow: var(--mf-press);
+  box-shadow: var(--mf-inset);
 }
 .mf-bn-snip__head {
   display: flex;
@@ -1380,7 +1380,7 @@
 }
 .mf-bn-exps__row.is-open {
   background: var(--mf-ground);
-  box-shadow: var(--mf-press);
+  box-shadow: var(--mf-inset);
 }
 .mf-bn-exps__ident,
 .mf-bn-exps__state {
@@ -1404,7 +1404,7 @@
   color: var(--mf-ink);
 }
 .mf-bn-exps__status svg {
-  color: var(--mf-shellac);
+  color: var(--mf-accent);
 }
 .mf-bn-exps__meta,
 .mf-bn-exps__goal {
@@ -1413,7 +1413,7 @@
   color: var(--mf-ink-3);
 }
 .mf-bn-exps__nogoal {
-  color: var(--mf-oxide);
+  color: var(--mf-danger);
 }
 .mf-bn-exps__nogoal a {
   color: inherit;
@@ -1458,18 +1458,18 @@
   border-left: 2px solid var(--mf-rule-strong);
 }
 .mf-bn-res__call[data-call="difference"] {
-  border-left-color: var(--mf-verdigris);
+  border-left-color: var(--mf-success);
 }
 .mf-bn-res__call[data-call="inconclusive"],
 .mf-bn-res__call[data-call="insufficient"] {
-  border-left-color: var(--mf-shellac);
+  border-left-color: var(--mf-accent);
 }
 .mf-bn-res__call[data-call="no-goal"],
 .mf-bn-res__call[data-call="no-data"],
 .mf-bn-res__call[data-call="waiting"] {
   font-size: var(--mf-t-md);
   color: var(--mf-ink-2);
-  border-left-color: var(--mf-oxide);
+  border-left-color: var(--mf-danger);
 }
 
 .mf-bn-res__empty {

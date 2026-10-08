@@ -1,15 +1,6 @@
 /**
- * The station spine.
- *
- * Not a flush column of links. A recording station identifies itself down the
- * edge of every record it writes, and its channels are listed as channels, so
- * the rail carries the station code set vertically against the paper edge, and
- * the routes are grouped the way a channel bank is grouped.
- *
- * Three distinct small-text treatments live here on purpose: the wordmark in the
- * display face, the channel-bank headings in the data face (they are genuine
- * instrument labels), and the channel names in plain UI sentence case. One
- * costume on every small string is the thing this avoids.
+ * The dashboard frame: a left navigation grouped by the question each screen
+ * answers, and a top bar with the site and who is on it right now.
  */
 // React 19 no longer publishes a global JSX namespace; it is a named type
 // export from "react" instead. Same type, one import.
@@ -31,7 +22,6 @@ import {
   IconJourneys,
   IconLocations,
   IconPages,
-  IconPaper,
   IconPen,
   IconPerformance,
   IconPolicy,
@@ -41,7 +31,6 @@ import {
   IconRetention,
   IconSessions,
   IconSettings,
-  IconSmoked,
   IconSources,
   IconVisitors,
   Mark,
@@ -57,18 +46,18 @@ type ChannelDef = {
 
 const BANKS: { bank: string; channels: ChannelDef[] }[] = [
   {
-    bank: "Record",
+    bank: "Overview",
     channels: [
-      { to: "", label: "The record", Icon: IconRecord },
-      { to: "/realtime", label: "Live pen", Icon: IconPen },
+      { to: "", label: "Dashboard", Icon: IconRecord },
+      { to: "/realtime", label: "Realtime", Icon: IconPen },
     ],
   },
   {
-    bank: "Machines",
+    bank: "AI traffic",
     channels: [
-      { to: "/agents", label: "Agent traffic", Icon: IconAgent, signature: true },
+      { to: "/agents", label: "AI crawlers", Icon: IconAgent, signature: true },
       { to: "/citation-gap", label: "Citation gap", Icon: IconGap, signature: true },
-      { to: "/policy", label: "Policy vs. observed", Icon: IconPolicy, signature: true },
+      { to: "/policy", label: "Robots.txt rules", Icon: IconPolicy, signature: true },
     ],
   },
   {
@@ -84,7 +73,7 @@ const BANKS: { bank: string; channels: ChannelDef[] }[] = [
     ],
   },
   {
-    bank: "Behaviour",
+    bank: "Behavior",
     channels: [
       { to: "/events", label: "Events", Icon: IconEvents },
       { to: "/goals", label: "Goals", Icon: IconGoals },
@@ -103,73 +92,18 @@ const BANKS: { bank: string; channels: ChannelDef[] }[] = [
     ],
   },
   {
-    bank: "Bench",
+    bank: "Workspace",
     channels: [
       { to: "/dashboards", label: "Dashboards", Icon: IconDashboards },
-      { to: "/query", label: "Query console", Icon: IconQuery },
+      { to: "/query", label: "Query", Icon: IconQuery },
       { to: "/settings", label: "Settings", Icon: IconSettings },
     ],
   },
 ];
 
-/** Two record media, never a sun and a moon on a sliding pill. */
-function MediumSwitch() {
-  const [medium, setMedium] = useState<"smoked" | "paper">("smoked");
-
-  useEffect(() => {
-    const stored = (() => {
-      try {
-        return localStorage.getItem("mf-record");
-      } catch {
-        return null;
-      }
-    })();
-    if (stored === "paper" || stored === "smoked") setMedium(stored);
-    else
-      setMedium(
-        window.matchMedia("(prefers-color-scheme: light)").matches ? "paper" : "smoked",
-      );
-  }, []);
-
-  const choose = (next: "smoked" | "paper") => {
-    setMedium(next);
-    document.documentElement.setAttribute("data-record", next);
-    try {
-      localStorage.setItem("mf-record", next);
-    } catch {
-      /* private mode: the choice simply does not persist */
-    }
-  };
-
-  return (
-    <div className="mf-medium" role="group" aria-label="Recording medium">
-      <button
-        type="button"
-        className="mf-medium__opt"
-        aria-pressed={medium === "smoked"}
-        onClick={() => choose("smoked")}
-      >
-        <IconSmoked size={14} />
-        <span>Smoked</span>
-      </button>
-      <button
-        type="button"
-        className="mf-medium__opt"
-        aria-pressed={medium === "paper"}
-        onClick={() => choose("paper")}
-      >
-        <IconPaper size={14} />
-        <span>Paper</span>
-      </button>
-    </div>
-  );
-}
-
 export interface AppShellProps {
   children: React.ReactNode;
   siteDomain?: string;
-  /** Station code: the short identifier written down the record's edge. */
-  stationCode?: string;
   liveHumans?: number;
   liveAgents?: number;
   right?: React.ReactNode;
@@ -178,7 +112,6 @@ export interface AppShellProps {
 export function AppShell({
   children,
   siteDomain,
-  stationCode,
   liveHumans = 0,
   liveAgents = 0,
   right,
@@ -191,27 +124,15 @@ export function AppShell({
     setOpen(false);
   }, [site]);
 
-  const code =
-    stationCode ??
-    (siteDomain ? siteDomain.replace(/^www\./, "").slice(0, 14).toUpperCase() : "STATION");
-
   return (
     <div className="mf-shell" data-rail-open={open ? "true" : "false"}>
-      <nav id="mf-rail" className="mf-rail" aria-label="Channels">
+      <nav id="mf-rail" className="mf-rail" aria-label="Dashboard">
         <div className="mf-rail__head">
           <a className="mf-rail__brand" href="/app" aria-label="Micaforge, all sites">
             <Mark size={26} />
             <span className="mf-rail__wordmark">Micaforge</span>
           </a>
         </div>
-
-        {/* The station code, written down the paper's edge exactly as a recorder
-            stamps its own identity onto every record it produces. */}
-        {site && (
-          <div className="mf-rail__station" aria-hidden="true">
-            <span className="mf-rail__station-code">{code}</span>
-          </div>
-        )}
 
         <div className="mf-rail__banks">
           {BANKS.map(({ bank, channels }) => (
@@ -237,9 +158,6 @@ export function AppShell({
           ))}
         </div>
 
-        <div className="mf-rail__foot">
-          <MediumSwitch />
-        </div>
       </nav>
 
       <div className="mf-shell__body">
@@ -260,7 +178,7 @@ export function AppShell({
               size={15}
               style={{ transform: open ? "rotate(90deg)" : "rotate(-90deg)" }}
             />
-            <span className="mf-topbar__channels-label">Channels</span>
+            <span className="mf-topbar__channels-label">Menu</span>
           </button>
 
           <div className="mf-topbar__site">
@@ -278,18 +196,17 @@ export function AppShell({
             )}
           </div>
 
-          {/* The live readout. Two channels, always both. The whole point is
-              that a machine reader is as real as a human one. */}
+          {/* Who is on the site right now: people and AI, always both. */}
           <div className="mf-live" aria-live="polite">
             <span className="mf-live__pair">
               <span className="mf-live__pen" data-pen="written" aria-hidden="true" />
               <span className="mf-live__n mf-data">{liveHumans}</span>
-              <span className="mf-live__unit">reading</span>
+              <span className="mf-live__unit">people online</span>
             </span>
             <span className="mf-live__pair">
               <span className="mf-live__pen" data-pen="stepped" aria-hidden="true" />
               <span className="mf-live__n mf-data">{liveAgents}</span>
-              <span className="mf-live__unit">fetching</span>
+              <span className="mf-live__unit">AI crawlers</span>
             </span>
           </div>
 
@@ -305,7 +222,7 @@ export function AppShell({
         <button
           type="button"
           className="mf-shell__scrim"
-          aria-label="Close channels"
+          aria-label="Close menu"
           onClick={() => setOpen(false)}
         />
       )}

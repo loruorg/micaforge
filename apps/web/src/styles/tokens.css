@@ -1,83 +1,97 @@
 /* ============================================================================
    Micaforge token system
-   World: a continuous-trace recording station. The default surface is a SMOKED
-   DRUM RECORD: lampblack soot with the trace scratched through to the bright
-   paper beneath. Light mode ("PAPER") is that record transcribed onto chart
-   paper. Nothing here is a generic UI palette; every value names a material.
+   One theme, light, on purpose: the people who read this product check it at a
+   desk in daylight, between deploys, and want a number in under a second. There
+   is no dark variant and no theme switch, so every colour below is the only
+   value it will ever take.
+
+   Two audiences run through every screen and every chart:
+     people  blue    a person with a browser
+     ai      orange  an AI crawler, or a visit an AI answer sent
+   Blue and orange stay apart under every common colour-vision deficiency and in
+   greyscale, and each series also carries its own line style, so colour is
+   never the only thing that tells them apart.
    ========================================================================= */
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 
-  /* --- ground: soot. warm-neutral, never blue-charcoal ------------------- */
-  --mf-ground:        #13110e;
-  --mf-ground-2:      #191612;  /* panel */
-  --mf-ground-3:      #201c17;  /* raised / hover */
-  --mf-well:          #0c0b09;  /* inputs, sunken wells */
-  --mf-scrim:         rgba(12, 11, 9, 0.78);
+  /* --- surfaces ---------------------------------------------------------- */
+  --mf-ground:        #fafafa;  /* page */
+  --mf-ground-2:      #ffffff;  /* panel */
+  --mf-ground-3:      #f4f4f5;  /* hover, raised, active row */
+  --mf-well:          #ffffff;  /* inputs and code wells, edged by --mf-rule */
+  --mf-well-2:        #f6f6f7;  /* code blocks and sunken strips */
+  --mf-scrim:         rgba(9, 9, 11, 0.42);
 
-  /* --- edges: the surface's own colour, never a drawn outline ------------ */
-  --mf-rule:          rgba(233, 227, 214, 0.085);
-  --mf-rule-strong:   rgba(233, 227, 214, 0.17);
-  --mf-lip:           rgba(245, 240, 228, 0.055); /* top inner highlight */
+  /* --- edges ------------------------------------------------------------- */
+  --mf-rule:          #e8e8eb;
+  --mf-rule-strong:   #d4d4d8;
+  --mf-lip:           rgba(255, 255, 255, 0);
 
-  /* --- ink: the paper revealed under the soot ---------------------------- */
-  --mf-ink:           #e9e3d6;  /* 14.7:1 on ground */
-  --mf-ink-2:         #b4ac9c;  /*  8.4:1 */
-  --mf-ink-3:         #8c8474;  /*  5.1:1, the dimmest text allowed */
-  --mf-stylus:        #f5f0e4;  /* 16.6:1, the trace itself */
+  /* --- ink --------------------------------------------------------------- */
+  --mf-ink-strong:    #09090b;  /* 19.9:1 on white */
+  --mf-ink:           #18181b;  /* 17.7:1 */
+  --mf-ink-2:         #52525b;  /*  7.7:1 */
+  --mf-ink-3:         #71717a;  /*  4.8:1, the dimmest text allowed */
 
-  /* --- shellac: the fixative varnish. the one accent, used tonally ------- */
-  --mf-shellac:       #c98a46;  /*  6.5:1 */
-  --mf-shellac-dim:   #a76b33;
-  --mf-shellac-lo:    #5e3818;
-  --mf-shellac-hi:    #e3ba7e;
-  --mf-shellac-wash:  rgba(201, 138, 70, 0.13);
+  /* --- the brand accent: the AI orange. Marks AI traffic, the mark, and the
+         one highlight on a screen. --mf-accent-ink is the text-safe step. --- */
+  --mf-accent:        #f25a1d;
+  --mf-accent-ink:    #c2410c;  /*  5.2:1 on white */
+  --mf-accent-dim:    #ea580c;
+  --mf-accent-lo:     #fff1ea;
+  --mf-accent-hi:     #ff7a45;
+  --mf-accent-wash:   rgba(242, 90, 29, 0.1);
 
-  /* --- annotation inks: the two pens a station operator actually had ----- */
-  --mf-oxide:         #c4694f;  /*  4.9:1, text-safe negative */
-  --mf-oxide-deep:    #b4553f;  /* fills only */
-  --mf-oxide-wash:    rgba(180, 85, 63, 0.14);
-  --mf-verdigris:     #74a388;  /*  6.6:1, text-safe positive */
-  --mf-verdigris-deep:#5e8c72;
-  --mf-verdigris-wash:rgba(94, 140, 114, 0.14);
+  /* --- people blue ------------------------------------------------------- */
+  --mf-blue:          #2f6bff;
+  --mf-blue-ink:      #1d4fd7;  /*  6.3:1 on white */
+  --mf-blue-wash:     rgba(47, 107, 255, 0.1);
 
-  /* --- the two traces. this pair IS the product's thesis ----------------- */
-  --mf-trace-human:   var(--mf-stylus);
-  --mf-trace-agent:   var(--mf-shellac);
-  --mf-trace-human-fill: rgba(245, 240, 228, 0.10);
-  --mf-trace-agent-fill: rgba(201, 138, 70, 0.16);
+  /* --- verdicts ---------------------------------------------------------- */
+  --mf-danger:        #d92d20;  /*  4.9:1, text-safe */
+  --mf-danger-deep:   #b42318;
+  --mf-danger-wash:   rgba(217, 45, 32, 0.08);
+  --mf-success:       #067647;  /*  6.2:1, text-safe */
+  --mf-success-deep:  #05603a;
+  --mf-success-wash:  rgba(6, 118, 71, 0.08);
 
-  /* --- categorical series: one hue, five lightness steps.
-         differing by VALUE, not hue, so it survives colour blindness and
-         greyscale printing. every step is a real fill against the ground. -- */
-  --mf-s1: #f2d9ae;
-  --mf-s2: #e3ba7e;
-  --mf-s3: #c98a46;
-  --mf-s4: #a76b33;
-  --mf-s5: #8a552a;
+  /* --- the two audiences. This pair is the product's whole argument. ----- */
+  --mf-people:        var(--mf-blue);
+  --mf-ai:            var(--mf-accent);
+  --mf-people-fill:   rgba(47, 107, 255, 0.12);
+  --mf-ai-fill:       rgba(242, 90, 29, 0.14);
 
-  /* --- the scratch burr: a scratch displaces soot to ONE side.
-         this is a real, tight, directional shadow. it replaces every glow. -- */
-  --mf-burr:          0 1px 0 rgba(9, 8, 6, 0.9);
-  --mf-lift:          0 1px 2px rgba(9, 8, 6, 0.55), 0 3px 10px rgba(9, 8, 6, 0.35);
-  --mf-press:         inset 0 1px 2px rgba(9, 8, 6, 0.7);
+  /* --- categorical series: one blue, five steps, for breakdowns that are
+         neither audience (browsers, countries, sources). ------------------- */
+  --mf-s1: #1d4fd7;
+  --mf-s2: #2f6bff;
+  --mf-s3: #6e98ff;
+  --mf-s4: #a9c2ff;
+  --mf-s5: #d6e2ff;
 
-  /* --- paper ruling: lives INSIDE a panel, clipped. never a page grid ---- */
-  --mf-rule-minor:    rgba(233, 227, 214, 0.045);
-  --mf-rule-major:    rgba(233, 227, 214, 0.10);
+  /* --- depth: soft and offset, never a coloured halo ---------------------- */
+  --mf-shadow-xs:     0 1px 2px rgba(16, 24, 40, 0.05);
+  --mf-shadow-md:     0 1px 2px rgba(16, 24, 40, 0.04), 0 4px 12px rgba(16, 24, 40, 0.06);
+  --mf-shadow-lg:     0 2px 4px rgba(16, 24, 40, 0.04), 0 12px 32px rgba(16, 24, 40, 0.1);
+  --mf-inset:         inset 0 1px 2px rgba(16, 24, 40, 0.06);
 
-  /* --- focus ------------------------------------------------------------- */
-  --mf-focus:         var(--mf-shellac-hi);
+  /* --- chart grid -------------------------------------------------------- */
+  --mf-rule-minor:    #f1f1f3;
+  --mf-rule-major:    #e4e4e7;
+
+  /* --- focus: a blue ring with a white gap, visible on every surface ----- */
+  --mf-focus:         var(--mf-blue);
 
   /* ======================= non-colour tokens ============================= */
 
-  /* type */
-  --mf-font-display: "Trench Slab", "Iowan Old Style", "Palatino Linotype", serif;
-  --mf-font-ui: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --mf-font-data: "Tabular", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  /* type: Geist for everything a person reads, Geist Mono for data and code */
+  --mf-font-display: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mf-font-ui: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mf-font-data: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
-  --mf-t-2xs:  0.6875rem; /* 11, instrument labels only */
+  --mf-t-2xs:  0.6875rem; /* 11 */
   --mf-t-xs:   0.75rem;   /* 12 */
   --mf-t-sm:   0.8125rem; /* 13, dense table body */
   --mf-t-base: 0.9375rem; /* 15, UI body */
@@ -87,12 +101,12 @@
   --mf-t-2xl:  2.25rem;   /* 36 */
   --mf-t-3xl:  3rem;      /* 48 */
   --mf-t-4xl:  4rem;      /* 64 */
-  --mf-t-5xl:  5.5rem;    /* 88, display ceiling, under the 6rem floor rule */
+  --mf-t-5xl:  4.75rem;   /* 76, display ceiling */
 
-  --mf-lead-tight: 1.06;
-  --mf-lead-snug:  1.28;
-  --mf-lead-body:  1.58;
-  --mf-track-display: -0.018em;
+  --mf-lead-tight: 1.05;
+  --mf-lead-snug:  1.3;
+  --mf-lead-body:  1.6;
+  --mf-track-display: -0.035em;
   --mf-track-ui: 0;
   --mf-measure: 68ch;
 
@@ -103,127 +117,24 @@
   --mf-12: 3rem;     --mf-14: 3.5rem;   --mf-16: 4rem;     --mf-20: 5rem;
   --mf-24: 6rem;     --mf-32: 8rem;
 
-  /* radius. paper and instrument panels are square; this is a decision. */
+  /* radius */
   --mf-r-none: 0;
-  --mf-r-sm:   2px;   /* controls */
-  --mf-r-md:   3px;   /* panels */
-  --mf-r-pill: 999px; /* reserved for the caliper handle only */
+  --mf-r-sm:   6px;   /* controls */
+  --mf-r-md:   10px;  /* panels */
+  --mf-r-lg:   16px;  /* feature frames on the site */
+  --mf-r-pill: 999px;
 
-  /* the pin-feed gutter on primary record panels */
-  --mf-feed-gutter: 22px;
-  --mf-feed-pitch:  16px;  /* hole spacing, matches real 1/2" pin feed at scale */
-  --mf-feed-hole:   4px;
-
-  /* motion: one authored moment, the pen advance */
-  --mf-ease-pen:  cubic-bezier(0.16, 1, 0.3, 1);
+  /* motion: ease out from a visible default, quick and few */
+  --mf-ease-out:  cubic-bezier(0.16, 1, 0.3, 1);
   --mf-ease-snap: cubic-bezier(0.32, 0.72, 0, 1);
   --mf-dur-1: 120ms;
   --mf-dur-2: 220ms;
   --mf-dur-3: 420ms;
-  --mf-dur-drum: 900ms;
+  --mf-dur-4: 900ms;
 
   /* layout */
-  --mf-rail: 232px;      /* the station log spine */
+  --mf-rail: 232px;
   --mf-rail-collapsed: 60px;
   --mf-shell-max: 1560px;
   --mf-header-h: 56px;
-}
-
-/* ---------------------------------------------------------------------------
-   PAPER: the record transcribed onto chart paper.
-   A toned mineral grey, deliberately not the oat-milk cream every light theme
-   defaults to. Ink is soot; the trace becomes dark on light.
-   ------------------------------------------------------------------------ */
-:root[data-record="paper"] {
-  color-scheme: light;
-
-  --mf-ground:        #dddad0;
-  --mf-ground-2:      #e7e4db;
-  --mf-ground-3:      #efede5;
-  --mf-well:          #d2cec2;
-  --mf-scrim:         rgba(26, 23, 20, 0.5);
-
-  --mf-rule:          rgba(26, 23, 20, 0.14);
-  --mf-rule-strong:   rgba(26, 23, 20, 0.27);
-  --mf-lip:           rgba(255, 253, 246, 0.55);
-
-  --mf-ink:           #1a1714;  /* 12.8:1 */
-  --mf-ink-2:         #4a453c;  /*  6.8:1 */
-  --mf-ink-3:         #5f594d;  /*  4.9:1 */
-  --mf-stylus:        #14120f;
-
-  --mf-shellac:       #7e4e1c;  /*  5.1:1 */
-  --mf-shellac-dim:   #5e3818;
-  --mf-shellac-lo:    #e0d2b8;
-  --mf-shellac-hi:    #9c6526;
-  --mf-shellac-wash:  rgba(126, 78, 28, 0.12);
-
-  --mf-oxide:         #8e3a28;
-  --mf-oxide-deep:    #a04430;
-  --mf-oxide-wash:    rgba(142, 58, 40, 0.11);
-  --mf-verdigris:     #33604a;
-  --mf-verdigris-deep:#3d7057;
-  --mf-verdigris-wash:rgba(51, 96, 74, 0.11);
-
-  --mf-trace-human:   #1a1714;
-  --mf-trace-agent:   #8a5620;
-  --mf-trace-human-fill: rgba(26, 23, 20, 0.09);
-  --mf-trace-agent-fill: rgba(138, 86, 32, 0.14);
-
-  --mf-s1: #4a2c0e;
-  --mf-s2: #6b431a;
-  --mf-s3: #8a5620;
-  --mf-s4: #a8763d;
-  --mf-s5: #c39a6b;
-
-  --mf-burr:  0 1px 0 rgba(255, 253, 246, 0.75);
-  --mf-lift:  0 1px 2px rgba(26, 23, 20, 0.14), 0 3px 10px rgba(26, 23, 20, 0.08);
-  --mf-press: inset 0 1px 2px rgba(26, 23, 20, 0.16);
-
-  --mf-rule-minor: rgba(26, 23, 20, 0.055);
-  --mf-rule-major: rgba(26, 23, 20, 0.13);
-  --mf-focus:      #7e4e1c;
-}
-
-/* Follow the OS only when the reader has not chosen a medium.
-   Guarded so an explicit choice always wins in both directions. */
-@media (prefers-color-scheme: light) {
-  :root:not([data-record="smoked"]) {
-    color-scheme: light;
-    --mf-ground:        #dddad0;
-    --mf-ground-2:      #e7e4db;
-    --mf-ground-3:      #efede5;
-    --mf-well:          #d2cec2;
-    --mf-scrim:         rgba(26, 23, 20, 0.5);
-    --mf-rule:          rgba(26, 23, 20, 0.14);
-    --mf-rule-strong:   rgba(26, 23, 20, 0.27);
-    --mf-lip:           rgba(255, 253, 246, 0.55);
-    --mf-ink:           #1a1714;
-    --mf-ink-2:         #4a453c;
-    --mf-ink-3:         #5f594d;
-    --mf-stylus:        #14120f;
-    --mf-shellac:       #7e4e1c;
-    --mf-shellac-dim:   #5e3818;
-    --mf-shellac-lo:    #e0d2b8;
-    --mf-shellac-hi:    #9c6526;
-    --mf-shellac-wash:  rgba(126, 78, 28, 0.12);
-    --mf-oxide:         #8e3a28;
-    --mf-oxide-deep:    #a04430;
-    --mf-oxide-wash:    rgba(142, 58, 40, 0.11);
-    --mf-verdigris:     #33604a;
-    --mf-verdigris-deep:#3d7057;
-    --mf-verdigris-wash:rgba(51, 96, 74, 0.11);
-    --mf-trace-human:   #1a1714;
-    --mf-trace-agent:   #8a5620;
-    --mf-trace-human-fill: rgba(26, 23, 20, 0.09);
-    --mf-trace-agent-fill: rgba(138, 86, 32, 0.14);
-    --mf-s1: #4a2c0e; --mf-s2: #6b431a; --mf-s3: #8a5620;
-    --mf-s4: #a8763d; --mf-s5: #c39a6b;
-    --mf-burr:  0 1px 0 rgba(255, 253, 246, 0.75);
-    --mf-lift:  0 1px 2px rgba(26, 23, 20, 0.14), 0 3px 10px rgba(26, 23, 20, 0.08);
-    --mf-press: inset 0 1px 2px rgba(26, 23, 20, 0.16);
-    --mf-rule-minor: rgba(26, 23, 20, 0.055);
-    --mf-rule-major: rgba(26, 23, 20, 0.13);
-    --mf-focus:      #7e4e1c;
-  }
 }

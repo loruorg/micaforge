@@ -1,306 +1,289 @@
 /* ============================================================================
-   Micaforge, the published sheet.
-
-   The dashboard is the recording station. These pages are what comes OFF it: a
-   single continuous sheet, torn from the drum and filed. That is the whole idea
-   and it is why the chrome looks the way it does. The header is the sheet's
-   leading edge, carrying its feed perforations, and the footer is the tear-off
-   at the other end. Everything between them is written on one piece of paper.
+   Micaforge, the public site: header, footer, page frame and long-form type.
 
    Unlayered on purpose: global.css puts its base and component rules in
    cascade layers, so these overrides win without a specificity fight.
    ========================================================================= */
 
-/* ── the sheet ───────────────────────────────────────────────────────────── */
-
 .mf-wrap {
   width: 100%;
-  max-width: 1140px;
+  max-width: 1180px;
   margin-inline: auto;
-  /* Every text block on these pages is padded clear of the viewport rim by the
-     same gutter, so nothing is ever set hard against an edge. */
-  padding-inline: clamp(var(--mf-5), 4.5vw, var(--mf-10));
+  padding-inline: clamp(var(--mf-4), 4vw, var(--mf-8));
 }
 
-/* The perforation strip. Same recipe as the pin feed down a record panel's
-   gutter, turned through ninety degrees: this is the sheet's cut edge. */
-.mf-feed {
-  height: 13px;
-  background-image: radial-gradient(
-    circle at center,
-    var(--mf-well) 0 calc(var(--mf-feed-hole) / 2),
-    transparent calc(var(--mf-feed-hole) / 2 + 0.5px)
-  );
-  background-size: var(--mf-feed-pitch) 100%;
-  background-position: calc(var(--mf-feed-pitch) / 2) center;
-  background-repeat: repeat-x;
-}
-.mf-feed--head { border-bottom: 1px dashed var(--mf-rule); }
-.mf-feed--foot { border-top: 1px dashed var(--mf-rule); }
+body:has(.mf-head) { background: var(--mf-ground-2); }
 
-/* ── the sheet head ──────────────────────────────────────────────────────── */
+/* ── buttons used on the site ──────────────────────────────────────────── */
+
+.mf-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--mf-2);
+  min-height: 44px;
+  padding: 0 var(--mf-5);
+  font: inherit;
+  font-size: var(--mf-t-base);
+  font-weight: 500;
+  line-height: 1;
+  color: #ffffff;
+  background: var(--mf-ink-strong);
+  border: 1px solid var(--mf-ink-strong);
+  border-radius: var(--mf-r-sm);
+  box-shadow: var(--mf-shadow-xs);
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--mf-dur-1) linear, border-color var(--mf-dur-1) linear,
+    color var(--mf-dur-1) linear;
+}
+.mf-cta:hover { background: #27272a; border-color: #27272a; }
+.mf-cta svg { flex: none; transition: transform var(--mf-dur-2) var(--mf-ease-out); }
+.mf-cta:hover svg { transform: translateX(2px); }
+.mf-cta--ghost {
+  color: var(--mf-ink-strong);
+  background: var(--mf-ground-2);
+  border-color: var(--mf-rule-strong);
+}
+.mf-cta--ghost:hover { background: var(--mf-ground-3); border-color: var(--mf-rule-strong); }
+.mf-cta--sm { min-height: 34px; padding: 0 var(--mf-4); font-size: var(--mf-t-sm); }
+
+/* ── header ────────────────────────────────────────────────────────────── */
 
 .mf-head {
   position: sticky;
   top: 0;
   z-index: 40;
-  background: var(--mf-ground);
+  background: rgba(255, 255, 255, 0.86);
+  -webkit-backdrop-filter: saturate(1.6) blur(12px);
+          backdrop-filter: saturate(1.6) blur(12px);
+  border-bottom: 1px solid var(--mf-rule);
 }
 
 .mf-head__row {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  display: flex;
   align-items: center;
   gap: var(--mf-6);
-  min-height: 62px;
-  padding-block: var(--mf-3);
+  height: 64px;
 }
 
 .mf-head__brand {
   display: inline-flex;
   align-items: center;
-  gap: var(--mf-3);
+  gap: 10px;
+  color: var(--mf-ink-strong);
   text-decoration: none;
-  color: var(--mf-ink);
+  flex: none;
 }
 .mf-head__brand svg { flex: none; }
 .mf-head__wordmark {
-  font-family: var(--mf-font-display);
-  font-size: var(--mf-t-md);
+  font-size: 1.0625rem;
   font-weight: 600;
-  letter-spacing: -0.005em;
+  letter-spacing: -0.02em;
 }
 
 .mf-head__nav {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: var(--mf-1);
+  gap: 2px;
 }
 
-/* A nav item is a channel on the sheet head. State is carried by ink weight and
-   colour; the shellac bar is the same "channel currently writing" mark the
-   station rail uses, not a dot bolted under a link. */
 .mf-nav__link {
-  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: var(--mf-2);
-  padding: var(--mf-2) var(--mf-3);
+  gap: 4px;
+  padding: 7px 12px;
   font-size: var(--mf-t-sm);
+  font-weight: 500;
   color: var(--mf-ink-2);
   text-decoration: none;
   border-radius: var(--mf-r-sm);
+  cursor: pointer;
+  list-style: none;
   transition: color var(--mf-dur-1) linear, background-color var(--mf-dur-1) linear;
 }
-.mf-nav__link:hover { color: var(--mf-ink); background: var(--mf-ground-2); }
-.mf-nav__link.is-here { color: var(--mf-ink); font-weight: 600; }
-.mf-nav__link.is-here::before {
-  content: "";
-  position: absolute;
-  left: var(--mf-3);
-  right: var(--mf-3);
-  top: -3px;
-  height: 3px;
-  border-radius: 1px;
-  background: var(--mf-shellac);
-}
+.mf-nav__link:hover { color: var(--mf-ink-strong); background: var(--mf-ground-3); }
+.mf-nav__link.is-here { color: var(--mf-ink-strong); }
 
-/* The comparison disclosure. Native <details>, so it opens with no JavaScript
-   at all; the script only adds outside-click and Escape. */
 .mf-nav__disc { position: relative; }
-.mf-nav__disc > summary {
-  list-style: none;
-  cursor: pointer;
-}
 .mf-nav__disc > summary::-webkit-details-marker { display: none; }
-.mf-nav__disc[open] > summary { color: var(--mf-ink); background: var(--mf-ground-2); }
-.mf-nav__caret {
-  transition: transform var(--mf-dur-1) var(--mf-ease-snap);
-  color: var(--mf-ink-3);
-}
+.mf-nav__disc[open] > summary { color: var(--mf-ink-strong); background: var(--mf-ground-3); }
+.mf-nav__caret { color: var(--mf-ink-3); transition: transform var(--mf-dur-2) var(--mf-ease-snap); }
 .mf-nav__disc[open] .mf-nav__caret { transform: rotate(180deg); }
 
 .mf-nav__menu {
   position: absolute;
   top: calc(100% + 8px);
   left: 0;
-  min-width: 232px;
-  padding: var(--mf-2);
+  min-width: 220px;
+  padding: 6px;
   background: var(--mf-ground-2);
-  border: 1px solid var(--mf-rule-strong);
+  border: 1px solid var(--mf-rule);
   border-radius: var(--mf-r-md);
-  box-shadow: var(--mf-lift);
+  box-shadow: var(--mf-shadow-lg);
+  display: flex;
+  flex-direction: column;
 }
 .mf-nav__menu a {
-  display: block;
-  padding: var(--mf-2) var(--mf-3);
+  padding: 8px 10px;
   font-size: var(--mf-t-sm);
+  color: var(--mf-ink-2);
+  text-decoration: none;
+  border-radius: var(--mf-r-sm);
+}
+.mf-nav__menu a:hover { color: var(--mf-ink-strong); background: var(--mf-ground-3); }
+.mf-nav__menu a.is-here { color: var(--mf-ink-strong); font-weight: 500; }
+
+.mf-head__acts {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--mf-2);
+}
+
+.mf-head__gh {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  color: var(--mf-ink-2);
+  border-radius: var(--mf-r-sm);
+  transition: color var(--mf-dur-1) linear, background-color var(--mf-dur-1) linear;
+}
+.mf-head__gh:hover { color: var(--mf-ink-strong); background: var(--mf-ground-3); }
+
+.mf-head__signin {
+  padding: 7px 12px;
+  font-size: var(--mf-t-sm);
+  font-weight: 500;
   color: var(--mf-ink-2);
   text-decoration: none;
   border-radius: var(--mf-r-sm);
   transition: color var(--mf-dur-1) linear, background-color var(--mf-dur-1) linear;
 }
-.mf-nav__menu a:hover { color: var(--mf-ink); background: var(--mf-ground-3); }
-.mf-nav__menu a.is-here { color: var(--mf-ink); font-weight: 600; }
+.mf-head__signin:hover { color: var(--mf-ink-strong); background: var(--mf-ground-3); }
 
-.mf-head__acts {
-  display: flex;
-  align-items: center;
-  gap: var(--mf-3);
-  justify-self: end;
-}
-
-.mf-head__out {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--mf-2);
-  font-size: var(--mf-t-sm);
-  color: var(--mf-ink-2);
-  text-decoration: none;
-  transition: color var(--mf-dur-1) linear;
-}
-.mf-head__out:hover { color: var(--mf-ink); }
-.mf-head__out svg { color: var(--mf-ink-3); transition: color var(--mf-dur-1) linear; }
-.mf-head__out:hover svg { color: var(--mf-shellac); }
-
-/* The drawer, under 900px. Also a native <details>: it works with JS disabled. */
+/* The drawer, under 900px. A native <details>: it works with JS disabled. */
 .mf-head__drawer { display: none; }
 .mf-head__drawer > summary {
-  list-style: none;
   display: inline-flex;
   align-items: center;
-  gap: var(--mf-2);
-  padding: 6px var(--mf-3);
-  font-size: var(--mf-t-sm);
-  color: var(--mf-ink);
-  background: var(--mf-ground-3);
-  border: 1px solid var(--mf-rule-strong);
+  justify-content: center;
+  width: 40px;
+  height: 40px;
   border-radius: var(--mf-r-sm);
-  box-shadow: inset 0 1px 0 var(--mf-lip);
   cursor: pointer;
+  list-style: none;
 }
 .mf-head__drawer > summary::-webkit-details-marker { display: none; }
+.mf-head__drawer > summary:hover { background: var(--mf-ground-3); }
+.mf-head__burger { display: grid; gap: 5px; width: 18px; }
+.mf-head__burger i {
+  display: block;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--mf-ink-strong);
+  transition: transform var(--mf-dur-2) var(--mf-ease-snap);
+}
+.mf-head__drawer[open] .mf-head__burger i:first-child { transform: translateY(3.5px) rotate(45deg); }
+.mf-head__drawer[open] .mf-head__burger i:last-child { transform: translateY(-3.5px) rotate(-45deg); }
 
 .mf-drawer__panel {
-  position: absolute;
+  position: fixed;
   left: 0;
   right: 0;
-  top: 100%;
+  top: 64px;
   background: var(--mf-ground-2);
-  border-top: 1px solid var(--mf-rule);
-  border-bottom: 1px solid var(--mf-rule-strong);
-  box-shadow: var(--mf-lift);
+  border-bottom: 1px solid var(--mf-rule);
+  box-shadow: var(--mf-shadow-lg);
+  max-height: calc(100dvh - 64px);
+  overflow-y: auto;
 }
-.mf-drawer__list {
-  display: flex;
-  flex-direction: column;
-  padding-block: var(--mf-3);
-}
+.mf-drawer__list { display: flex; flex-direction: column; padding-block: var(--mf-2) var(--mf-4); }
 .mf-drawer__list a {
-  padding: var(--mf-3) 0;
+  display: flex;
+  align-items: center;
+  gap: var(--mf-2);
+  padding: 12px 0;
   font-size: var(--mf-t-base);
-  color: var(--mf-ink-2);
+  font-weight: 500;
+  color: var(--mf-ink);
   text-decoration: none;
   border-bottom: 1px solid var(--mf-rule);
 }
-.mf-drawer__list a:last-of-type { border-bottom: 0; }
-.mf-drawer__list a.is-here { color: var(--mf-ink); font-weight: 600; }
-.mf-drawer__sub { padding-left: var(--mf-5); }
-.mf-drawer__foot { padding: var(--mf-4) 0 var(--mf-5); }
+.mf-drawer__list a:last-child { border-bottom: 0; }
+.mf-drawer__list a.is-here { color: var(--mf-accent-ink); }
 
-@media (max-width: 900px) {
-  .mf-head__nav { display: none; }
-  .mf-head__row { grid-template-columns: auto minmax(0, 1fr); }
-  .mf-head__acts { grid-column: 2; }
-  .mf-head__acts .mf-medium { display: none; }
+@media (max-width: 960px) {
+  .mf-head__nav, .mf-head__gh { display: none; }
   .mf-head__drawer { display: block; }
 }
-@media (max-width: 520px) {
-  /* The source link is already in the drawer at this width. Hiding only its
-     label would leave a bare arrow that is both a stray glyph and a link with
-     no accessible name, so the whole control goes instead. */
-  .mf-head__acts .mf-head__out { display: none; }
+@media (max-width: 420px) {
+  .mf-head__signin { display: none; }
 }
 
-/* ── the sheet foot ──────────────────────────────────────────────────────── */
+/* ── footer ────────────────────────────────────────────────────────────── */
 
 .mf-foot {
   margin-top: auto;
-  padding-top: var(--mf-16);
-  border-top: 1px solid var(--mf-rule);
+  padding-block: var(--mf-16) var(--mf-8);
   background: var(--mf-ground);
+  border-top: 1px solid var(--mf-rule);
 }
 
 .mf-foot__grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.5fr) repeat(4, minmax(0, 1fr));
-  gap: var(--mf-10) var(--mf-6);
-  padding-bottom: var(--mf-12);
+  grid-template-columns: minmax(0, 1.6fr) repeat(4, minmax(0, 1fr));
+  gap: var(--mf-8);
 }
-
 .mf-foot__brand { display: flex; flex-direction: column; gap: var(--mf-3); align-items: flex-start; }
 .mf-foot__mark {
   display: inline-flex;
   align-items: center;
-  gap: var(--mf-3);
+  gap: 10px;
+  color: var(--mf-ink-strong);
   text-decoration: none;
-  color: var(--mf-ink);
 }
-.mf-foot__wordmark {
-  font-family: var(--mf-font-display);
-  font-size: var(--mf-t-lg);
-  font-weight: 600;
-  letter-spacing: -0.01em;
-}
-.mf-foot__line {
-  font-size: var(--mf-t-sm);
-  color: var(--mf-ink-2);
-  max-width: 34ch;
-}
+.mf-foot__wordmark { font-size: var(--mf-t-md); font-weight: 600; letter-spacing: -0.02em; }
+.mf-foot__line { max-width: 30ch; font-size: var(--mf-t-sm); line-height: 1.55; color: var(--mf-ink-2); }
 
 .mf-foot__col h2 {
+  margin: 0 0 var(--mf-3);
   font-family: var(--mf-font-ui);
-  font-size: var(--mf-t-xs);
+  font-size: var(--mf-t-sm);
   font-weight: 600;
   letter-spacing: 0;
-  color: var(--mf-ink-3);
-  margin: 0 0 var(--mf-3);
+  color: var(--mf-ink-strong);
 }
-.mf-foot__col ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--mf-2); }
+.mf-foot__col ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 .mf-foot__col a {
   display: inline-flex;
   align-items: center;
-  gap: var(--mf-2);
+  gap: 4px;
   font-size: var(--mf-t-sm);
   color: var(--mf-ink-2);
   text-decoration: none;
   transition: color var(--mf-dur-1) linear;
 }
-.mf-foot__col a:hover { color: var(--mf-ink); }
+.mf-foot__col a:hover { color: var(--mf-ink-strong); }
 .mf-foot__col a svg { color: var(--mf-ink-3); }
-.mf-foot__col a:hover svg { color: var(--mf-shellac); }
 
-/* The colophon. One line, left-aligned to the same margin as everything above
-   it, never a tagline flung left with the rest jammed right. */
 .mf-foot__colophon {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--mf-2) var(--mf-5);
-  padding-block: var(--mf-5) var(--mf-6);
+  gap: var(--mf-2) var(--mf-6);
+  margin-top: var(--mf-12);
+  padding-top: var(--mf-5);
   border-top: 1px solid var(--mf-rule);
   font-size: var(--mf-t-xs);
   color: var(--mf-ink-3);
 }
-.mf-foot__colophon strong { color: var(--mf-ink-2); font-weight: 500; }
 
 @media (max-width: 1000px) {
   .mf-foot__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .mf-foot__brand { grid-column: 1 / -1; }
-}
-@media (max-width: 560px) {
-  .mf-foot__grid { grid-template-columns: minmax(0, 1fr); gap: var(--mf-8); }
 }
 
 /* ── long-form typography ────────────────────────────────────────────────── */
@@ -350,22 +333,21 @@
   /* colour only: no underline that grows, wipes or travels on hover */
   transition: color var(--mf-dur-1) linear, text-decoration-color var(--mf-dur-1) linear;
 }
-.mf-prose a:hover { color: var(--mf-shellac); text-decoration-color: var(--mf-shellac); }
+.mf-prose a:hover { color: var(--mf-accent); text-decoration-color: var(--mf-accent); }
 
 .mf-prose ul,
 .mf-prose ol { margin: var(--mf-5) 0; padding-left: 0; list-style: none; }
 .mf-prose li + li { margin-top: var(--mf-3); }
 .mf-prose ul > li { position: relative; padding-left: var(--mf-6); }
-/* The registration tick from the icon set, doing an honest job: it marks where
-   an item begins, exactly as it marks zero on a glyph. */
 .mf-prose ul > li::before {
   content: "";
   position: absolute;
-  left: 2px;
-  top: 0.62em;
-  width: 5px;
-  height: 5px;
-  background: var(--mf-shellac);
+  left: 4px;
+  top: 0.66em;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--mf-ink-3);
 }
 .mf-prose ol { counter-reset: mf-ol; }
 .mf-prose ol > li { position: relative; padding-left: var(--mf-8); counter-increment: mf-ol; }
@@ -403,7 +385,7 @@
   background: var(--mf-well);
   border: 1px solid var(--mf-rule);
   border-radius: var(--mf-r-md);
-  box-shadow: var(--mf-press);
+  box-shadow: var(--mf-inset);
   overflow-x: auto;
 }
 .mf-prose pre code {
@@ -438,29 +420,12 @@
 .mf-prose dt:first-of-type { margin-top: 0; }
 .mf-prose dd { margin: var(--mf-2) 0 0; font-size: var(--mf-t-md); line-height: var(--mf-lead-body); }
 
-/* A rule that is part of the instrument rather than a bare hairline: a dashed
-   interval line with the fiducial square sitting on it. */
 .mf-prose hr,
 .mf-rule-fid {
-  position: relative;
   height: 1px;
   border: 0;
   margin: var(--mf-12) 0;
-  background-image: repeating-linear-gradient(
-    to right,
-    var(--mf-rule-strong) 0 6px,
-    transparent 6px 12px
-  );
-}
-.mf-prose hr::after,
-.mf-rule-fid::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: -2px;
-  width: 5px;
-  height: 5px;
-  background: var(--mf-shellac);
+  background: var(--mf-rule);
 }
 
 /* ── the document: a register margin beside the measure ──────────────────── */
@@ -602,7 +567,7 @@
 /* The section being read, marked in the same vocabulary the station rail uses
    for the channel that is currently writing. */
 .mf-reg__link[aria-current="true"] { color: var(--mf-ink); }
-.mf-reg__link[aria-current="true"] .mf-reg__n { color: var(--mf-shellac); }
+.mf-reg__link[aria-current="true"] .mf-reg__n { color: var(--mf-accent); }
 
 /* The sheet head is sticky, so a heading jumped to has to clear it or it lands
    underneath the paper's leading edge. */
@@ -614,8 +579,8 @@
   position: relative;
   margin: var(--mf-8) 0;
   padding: var(--mf-5) var(--mf-6);
-  background: var(--mf-oxide-wash);
-  border: 1px solid var(--mf-oxide);
+  background: var(--mf-danger-wash);
+  border: 1px solid var(--mf-danger);
   border-radius: var(--mf-r-md);
   max-width: var(--mf-measure);
 }
@@ -630,7 +595,7 @@
   font-weight: 600;
   color: var(--mf-ink);
 }
-.mf-note__head svg { flex: none; color: var(--mf-oxide); }
+.mf-note__head svg { flex: none; color: var(--mf-danger); }
 .mf-note p { font-size: var(--mf-t-sm); line-height: var(--mf-lead-body); color: var(--mf-ink-2); }
 .mf-note p + p { margin-top: var(--mf-3); }
 
@@ -639,7 +604,7 @@
   background: var(--mf-ground-2);
   border-color: var(--mf-rule-strong);
 }
-.mf-note--plain .mf-note__head svg { color: var(--mf-shellac); }
+.mf-note--plain .mf-note__head svg { color: var(--mf-accent); }
 
 /* ── figures ─────────────────────────────────────────────────────────────── */
 
@@ -724,8 +689,8 @@
 /* The tick's own box, so it can be written without the words beside it. */
 .mf-cmp__tick { display: inline-flex; flex: none; align-self: center; }
 .mf-cmp__tick:empty { display: none; }
-.mf-cmp__mark[data-state="yes"] svg { color: var(--mf-verdigris); }
-.mf-cmp__mark[data-state="partial"] svg { color: var(--mf-shellac); }
+.mf-cmp__mark[data-state="yes"] svg { color: var(--mf-success); }
+.mf-cmp__mark[data-state="partial"] svg { color: var(--mf-accent); }
 .mf-cmp__mark[data-state="no"] svg { color: var(--mf-ink-3); }
 .mf-cmp__mark[data-state="no"] { color: var(--mf-ink-2); }
 .mf-cmp__note { display: block; margin-top: var(--mf-2); color: var(--mf-ink-2); font-weight: 400; }
@@ -782,7 +747,7 @@
   top: 0.6em;
   width: 5px;
   height: 5px;
-  background: var(--mf-shellac);
+  background: var(--mf-accent);
 }
 .mf-pick__foot { align-self: end; }
 
@@ -798,7 +763,7 @@
   border: 1px solid var(--mf-rule-strong);
   border-radius: var(--mf-r-md);
   background: var(--mf-well);
-  box-shadow: var(--mf-press);
+  box-shadow: var(--mf-inset);
   max-width: none;
   overflow: hidden;
 }
@@ -857,8 +822,8 @@
   font-size: 11.5px;
   fill: var(--mf-ink-3);
 }
-.mf-arch__flow { stroke: var(--mf-trace-human); stroke-width: 1.4; fill: none; }
-.mf-arch__flow--machine { stroke: var(--mf-trace-agent); stroke-width: 1.4; stroke-dasharray: 4 3.5; }
+.mf-arch__flow { stroke: var(--mf-people); stroke-width: 1.4; fill: none; }
+.mf-arch__flow--machine { stroke: var(--mf-ai); stroke-width: 1.4; stroke-dasharray: 4 3.5; }
 .mf-arch__key {
   font-family: var(--mf-font-ui);
   font-size: 11.5px;
@@ -886,9 +851,9 @@
   padding-bottom: 2px;
   transition: color var(--mf-dur-1) linear, border-color var(--mf-dur-1) linear;
 }
-.mf-link:hover { color: var(--mf-ink); border-color: var(--mf-shellac); }
+.mf-link:hover { color: var(--mf-ink); border-color: var(--mf-accent); }
 .mf-link svg { color: var(--mf-ink-3); }
-.mf-link:hover svg { color: var(--mf-shellac); }
+.mf-link:hover svg { color: var(--mf-accent); }
 
 /* ── the verdict register ────────────────────────────────────────────────── */
 
@@ -906,9 +871,9 @@
   font-size: var(--mf-t-md);
   font-weight: 600;
 }
-.mf-verdicts__name[data-verdict="extracted"] { color: var(--mf-oxide); }
-.mf-verdicts__name[data-verdict="compounding"] { color: var(--mf-verdigris); }
-.mf-verdicts__name[data-verdict="invisible"] { color: var(--mf-shellac); }
+.mf-verdicts__name[data-verdict="extracted"] { color: var(--mf-danger); }
+.mf-verdicts__name[data-verdict="compounding"] { color: var(--mf-success); }
+.mf-verdicts__name[data-verdict="invisible"] { color: var(--mf-accent); }
 .mf-verdicts__name[data-verdict="quiet"] { color: var(--mf-ink-2); }
 .mf-verdicts__means { font-size: var(--mf-t-md); color: var(--mf-ink); line-height: var(--mf-lead-body); }
 .mf-verdicts__do { margin-top: var(--mf-2); font-size: var(--mf-t-sm); color: var(--mf-ink-2); line-height: var(--mf-lead-body); }
@@ -979,4 +944,4 @@
   font-family: var(--mf-font-display);
   color: var(--mf-ink-3);
 }
-.mf-toc a:hover { color: var(--mf-ink); border-color: var(--mf-shellac); }
+.mf-toc a:hover { color: var(--mf-ink); border-color: var(--mf-accent); }

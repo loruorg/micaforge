@@ -1,0 +1,151 @@
+---
+/**
+ * The homepage's product shot, built from markup instead of a screenshot, so it
+ * stays sharp at every width, its text is real text, and it can move.
+ *
+ * Every figure is demo data and the frame says so. The motion (the chart
+ * drawing in, the figures counting, the live feed) is added by
+ * lib/home-motion.ts; without it, or with reduced motion, the preview is
+ * complete and still.
+ */
+import { CRAWLERS, LIVE, SOURCES, STATS, channelSeries, stackBands } from "../../lib/home-demo";
+
+const W = 1000;
+const H = 220;
+const { bands, grid } = stackBands(channelSeries(), W, H);
+const nf = new Intl.NumberFormat("en-US");
+const compact = (n: number) =>
+  n >= 1000 ? `${(n / 1000).toFixed(n >= 100000 ? 0 : 1).replace(/\.0$/, "")}k` : String(n);
+const maxSource = Math.max(...SOURCES.map((s) => s.visitors));
+const firstLive = LIVE.slice(0, 5);
+const dayLabels = ["Sep 8", "Sep 15", "Sep 22", "Sep 29", "Oct 6"];
+---
+
+<figure class="hp" aria-label="Micaforge dashboard preview with demo data">
+  <div class="hp__bar">
+    <div class="hp__site">
+      <span class="hp__favicon" aria-hidden="true">a</span>
+      <span class="hp__domain">acme.dev</span>
+      <span class="hp__demo">Demo data</span>
+    </div>
+    <div class="hp__tools">
+      <span class="hp__online"><span class="hp__dot" aria-hidden="true"></span><span data-live-count>37</span> online</span>
+      <span class="hp__range">Last 30 days</span>
+    </div>
+  </div>
+
+  <div class="hp__stats">
+    {
+      STATS.map((s) => (
+        <div class="hp__stat" data-tone={s.tone}>
+          <span class="hp__stat-label">{s.label}</span>
+          <span class="hp__stat-value" data-count={s.value}>
+            {nf.format(s.value)}
+          </span>
+          <span class="hp__stat-delta">{s.delta}</span>
+        </div>
+      ))
+    }
+  </div>
+
+  <div class="hp__chart">
+    <div class="hp__chart-head">
+      <span class="hp__panel-title">Visitors by channel</span>
+      <ul class="hp__legend">
+        {
+          bands.map((b) => (
+            <li data-key={b.key}>
+              <i aria-hidden="true" />
+              {b.label}
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+    <div class="hp__plot">
+      <div class="hp__grid" aria-hidden="true">
+        {
+          grid.map((g) => (
+            <span style={`top:${((g.y / H) * 100).toFixed(2)}%`}>
+              <em>{g.label}</em>
+            </span>
+          ))
+        }
+      </div>
+      <svg class="hp__svg" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true" data-draw>
+        {bands.map((b) => <path class="hp__area" data-key={b.key} d={b.area} />)}
+        {bands.map((b) => <path class="hp__line" data-key={b.key} d={b.line} />)}
+      </svg>
+      <div class="hp__days" aria-hidden="true">
+        {dayLabels.map((d) => <span>{d}</span>)}
+      </div>
+    </div>
+  </div>
+
+  <div class="hp__lower">
+    <section class="hp__panel" aria-label="Top sources">
+      <div class="hp__panel-head">
+        <span class="hp__panel-title">Top sources</span>
+        <span class="hp__panel-meta">Visitors</span>
+      </div>
+      <ul class="hp__rows">
+        {
+          SOURCES.map((s) => (
+            <li class="hp__row" data-ai={s.ai ? "true" : undefined}>
+              <span class="hp__row-fill" style={`--w:${((s.visitors / maxSource) * 100).toFixed(1)}%`} data-grow />
+              <span class="hp__row-name">
+                {s.name}
+                {s.ai && <span class="hp__badge">AI</span>}
+              </span>
+              <span class="hp__row-n">{nf.format(s.visitors)}</span>
+            </li>
+          ))
+        }
+      </ul>
+    </section>
+
+    <section class="hp__panel" aria-label="AI crawlers">
+      <div class="hp__panel-head">
+        <span class="hp__panel-title">AI crawlers</span>
+        <span class="hp__panel-meta">Visits</span>
+      </div>
+      <ul class="hp__rows">
+        {
+          CRAWLERS.slice(0, 5).map((c) => (
+            <li class="hp__row hp__row--plain">
+              <span class="hp__row-name">
+                <span class="hp__check" data-state={c.state} aria-label={c.state === "verified" ? "Verified" : "Not verified"} />
+                {c.name}
+                <span class="hp__owner">{c.owner}</span>
+              </span>
+              <span class="hp__row-n">{compact(c.visits)}</span>
+            </li>
+          ))
+        }
+      </ul>
+    </section>
+
+    <section class="hp__panel hp__panel--live" aria-label="Live visits">
+      <div class="hp__panel-head">
+        <span class="hp__panel-title">Live</span>
+        <span class="hp__panel-meta"><span class="hp__dot" aria-hidden="true"></span>Now</span>
+      </div>
+      <ul class="hp__feed" data-feed>
+        {
+          firstLive.map((e) => (
+            <li class="hp__event" data-kind={e.kind}>
+              <span class="hp__event-mark" aria-hidden="true" />
+              <span class="hp__event-text">
+                <strong>{e.who}</strong>
+                <span>{e.kind === "crawler" ? "crawled" : "sent a visitor to"}</span>
+              </span>
+              <span class="hp__event-page">{e.page}</span>
+            </li>
+          ))
+        }
+      </ul>
+    </section>
+  </div>
+</figure>
+
+<script is:inline type="application/json" id="hp-live" set:html={JSON.stringify(LIVE)} />

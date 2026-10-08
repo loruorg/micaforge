@@ -30,43 +30,25 @@ const canonical = new URL(Astro.url.pathname, Astro.site ?? "https://micaforge.c
     <meta name="generator" content={Astro.generator} />
     <link rel="icon" href="/mark.svg" type="image/svg+xml" />
 
-    <link rel="preload" href="/fonts/trench-slab-600.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="preload" href="/fonts/tabular-400.woff2" as="font" type="font/woff2" crossorigin />
-
-    <!--
-      The reader's chosen medium is applied before first paint so the page never
-      flashes the other record. Written as a plain attribute, never as a class a
-      framework has to hydrate.
-    -->
-    <script is:inline>
-      (function () {
-        try {
-          var m = localStorage.getItem("mf-record");
-          if (m === "paper" || m === "smoked") document.documentElement.setAttribute("data-record", m);
-        } catch (e) {
-          /* private mode: fall through to the OS preference */
-        }
-      })();
-    </script>
+    <link rel="preload" href="/fonts/geist-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <meta name="theme-color" content="#fafafa" />
+    <slot name="head" />
   </head>
   <body>
     <!--
-      THESIS: Micaforge reports what the machines took and what came back. It refuses the
-      category's near-black dashboard with a neon accent, glowing card borders and a grid of
-      same-size stat cards.
-      OWN-WORLD: A smoked-drum recording station. Lampblack soot ground; the trace is bright
-      paper scratched through it, edged by a ridge of displaced soot, never a glow. Shellac
-      amber is the only accent; series differ by value, not hue. Panels are square-cornered,
-      ruled inside themselves, pin-fed down the left gutter. Trench Slab display, system-ui UI,
-      Tabular for genuine data.
-      STORY: A maintainer sees two pens writing one record (machines above, humans below)
-      and reads the gap between them, then acts on the pages being taken for nothing.
-      FIRST VIEWPORT: the record runs full width; two traces on one time axis with day-boundary
-      notches and annotations in the right margin; the Gap figure sits at display scale on the
-      left; the caliper on the record is the range control.
-      FORM: continuous-trace recorder; candidate 3 of 7; seed 36373d06.
-      FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review,
-      the verdict, and DESIGN.md
+      THESIS: The analytics a small SaaS or developer-tool team opens every morning, plus
+      the view nobody else ships: visitors sent by AI answers and the AI crawlers reading
+      the site. Refuses the GA4 report wall and the metaphor-heavy instrument look.
+      OWN-WORLD: The category standard, light only. Zinc neutrals on #fafafa, white
+      panels with hairline edges and soft offset shadows, near-black ink and buttons,
+      Geist and Geist Mono. Blue means people and orange means AI, on every surface.
+      STORY: A founder sees a real dashboard, spots ChatGPT among the sources, learns
+      Micaforge shows AI traffic without cookies, and starts free.
+      FIRST VIEWPORT: Headline and one sentence on the left, Start free and Self-host
+      buttons; a full-width live dashboard preview below (labelled demo data).
+      FORM: category standard, chosen by the user over the roll; seed 670285ec.
+      FINISH: unreviewed and undocumented is unfinished; this build ends with the finish
+      review, the verdict, and DESIGN.md
     -->
     <a class="mf-skip" href="#main">Skip to content</a>
     {
@@ -85,7 +67,7 @@ const canonical = new URL(Astro.url.pathname, Astro.site ?? "https://micaforge.c
         top: 0;
         z-index: 100;
         padding: var(--mf-3) var(--mf-5);
-        background: var(--mf-ground-3);
+        background: var(--mf-ground-2);
         color: var(--mf-ink);
         border: 1px solid var(--mf-rule-strong);
         border-radius: var(--mf-r-sm);

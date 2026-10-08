@@ -143,8 +143,8 @@ function SpecimenTrace() {
         {MACHINE.map((_, i) => (i % 6 === 0 ? <line key={i} x1={xAt(i)} x2={xAt(i)} y1={BAND_H - 7} y2={BAND_H} /> : null))}
       </g>
 
-      <path d={MACHINE_AREA} fill="var(--mf-trace-agent-fill)" />
-      <path d={HUMAN_AREA} fill="var(--mf-trace-human-fill)" />
+      <path d={MACHINE_AREA} fill="var(--mf-ai-fill)" />
+      <path d={HUMAN_AREA} fill="var(--mf-people-fill)" />
 
       {/* the zero rule the two pens are opposed about, drawn over their fills */}
       <line
@@ -168,9 +168,9 @@ function SpecimenTrace() {
           the bright scratch over it. That ridge is the whole depth treatment. */}
       <g fill="none" strokeLinecap="butt" strokeLinejoin="round" vectorEffect="non-scaling-stroke">
         <path d={MACHINE_LINE} stroke="var(--mf-well)" strokeWidth={3} opacity={0.85} transform="translate(0,1.2)" />
-        <path d={MACHINE_LINE} stroke="var(--mf-trace-agent)" strokeWidth={1.8} />
+        <path d={MACHINE_LINE} stroke="var(--mf-ai)" strokeWidth={1.8} />
         <path d={HUMAN_LINE} stroke="var(--mf-well)" strokeWidth={3} opacity={0.85} transform="translate(0,1.2)" />
-        <path d={HUMAN_LINE} stroke="var(--mf-trace-human)" strokeWidth={1.8} />
+        <path d={HUMAN_LINE} stroke="var(--mf-people)" strokeWidth={1.8} />
       </g>
     </svg>
   );

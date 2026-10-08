@@ -376,7 +376,7 @@ export function ShareScreen() {
           {
             id: "machines",
             label: "Machines fetching",
-            color: "var(--mf-trace-agent)",
+            color: "var(--mf-ai)",
             values: times.map((t) => agentByTime.get(t) ?? null),
             pen: "stepped" as const,
             format: num,
@@ -386,7 +386,7 @@ export function ShareScreen() {
     {
       id: "readers",
       label: "Readers",
-      color: "var(--mf-trace-human)",
+      color: "var(--mf-people)",
       values: humanSeries.data?.buckets.map((b) => b.v) ?? [],
       pen: "written" as const,
       format: num,

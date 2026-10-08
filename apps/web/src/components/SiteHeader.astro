@@ -1,182 +1,115 @@
 ---
 /**
- * The sheet head.
- *
- * These pages are one continuous sheet torn off the drum, so the header is its
- * leading edge: the nav sits on the paper, and the paper ends in the sprocket
- * perforations it was fed through. That strip is the same geometry as the pin
- * feed down a record panel's gutter, turned through ninety degrees. The header
- * is not a flush row of links floating above the content, it is part of the
- * sheet.
+ * The site header: brand, the few sections a visitor looks for, and the two
+ * ways in (sign in, start free).
  *
  * Both menus are native <details> elements, so every control here works with
  * JavaScript switched off. The inline script only adds outside-click and
- * Escape, and drives the recording-medium switch.
+ * Escape, which <details> does not do by itself.
  */
 import "../styles/site.css";
-import { Mark, IconChevron, IconOut, IconSmoked, IconPaper } from "./react/icons.tsx";
+import { Mark, IconChevron, IconOut } from "./react/icons.tsx";
 
 const path = Astro.url.pathname.replace(/\/+$/, "") || "/";
 
 const COMPARE = [
-  { href: "/vs/plausible", label: "Micaforge vs Plausible" },
-  { href: "/vs/google-analytics", label: "Micaforge vs Google Analytics" },
+  { href: "/vs/google-analytics", label: "vs Google Analytics" },
+  { href: "/vs/plausible", label: "vs Plausible" },
 ];
 
-/** The bar, in reading order. The comparisons disclosure sits second. */
 const NAV = [
-  { href: "/why-agent-analytics", label: "Why agent analytics" },
+  { href: "/#features", label: "Features" },
+  { href: "/why-agent-analytics", label: "AI traffic" },
   { href: "/self-host", label: "Self-host" },
   { href: "/docs", label: "Docs" },
 ];
 
-const here = (href: string) => path === href;
+const REPO = "https://github.com/loruorg/micaforge";
+
 /** `/docs` stays lit while any page under it is being read. */
-const within = (href: string) => path === href || path.startsWith(`${href}/`);
-const inCompare = COMPARE.some((c) => here(c.href));
+const within = (href: string) => !href.includes("#") && (path === href || path.startsWith(`${href}/`));
+const inCompare = COMPARE.some((c) => path === c.href);
 ---
 
 <header class="mf-head">
   <div class="mf-wrap mf-head__row">
-    <a class="mf-head__brand" href="/">
+    <a class="mf-head__brand" href="/" aria-label="Micaforge home">
       <Mark size={26} />
       <span class="mf-head__wordmark">Micaforge</span>
     </a>
 
     <nav class="mf-head__nav" aria-label="Sections">
-      <a
-        class:list={["mf-nav__link", here(NAV[0].href) && "is-here"]}
-        href={NAV[0].href}
-        aria-current={here(NAV[0].href) ? "page" : undefined}
-      >
-        {NAV[0].label}
-      </a>
-
+      {
+        NAV.map((n) => (
+          <a
+            class:list={["mf-nav__link", within(n.href) && "is-here"]}
+            href={n.href}
+            aria-current={within(n.href) ? "page" : undefined}
+          >
+            {n.label}
+          </a>
+        ))
+      }
       <details class="mf-nav__disc" data-disc>
         <summary class:list={["mf-nav__link", inCompare && "is-here"]}>
-          Comparisons
+          Compare
           <IconChevron size={13} className="mf-nav__caret" />
         </summary>
         <div class="mf-nav__menu">
-          {COMPARE.map((c) => (
-            <a href={c.href} class:list={[here(c.href) && "is-here"]} aria-current={here(c.href) ? "page" : undefined}>
-              {c.label}
-            </a>
-          ))}
+          {
+            COMPARE.map((c) => (
+              <a
+                href={c.href}
+                class:list={[path === c.href && "is-here"]}
+                aria-current={path === c.href ? "page" : undefined}
+              >
+                {c.label}
+              </a>
+            ))
+          }
         </div>
       </details>
-
-      {NAV.slice(1).map((n) => (
-        <a
-          class:list={["mf-nav__link", within(n.href) && "is-here"]}
-          href={n.href}
-          aria-current={within(n.href) ? "page" : undefined}
-        >
-          {n.label}
-        </a>
-      ))}
     </nav>
 
     <div class="mf-head__acts">
-      <div class="mf-medium" role="group" aria-label="Recording medium">
-        <button type="button" class="mf-medium__opt" data-medium="smoked" aria-pressed="false">
-          <IconSmoked size={14} />
-          <span>Smoked</span>
-        </button>
-        <button type="button" class="mf-medium__opt" data-medium="paper" aria-pressed="false">
-          <IconPaper size={14} />
-          <span>Paper</span>
-        </button>
-      </div>
-
-      <a class="mf-head__out" href="/app/">
-        <span>Sign in</span>
+      <a class="mf-head__gh" href={REPO} rel="noopener" aria-label="Source on GitHub">
+        <svg width="18" height="18" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+          <path
+            fill="currentColor"
+            d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"
+          ></path>
+        </svg>
       </a>
-
-      <a class="mf-head__out" href="https://github.com/loruorg/micaforge" rel="noopener">
-        <span>Source</span>
-        <IconOut size={14} />
-      </a>
+      <a class="mf-head__signin" href="/app/">Sign in</a>
+      <a class="mf-cta mf-cta--sm" href="/app/">Start free</a>
 
       <details class="mf-head__drawer" data-disc>
         <summary aria-label="Menu">
-          Menu
-          <IconChevron size={13} className="mf-nav__caret" />
+          <span class="mf-head__burger" aria-hidden="true"><i></i><i></i></span>
         </summary>
         <div class="mf-drawer__panel">
           <div class="mf-wrap mf-drawer__list">
-            <a href="/" class:list={[here("/") && "is-here"]}>Overview</a>
-            {NAV.map((n) => (
-              <a href={n.href} class:list={[within(n.href) && "is-here"]}>{n.label}</a>
-            ))}
-            {COMPARE.map((c) => (
-              <a href={c.href} class:list={["mf-drawer__sub", here(c.href) && "is-here"]}>{c.label}</a>
-            ))}
+            {NAV.map((n) => <a href={n.href} class:list={[within(n.href) && "is-here"]}>{n.label}</a>)}
+            {
+              COMPARE.map((c) => (
+                <a href={c.href} class:list={[path === c.href && "is-here"]}>
+                  Micaforge {c.label}
+                </a>
+              ))
+            }
+            <a href={REPO} rel="noopener">
+              Source on GitHub <IconOut size={13} />
+            </a>
             <a href="/app/">Sign in</a>
-            <a href="https://github.com/loruorg/micaforge" rel="noopener">Source on GitHub</a>
-          </div>
-          <div class="mf-wrap mf-drawer__foot">
-            <div class="mf-medium" role="group" aria-label="Recording medium">
-              <button type="button" class="mf-medium__opt" data-medium="smoked" aria-pressed="false">
-                <IconSmoked size={14} />
-                <span>Smoked</span>
-              </button>
-              <button type="button" class="mf-medium__opt" data-medium="paper" aria-pressed="false">
-                <IconPaper size={14} />
-                <span>Paper</span>
-              </button>
-            </div>
           </div>
         </div>
       </details>
     </div>
   </div>
-
-  <div class="mf-feed mf-feed--head" aria-hidden="true"></div>
 </header>
 
 <script is:inline>
   (function () {
-    /* The recording medium. Same key and the same two values the station rail
-       writes, so a reader's choice follows them into the dashboard. */
-    var opts = document.querySelectorAll("[data-medium]");
-
-    function current() {
-      var chosen = null;
-      try {
-        chosen = localStorage.getItem("mf-record");
-      } catch (e) {
-        /* private mode: the choice simply does not persist */
-      }
-      if (chosen === "paper" || chosen === "smoked") return chosen;
-      var attr = document.documentElement.getAttribute("data-record");
-      if (attr === "paper" || attr === "smoked") return attr;
-      return window.matchMedia("(prefers-color-scheme: light)").matches ? "paper" : "smoked";
-    }
-
-    function paint(medium) {
-      for (var i = 0; i < opts.length; i++) {
-        opts[i].setAttribute("aria-pressed", opts[i].getAttribute("data-medium") === medium ? "true" : "false");
-      }
-    }
-
-    paint(current());
-
-    for (var i = 0; i < opts.length; i++) {
-      opts[i].addEventListener("click", function () {
-        var next = this.getAttribute("data-medium");
-        document.documentElement.setAttribute("data-record", next);
-        try {
-          localStorage.setItem("mf-record", next);
-        } catch (e) {
-          /* nothing to do: the page still switches for this visit */
-        }
-        paint(next);
-      });
-    }
-
-    /* Disclosures already open and close on their own. This only closes them
-       when the reader moves on, which <details> does not do by itself. */
     var discs = document.querySelectorAll("[data-disc]");
     function closeAll(except) {
       for (var j = 0; j < discs.length; j++) {

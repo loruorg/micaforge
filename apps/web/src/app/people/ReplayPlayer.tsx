@@ -153,7 +153,7 @@ class Reconstruction {
     // Carry the dashboard's own annotation ink into the frame rather than
     // inventing a colour for it here.
     try {
-      const ink = getComputedStyle(document.documentElement).getPropertyValue("--mf-oxide").trim();
+      const ink = getComputedStyle(document.documentElement).getPropertyValue("--mf-danger").trim();
       if (ink) root.style.setProperty("--mf-replay-mark", ink);
     } catch {
       /* the frame keeps currentColor, which is always legible on its own page */
@@ -859,8 +859,8 @@ export function ReplayStage({ events, label }: { events: ReplayEvent[]; label?: 
                 />
                 <path
                   d="M2.5 1.6 13 8.4 8.3 9.6 6.6 14.4z"
-                  fill="var(--mf-stylus)"
-                  stroke="var(--mf-stylus)"
+                  fill="var(--mf-ink-strong)"
+                  stroke="var(--mf-ink-strong)"
                   strokeWidth={1.2}
                   strokeLinejoin="miter"
                 />

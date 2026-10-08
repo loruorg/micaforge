@@ -198,7 +198,7 @@ function Plan({ layout }: { layout: DashLayout }) {
           y={pad + c.y * unit + 0.5}
           width={Math.max(1, c.w * unit - 1)}
           height={Math.max(1, c.h * unit - 1)}
-          fill="var(--mf-trace-agent-fill)"
+          fill="var(--mf-ai-fill)"
           stroke="var(--mf-ink-3)"
           strokeWidth="0.6"
         />

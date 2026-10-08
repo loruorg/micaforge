@@ -158,7 +158,7 @@ function GapRecord({ summary }: { summary: ReturnType<typeof useGapSummary> }) {
                   {
                     id: "demo-taken",
                     label: "Taken by machines, this sample",
-                    color: "var(--mf-trace-agent)",
+                    color: "var(--mf-ai)",
                     pen: "stepped",
                     values: demo.machines,
                     format: (n) => num(n),
@@ -166,7 +166,7 @@ function GapRecord({ summary }: { summary: ReturnType<typeof useGapSummary> }) {
                   {
                     id: "demo-returned",
                     label: "Returned as readers, this sample",
-                    color: "var(--mf-trace-human)",
+                    color: "var(--mf-people)",
                     pen: "written",
                     values: demo.answers,
                     format: (n) => num(n),
@@ -191,7 +191,7 @@ function GapRecord({ summary }: { summary: ReturnType<typeof useGapSummary> }) {
                 {
                   id: "taken",
                   label: "Taken by machines, this sample",
-                  color: "var(--mf-trace-agent)",
+                  color: "var(--mf-ai)",
                   pen: "stepped",
                   values: record.taken,
                   format: (n) => num(n),
@@ -199,7 +199,7 @@ function GapRecord({ summary }: { summary: ReturnType<typeof useGapSummary> }) {
                 {
                   id: "returned",
                   label: "Returned as readers, this sample",
-                  color: "var(--mf-trace-human)",
+                  color: "var(--mf-people)",
                   pen: "written",
                   values: record.returned,
                   format: (n) => num(n),

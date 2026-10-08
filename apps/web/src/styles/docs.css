@@ -60,7 +60,7 @@
   font-weight: 600;
   letter-spacing: -0.005em;
 }
-.doc-bar__brand:hover { color: var(--mf-shellac); }
+.doc-bar__brand:hover { color: var(--mf-accent); }
 
 .doc-bar__nav {
   display: flex;
@@ -102,7 +102,7 @@
   bottom: -1px;
   height: 2px;
   width: 100%;
-  background: var(--mf-shellac);
+  background: var(--mf-accent);
   transform: scaleX(0);
   transform-origin: 0 50%;
   pointer-events: none;
@@ -227,7 +227,7 @@
   width: 3px;
   height: 15px;
   transform: translateY(-50%);
-  background: var(--mf-shellac);
+  background: var(--mf-accent);
   border-radius: 1px;
 }
 
@@ -304,7 +304,7 @@
   top: 0.62em;
   width: 5px;
   height: 5px;
-  background: var(--mf-shellac);
+  background: var(--mf-accent);
 }
 
 .doc-prose h3 {
@@ -328,13 +328,13 @@
 .doc-prose strong { color: var(--mf-ink); font-weight: 600; }
 
 .doc-prose a {
-  color: var(--mf-shellac);
+  color: var(--mf-accent);
   text-decoration: none;
   border-bottom: 1px solid var(--mf-rule-strong);
   padding-bottom: 1px;
   transition: color var(--mf-dur-1) linear, border-color var(--mf-dur-1) linear;
 }
-.doc-prose a:hover { color: var(--mf-shellac-hi); border-color: var(--mf-shellac); }
+.doc-prose a:hover { color: var(--mf-accent-hi); border-color: var(--mf-accent); }
 
 .doc-prose ul,
 .doc-prose ol { margin-left: 0; padding-left: var(--mf-5); }
@@ -401,10 +401,10 @@
 .doc-prose .doc-annot > * + * { margin-top: var(--mf-3); }
 
 /* Not built yet. The words carry it; the colour only agrees with them. */
-.doc-prose .doc-annot[data-tone="gap"]::before { background: var(--mf-oxide); }
-.doc-prose .doc-annot[data-tone="gap"] strong { color: var(--mf-oxide); }
+.doc-prose .doc-annot[data-tone="gap"]::before { background: var(--mf-danger); }
+.doc-prose .doc-annot[data-tone="gap"] strong { color: var(--mf-danger); }
 
-.doc-prose .doc-annot[data-tone="keep"]::before { background: var(--mf-verdigris); }
+.doc-prose .doc-annot[data-tone="keep"]::before { background: var(--mf-success); }
 
 .doc-prose hr {
   margin-top: var(--mf-10);
@@ -449,7 +449,7 @@
   background: var(--mf-well);
   border: 1px solid var(--mf-rule);
   border-radius: var(--mf-r-md);
-  box-shadow: var(--mf-press);
+  box-shadow: var(--mf-inset);
   overflow: hidden;
 }
 
@@ -487,8 +487,8 @@
     border-color var(--mf-dur-1) linear;
 }
 .mf-code__copy:hover { color: var(--mf-ink); background: var(--mf-ground-3); border-color: var(--mf-rule); }
-.mf-code__copy[data-state="done"] { color: var(--mf-verdigris); }
-.mf-code__copy[data-state="failed"] { color: var(--mf-oxide); }
+.mf-code__copy[data-state="done"] { color: var(--mf-success); }
+.mf-code__copy[data-state="failed"] { color: var(--mf-danger); }
 
 .mf-code__mark { display: inline-flex; align-items: center; }
 .mf-code__mark > :nth-child(2) { display: none; }
@@ -564,7 +564,7 @@
 .doc-rail__link:hover .doc-rail__tick { background: var(--mf-ink-3); }
 
 .doc-rail__link[aria-current="true"] { color: var(--mf-ink); }
-.doc-rail__link[aria-current="true"] .doc-rail__tick { background: var(--mf-shellac); }
+.doc-rail__link[aria-current="true"] .doc-rail__tick { background: var(--mf-accent); }
 
 .doc-rail__text { overflow-wrap: anywhere; }
 
@@ -726,7 +726,7 @@
   letter-spacing: 0.04em;
   color: var(--mf-ink-3);
 }
-.doc-log__state { font-size: var(--mf-t-xs); color: var(--mf-shellac); }
+.doc-log__state { font-size: var(--mf-t-xs); color: var(--mf-accent); }
 
 .doc-log__body { min-width: 0; max-width: var(--mf-measure); }
 /* Inside a log entry the section ticks would sit in the stamp column, and the
@@ -812,7 +812,7 @@
 }
 .doc-foot__link:hover { color: var(--mf-ink); }
 .doc-foot__link svg { color: var(--mf-ink-3); }
-.doc-foot__link:hover svg { color: var(--mf-shellac); }
+.doc-foot__link:hover svg { color: var(--mf-accent); }
 
 /* ── narrower benches ────────────────────────────────────────────────────── */
 

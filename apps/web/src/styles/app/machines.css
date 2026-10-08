@@ -105,7 +105,7 @@
   background: var(--mf-well);
   border: 1px solid var(--mf-rule);
   border-radius: var(--mf-r-sm);
-  box-shadow: var(--mf-press);
+  box-shadow: var(--mf-inset);
   font-size: var(--mf-t-xs);
   color: var(--mf-ink-2);
   max-width: 32ch;
@@ -134,7 +134,7 @@
   cursor: pointer;
   transition: color var(--mf-dur-1) linear, background-color var(--mf-dur-1) linear;
 }
-.mf-mark__off:hover { color: var(--mf-oxide); background: var(--mf-ground-3); }
+.mf-mark__off:hover { color: var(--mf-danger); background: var(--mf-ground-3); }
 
 /* ── readout, ruled cell by cell ─────────────────────────────────────────
    The shipped strip divides its channels with a left border on each one, which
@@ -261,7 +261,7 @@
    every heading carrying a permanent caret. */
 .mf-sort:hover .mf-sort__dir,
 .mf-sort:focus-visible .mf-sort__dir { visibility: visible; }
-.mf-sort[data-active="true"] .mf-sort__dir { visibility: visible; color: var(--mf-shellac); }
+.mf-sort[data-active="true"] .mf-sort__dir { visibility: visible; color: var(--mf-accent); }
 
 /* ── sheet cells that carry two lines ────────────────────────────────────── */
 
@@ -305,8 +305,8 @@
   white-space: nowrap;
   transition: color var(--mf-dur-1) linear;
 }
-.mf-cellkey:hover { color: var(--mf-shellac); }
-.mf-cellkey:hover svg { color: var(--mf-shellac); }
+.mf-cellkey:hover { color: var(--mf-accent); }
+.mf-cellkey:hover svg { color: var(--mf-accent); }
 
 /* ── the verdict bank ────────────────────────────────────────────────────
    Four counts on one ruled strip. Every cell reserves the same two rows above
@@ -336,7 +336,7 @@
 }
 .mf-verdicts__cell:hover { background: var(--mf-ground-3); }
 .mf-verdicts__cell[aria-pressed="true"] { background: var(--mf-ground-3); }
-.mf-verdicts__cell[aria-pressed="true"] .mf-verdicts__n { color: var(--mf-shellac); }
+.mf-verdicts__cell[aria-pressed="true"] .mf-verdicts__n { color: var(--mf-accent); }
 .mf-verdicts__n {
   font-family: var(--mf-font-display);
   font-size: var(--mf-t-2xl);
@@ -367,7 +367,7 @@
   color: var(--mf-ink-2);
 }
 .mf-plan__cell:nth-child(3n) { padding-right: 0; color: var(--mf-ink); }
-.mf-plan__row-on { background: var(--mf-shellac-wash); }
+.mf-plan__row-on { background: var(--mf-accent-wash); }
 @media (max-width: 760px) {
   .mf-plan { grid-template-columns: minmax(0, 1fr); }
   .mf-plan__head { display: none; }
@@ -387,7 +387,7 @@
   border-top: 1px solid var(--mf-rule);
 }
 .mf-finding + .mf-finding { border-top: 1px solid var(--mf-rule); }
-.mf-finding__mark { margin-top: 2px; color: var(--mf-oxide); }
+.mf-finding__mark { margin-top: 2px; color: var(--mf-danger); }
 .mf-finding[data-tone="note"] .mf-finding__mark { color: var(--mf-ink-3); }
 .mf-finding__title {
   font-family: var(--mf-font-ui);
@@ -439,8 +439,8 @@
 .mf-file__line[data-group="true"] .mf-file__txt { color: var(--mf-ink); }
 /* the one rule that decides the selected agent */
 .mf-file__line[data-rule="true"] {
-  background: var(--mf-shellac-wash);
-  box-shadow: inset 2px 0 0 var(--mf-shellac);
+  background: var(--mf-accent-wash);
+  box-shadow: inset 2px 0 0 var(--mf-accent);
 }
 .mf-file__line[data-rule="true"] .mf-file__txt { color: var(--mf-ink); }
 
@@ -485,7 +485,7 @@
   flex-direction: column;
   background: var(--mf-ground-2);
   border-left: 1px solid var(--mf-rule-strong);
-  box-shadow: var(--mf-lift);
+  box-shadow: var(--mf-shadow-lg);
   overflow-y: auto;
   overscroll-behavior: contain;
   animation: mf-strip-in var(--mf-dur-2) var(--mf-ease-snap);
@@ -551,13 +551,13 @@
   display: inline-flex;
   align-items: center;
   gap: var(--mf-2);
-  color: var(--mf-shellac);
+  color: var(--mf-accent);
   text-decoration: none;
   border-bottom: 1px solid var(--mf-rule-strong);
   padding-bottom: 1px;
   transition: color var(--mf-dur-1) linear, border-color var(--mf-dur-1) linear;
 }
-.mf-ext:hover { color: var(--mf-shellac-hi); border-color: var(--mf-shellac); }
+.mf-ext:hover { color: var(--mf-accent-hi); border-color: var(--mf-accent); }
 
 /* ── the decay row trace ─────────────────────────────────────────────────── */
 
@@ -575,15 +575,15 @@
   height: 2px;
   border-radius: 1px;
   margin-right: var(--mf-2);
-  background: var(--mf-trace-human);
+  background: var(--mf-people);
   vertical-align: middle;
 }
 .mf-rowtrace__pen[data-pen="stepped"] {
   background: none;
   width: 8px;
   height: 6px;
-  border-top: 2px solid var(--mf-trace-agent);
-  border-right: 2px solid var(--mf-trace-agent);
+  border-top: 2px solid var(--mf-ai);
+  border-right: 2px solid var(--mf-ai);
 }
 
 /* ── the refetch job ─────────────────────────────────────────────────────── */
@@ -608,8 +608,8 @@
 .mf-job__pen {
   position: absolute;
   inset: 0 auto 0 0;
-  background: var(--mf-shellac);
-  transition: width var(--mf-dur-3) var(--mf-ease-pen);
+  background: var(--mf-accent);
+  transition: width var(--mf-dur-3) var(--mf-ease-out);
 }
 
 /* ── a panel that is only a readout bank ─────────────────────────────────
@@ -631,15 +631,15 @@
   white-space: nowrap;
   color: var(--mf-ink-2);
 }
-.mf-flag[data-tone="deny"] { color: var(--mf-oxide); }
+.mf-flag[data-tone="deny"] { color: var(--mf-danger); }
 .mf-flag[data-tone="none"] { color: var(--mf-ink-3); }
 
 /* ── a change figure ─────────────────────────────────────────────────────
    The sign carries the direction, so the meaning survives with no colour. */
 
 .mf-change { white-space: nowrap; color: var(--mf-ink-2); }
-.mf-change[data-tone="warn"] { color: var(--mf-oxide); }
-.mf-change[data-tone="good"] { color: var(--mf-verdigris); }
+.mf-change[data-tone="warn"] { color: var(--mf-danger); }
+.mf-change[data-tone="good"] { color: var(--mf-success); }
 .mf-change[data-tone="flat"] { color: var(--mf-ink-2); }
 
 /* ── a sheet that has to live in half a bench ─────────────────────────────

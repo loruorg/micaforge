@@ -77,8 +77,8 @@
     padding: 0 3px;
     font-size: var(--mf-t-2xs);
     text-align: center;
-    color: var(--mf-shellac);
-    background: var(--mf-shellac-wash);
+    color: var(--mf-accent);
+    background: var(--mf-accent-wash);
     border-radius: var(--mf-r-sm);
   }
 
@@ -107,7 +107,7 @@
     height: 2px;
     transform: translateY(-50%);
     border-radius: 0;
-    background: var(--mf-shellac);
+    background: var(--mf-accent);
   }
   .mf-rail .mf-chan.is-live::after {
     content: "";
@@ -117,7 +117,7 @@
     width: 5px;
     height: 9px;
     transform: translateY(-50%);
-    background: var(--mf-shellac);
+    background: var(--mf-accent);
     /* the nib: a drawn silhouette, not a rounded rectangle */
     clip-path: polygon(0 0, 100% 50%, 0 100%);
   }
@@ -134,7 +134,7 @@
     background: var(--mf-ground-2);
     border: 1px solid var(--mf-rule-strong);
     border-radius: var(--mf-r-md);
-    box-shadow: var(--mf-lift), inset 0 1px 0 var(--mf-lip);
+    box-shadow: var(--mf-shadow-lg), inset 0 1px 0 var(--mf-lip);
     color: var(--mf-ink);
   }
 
@@ -215,7 +215,7 @@
     color: var(--mf-ink);
   }
   .mfs-cond__op { color: var(--mf-ink-3); }
-  .mfs-cond__val { color: var(--mf-shellac); }
+  .mfs-cond__val { color: var(--mf-accent); }
 
   /* The unclip control. A bare mark, no tile behind it. */
   .mfs-drop {
@@ -235,8 +235,8 @@
     transition: color var(--mf-dur-1) linear, background-color var(--mf-dur-1) linear;
   }
   .mfs-drop:hover {
-    color: var(--mf-oxide);
-    background: var(--mf-oxide-wash);
+    color: var(--mf-danger);
+    background: var(--mf-danger-wash);
   }
   .mfs-drop[disabled] { opacity: 0.42; cursor: not-allowed; }
 
@@ -246,8 +246,8 @@
     line-height: var(--mf-lead-body);
     color: var(--mf-ink-3);
   }
-  .mfs-say[data-tone="warn"] { color: var(--mf-oxide); }
-  .mfs-say[data-tone="good"] { color: var(--mf-verdigris); }
+  .mfs-say[data-tone="warn"] { color: var(--mf-danger); }
+  .mfs-say[data-tone="good"] { color: var(--mf-success); }
 
   /* ── fields ───────────────────────────────────────────────────────────── */
   .mfs-input,
@@ -262,7 +262,7 @@
     background: var(--mf-well);
     border: 1px solid var(--mf-rule-strong);
     border-radius: var(--mf-r-sm);
-    box-shadow: var(--mf-press);
+    box-shadow: var(--mf-inset);
   }
   .mfs-input::placeholder { color: var(--mf-ink-2); }
   .mfs-input[disabled],
@@ -342,7 +342,7 @@
     background: var(--mf-ground-3);
     border: 1px solid var(--mf-rule-strong);
     border-radius: var(--mf-r-sm);
-    box-shadow: var(--mf-lift);
+    box-shadow: var(--mf-shadow-lg);
   }
   .mfs-combo__opt {
     display: flex;
@@ -361,7 +361,7 @@
     cursor: pointer;
   }
   .mfs-combo__opt.is-cursor {
-    background: var(--mf-shellac-wash);
+    background: var(--mf-accent-wash);
     color: var(--mf-ink);
   }
   .mfs-combo__opt-key {
@@ -529,7 +529,7 @@
      on a state that is already fully drawn, so it is safe to switch off. */
   @media (prefers-reduced-motion: no-preference) {
     .mfs-wait-screen .mf-wait {
-      animation: mfs-feed var(--mf-dur-drum) var(--mf-ease-pen) infinite alternate;
+      animation: mfs-feed var(--mf-dur-4) var(--mf-ease-out) infinite alternate;
     }
     .mfs-wait-screen__plot .mf-wait:nth-child(2n) { animation-delay: calc(var(--mf-dur-1) * 1); }
     .mfs-wait-screen__plot .mf-wait:nth-child(3n) { animation-delay: calc(var(--mf-dur-1) * 2); }
@@ -566,23 +566,23 @@
     --normal-text: var(--mf-ink);
     --normal-border: var(--mf-rule-strong);
     --success-bg: var(--mf-ground-3);
-    --success-text: var(--mf-verdigris);
+    --success-text: var(--mf-success);
     --success-border: var(--mf-rule-strong);
     --error-bg: var(--mf-ground-3);
-    --error-text: var(--mf-oxide);
+    --error-text: var(--mf-danger);
     --error-border: var(--mf-rule-strong);
     font-family: var(--mf-font-ui);
   }
   .mfs-slip {
     border-radius: var(--mf-r-md) !important;
-    box-shadow: var(--mf-lift), inset 0 1px 0 var(--mf-lip) !important;
+    box-shadow: var(--mf-shadow-lg), inset 0 1px 0 var(--mf-lip) !important;
   }
   .mfs-slip__title { font-size: var(--mf-t-sm); font-weight: 500; }
   .mfs-slip__body { font-size: var(--mf-t-xs); color: var(--mf-ink-3); }
   .mfs-slip__act {
     font-size: var(--mf-t-xs) !important;
     color: var(--mf-ground) !important;
-    background: var(--mf-shellac) !important;
+    background: var(--mf-accent) !important;
     border-radius: var(--mf-r-sm) !important;
   }
   .mfs-slip__close {

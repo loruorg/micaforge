@@ -53,7 +53,7 @@
 .mf-set-tab__tick { flex: none; width: 5px; height: 5px; background: transparent; }
 .mf-set-tab:hover { color: var(--mf-ink); background: var(--mf-ground-2); }
 .mf-set-tab.is-live { color: var(--mf-ink); background: var(--mf-ground-2); font-weight: 500; }
-.mf-set-tab.is-live .mf-set-tab__tick { background: var(--mf-shellac); }
+.mf-set-tab.is-live .mf-set-tab__tick { background: var(--mf-accent); }
 
 .mf-set-body { min-width: 0; display: flex; flex-direction: column; gap: var(--mf-6); }
 
@@ -136,15 +136,15 @@
 }
 .mf-set-foot--tight { padding-top: var(--mf-3); padding-bottom: var(--mf-3); }
 .mf-set-foot__say { font-size: var(--mf-t-xs); color: var(--mf-ink-3); }
-.mf-set-foot__say[data-tone="warn"] { color: var(--mf-oxide); }
-.mf-set-foot__say[data-tone="good"] { color: var(--mf-verdigris); }
+.mf-set-foot__say[data-tone="warn"] { color: var(--mf-danger); }
+.mf-set-foot__say[data-tone="good"] { color: var(--mf-success); }
 .mf-set-foot__spacer { margin-left: auto; }
 
 /* ── fields ────────────────────────────────────────────────────────────── */
 .mf-set-field { display: flex; flex-direction: column; gap: var(--mf-2); min-width: 0; }
 .mf-set-field__label { font-size: var(--mf-t-xs); color: var(--mf-ink-3); }
 .mf-set-field__hint { font-size: var(--mf-t-xs); color: var(--mf-ink-3); }
-.mf-set-field__err { font-size: var(--mf-t-xs); color: var(--mf-oxide); }
+.mf-set-field__err { font-size: var(--mf-t-xs); color: var(--mf-danger); }
 
 .mf-set-input,
 .mf-set-area,
@@ -159,7 +159,7 @@
   background: var(--mf-well);
   border: 1px solid var(--mf-rule-strong);
   border-radius: var(--mf-r-sm);
-  box-shadow: var(--mf-press);
+  box-shadow: var(--mf-inset);
   transition: border-color var(--mf-dur-1) linear;
 }
 .mf-set-input::placeholder,
@@ -170,7 +170,7 @@
 .mf-set-input[disabled],
 .mf-set-area[disabled],
 .mf-set-select[disabled] { opacity: 0.45; cursor: not-allowed; }
-.mf-set-input[aria-invalid="true"] { border-color: var(--mf-oxide); }
+.mf-set-input[aria-invalid="true"] { border-color: var(--mf-danger); }
 
 .mf-set-input--data,
 .mf-set-area--data { font-family: var(--mf-font-data); font-variant-numeric: tabular-nums lining-nums; }
@@ -214,7 +214,7 @@
   background: var(--mf-well);
   border: 1px solid var(--mf-rule-strong);
   border-radius: var(--mf-r-sm);
-  box-shadow: var(--mf-press);
+  box-shadow: var(--mf-inset);
   cursor: pointer;
 }
 .mf-set-switch[disabled] { opacity: 0.45; cursor: not-allowed; }
@@ -225,14 +225,14 @@
   background: var(--mf-ground-3);
   border: 1px solid var(--mf-rule-strong);
   border-radius: 1px;
-  box-shadow: var(--mf-burr);
+  box-shadow: var(--mf-shadow-xs);
   transition: transform var(--mf-dur-1) var(--mf-ease-snap),
     background-color var(--mf-dur-1) linear, border-color var(--mf-dur-1) linear;
 }
 .mf-set-switch[data-state="checked"] .mf-set-switch__lever {
   transform: translateX(16px);
-  background: var(--mf-shellac);
-  border-color: var(--mf-shellac);
+  background: var(--mf-accent);
+  border-color: var(--mf-accent);
 }
 .mf-set-swrow { display: flex; align-items: center; gap: var(--mf-3); }
 .mf-set-swrow__state { font-size: var(--mf-t-xs); color: var(--mf-ink-3); min-width: 3.5ch; }
@@ -249,12 +249,12 @@
   background: var(--mf-well);
   border: 1px solid var(--mf-rule-strong);
   border-radius: 1px;
-  box-shadow: var(--mf-press);
+  box-shadow: var(--mf-inset);
   color: var(--mf-ground);
   cursor: pointer;
   transition: background-color var(--mf-dur-1) linear, border-color var(--mf-dur-1) linear;
 }
-.mf-set-check[data-state="checked"] { background: var(--mf-shellac); border-color: var(--mf-shellac); }
+.mf-set-check[data-state="checked"] { background: var(--mf-accent); border-color: var(--mf-accent); }
 .mf-set-check__mark { display: inline-flex; align-items: center; justify-content: center; }
 
 .mf-set-checkrow { display: flex; align-items: flex-start; gap: var(--mf-3); padding: var(--mf-1) 0; }
@@ -267,9 +267,9 @@
    Each state carries its own drawn glyph as well as its tone, so the meaning
    survives in greyscale. No box, no chip, no tile. */
 .mf-set-status { display: inline-flex; align-items: center; gap: var(--mf-2); font-size: var(--mf-t-xs); white-space: nowrap; }
-.mf-set-status[data-state="done"] { color: var(--mf-verdigris); }
-.mf-set-status[data-state="failed"] { color: var(--mf-oxide); }
-.mf-set-status[data-state="running"] { color: var(--mf-shellac); }
+.mf-set-status[data-state="done"] { color: var(--mf-success); }
+.mf-set-status[data-state="failed"] { color: var(--mf-danger); }
+.mf-set-status[data-state="running"] { color: var(--mf-accent); }
 .mf-set-status[data-state="waiting"] { color: var(--mf-ink-3); }
 
 .mf-set-caution {
@@ -277,7 +277,7 @@
   align-items: flex-start;
   gap: var(--mf-2);
   font-size: var(--mf-t-sm);
-  color: var(--mf-oxide);
+  color: var(--mf-danger);
   max-width: 64ch;
 }
 .mf-set-caution svg { flex: none; margin-top: 2px; }
@@ -309,7 +309,7 @@
   background: var(--mf-well);
   border: 1px solid var(--mf-rule);
   border-radius: 1px;
-  box-shadow: var(--mf-press);
+  box-shadow: var(--mf-inset);
   overflow: hidden;
   background-image: repeating-linear-gradient(
     to right,
@@ -321,8 +321,8 @@
 .mf-set-gauge__fill {
   position: absolute;
   inset: 0 auto 0 0;
-  background: var(--mf-trace-agent-fill);
-  border-right: 2px solid var(--mf-shellac);
+  background: var(--mf-ai-fill);
+  border-right: 2px solid var(--mf-accent);
   transition: width var(--mf-dur-2) linear;
 }
 
@@ -479,8 +479,8 @@
 }
 .mf-set-ledger__row:last-child { border-bottom: 0; }
 .mf-set-ledger__mark { justify-self: center; align-self: start; margin-top: 4px; line-height: 1; }
-.mf-set-ledger__mark[data-carried="true"] { color: var(--mf-verdigris); }
-.mf-set-ledger__mark[data-carried="false"] { color: var(--mf-oxide); }
+.mf-set-ledger__mark[data-carried="true"] { color: var(--mf-success); }
+.mf-set-ledger__mark[data-carried="false"] { color: var(--mf-danger); }
 /* the registration tick, used where a list is enumerated rather than judged */
 .mf-set-ledger__tick {
   justify-self: center;
@@ -488,7 +488,7 @@
   margin-top: 8px;
   width: 5px;
   height: 5px;
-  background: var(--mf-shellac);
+  background: var(--mf-accent);
 }
 .mf-set-ledger__what { color: var(--mf-ink); }
 

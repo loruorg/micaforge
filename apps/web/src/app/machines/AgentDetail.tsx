@@ -641,7 +641,7 @@ export function AgentDetail({
                   {
                     id: agent.agent_id,
                     label: agent.label,
-                    color: "var(--mf-trace-agent)",
+                    color: "var(--mf-ai)",
                     pen: "stepped",
                     values: d.series[0]?.values ?? [],
                     format: (n) => num(n),

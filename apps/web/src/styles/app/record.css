@@ -8,7 +8,7 @@
    the live counters on the realtime screen.
 
    Two house rules hold throughout:
-     - depth is the scratch ridge (var(--mf-burr) / var(--mf-lift)) or a value
+     - depth is the scratch ridge (var(--mf-shadow-xs) / var(--mf-shadow-lg)) or a value
        shift, never a bloom;
      - every colour, space, radius and duration is a var(--mf-*).
    ========================================================================= */
@@ -63,15 +63,15 @@
 /* A key that latches. State is carried by fill and edge, the key does not
    move, glow or grow when it is engaged. */
 .mfr-toggle[aria-pressed="true"] {
-  background: var(--mf-shellac-wash);
-  border-color: var(--mf-shellac-dim);
+  background: var(--mf-accent-wash);
+  border-color: var(--mf-accent-dim);
   color: var(--mf-ink);
 }
 .mfr-toggle[aria-pressed="true"]:hover {
-  background: var(--mf-shellac-wash);
-  border-color: var(--mf-shellac);
+  background: var(--mf-accent-wash);
+  border-color: var(--mf-accent);
 }
-.mfr-toggle[aria-pressed="true"] .mf-btn__icon { color: var(--mf-shellac); }
+.mfr-toggle[aria-pressed="true"] .mf-btn__icon { color: var(--mf-accent); }
 
 /* ── the record panel ────────────────────────────────────────────────────── */
 
@@ -132,8 +132,8 @@
    which is right on the wedge screens and wrong on a table of human traffic, so
    the bench states which pen it is written in and the ink follows. Unlayered,
    so it settles the question against the base rule whatever order they load. */
-.mfr-bench[data-trace="human"] .mf-sheet__ink { background: var(--mf-trace-human-fill); }
-.mfr-bench[data-trace="agent"] .mf-sheet__ink { background: var(--mf-trace-agent-fill); }
+.mfr-bench[data-trace="human"] .mf-sheet__ink { background: var(--mf-people-fill); }
+.mfr-bench[data-trace="agent"] .mf-sheet__ink { background: var(--mf-ai-fill); }
 
 /* The caption over the readout bank: which measurement these figures are, since
    the drum above them prints a single sample under the same channel names. */
@@ -228,14 +228,14 @@
   flex: none;
   width: 14px;
   height: 2px;
-  background: var(--mf-trace-human);
+  background: var(--mf-people);
 }
 .mfr-pen[data-pen="stepped"] {
   background: none;
   width: 8px;
   height: 6px;
-  border-top: 2px solid var(--mf-trace-agent);
-  border-right: 2px solid var(--mf-trace-agent);
+  border-top: 2px solid var(--mf-ai);
+  border-right: 2px solid var(--mf-ai);
 }
 
 /* ── polling status ──────────────────────────────────────────────────────── */
@@ -248,7 +248,7 @@
   font-size: var(--mf-t-xs);
   color: var(--mf-ink-3);
 }
-.mfr-status__held { color: var(--mf-shellac); }
+.mfr-status__held { color: var(--mf-accent); }
 
 /* The paper advance: how far through the interval the next reading is. A real
    indicator, not decoration, so it is driven by the poll interval itself. */
@@ -264,7 +264,7 @@
 .mfr-advance__pen {
   position: absolute;
   inset: 0 0 0 0;
-  background: var(--mf-shellac);
+  background: var(--mf-accent);
   transform-origin: left center;
   animation: mfr-advance var(--mfr-advance-dur, 5000ms) linear infinite;
 }

@@ -123,8 +123,8 @@ function RowTrace({
       {/* the ridge of displaced soot, the same one-sided shadow as the drum */}
       <path d={up} fill="none" stroke="var(--mf-well)" strokeWidth={2.2} transform="translate(0,1)" opacity={0.85} />
       <path d={down} fill="none" stroke="var(--mf-well)" strokeWidth={2.2} transform="translate(0,1)" opacity={0.85} />
-      <path d={up} fill="none" stroke="var(--mf-trace-agent)" strokeWidth={1.4} strokeLinecap="butt" />
-      <path d={down} fill="none" stroke="var(--mf-trace-human)" strokeWidth={1.4} strokeLinecap="butt" />
+      <path d={up} fill="none" stroke="var(--mf-ai)" strokeWidth={1.4} strokeLinecap="butt" />
+      <path d={down} fill="none" stroke="var(--mf-people)" strokeWidth={1.4} strokeLinecap="butt" />
     </svg>
   );
 }

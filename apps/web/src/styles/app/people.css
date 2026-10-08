@@ -143,7 +143,7 @@
   width: 13px;
   height: 2px;
   border-radius: 1px;
-  background: var(--mf-trace-human);
+  background: var(--mf-people);
 }
 /* The stepped pen: a crawler fetches in discrete jumps, so the mark steps. */
 .mf-p-hand__pen[data-pen="stepped"] {
@@ -151,8 +151,8 @@
   height: 6px;
   background: none;
   border-radius: 0;
-  border-top: 2px solid var(--mf-trace-agent);
-  border-right: 2px solid var(--mf-trace-agent);
+  border-top: 2px solid var(--mf-ai);
+  border-right: 2px solid var(--mf-ai);
 }
 .mf-p-hand__name {
   min-width: 0;
@@ -160,7 +160,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.mf-p-hand[data-pen="stepped"] .mf-p-hand__name { color: var(--mf-shellac); }
+.mf-p-hand[data-pen="stepped"] .mf-p-hand__name { color: var(--mf-accent); }
 
 /* ── a ruled fact list ──────────────────────────────────────────────────── */
 
@@ -292,10 +292,10 @@
   background: var(--mf-rule);
 }
 .mf-p-trail__mark svg { position: relative; }
-.mf-p-trail__hit[data-kind="error"] .mf-p-trail__mark { color: var(--mf-oxide); }
+.mf-p-trail__hit[data-kind="error"] .mf-p-trail__mark { color: var(--mf-danger); }
 .mf-p-trail__hit[data-kind="custom"] .mf-p-trail__mark,
 .mf-p-trail__hit[data-kind="outbound"] .mf-p-trail__mark,
-.mf-p-trail__hit[data-kind="file_download"] .mf-p-trail__mark { color: var(--mf-shellac); }
+.mf-p-trail__hit[data-kind="file_download"] .mf-p-trail__mark { color: var(--mf-accent); }
 
 .mf-p-trail__body {
   grid-column: 3;
@@ -376,8 +376,8 @@
 
 /* A destructive key that lives inside a row: legible, never loud. */
 .mf-p-rowkey .mf-btn__icon { color: var(--mf-ink-2); }
-.mf-p-rowkey:hover { color: var(--mf-oxide); background: var(--mf-oxide-wash); }
-.mf-p-rowkey:hover .mf-btn__icon { color: var(--mf-oxide); }
+.mf-p-rowkey:hover { color: var(--mf-danger); background: var(--mf-danger-wash); }
+.mf-p-rowkey:hover .mf-btn__icon { color: var(--mf-danger); }
 
 /* Row links carry a static rule at rest that firms up on hover. It never grows,
    wipes or travels. Scoped to this area's screens so it cannot restyle another
@@ -403,7 +403,7 @@
   background: var(--mf-ground);
   border: 1px solid var(--mf-rule);
   border-radius: var(--mf-r-sm);
-  box-shadow: var(--mf-press);
+  box-shadow: var(--mf-inset);
 }
 .mf-p-find input {
   width: 20ch;
@@ -450,7 +450,7 @@
   font-family: var(--mf-font-display);
   font-size: var(--mf-t-md);
   font-weight: 600;
-  color: var(--mf-oxide);
+  color: var(--mf-danger);
 }
 .mf-p-erase__body {
   font-size: var(--mf-t-sm);
@@ -458,7 +458,7 @@
   max-width: 62ch;
 }
 .mf-p-erase__act { display: flex; flex-wrap: wrap; gap: var(--mf-3); align-items: center; }
-.mf-p-erase__failed { font-size: var(--mf-t-sm); color: var(--mf-oxide); }
+.mf-p-erase__failed { font-size: var(--mf-t-sm); color: var(--mf-danger); }
 
 .mf-p-dialog {
   width: min(34rem, calc(100vw - var(--mf-8)));
@@ -470,7 +470,7 @@
   background: var(--mf-ground-2);
   border: 1px solid var(--mf-rule-strong);
   border-radius: var(--mf-r-md);
-  box-shadow: var(--mf-lift);
+  box-shadow: var(--mf-shadow-lg);
 }
 .mf-p-dialog::backdrop { background: var(--mf-scrim); }
 .mf-p-dialog__head { padding: var(--mf-5) var(--mf-5) var(--mf-3); }
@@ -518,7 +518,7 @@
   background: var(--mf-well);
   border: 1px solid var(--mf-rule);
   border-radius: var(--mf-r-sm);
-  box-shadow: var(--mf-press);
+  box-shadow: var(--mf-inset);
 }
 .mf-p-dialog__foot {
   display: flex;
@@ -529,7 +529,7 @@
 .mf-p-dialog__err {
   padding: 0 var(--mf-5);
   font-size: var(--mf-t-sm);
-  color: var(--mf-oxide);
+  color: var(--mf-danger);
 }
 
 /* ── the player ─────────────────────────────────────────────────────────── */
@@ -553,7 +553,7 @@
   position: relative;
   grid-area: 1 / 1;
   flex: none;
-  box-shadow: var(--mf-burr);
+  box-shadow: var(--mf-shadow-xs);
 }
 .mf-p-stage__frame {
   display: block;
@@ -594,14 +594,14 @@
   height: 22px;
   margin: -11px 0 0 -11px;
   pointer-events: none;
-  color: var(--mf-shellac);
+  color: var(--mf-accent);
   opacity: 0;
 }
 .mf-p-click.is-on { opacity: 1; }
 .mf-p-click svg { display: block; }
 
 @media (prefers-reduced-motion: no-preference) {
-  .mf-p-click.is-on { animation: mf-p-strike var(--mf-dur-3) var(--mf-ease-pen) forwards; }
+  .mf-p-click.is-on { animation: mf-p-strike var(--mf-dur-3) var(--mf-ease-out) forwards; }
   @keyframes mf-p-strike {
     from { opacity: 1; }
     to { opacity: 0; }
@@ -664,7 +664,7 @@
   position: absolute;
   inset: 5px auto 5px 0;
   width: 0;
-  background: var(--mf-shellac-wash);
+  background: var(--mf-accent-wash);
   pointer-events: none;
 }
 .mf-p-scrub input[type="range"] {
@@ -688,16 +688,16 @@
   height: 28px;
   border: 0;
   border-radius: 1px;
-  background: var(--mf-shellac);
-  box-shadow: var(--mf-burr);
+  background: var(--mf-accent);
+  box-shadow: var(--mf-shadow-xs);
 }
 .mf-p-scrub input[type="range"]::-moz-range-thumb {
   width: 3px;
   height: 28px;
   border: 0;
   border-radius: 1px;
-  background: var(--mf-shellac);
-  box-shadow: var(--mf-burr);
+  background: var(--mf-accent);
+  box-shadow: var(--mf-shadow-xs);
 }
 
 .mf-p-status {
@@ -714,7 +714,7 @@
   font-variant-numeric: tabular-nums lining-nums;
   color: var(--mf-ink-2);
 }
-.mf-p-status__skip { color: var(--mf-oxide); }
+.mf-p-status__skip { color: var(--mf-danger); }
 
 @media (max-width: 700px) {
   .mf-p-transport { flex-wrap: wrap; padding: var(--mf-3) var(--mf-4); }

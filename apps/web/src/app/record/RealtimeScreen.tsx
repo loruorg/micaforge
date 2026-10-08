@@ -115,7 +115,7 @@ export function RealtimeScreen() {
     {
       id: "readers",
       label: "Reading",
-      color: "var(--mf-trace-human)",
+      color: "var(--mf-people)",
       pen: "written",
       values: per.map((p) => p[1] ?? 0),
       format: (v) => num(v),
@@ -123,7 +123,7 @@ export function RealtimeScreen() {
     {
       id: "machines",
       label: "Fetching",
-      color: "var(--mf-trace-agent)",
+      color: "var(--mf-ai)",
       pen: "stepped",
       values: per.map((p) => p[2] ?? 0),
       format: (v) => num(v),

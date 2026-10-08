@@ -107,13 +107,13 @@ function MiniRecord({ humans, agents, label }: { humans: number[]; agents: numbe
       {agentLine ? (
         <>
           <path d={agentLine} fill="none" stroke="var(--mf-well)" strokeWidth={2.4} transform="translate(0,1)" opacity={0.8} />
-          <path d={agentLine} fill="none" stroke="var(--mf-trace-agent)" strokeWidth={1.4} strokeLinejoin="round" />
+          <path d={agentLine} fill="none" stroke="var(--mf-ai)" strokeWidth={1.4} strokeLinejoin="round" />
         </>
       ) : null}
       {humanLine ? (
         <>
           <path d={humanLine} fill="none" stroke="var(--mf-well)" strokeWidth={2.4} transform="translate(0,1)" opacity={0.8} />
-          <path d={humanLine} fill="none" stroke="var(--mf-trace-human)" strokeWidth={1.4} strokeLinejoin="round" />
+          <path d={humanLine} fill="none" stroke="var(--mf-people)" strokeWidth={1.4} strokeLinejoin="round" />
         </>
       ) : null}
     </svg>

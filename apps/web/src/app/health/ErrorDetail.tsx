@@ -386,7 +386,7 @@ export function ErrorDetail(props: { fingerprint?: string }) {
                 {
                   id: "occurrences",
                   label: "Occurrences",
-                  color: "var(--mf-oxide)",
+                  color: "var(--mf-danger)",
                   values: series.map((b) => b.v),
                   pen: "written",
                   format: (n: number) => num(n),

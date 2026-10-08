@@ -226,7 +226,7 @@ function FirstHit({
     {
       id: "readers",
       label: "Readers",
-      color: "var(--mf-trace-human)",
+      color: "var(--mf-people)",
       pen: "written",
       values: demo.readers,
       format: compact,
@@ -234,7 +234,7 @@ function FirstHit({
     {
       id: "machines",
       label: "Machine fetches",
-      color: "var(--mf-trace-agent)",
+      color: "var(--mf-ai)",
       pen: "stepped",
       values: demo.machines,
       format: compact,
@@ -357,7 +357,7 @@ export function OverviewScreen() {
     {
       id: metric.key,
       label: `${metric.label}, this sample`,
-      color: audience === "agent" ? "var(--mf-trace-agent)" : "var(--mf-trace-human)",
+      color: audience === "agent" ? "var(--mf-ai)" : "var(--mf-people)",
       pen: audience === "agent" ? "stepped" : "written",
       values,
       format: metric.write,

@@ -48,7 +48,7 @@
   gap: var(--mf-3);
   padding: 0 var(--mf-5) var(--mf-4);
   font-size: var(--mf-t-sm);
-  color: var(--mf-oxide);
+  color: var(--mf-danger);
 }
 .mf-hs-alert svg { flex: none; margin-top: 3px; }
 
@@ -83,7 +83,7 @@
   border-bottom: 1px solid var(--mf-rule-strong);
   transition: color var(--mf-dur-1) linear, border-color var(--mf-dur-1) linear;
 }
-.mf-hs-link:hover { color: var(--mf-shellac); border-bottom-color: var(--mf-shellac); }
+.mf-hs-link:hover { color: var(--mf-accent); border-bottom-color: var(--mf-accent); }
 
 /* A back link. The chevron is the set's own glyph, turned, not a new arrow. */
 .mf-hs-back {
@@ -200,8 +200,8 @@
    tinted ground: lifting the surface to ground-3 drops the poor rating's oxide
    to 4.42:1 in the smoked medium, and a rating has to stay readable. */
 .mf-vital[data-current="true"] {
-  border-top-color: var(--mf-shellac);
-  box-shadow: inset 0 1px 0 var(--mf-shellac);
+  border-top-color: var(--mf-accent);
+  box-shadow: inset 0 1px 0 var(--mf-accent);
 }
 
 .mf-vital__head {
@@ -217,7 +217,7 @@
   border: 0;
 }
 button.mf-vital__head { cursor: pointer; }
-button.mf-vital__head:hover .mf-vital__abbr { color: var(--mf-shellac); }
+button.mf-vital__head:hover .mf-vital__abbr { color: var(--mf-accent); }
 button.mf-vital__head:hover .mf-vital__name { color: var(--mf-ink-2); }
 
 .mf-vital__abbr {
@@ -230,7 +230,7 @@ button.mf-vital__head:hover .mf-vital__name { color: var(--mf-ink-2); }
   min-width: 3.4em;
   transition: color var(--mf-dur-1) linear;
 }
-.mf-vital[data-current="true"] .mf-vital__abbr { color: var(--mf-shellac); }
+.mf-vital[data-current="true"] .mf-vital__abbr { color: var(--mf-accent); }
 
 .mf-vital__name {
   flex: 1 1 auto;
@@ -263,9 +263,9 @@ button.mf-vital__head:hover .mf-vital__name { color: var(--mf-ink-2); }
   white-space: nowrap;
   color: var(--mf-ink-2);
 }
-.mf-rating[data-rating="good"] { color: var(--mf-verdigris); }
+.mf-rating[data-rating="good"] { color: var(--mf-success); }
 .mf-rating[data-rating="needs-improvement"] { color: var(--mf-ink-2); }
-.mf-rating[data-rating="poor"] { color: var(--mf-oxide); }
+.mf-rating[data-rating="poor"] { color: var(--mf-danger); }
 .mf-rating[data-rating="none"] { color: var(--mf-ink-3); }
 
 .mf-vital__rating {
@@ -291,7 +291,7 @@ button.mf-vital__head:hover .mf-vital__name { color: var(--mf-ink-2); }
   fill: var(--mf-ink-3);
   font-size: 10px;
 }
-.mf-vital__mark { fill: var(--mf-shellac); }
+.mf-vital__mark { fill: var(--mf-accent); }
 .mf-vital__band { font-family: var(--mf-font-ui); font-size: 10.5px; }
 
 /* ── the error sheet ─────────────────────────────────────────────────────── */
@@ -353,9 +353,9 @@ button.mf-vital__head:hover .mf-vital__name { color: var(--mf-ink-2); }
   font-size: var(--mf-t-sm);
   color: var(--mf-ink-2);
 }
-.mf-estate[data-state="resolved"] { color: var(--mf-verdigris); }
+.mf-estate[data-state="resolved"] { color: var(--mf-success); }
 .mf-estate[data-state="ignored"] { color: var(--mf-ink-3); }
-.mf-estate[data-state="open"] { color: var(--mf-oxide); }
+.mf-estate[data-state="open"] { color: var(--mf-danger); }
 
 /* ── the stack ───────────────────────────────────────────────────────────── */
 

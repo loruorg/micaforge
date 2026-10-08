@@ -352,7 +352,7 @@ function TrendTrace({ values, label }: { values: number[]; label: string }) {
       <path
         d={d}
         fill="none"
-        stroke="var(--mf-trace-human)"
+        stroke="var(--mf-people)"
         strokeWidth={1.4}
         vectorEffect="non-scaling-stroke"
       />

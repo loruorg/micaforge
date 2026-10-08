@@ -93,7 +93,7 @@ function Listener({ live, siteId }: { live: HasData | undefined; siteId: string 
             <path
               className="mf-scratch"
               d="M404 50 V26"
-              stroke="var(--mf-stylus)"
+              stroke="var(--mf-ink-strong)"
               strokeWidth={2}
               strokeLinecap="square"
             />
@@ -101,7 +101,7 @@ function Listener({ live, siteId }: { live: HasData | undefined; siteId: string 
           <path d="M420 8 V32" stroke="var(--mf-ink-3)" strokeWidth={1.4} strokeLinecap="square" />
           <path
             d="M415.5 30 H424.5 L420 50 Z"
-            fill={marked ? "var(--mf-shellac)" : "var(--mf-ink-3)"}
+            fill={marked ? "var(--mf-accent)" : "var(--mf-ink-3)"}
           />
         </svg>
       </div>
@@ -124,7 +124,7 @@ function Listener({ live, siteId }: { live: HasData | undefined; siteId: string 
               <span className="mf-set-listen__chan">
                 <span
                   className="mf-drum__swatch"
-                  style={{ background: "var(--mf-trace-human)" }}
+                  style={{ background: "var(--mf-people)" }}
                   aria-hidden="true"
                 />
                 Readers <span className="mf-data">{num(live.human_events)}</span>
@@ -135,7 +135,7 @@ function Listener({ live, siteId }: { live: HasData | undefined; siteId: string 
                 <span
                   className="mf-drum__swatch"
                   data-pen="stepped"
-                  style={{ color: "var(--mf-trace-agent)" }}
+                  style={{ color: "var(--mf-ai)" }}
                   aria-hidden="true"
                 />
                 Machines <span className="mf-data">{num(live.agent_events)}</span>

@@ -6,7 +6,7 @@
    global.css. Three rules govern the file:
 
      1. Only var(--mf-*). No literal colour, size, radius or duration.
-     2. Depth is the scratch ridge (--mf-burr / --mf-press), never a bloom.
+     2. Depth is the scratch ridge (--mf-shadow-xs / --mf-inset), never a bloom.
      3. Ruling, hatching and perforation are the instrument's own marks. They
         live inside a panel, clipped to it, and never wash across the page.
 
@@ -59,7 +59,7 @@
 }
 .mfb-field__err {
   font-size: var(--mf-t-xs);
-  color: var(--mf-oxide);
+  color: var(--mf-danger);
   line-height: 1.4;
 }
 
@@ -75,7 +75,7 @@
   border: 1px solid var(--mf-rule-strong);
   border-radius: var(--mf-r-sm);
   padding: 7px var(--mf-3);
-  box-shadow: var(--mf-press);
+  box-shadow: var(--mf-inset);
   transition: border-color var(--mf-dur-1) linear, background-color var(--mf-dur-1) linear;
 }
 .mfb-input--data { font-family: var(--mf-font-data); }
@@ -90,7 +90,7 @@
 .mfb-select:hover { border-color: var(--mf-ink-3); }
 
 .mfb-input[aria-invalid="true"],
-.mfb-select[aria-invalid="true"] { border-color: var(--mf-oxide); }
+.mfb-select[aria-invalid="true"] { border-color: var(--mf-danger); }
 
 .mfb-input[disabled],
 .mfb-select[disabled] { opacity: 0.45; cursor: not-allowed; }
@@ -191,7 +191,7 @@
 .mfb-reg__ink {
   position: absolute;
   inset: 1px auto 1px 0;
-  background: color-mix(in srgb, var(--mf-shellac) 9%, transparent);
+  background: color-mix(in srgb, var(--mf-accent) 9%, transparent);
   pointer-events: none;
 }
 
@@ -279,7 +279,7 @@
 .mfb-prop__ink {
   position: absolute;
   inset: 0 auto 0 0;
-  background: var(--mf-shellac-wash);
+  background: var(--mf-accent-wash);
   pointer-events: none;
 }
 .mfb-prop__vname {
@@ -325,11 +325,11 @@
 /* A fresh sample lands already legible and the wash retreats from it. Nothing
    here is ever hidden waiting for an animation to run. */
 @keyframes mfb-fresh {
-  from { background-color: var(--mf-shellac-wash); }
+  from { background-color: var(--mf-accent-wash); }
   to   { background-color: transparent; }
 }
 .mfb-tape__row[data-fresh="true"] {
-  animation: mfb-fresh var(--mf-dur-drum) var(--mf-ease-pen) 1;
+  animation: mfb-fresh var(--mf-dur-4) var(--mf-ease-out) 1;
 }
 
 .mfb-tape__penbox { display: inline-flex; align-items: center; }
@@ -380,14 +380,14 @@
   display: inline-block;
   width: 14px;
   height: 2px;
-  background: var(--mf-trace-human);
+  background: var(--mf-people);
 }
 .mfb-pen[data-pen="stepped"] {
   height: 7px;
   width: 7px;
   background: none;
-  border-top: 2px solid var(--mf-trace-agent);
-  border-right: 2px solid var(--mf-trace-agent);
+  border-top: 2px solid var(--mf-ai);
+  border-right: 2px solid var(--mf-ai);
 }
 
 .mfb-tape__props {
@@ -395,7 +395,7 @@
   padding: var(--mf-3) var(--mf-5) var(--mf-4);
   background: var(--mf-well);
   border-bottom: 1px solid var(--mf-rule);
-  box-shadow: var(--mf-press);
+  box-shadow: var(--mf-inset);
   overflow-x: auto;
 }
 .mfb-tape__props pre {
@@ -460,7 +460,7 @@
   height: var(--mf-6);
   background: var(--mf-well);
   border-radius: var(--mf-r-sm);
-  box-shadow: var(--mf-press);
+  box-shadow: var(--mf-inset);
   overflow: hidden;
 }
 .mfb-fstep__band {
@@ -544,7 +544,7 @@
   text-align: right;
   font-family: var(--mf-font-data);
   font-size: var(--mf-t-xs);
-  color: var(--mf-oxide);
+  color: var(--mf-danger);
   white-space: nowrap;
 }
 .mfb-fdrop__note[data-tone="none"] { color: var(--mf-ink-3); }
@@ -574,7 +574,7 @@
   font-size: var(--mf-t-xs);
   fill: var(--mf-ink);
 }
-.mfb-sankey__label--strong { fill: var(--mf-stylus); }
+.mfb-sankey__label--strong { fill: var(--mf-ink-strong); }
 .mfb-sankey__val {
   font-family: var(--mf-font-data);
   font-size: var(--mf-t-2xs);
@@ -752,7 +752,7 @@
 
 /* The destructive key sits SUNKEN and lifts when you reach for it.
    ----------------------------------------------------------------------
-   This is a correction to the bench, not a new component: --mf-oxide on the
+   This is a correction to the bench, not a new component: --mf-danger on the
    key's default raised surface measures 4.42:1 in the smoked medium, and its
    hover fill takes it to 3.86:1, both under the 4.5:1 floor. Dropping the key
    to the sunken surface and lifting it to the ground on hover clears the floor
@@ -764,7 +764,7 @@
 .mfb-tools .mf-btn--danger { background: var(--mf-well); }
 .mfb-tools .mf-btn--danger:hover {
   background: var(--mf-ground);
-  border-color: var(--mf-oxide);
+  border-color: var(--mf-danger);
 }
 
 /* ── editors ────────────────────────────────────────────────────────────── */
@@ -847,14 +847,14 @@
   padding: var(--mf-3);
   font-size: var(--mf-t-sm);
   color: var(--mf-ink);
-  background: var(--mf-oxide-wash);
+  background: var(--mf-danger-wash);
   /* Edged all round in its own ink rather than tabbed with a thick bar down one
      side: the coloured left border is a component-kit tell, and the wash plus
      the oxide glyph already carry the tone. */
-  border: 1px solid var(--mf-oxide-deep);
+  border: 1px solid var(--mf-danger-deep);
   border-radius: var(--mf-r-sm);
 }
-.mfb-alert svg { flex: none; margin-top: 2px; color: var(--mf-oxide); }
+.mfb-alert svg { flex: none; margin-top: 2px; color: var(--mf-danger); }
 
 /* The kind chooser: five keys on ONE bank, divided by the instrument's own
    ruling, exactly like the caliper's stops. Five separate bordered boxes would
@@ -891,7 +891,7 @@
 .mfb-kind[aria-pressed="true"] {
   background: var(--mf-well);
   color: var(--mf-ink);
-  box-shadow: var(--mf-press), inset 0 -2px 0 var(--mf-shellac);
+  box-shadow: var(--mf-inset), inset 0 -2px 0 var(--mf-accent);
 }
 .mfb-kind[aria-pressed="true"] .mfb-kind__what { color: var(--mf-ink-2); }
 .mfb-kind:hover .mfb-kind__what { color: var(--mf-ink-2); }

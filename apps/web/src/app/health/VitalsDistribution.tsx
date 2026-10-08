@@ -253,7 +253,7 @@ function VitalStrip({
               if (h <= 0) return null;
               return (
                 <g key={`${b.lo}-${i}`}>
-                  <rect x={x0} y={y} width={w} height={h} fill="var(--mf-trace-human-fill)" />
+                  <rect x={x0} y={y} width={w} height={h} fill="var(--mf-people-fill)" />
                   <line
                     x1={x0}
                     x2={x0 + w}
@@ -267,7 +267,7 @@ function VitalStrip({
                     x2={x0 + w}
                     y1={y}
                     y2={y}
-                    stroke="var(--mf-trace-human)"
+                    stroke="var(--mf-people)"
                     strokeWidth={1.4}
                   />
                 </g>
@@ -325,9 +325,9 @@ function VitalStrip({
                     className="mf-vital__band"
                     fill={
                       band.word === "Poor"
-                        ? "var(--mf-oxide)"
+                        ? "var(--mf-danger)"
                         : band.word === "Good"
-                          ? "var(--mf-verdigris)"
+                          ? "var(--mf-success)"
                           : "var(--mf-ink-3)"
                     }
                   >
@@ -344,7 +344,7 @@ function VitalStrip({
                   x2={X(p75)}
                   y1={TOP - 7}
                   y2={TOP + PLOT_H}
-                  stroke="var(--mf-shellac)"
+                  stroke="var(--mf-accent)"
                   strokeWidth={1.2}
                   shapeRendering="crispEdges"
                 />

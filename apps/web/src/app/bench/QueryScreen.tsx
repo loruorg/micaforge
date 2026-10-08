@@ -1251,7 +1251,7 @@ function ResultView({ ran, data, builder }: { ran: RanRequest; data: unknown; bu
           {
             id: "read",
             label: def.label,
-            color: aud === "agent" ? "var(--mf-trace-agent)" : "var(--mf-trace-human)",
+            color: aud === "agent" ? "var(--mf-ai)" : "var(--mf-people)",
             pen: aud === "agent" ? "stepped" : "written",
             values: s.buckets.map((x) => x.v),
             format: def.fmt,
