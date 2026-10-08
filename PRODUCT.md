@@ -35,6 +35,13 @@ write-heavy pipeline and the reason a self-hoster can run this on small hardware
 
 ## Users
 
+**Ideal customer for the hosted beta (user-directed, 2026-10-08).** Small SaaS and
+developer-tool teams, one to fifty people, who grow through content: docs, a blog,
+landing pages, a changelog. They left Google Analytics over cookie banners and GA4's
+complexity, they are now losing search traffic to AI answers, and they want hosted,
+open-source analytics that shows which AI tools send them visitors and which AI crawlers
+read their pages. The marketing site targets them first; self-hosting is the second path.
+
 **Primary — the content-owning engineer.** Runs a developer tool, an open-source
 project, an API, or a documentation-led product. Owns the docs site, the changelog, the
 blog and the marketing pages, usually alone or in a team of two or three. They are the
@@ -141,9 +148,12 @@ query the analytics it is helping to produce.
 - Self-hosted installs must run without any outbound network call, including for
   geolocation (bundled MaxMind-compatible database) and for updates.
 
+**Hosted beta (decided 2026-10-08):** micaforge.com runs a free hosted beta with open
+sign-up by emailed code, operated by Internet Technology Services LLC, with per-account
+limits (sites per organisation, organisations per user).
+
 **Explicitly undecided:** pricing and the eventual paid tier (the brief says "completely
-free for now", which sets today's state and not the long-term model); the hosted domain;
-the legal entity; whether managed hosting launches at all.
+free for now", which sets today's state and not the long-term model).
 
 ## Brand Commitments
 
@@ -152,8 +162,11 @@ the legal entity; whether managed hosting launches at all.
 - **License: AGPL-3.0** — stated in the brief, binding, and a positioning fact rather
   than a footnote.
 - **Free for now, self-hostable forever** — stated in the brief, binding.
-- Everything else about voice, mark and identity is unset and is decided in design, not
-  here. No colour, typeface or visual direction was specified by the user.
+- **One theme, the category standard (user-directed, 2026-10-08).** No theme selection.
+  One light, modern look that is easy to understand, at the craft level of Plausible,
+  PostHog and Vercel; plain words over metaphor; a few useful animations rather than
+  decoration. Blue marks people and orange marks AI everywhere.
+- **Sign-in by emailed code, no passwords (2026-10-08).**
 
 ## Evidence on Hand
 
