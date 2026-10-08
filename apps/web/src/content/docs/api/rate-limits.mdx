@@ -3,7 +3,7 @@ title: "Rate limits"
 description: "What is limited, by how much, and what a limited request looks like."
 group: "api"
 order: 5
-updated: 2026-08-22
+updated: 2026-10-08
 ---
 
 Limits exist to bound a broken loop, not to police traffic. They are counted in fixed
@@ -32,12 +32,16 @@ array per `/api/log/edge` call, inside a 2 MB body.
 
 | Endpoint | Limit |
 | --- | --- |
-| `POST /api/auth/login` | 40 attempts per 5 minutes, per address. |
-| `POST /api/auth/register` | 5 per hour, per address. |
-| `POST /api/auth/forgot-password` | 5 per hour, per address. |
+| `POST /api/auth/code` | 10 per 10 minutes per client address, and 3 codes per 10 minutes per email address. |
+| `POST /api/auth/code/verify` | 30 per 10 minutes per client address, and 10 per 10 minutes per email address. |
+| `POST /api/auth/totp/disable` | 5 per 15 minutes per account. |
 
-The password reset limit is per address rather than per account, so the mail path cannot be
-used to flood somebody's inbox.
+The email-address limits apply to every address alike, whether it has an account or not, so
+a `429` from them reveals nothing. The one on asking for codes keeps the mail path from
+being used to flood somebody's inbox. The one on verifying is the bound on guessing: it is
+counted with an atomic increment before the code is even read, so neither parallel requests
+nor requests from many client addresses get more than ten guesses per address per window.
+Each code also dies after five wrong guesses.
 
 ## Reads
 

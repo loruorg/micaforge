@@ -3,7 +3,7 @@ title: "Authentication"
 description: "Session cookies for the dashboard, bearer keys for everything else, and a signature for ingest."
 group: "api"
 order: 1
-updated: 2026-08-22
+updated: 2026-10-08
 ---
 
 Four credentials, each for one job.
@@ -71,14 +71,40 @@ ownership routes, whatever its scopes. Keys can carry an expiry.
 
 ## Session cookies
 
-The dashboard signs in at `POST /api/auth/login` and receives `mf_session`: HttpOnly,
-`SameSite=Lax`, and `Secure` whenever the install is served over HTTPS. It is a session
-credential for a browser and nothing else: do not try to drive the API with one from a
-script.
+There are no passwords. The dashboard signs in with a six-digit code sent to the account's
+address, and the same code creates the account when the address has none and is allowed one.
 
-Two-factor is available on an account (`/api/auth/totp/*`). Registration can be closed
-entirely on a self-hosted install with `MICAFORGE_DISABLE_REGISTRATION=true`, which is
-what you want the moment your own account exists.
+```http
+POST /api/auth/code           { "email": "…", "name": "…", "org_name": "…" }
+POST /api/auth/code/verify    { "email": "…", "code": "482913", "totp": "…" }
+```
+
+The first call answers `{ "status": "ok", "mail_delivered": true }` for every address,
+whether or not a code was sent, and takes the same time either way, so it cannot be used to
+find out who has an account. `mail_delivered` is false on an install with no mail transport;
+the operator then prints a code on the host with
+`micaforge-server sign-in-code <email>`. `name` and `org_name` are optional and only used
+if the code ends up creating the account.
+
+The second call answers `{ "status": "ok", "user": {…}, "expires_at": "…", "created": false }`
+and sets `mf_session`: HttpOnly, `SameSite=Lax`, and `Secure` whenever the install is
+served over HTTPS. When the account has two-factor on and no `totp` was sent, it answers
+`{ "status": "totp_required" }` instead and the code stays good: send the same code again
+with the authenticator code in `totp`. The cookie is a session credential for a browser and
+nothing else: do not try to drive the API with one from a script.
+
+A code works once, lives ten minutes, and is replaced by the next one asked for. Five wrong
+guesses at one code, a wrong authenticator code included, delete it. Every refusal is the
+same `401` with the same sentence, whether the code was wrong, expired, used or never sent.
+
+Who is sent a code: an address with an account; any address while the install has no
+account yet (the first one owns it); any address while registration is open; and an address
+an invitation is waiting for. Registration can be closed on a self-hosted install with
+`MICAFORGE_DISABLE_REGISTRATION=true`, which is what you want the moment your own account
+exists; invitations still work.
+
+Two-factor is available on an account (`/api/auth/totp/*`). Turning it off asks for a
+current authenticator code, not just the session.
 
 ## Share slugs
 

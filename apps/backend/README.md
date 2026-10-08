@@ -22,7 +22,7 @@ explains what it is for; this is the map.
 | `micaforge-agents` | The catalog of named non-human clients, `robots.txt` and `llms.txt` parsing, and the verification that makes `agent_events.verified` mean something. |
 | `micaforge-enrich` | Turning a raw hit into a row: user agent, referrer, URL normalisation, geography, the visitor digest. |
 | `micaforge-query` | The SQL builder and every analytics read, including the Citation Gap. |
-| `micaforge-mail` | Outgoing mail, and the templates. Logs instead of sending when no relay is configured. |
+| `micaforge-mail` | Outgoing mail over SMTP or Cloudflare Email Sending, and the templates. Logs instead of sending when neither is configured. |
 | `micaforge-jobs` | Everything Micaforge does when nobody asked: crawls, sweeps, reports, imports, retention. |
 | `micaforge-server` | The HTTP surface, the extractors, the middleware, and `main`. |
 
@@ -113,6 +113,8 @@ nothing to mount and no `sqlx-cli` to install.
 |---|---|
 | `0001_init.sql` | The whole schema of `docs/CONTRACT.md` §2. |
 | `0002_seed_agent_catalog.sql` | Seeds `agent_catalog` from the compiled-in catalog, so a fresh install has it before the first refresh job runs. |
+| `0005_one_recurring_job_per_kind.sql` | At most one queued occurrence of each recurring job, enforced by a unique index. |
+| `0006_drop_password_hash.sql` | Drops `users.password_hash`: sign-in is by emailed code, so accounts hold no credential. |
 
 To add one, write `000N_what_it_does.sql`. Rules that are not negotiable:
 

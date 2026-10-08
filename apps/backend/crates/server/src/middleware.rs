@@ -193,7 +193,7 @@ impl std::fmt::Display for RequestId {
 /// The line is emitted **after** the response, at a level chosen by the status
 /// and the route: `warn` for a `5xx`, `debug` for the collection routes (see
 /// [`ACCESS_LOG`]), `info` otherwise. A `4xx` is not a warning, because a
-/// refused password and a missing page are the API working, and an access log
+/// refused sign-in code and a missing page are the API working, and an access log
 /// full of warnings is an access log nobody reads.
 ///
 /// The caller is identified by [`address_tag`], never by address, and the user
@@ -616,7 +616,7 @@ mod tests {
         ] {
             assert!(is_collection_path(path), "{path}");
         }
-        for path in ["/api/stats/overview", "/api/auth/login", "/api/track/other"] {
+        for path in ["/api/stats/overview", "/api/auth/code", "/api/track/other"] {
             assert!(!is_collection_path(path), "{path}");
         }
     }

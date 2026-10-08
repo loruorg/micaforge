@@ -88,15 +88,18 @@ const RANGE_MAX_AGE: Duration = Duration::from_secs(6 * 60 * 60);
 
 /// What `micaforge-server --help` prints.
 const USAGE: &str = "\
-usage: micaforge-server                      run the server (the container's default)
-       micaforge-server reset-link <email>   print a password-reset link for an account
+usage: micaforge-server                        run the server (the container's default)
+       micaforge-server sign-in-code <email>   print a sign-in code for an address
 
-reset-link is for an install with no SMTP relay, where a reset email is never
-sent. Run it inside the container, where the configuration already is:
+sign-in-code is for an install with no mail transport, where a sign-in email is
+never sent. Run it inside the container, where the configuration already is:
 
-  docker compose exec micaforge micaforge-server reset-link you@example.com
+  docker compose exec micaforge micaforge-server sign-in-code you@example.com
 
-The link works once and expires in an hour.";
+It prints a code only for an address that may sign in: one with an account, any
+address while the install has no account, any address while registration is
+open, and an address an invitation is waiting for. The code works once and
+expires in ten minutes, and it replaces any code the address was sent before.";
 
 #[tokio::main]
 async fn main() {
@@ -108,7 +111,7 @@ async fn main() {
         .as_slice()
     {
         [] => run().await,
-        ["reset-link", email] => reset_link(email).await,
+        ["sign-in-code", email] => sign_in_code(email).await,
         ["-h" | "--help" | "help"] => {
             println!("{USAGE}");
             return;
@@ -128,30 +131,49 @@ async fn main() {
     }
 }
 
-/// `micaforge-server reset-link <email>`: mint a reset token and print its link.
+/// `micaforge-server sign-in-code <email>`: mint a sign-in code and print it.
 ///
-/// The same token `POST /api/auth/forgot-password` would mail. It reaches the
-/// two stores it needs and nothing else: no migration, no listener, no worker,
-/// so it is safe to run beside the server that is already up. Whoever can run
-/// it already holds the machine and its `.env`, which is the strongest proof of
-/// authority this install has.
-async fn reset_link(email: &str) -> Result<()> {
+/// The same code, stored the same way, that `POST /api/auth/code` would mail,
+/// for the same addresses; only the per-address request limit is skipped,
+/// because that limit protects an inbox and this sends nothing to one. It
+/// reaches the two stores it needs and nothing else: no migration, no listener,
+/// no worker, so it is safe to run beside the server that is already up.
+/// Whoever can run it already holds the machine and its `.env`, which is the
+/// strongest proof of authority this install has, so telling them that an
+/// address may not sign in reveals nothing they could not read from Postgres.
+///
+/// The code is the first line of the output, alone, so a script can take it
+/// with `head -n 1`; what it is for follows on the next.
+async fn sign_in_code(email: &str) -> Result<()> {
     let _ = dotenvy::dotenv();
     let cfg = Config::from_env()?;
     let pg = pg::connect(&cfg.database_url).await?;
     let kv = Kv::connect(&cfg.redis_url).await?;
 
-    let email = email.trim().to_lowercase();
-    match micaforge_server::routes::auth::issue_reset_token(&pg, &kv, &email).await? {
-        Some((_, token)) => {
+    let email = micaforge_server::routes::orgs::clean_email(email)?;
+    let issued = micaforge_server::routes::auth::issue_sign_in_code(
+        &cfg,
+        &pg,
+        &kv,
+        &email,
+        micaforge_server::routes::auth::NewAccount::default(),
+    )
+    .await?;
+    match issued {
+        Some(issued) => {
+            println!("{}", issued.code);
             println!(
-                "{}",
-                micaforge_mail::templates::password_reset_link(&cfg.dashboard_url, &token)
+                "is a sign-in code for {email}. It works once, expires at {} UTC, and replaces \
+                 any code sent to that address before.",
+                issued.expires_at.format("%Y-%m-%d %H:%M")
             );
             Ok(())
         }
         None => {
-            eprintln!("micaforge: no account has the address {email}");
+            eprintln!(
+                "micaforge: {email} cannot sign in here: it has no account, registration is \
+                 closed, and no invitation is waiting for it"
+            );
             std::process::exit(1);
         }
     }
@@ -230,16 +252,19 @@ async fn run() -> Result<()> {
     // range refresh. Built with the crawl crate's user agent and timeouts.
     let http = micaforge_jobs::fetch::client()?;
 
-    // Two mailers from one configuration: `Mailer` holds an SMTP transport and
-    // is not `Clone`, and the worker needs an owned one for its `JobCtx` while
-    // the request path needs a shared one. Constructing it is parsing a URL.
+    // Two mailers from one configuration: `Mailer` holds a transport and is not
+    // `Clone`, and the worker needs an owned one for its `JobCtx` while the
+    // request path needs a shared one. Constructing it is parsing a URL or
+    // building an HTTP client.
     let mailer = Arc::new(build_mailer(&cfg)?);
     let worker_mailer = build_mailer(&cfg)?;
     if !cfg.mail_enabled() {
         tracing::warn!(
-            "no MICAFORGE_SMTP_URL; no mail is sent and no link is logged: invitation links \
-             are copied from the dashboard, a password reset comes from \
-             `micaforge-server reset-link <email>`, and scheduled reports will not run"
+            "no mail transport (MICAFORGE_CLOUDFLARE_EMAIL_TOKEN with \
+             MICAFORGE_CLOUDFLARE_ACCOUNT_ID, or MICAFORGE_SMTP_URL); no mail is sent and no \
+             code or link is logged: a sign-in code comes from \
+             `micaforge-server sign-in-code <email>`, invitation links are copied from the \
+             dashboard, and scheduled reports will not run"
         );
     }
 
@@ -464,10 +489,10 @@ fn init_tracing() {
 /// Build a mailer from the configuration.
 ///
 /// Links in mail point at the **dashboard** origin, never the API origin: every
-/// link in every message lands a person in the app, and a verification link that
+/// link in every message lands a person in the app, and an invitation link that
 /// opened a JSON endpoint would be a broken product rather than a broken URL.
 fn build_mailer(cfg: &Config) -> Result<Mailer> {
-    Mailer::new(cfg.smtp_url.as_deref(), &cfg.mail_from, &cfg.dashboard_url)
+    Mailer::new(cfg.mail_transport(), &cfg.mail_from, &cfg.dashboard_url)
 }
 
 // ---------------------------------------------------------------------------

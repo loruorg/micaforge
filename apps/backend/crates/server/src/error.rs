@@ -128,7 +128,7 @@ impl IntoResponse for ApiError {
         // The log line is where the real message goes. `error` for the failures
         // that are ours, `warn` for the ones that are the caller's: an operator
         // grepping for `ERROR` should find things that need fixing, not a
-        // hundred rejected passwords.
+        // hundred rejected sign-in codes.
         if self.0.is_public() {
             tracing::debug!(code = self.0.code(), status = status.as_u16(), error = %self.0, "request refused");
         } else {

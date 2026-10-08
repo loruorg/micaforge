@@ -3,7 +3,7 @@ title: "Installing the stack"
 description: "One machine, five containers, about ten minutes."
 group: "self-hosting"
 order: 1
-updated: 2026-08-22
+updated: 2026-10-08
 ---
 
 The self-hosted build is the whole build. There is no feature gate, no community edition
@@ -104,10 +104,11 @@ schema on boot. Starting the container is what applies them. There is nothing to
    (`MICAFORGE_DISABLE_REGISTRATION=true`): invite people from the dashboard. An open
    signup form on a public dashboard is how a self-hosted install acquires strangers.
 
-   Forgot the password and there is no SMTP relay? Print a reset link on the host:
+   There is no password. Enter your address and Micaforge sends you a six-digit code. With
+   no mail transport configured yet, print the code on the host instead:
 
    ```sh
-   docker compose exec micaforge micaforge-server reset-link you@example.com
+   docker compose exec micaforge micaforge-server sign-in-code you@example.com
    ```
 
 2. **Add your site** and paste the snippet it gives you. See

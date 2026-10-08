@@ -61,9 +61,18 @@ pub struct Config {
     /// per `PRODUCT.md`); it selects the admin surface and guarantees no
     /// outbound call is made at runtime.
     pub self_hosted: bool,
-    /// SMTP URL for outgoing mail. `None` disables every email path: invitations
-    /// fall back to copyable links, and scheduled reports do not run.
+    /// SMTP URL for outgoing mail. Used when the Cloudflare pair below is not
+    /// set. With neither, no mail leaves the process: sign-in codes come from
+    /// `micaforge-server sign-in-code`, invitations fall back to copyable
+    /// links, and scheduled reports do not run. See [`Config::mail_transport`].
     pub smtp_url: Option<String>,
+    /// API token for Cloudflare Email Sending. Set together with
+    /// [`Config::cloudflare_account_id`] or not at all; [`Config::from_env`]
+    /// refuses one without the other. When both are set, mail goes through
+    /// Cloudflare's HTTP API and `smtp_url` is ignored.
+    pub cloudflare_email_token: Option<String>,
+    /// The Cloudflare account the token sends mail for.
+    pub cloudflare_account_id: Option<String>,
     /// `From` address on outgoing mail.
     pub mail_from: String,
     /// `text` for human-readable logs, `json` for structured ones.
@@ -97,6 +106,28 @@ impl Config {
         number::<u32>("RATE_LIMIT_PER_MIN", 0)?;
         writer_buffer_mb()?;
 
+        // Half a Cloudflare configuration is a typo, not a choice. Falling back
+        // to SMTP or to no mail at all would leave an operator wondering why
+        // the codes they configured a relay for never arrive, so the boot stops
+        // and names the variable that is missing.
+        let cloudflare_email_token = optional("CLOUDFLARE_EMAIL_TOKEN");
+        let cloudflare_account_id = optional("CLOUDFLARE_ACCOUNT_ID");
+        match (&cloudflare_email_token, &cloudflare_account_id) {
+            (Some(_), None) => {
+                return Err(Error::validation(
+                    "MICAFORGE_CLOUDFLARE_ACCOUNT_ID",
+                    "is required when MICAFORGE_CLOUDFLARE_EMAIL_TOKEN is set",
+                ))
+            }
+            (None, Some(_)) => {
+                return Err(Error::validation(
+                    "MICAFORGE_CLOUDFLARE_EMAIL_TOKEN",
+                    "is required when MICAFORGE_CLOUDFLARE_ACCOUNT_ID is set",
+                ))
+            }
+            _ => {}
+        }
+
         Ok(Config {
             bind_addr: optional("BIND_ADDR").unwrap_or_else(|| "0.0.0.0:8080".to_string()),
             database_url: required("DATABASE_URL")?,
@@ -122,6 +153,8 @@ impl Config {
             disable_registration: flag("DISABLE_REGISTRATION", false)?,
             self_hosted: flag("SELF_HOSTED", true)?,
             smtp_url: optional("SMTP_URL"),
+            cloudflare_email_token,
+            cloudflare_account_id,
             mail_from: optional("MAIL_FROM")
                 .unwrap_or_else(|| "Micaforge <noreply@localhost>".to_string()),
             log_format: log_format_from_env()?.to_string(),
@@ -157,10 +190,29 @@ impl Config {
         self.log_format == "json"
     }
 
+    /// How outgoing mail leaves the process.
+    ///
+    /// The one place the precedence is decided: Cloudflare when both of its
+    /// variables are set, otherwise SMTP when a URL is set, otherwise nothing
+    /// is sent. [`Config::from_env`] has already refused half a Cloudflare
+    /// configuration, so "both or neither" holds here.
+    pub fn mail_transport(&self) -> MailTransport<'_> {
+        match (
+            self.cloudflare_account_id.as_deref(),
+            self.cloudflare_email_token.as_deref(),
+        ) {
+            (Some(account_id), Some(token)) => MailTransport::Cloudflare { account_id, token },
+            _ => match self.smtp_url.as_deref() {
+                Some(url) => MailTransport::Smtp(url),
+                None => MailTransport::Log,
+            },
+        }
+    }
+
     /// True when outgoing mail is configured. Callers use this to choose between
     /// sending an invitation and showing the operator a link to copy.
     pub fn mail_enabled(&self) -> bool {
-        self.smtp_url.is_some()
+        !matches!(self.mail_transport(), MailTransport::Log)
     }
 
     /// A 32-byte key for one subsystem, derived from [`Config::secret_key_base`].
@@ -168,6 +220,38 @@ impl Config {
     /// Convenience wrapper so callers never handle the raw secret themselves.
     pub fn derive_key(&self, purpose: &str) -> [u8; 32] {
         crate::crypto::derive_key(&self.secret_key_base, purpose)
+    }
+}
+
+/// The way out for mail, as [`Config::mail_transport`] chose it.
+///
+/// Borrowed from the configuration rather than copied, because two of the
+/// three carry a credential and the fewer places one is held the better.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum MailTransport<'a> {
+    /// Cloudflare Email Sending, over its HTTP API.
+    Cloudflare {
+        /// `MICAFORGE_CLOUDFLARE_ACCOUNT_ID`.
+        account_id: &'a str,
+        /// `MICAFORGE_CLOUDFLARE_EMAIL_TOKEN`.
+        token: &'a str,
+    },
+    /// An SMTP relay, as a lettre connection URL (`MICAFORGE_SMTP_URL`).
+    Smtp(&'a str),
+    /// Nothing is sent. Each message is rendered and one line naming its
+    /// recipient and subject is logged, without its body.
+    Log,
+}
+
+impl std::fmt::Debug for MailTransport<'_> {
+    /// Hand-written: the token and an SMTP URL's password must never reach a
+    /// log line through a derived `Debug`.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            MailTransport::Cloudflare { .. } => "Cloudflare",
+            MailTransport::Smtp(_) => "Smtp",
+            MailTransport::Log => "Log",
+        })
     }
 }
 
@@ -314,6 +398,7 @@ mod tests {
         assert_eq!(cfg.replay_retention_days, 30);
         assert!(cfg.self_hosted);
         assert!(!cfg.mail_enabled());
+        assert_eq!(cfg.mail_transport(), MailTransport::Log);
         assert!(!cfg.log_json());
         assert_eq!(
             cfg.public_url, "https://mf.example.com",
@@ -376,6 +461,43 @@ mod tests {
         std::env::set_var("MICAFORGE_WRITER_BUFFER_MB", "64");
         assert_eq!(writer_buffer_mb().unwrap(), Some(64));
 
+        // Mail: SMTP alone is SMTP.
+        std::env::set_var("MICAFORGE_SMTP_URL", "smtp://relay.example.com:587");
+        let cfg = Config::from_env().unwrap();
+        assert_eq!(
+            cfg.mail_transport(),
+            MailTransport::Smtp("smtp://relay.example.com:587")
+        );
+        assert!(cfg.mail_enabled());
+
+        // Half a Cloudflare configuration stops the boot and names the half
+        // that is missing, whichever half that is.
+        std::env::set_var("MICAFORGE_CLOUDFLARE_EMAIL_TOKEN", "cf-token");
+        assert_eq!(
+            Config::from_env().unwrap_err().field(),
+            Some("MICAFORGE_CLOUDFLARE_ACCOUNT_ID")
+        );
+        std::env::remove_var("MICAFORGE_CLOUDFLARE_EMAIL_TOKEN");
+        std::env::set_var("MICAFORGE_CLOUDFLARE_ACCOUNT_ID", "cf-account");
+        assert_eq!(
+            Config::from_env().unwrap_err().field(),
+            Some("MICAFORGE_CLOUDFLARE_EMAIL_TOKEN")
+        );
+
+        // Both halves win over SMTP.
+        std::env::set_var("MICAFORGE_CLOUDFLARE_EMAIL_TOKEN", "cf-token");
+        let cfg = Config::from_env().unwrap();
+        assert_eq!(
+            cfg.mail_transport(),
+            MailTransport::Cloudflare {
+                account_id: "cf-account",
+                token: "cf-token"
+            }
+        );
+        assert!(cfg.mail_enabled());
+        // And the token never reaches a log through the transport's Debug.
+        assert_eq!(format!("{:?}", cfg.mail_transport()), "Cloudflare");
+
         for key in [
             "MICAFORGE_DATABASE_URL",
             "MICAFORGE_CLICKHOUSE_URL",
@@ -383,6 +505,9 @@ mod tests {
             "MICAFORGE_PUBLIC_URL",
             "MICAFORGE_CLICKHOUSE_PASSWORD",
             "MICAFORGE_WRITER_BUFFER_MB",
+            "MICAFORGE_SMTP_URL",
+            "MICAFORGE_CLOUDFLARE_EMAIL_TOKEN",
+            "MICAFORGE_CLOUDFLARE_ACCOUNT_ID",
         ] {
             std::env::remove_var(key);
         }

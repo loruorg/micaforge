@@ -104,12 +104,16 @@ function writeRemembered(siteKey: string | null, value: Remembered): void {
 export const RESERVED_APP_SEGMENTS: readonly string[] = [
   "new",
   "login",
-  "signup",
-  "forgot-password",
-  "reset-password",
   "invitation",
   "settings",
   "admin",
+  // Addresses from before sign-in was by code. The router sends each one on to
+  // sign-in or to the invitation screen, and none of them is a site.
+  "signup",
+  "forgot-password",
+  "reset-password",
+  "verify-email",
+  "invite",
 ];
 
 /**

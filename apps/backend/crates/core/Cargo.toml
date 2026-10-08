@@ -30,8 +30,9 @@ chrono-tz = { workspace = true }
 uuid = { workspace = true }
 url = { workspace = true }
 
-# Crypto. Password hashing, sealed secrets at rest, the daily visitor hash and
-# the API-key digest all live here so there is exactly one implementation of each.
+# Crypto. Share-link password hashing, sealed secrets at rest, one-time codes,
+# the daily visitor hash and the API-key digest all live here so there is
+# exactly one implementation of each.
 argon2 = { workspace = true }
 chacha20poly1305 = { workspace = true }
 blake3 = { workspace = true }
@@ -40,6 +41,8 @@ hmac = { workspace = true }
 rand = { workspace = true }
 hex = { workspace = true }
 base64 = { workspace = true }
+# Constant-time comparison of stored digests (`crypto::digests_match`).
+subtle = { workspace = true }
 
 # Present only for the `From` impls on `Error`: every crate that touches a store
 # returns `micaforge_core::Error`, so the conversion has to live with the type.

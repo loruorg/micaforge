@@ -20,17 +20,25 @@ micaforge-core = { workspace = true }
 # nothing and would hold a socket open for a message sent once a week.
 lettre = { workspace = true }
 
+# The second transport: Cloudflare Email Sending is an HTTPS API, not a relay.
+# The same client the rest of the workspace already builds (rustls, JSON), so
+# it adds no TLS stack and no crate the binary did not already carry.
+reqwest = { workspace = true }
+
 # The two payload structs cross a job boundary: the report and alert jobs store
 # their computed numbers in `jobs.payload` (jsonb) and the worker reads them back
-# out, so both shapes have to survive a round trip through JSON.
+# out, so both shapes have to survive a round trip through JSON. The Cloudflare
+# request and its envelope are JSON too.
 serde = { workspace = true }
+serde_json = { workspace = true }
 
-# A mailer with no SMTP URL is the documented default for a fresh self-host, and
-# the log line it writes instead is how the operator finishes a signup. That
-# makes tracing load-bearing here rather than decorative.
+# A mailer with no transport is the documented default for a fresh self-host,
+# and the line it logs instead of sending is how an operator learns why nothing
+# arrived. That makes tracing load-bearing here rather than decorative.
 tracing = { workspace = true }
 
 [dev-dependencies]
 # The logging-only path is an `async fn` that must be provably reachable without
-# a relay, so the tests need a runtime to drive it.
+# a relay, and the Cloudflare transport is tested against a local listener, so
+# the tests need a runtime and its sockets.
 tokio = { workspace = true }

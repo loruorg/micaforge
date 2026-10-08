@@ -144,6 +144,8 @@ mod tests {
             disable_registration: false,
             self_hosted: true,
             smtp_url: None,
+            cloudflare_email_token: None,
+            cloudflare_account_id: None,
             mail_from: "Micaforge <noreply@localhost>".into(),
             log_format: "text".into(),
             worker_concurrency: 2,

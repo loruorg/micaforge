@@ -504,9 +504,15 @@ cat <<EOF
 ${BOLD}Next${RESET}
 
   1. Open ${BASE_URL}/app and create the first account with ${EMAIL}.
-     It becomes the owner of this install. Registration is closed to everyone
-     else already: invite people from the dashboard, or set
-     MICAFORGE_DISABLE_REGISTRATION=false in .env to open signup.
+     It becomes the owner of this install. There is no password: sign-in is a
+     code sent by email, and until a mail transport is set in .env, you print
+     the code here instead:
+
+     docker compose exec micaforge micaforge-server sign-in-code ${EMAIL}
+
+     Registration is closed to everyone else already: invite people from the
+     dashboard, or set MICAFORGE_DISABLE_REGISTRATION=false in .env to open
+     signup.
 
   2. Add your site. The setup screen shows its id and this snippet:
 

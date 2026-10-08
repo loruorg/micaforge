@@ -15,7 +15,9 @@
 //!
 //! Every command is issued through `redis::cmd`, not the typed command helpers.
 //! The typed helpers change shape between driver releases; `cmd("SETEX")` is the
-//! Redis protocol, and the protocol does not.
+//! Redis protocol, and the protocol does not. The one exception is
+//! [`Kv::swap_json`], a three-line Lua script, because a compare-and-swap is the
+//! one thing the plain commands cannot do atomically on a shared connection.
 
 use std::future::Future;
 use std::sync::atomic::{AtomicI64, Ordering};
@@ -55,6 +57,20 @@ const CALL_DEADLINE: Duration = Duration::from_millis(500);
 
 /// How long a daily visitor salt survives.
 ///
+/// Compare-and-swap for [`Kv::swap_json`]. `KEYS[1]` is the key, `ARGV[1]` the
+/// value as it was read, `ARGV[2]` either `set` or `del`, and `ARGV[3]` the
+/// value to write for `set`. Answers 1 when it acted, 0 when the key no longer
+/// holds what was read (a missing key reads as `false`, which equals nothing).
+///
+/// `KEEPTTL` (Redis 6.0, every Valkey) is what keeps a rewrite from extending
+/// the key's life: a value that was given ten minutes keeps the ten minutes it
+/// was given, however often it is updated inside them.
+const SWAP_SCRIPT: &str = r"
+if redis.call('GET', KEYS[1]) ~= ARGV[1] then return 0 end
+if ARGV[2] == 'del' then redis.call('DEL', KEYS[1]) else redis.call('SET', KEYS[1], ARGV[3], 'KEEPTTL') end
+return 1
+";
+
 /// Two days, not one: a site in UTC+13 is still writing rows against
 /// "yesterday's" salt while a site in UTC-11 has already rotated. Anything
 /// longer would widen the window in which a salt could correlate a visitor
@@ -73,6 +89,19 @@ const REALTIME_WINDOW_SECS: i64 = 300;
 /// Twice the window, so a site that goes quiet drops out of Redis on its own
 /// rather than accumulating one empty key per site forever.
 const REALTIME_TTL_SECS: i64 = REALTIME_WINDOW_SECS * 2;
+
+/// A JSON value as [`Kv::get_snapshot`] read it, kept byte for byte so that
+/// [`Kv::swap_json`] can tell whether anybody wrote the key in between.
+///
+/// The bytes are private. A caller reads `value` and hands the snapshot back,
+/// and only this module ever compares the two.
+#[derive(Debug, Clone)]
+pub struct Snapshot<T> {
+    /// What the key held.
+    pub value: T,
+    /// The exact encoding that was read.
+    raw: String,
+}
 
 /// A Redis handle.
 ///
@@ -467,6 +496,65 @@ impl Kv {
         bounded(redis::cmd("DEL").arg(key).query_async::<()>(&mut conn)).await?;
         Ok(())
     }
+
+    // -----------------------------------------------------------------------
+    // Compare-and-swap
+    // -----------------------------------------------------------------------
+
+    /// Read a JSON value for a later [`Kv::swap_json`].
+    ///
+    /// Unlike [`Kv::get_json`], this is for state that is updated in place by
+    /// requests that may race each other, such as a counter of wrong guesses
+    /// inside a value. An unparseable value reads as absent, as it does there.
+    pub async fn get_snapshot<T: DeserializeOwned>(
+        &self,
+        key: &str,
+    ) -> Result<Option<Snapshot<T>>> {
+        let mut conn = self.conn.clone();
+        let raw: Option<String> =
+            bounded(redis::cmd("GET").arg(key).query_async(&mut conn)).await?;
+        let Some(raw) = raw else {
+            return Ok(None);
+        };
+        match serde_json::from_str(&raw) {
+            Ok(value) => Ok(Some(Snapshot { value, raw })),
+            Err(e) => {
+                tracing::warn!(key, error = %e, "discarding unparseable snapshot entry");
+                Ok(None)
+            }
+        }
+    }
+
+    /// Replace a value with `next`, or delete it when `next` is `None`, but
+    /// only if the key still holds exactly what `seen` read. `true` means this
+    /// call acted.
+    ///
+    /// Atomic on the server, so of two requests that read the same value and
+    /// both try to move it on, exactly one succeeds and the other is told so.
+    /// That is the whole point: a read-modify-write with `GET` and `SET` would
+    /// let the slower request write back a value the faster one had already
+    /// replaced, and a single-use value deleted with `DEL` would be used by
+    /// every request that read it before the first `DEL` landed. `WATCH` is not
+    /// an option either, because the connection is multiplexed and shared.
+    ///
+    /// The key's remaining time to live is kept as it is (see [`SWAP_SCRIPT`]).
+    pub async fn swap_json<T: Serialize>(
+        &self,
+        key: &str,
+        seen: &Snapshot<T>,
+        next: Option<&T>,
+    ) -> Result<bool> {
+        let (op, payload) = match next {
+            Some(value) => ("set", serde_json::to_string(value)?),
+            None => ("del", String::new()),
+        };
+        let script = redis::Script::new(SWAP_SCRIPT);
+        let mut invocation = script.key(key);
+        invocation.arg(&seen.raw).arg(op).arg(payload);
+        let mut conn = self.conn.clone();
+        let acted: i64 = bounded(invocation.invoke_async(&mut conn)).await?;
+        Ok(acted == 1)
+    }
 }
 
 /// `mf:rt:h:<site>` for humans, `mf:rt:a:<site>` for agents.
@@ -571,6 +659,54 @@ mod tests {
         let refused =
             redis::RedisError::from(std::io::Error::from(std::io::ErrorKind::ConnectionRefused));
         assert!(is_outage(&refused));
+    }
+
+    /// Against a real Valkey, because the property under test is the server's
+    /// atomicity, which nothing in this process can stand in for. Opt in with
+    /// `MICAFORGE_TEST_REDIS_URL=redis://127.0.0.1:6379` and
+    /// `cargo test -p micaforge-store -- --ignored`. It writes one key, under
+    /// `mf:test:`, and deletes it.
+    #[tokio::test]
+    #[ignore = "needs a Valkey or Redis server"]
+    async fn a_swap_acts_once_on_what_was_read_and_keeps_the_ttl() {
+        let _serial = BREAKER.lock().await;
+        OPEN_UNTIL_MS.store(0, Ordering::Relaxed);
+        let url = std::env::var("MICAFORGE_TEST_REDIS_URL")
+            .expect("set MICAFORGE_TEST_REDIS_URL to run this test");
+        let kv = connect(&url).await.expect("a live server");
+        let key = format!("mf:test:swap:{}", crypto::random_token(9));
+
+        kv.set_json(&key, &1u32, Some(120)).await.unwrap();
+        let first: Snapshot<u32> = kv.get_snapshot(&key).await.unwrap().unwrap();
+        let racer: Snapshot<u32> = kv.get_snapshot(&key).await.unwrap().unwrap();
+        assert_eq!(first.value, 1);
+
+        // Two requests read the same value; only the first to swap wins.
+        assert!(kv.swap_json(&key, &first, Some(&2)).await.unwrap());
+        assert!(!kv.swap_json(&key, &racer, Some(&9)).await.unwrap());
+        assert_eq!(kv.get_json::<u32>(&key).await.unwrap(), Some(2));
+
+        // The rewrite kept the time to live it was given, not a fresh one,
+        // and did not drop it.
+        let mut conn = kv.conn.clone();
+        let ttl: i64 = redis::cmd("TTL")
+            .arg(&key)
+            .query_async(&mut conn)
+            .await
+            .unwrap();
+        assert!((1..=120).contains(&ttl), "ttl {ttl}");
+
+        // A delete is single-use in the same way.
+        let current: Snapshot<u32> = kv.get_snapshot(&key).await.unwrap().unwrap();
+        let late = current.clone();
+        assert!(kv.swap_json(&key, &current, None).await.unwrap());
+        assert!(!kv.swap_json(&key, &late, None).await.unwrap());
+        assert_eq!(kv.get_json::<u32>(&key).await.unwrap(), None);
+
+        // A key that was rewritten by somebody else is not swapped.
+        kv.set_json(&key, &5u32, Some(120)).await.unwrap();
+        assert!(!kv.swap_json(&key, &late, Some(&6)).await.unwrap());
+        kv.del(&key).await.unwrap();
     }
 
     #[tokio::test]

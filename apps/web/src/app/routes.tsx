@@ -3,7 +3,7 @@
  *
  * Three things worth knowing before changing it:
  *
- *  1. THE FRAME IS PART OF THE ROUTE. The five auth screens and the public
+ *  1. THE FRAME IS PART OF THE ROUTE. The two auth screens and the public
  *     share view draw their own full-page sheet, so they are mounted OUTSIDE
  *     the station. Everything else is mounted inside `AppRoot`, which supplies
  *     the spine, the live readout and the shared controls.
@@ -30,13 +30,10 @@ import { Button, ErrorState, Panel } from "../components/react/ui";
 
 import {
   AddSiteScreen,
-  ForgotPasswordScreen,
   InvitationScreen,
   LoginScreen,
   OnboardingScreen,
-  ResetPasswordScreen,
   ShareScreen,
-  SignupScreen,
   SiteChooserScreen,
 } from "./entry";
 
@@ -232,6 +229,20 @@ function RequireAccount({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
+/* ── an address that has moved ───────────────────────────────────────────── */
+
+/**
+ * Sends an address that used to exist to the one that does now, keeping the
+ * query string when asked to. Links outlive routing decisions: a signup or
+ * reset link in an old email, a bookmark, an invitation mailed before its
+ * screen moved. Each one should land somewhere that still works, not on a
+ * "no channel here" sheet.
+ */
+function Moved({ to, keepQuery = false }: { to: string; keepQuery?: boolean }) {
+  const { search } = useLocation();
+  return <Navigate to={keepQuery ? `${to}${search}` : to} replace />;
+}
+
 /* ── an address that is not a channel ────────────────────────────────────── */
 
 function NotFound() {
@@ -257,12 +268,19 @@ export function AppRoutes() {
     <Routes>
       {/* The entry sheets draw their own page; no spine, no readout. */}
       <Route path="/app/login" element={<LoginScreen />} />
-      <Route path="/app/signup" element={<SignupScreen />} />
-      <Route path="/app/forgot-password" element={<ForgotPasswordScreen />} />
-      <Route path="/app/reset-password" element={<ResetPasswordScreen />} />
-      <Route path="/app/reset-password/:token" element={<ResetPasswordScreen />} />
       <Route path="/app/invitation" element={<InvitationScreen />} />
       <Route path="/app/invitation/:token" element={<InvitationScreen />} />
+
+      {/* Sign-in is by emailed code, so signing up, recovering and resetting
+          are all signing in. Their old addresses, and the verification links
+          older builds mailed, land there. Invitation links mailed under the old
+          path keep their token. */}
+      <Route path="/app/signup" element={<Moved to="/app/login" />} />
+      <Route path="/app/forgot-password" element={<Moved to="/app/login" />} />
+      <Route path="/app/reset-password" element={<Moved to="/app/login" />} />
+      <Route path="/app/reset-password/:token" element={<Moved to="/app/login" />} />
+      <Route path="/app/verify-email" element={<Moved to="/app/login" />} />
+      <Route path="/app/invite" element={<Moved to="/app/invitation" keepQuery />} />
 
       {/* The public record. No account, no station chrome. */}
       <Route path="/share/:slug" element={<ShareScreen />} />

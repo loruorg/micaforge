@@ -406,8 +406,9 @@ same way.
 
 ## 6. Prove it
 
-- Sign in. If the password is refused, the key in \`.env\` is not the key this
-  backup was taken with.
+- Sign in. On an account with two-factor turned on, a failing authenticator
+  step means the key in \`.env\` is not the key this backup was taken with:
+  the authenticator seed is sealed with it.
 - Open a site's overview for "all time" and check the earliest date matches what
   \`min(timestamp)\` reported.
 - Check the agent screen: agent traffic lives in a separate table, so an empty

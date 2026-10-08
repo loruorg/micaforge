@@ -2,7 +2,8 @@
 //!
 //! An email body cannot be reviewed from its source, and it must never be
 //! reviewed by sending one to yourself and hoping. Run this, open the files, and
-//! read both alternatives before changing anything in `templates`.
+//! read both alternatives, in a light and a dark system theme, before changing
+//! anything in `templates`.
 //!
 //! ```text
 //! cargo run -p micaforge-mail --example preview -- /tmp/mail
@@ -65,11 +66,7 @@ fn main() -> std::io::Result<()> {
     };
 
     let messages = [
-        ("verification", templates::verification(base, "demo-token")),
-        (
-            "password-reset",
-            templates::password_reset(base, "demo-token"),
-        ),
+        ("sign-in-code", templates::sign_in_code("048213", 10)),
         (
             "invitation",
             templates::invitation(base, "Reeds & Co", "demo-token"),

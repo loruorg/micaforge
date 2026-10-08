@@ -1,16 +1,20 @@
 //! Hashing, sealing and token generation.
 //!
-//! Four separate jobs live here, and they are kept in one module so that no
-//! other crate is ever tempted to grow a fifth implementation:
+//! Five separate jobs live here, and they are kept in one module so that no
+//! other crate is ever tempted to grow a sixth implementation:
 //!
-//! 1. **Passwords**: Argon2id, the only thing in the product that is meant to
-//!    be slow.
+//! 1. **Share-link passwords**: Argon2id, the only thing in the product that is
+//!    meant to be slow. Accounts have no password at all; a person signs in
+//!    with a code sent to their address. The one password left in the product
+//!    is the optional one an operator puts on a shared dashboard link.
 //! 2. **Secrets at rest**: `totp_secret_sealed`, integration credentials and
 //!    the site ingest key are sealed with XChaCha20-Poly1305 before they reach
 //!    Postgres, keyed off `MICAFORGE_SECRET_KEY_BASE`.
 //! 3. **Tokens**: API keys, session tokens and share-link slugs, plus the
 //!    digest that is stored in their place.
-//! 4. **The visitor hash**: the cookieless identity from `PRODUCT.md`, and the
+//! 4. **One-time codes**: the six digits a sign-in email carries, drawn without
+//!    bias, and the keyed digest that is stored in their place.
+//! 5. **The visitor hash**: the cookieless identity from `PRODUCT.md`, and the
 //!    reason no raw IP is ever written to an event row.
 
 use argon2::password_hash::rand_core::OsRng;
@@ -23,6 +27,7 @@ use chacha20poly1305::{Key, KeyInit, XChaCha20Poly1305, XNonce};
 use hmac::{Hmac, Mac};
 use rand::RngCore;
 use sha2::{Digest, Sha256};
+use subtle::ConstantTimeEq;
 
 use crate::error::{Error, Result};
 
@@ -38,9 +43,13 @@ const TAG_LEN: usize = 16;
 /// derived key in the install, which would make every sealed secret unreadable.
 const HKDF_SALT: &[u8] = b"micaforge/hkdf/v1";
 
-/// Field separator for [`visitor_hash`]. Without it, `("1.2.3", "4")` and
-/// `("1.2", "3.4")` would hash to the same visitor.
+/// Field separator for [`visitor_hash`] and [`keyed_digest`]. Without it,
+/// `("1.2.3", "4")` and `("1.2", "3.4")` would hash to the same value.
 const FIELD_SEP: &[u8] = &[0x1f];
+
+/// The most digits [`numeric_code`] draws. `10^9` is the largest power of ten
+/// below `2^32`, which is the width of one draw.
+const MAX_CODE_DIGITS: u32 = 9;
 
 /// Seal `plaintext` with XChaCha20-Poly1305, binding it to `aad`.
 ///
@@ -97,7 +106,7 @@ pub fn open(key: &[u8; 32], aad: &[u8], sealed: &[u8]) -> Result<Vec<u8>> {
         .map_err(|_| Error::internal("sealed value failed to open"))
 }
 
-/// Hash a password with Argon2id and return the PHC string.
+/// Hash a share-link password with Argon2id and return the PHC string.
 ///
 /// The returned string carries the algorithm, version, parameters and salt, so a
 /// later parameter change does not invalidate existing hashes: old hashes still
@@ -122,6 +131,74 @@ pub fn verify_password(pw: &str, hash: &str) -> bool {
             .is_ok(),
         Err(_) => false,
     }
+}
+
+/// A decimal code of `digits` digits, drawn uniformly from the CSPRNG.
+///
+/// Leading zeros are kept, so a six-digit code is one of exactly a million
+/// values, `000000` to `999999`, each as likely as any other. `digits` is
+/// clamped to `1..=9`.
+///
+/// Uniform is the property that matters, and the obvious `draw % 1_000_000`
+/// does not have it: `2^32` is not a multiple of a million, so the lowest
+/// 967,296 values would each come up once more often than the rest. A guesser
+/// who knew that would start with them. [`uniform_below`] rejects the draws past
+/// the last whole multiple instead, which costs a second draw about once in
+/// four thousand codes.
+pub fn numeric_code(digits: u32) -> String {
+    let digits = digits.clamp(1, MAX_CODE_DIGITS);
+    let space = 10u32.pow(digits);
+    let mut rng = rand::rng();
+    loop {
+        if let Some(n) = uniform_below(rng.next_u32(), space) {
+            return format!("{n:0width$}", width = digits as usize);
+        }
+    }
+}
+
+/// Map one 32-bit draw onto `0..space` without bias, or reject it.
+///
+/// Accepts only draws below the largest multiple of `space` that fits in the
+/// `2^32` possible draws. Every value in `0..space` then has exactly the same
+/// number of draws mapping onto it, which is what makes the result uniform.
+fn uniform_below(draw: u32, space: u32) -> Option<u32> {
+    let space = space.max(1);
+    let draws = 1u64 << 32;
+    let accepted = draws - draws % u64::from(space);
+    (u64::from(draw) < accepted).then(|| draw % space)
+}
+
+/// HMAC-SHA256 over `parts`, lower-case hex.
+///
+/// For a value that must be stored and compared later but must not be
+/// recoverable from a dump, when the input is too small for a plain digest to
+/// protect: a six-digit code has a million values, and `sha256(code)` is
+/// reversed by trying all of them. Keyed with a [`derive_key`] output, the
+/// digest is worthless without `MICAFORGE_SECRET_KEY_BASE`.
+///
+/// The parts are separated, so `("ab", "c")` and `("a", "bc")` never collide.
+pub fn keyed_digest(key: &[u8; 32], parts: &[&str]) -> String {
+    type HmacSha256 = Hmac<Sha256>;
+    let mut mac =
+        <HmacSha256 as Mac>::new_from_slice(key).expect("hmac-sha256 accepts a key of any length");
+    for (i, part) in parts.iter().enumerate() {
+        if i > 0 {
+            mac.update(FIELD_SEP);
+        }
+        mac.update(part.as_bytes());
+    }
+    hex::encode(mac.finalize().into_bytes())
+}
+
+/// Compare two digests in constant time.
+///
+/// A `==` on strings returns at the first differing byte, so how long it took
+/// says how many leading characters matched, and for a stored digest that is a
+/// way to learn it one character at a time. The length is not secret (every
+/// digest here is 64 hex characters), so only the contents are compared in
+/// constant time.
+pub fn digests_match(stored: &str, supplied: &str) -> bool {
+    stored.as_bytes().ct_eq(supplied.as_bytes()).into()
 }
 
 /// A url-safe, unpadded base64 token drawn from the OS CSPRNG.
@@ -245,6 +322,86 @@ mod tests {
         let last = sealed.len() - 1;
         sealed[last] ^= 0x01;
         assert!(open(&key, b"aad", &sealed).is_err());
+    }
+
+    #[test]
+    fn codes_have_the_requested_width_and_keep_leading_zeros() {
+        for _ in 0..200 {
+            let code = numeric_code(6);
+            assert_eq!(code.len(), 6);
+            assert!(code.bytes().all(|b| b.is_ascii_digit()), "{code}");
+        }
+        assert_eq!(numeric_code(0).len(), 1, "clamped up to one digit");
+        assert_eq!(numeric_code(40).len(), 9, "clamped down to nine digits");
+        // A leading zero is one code in ten. Two thousand codes without one
+        // would mean the padding, or the draw, was wrong.
+        assert!((0..2_000).any(|_| numeric_code(6).starts_with('0')));
+    }
+
+    #[test]
+    fn a_draw_is_rejected_exactly_past_the_last_whole_multiple() {
+        let space = 1_000_000;
+        // 2^32 is 4,294,967,296, so the last accepted draw is 4,293,999,999.
+        let accepted = 4_294_000_000u64;
+        assert_eq!(accepted % u64::from(space), 0);
+        assert_eq!(uniform_below(0, space), Some(0));
+        assert_eq!(uniform_below((accepted - 1) as u32, space), Some(999_999));
+        assert_eq!(uniform_below(accepted as u32, space), None);
+        assert_eq!(uniform_below(u32::MAX, space), None);
+
+        // The same rule for a space with a small remainder: 2^32 is 4 more
+        // than a multiple of 7, so exactly the top 4 draws are rejected.
+        assert_eq!(uniform_below(u32::MAX - 4, 7), Some((u32::MAX - 4) % 7));
+        assert_eq!(uniform_below(u32::MAX - 3, 7), None);
+    }
+
+    #[test]
+    fn every_digit_comes_up_about_as_often_as_every_other() {
+        // A chi-squared test on the leading digit of 60,000 codes. With nine
+        // degrees of freedom a fair draw stays under 40 except about once in a
+        // hundred thousand runs; a biased or broken draw does not.
+        let draws = 60_000;
+        let mut counts = [0u32; 10];
+        for _ in 0..draws {
+            let lead = numeric_code(6).as_bytes()[0] - b'0';
+            counts[usize::from(lead)] += 1;
+        }
+        let expected = f64::from(draws) / 10.0;
+        let chi2: f64 = counts
+            .iter()
+            .map(|&n| (f64::from(n) - expected).powi(2) / expected)
+            .sum();
+        assert!(chi2 < 40.0, "chi-squared {chi2} for {counts:?}");
+    }
+
+    #[test]
+    fn keyed_digests_need_the_key_and_keep_their_parts_apart() {
+        let key = derive_key("a-secret-key-base-of-adequate-length", "sign-in-code");
+        let other = derive_key("a-secret-key-base-of-adequate-length", "sign-in-address");
+        let a = keyed_digest(&key, &["ada@example.com", "123456"]);
+        assert_eq!(a.len(), 64);
+        assert_eq!(a, keyed_digest(&key, &["ada@example.com", "123456"]));
+        assert_ne!(a, keyed_digest(&other, &["ada@example.com", "123456"]));
+        assert_ne!(a, keyed_digest(&key, &["ada@example.com", "123457"]));
+        assert_ne!(
+            keyed_digest(&key, &["ab", "c"]),
+            keyed_digest(&key, &["a", "bc"])
+        );
+        // Not the unkeyed digest, which a million guesses would reverse.
+        assert_ne!(a, token_hash("123456"));
+    }
+
+    #[test]
+    fn digests_match_only_when_every_byte_does() {
+        let key = derive_key("a-secret-key-base-of-adequate-length", "sign-in-code");
+        let stored = keyed_digest(&key, &["ada@example.com", "123456"]);
+        assert!(digests_match(&stored, &stored.clone()));
+        assert!(!digests_match(
+            &stored,
+            &keyed_digest(&key, &["ada@example.com", "654321"])
+        ));
+        assert!(!digests_match(&stored, &stored[..63]));
+        assert!(!digests_match(&stored, ""));
     }
 
     #[test]

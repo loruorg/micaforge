@@ -8,10 +8,11 @@
 //! Either of two things, and nothing else:
 //!
 //! 1. Their address is listed in `MICAFORGE_ADMIN_EMAILS`, a comma-separated
-//!    list read once at boot, **and** they have verified it. Without the second
-//!    half, an install with open registration hands the instance to whoever
-//!    registers a listed address first, which is anybody who can read the
-//!    operator's compose file.
+//!    list read once at boot, **and** they have verified it. Every sign-in is
+//!    by a code sent to the address, so an account that has signed in has
+//!    verified it; the second half still matters for an account carried over
+//!    from a build that had passwords and has not signed in since, which proves
+//!    only that somebody once typed the address into a form.
 //! 2. They are the **first registered account**. On a `docker compose up`
 //!    install the person who signs up first is the operator, and requiring them
 //!    to also set an environment variable before they could see their own
@@ -108,8 +109,9 @@ pub async fn is_instance_admin(st: &AppState, user: &users::User) -> Result<bool
 
 /// The `MICAFORGE_ADMIN_EMAILS` rule: listed, and the address proven.
 ///
-/// Sign-in does not require a verified address, so a listed but unverified
-/// account proves only that somebody typed the address into a form.
+/// A code sign-in proves the address, but an account carried over from a
+/// password build may never have done so, and a listed but unverified account
+/// proves only that somebody typed the address into a form.
 fn listed_and_verified(listed: &[String], user: &users::User) -> bool {
     let email = user.email.trim().to_lowercase();
     user.email_verified_at.is_some() && listed.contains(&email)
@@ -609,14 +611,13 @@ mod tests {
         let mut user = users::User {
             id: Uuid::nil(),
             email: "  Ops@Example.com ".into(),
-            password_hash: String::new(),
             name: "Ops".into(),
             avatar_url: None,
             email_verified_at: None,
             totp_secret_sealed: None,
             created_at: Utc::now(),
         };
-        // Registered with the listed address, never proved it.
+        // Holds the listed address, never proved it.
         assert!(!listed_and_verified(&listed, &user));
 
         user.email_verified_at = Some(Utc::now());

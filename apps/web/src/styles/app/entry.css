@@ -334,6 +334,20 @@
   font-variant-numeric: tabular-nums lining-nums;
 }
 
+/* A one-time code: six digits read off another screen and typed in groups, so
+   they are set larger and spaced apart, in a field no wider than they need. */
+.mf-input--code {
+  max-width: 14ch;
+  font-size: var(--mf-t-lg);
+  letter-spacing: 0.3em;
+}
+
+/* A copyable command on the slip (the line an operator runs to print a
+   sign-in code) scrolls inside its own well. Without these the grid tracks
+   take the command's full width and push the slip over the column beside it. */
+.mf-form > .mf-form__fields,
+.mf-form__fields > .mf-copy { min-width: 0; }
+
 /* Keep the browser's autofill from painting its own surface over the well. */
 .mf-input:-webkit-autofill,
 .mf-input:-webkit-autofill:focus {

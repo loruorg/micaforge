@@ -36,8 +36,11 @@ Anything that breaks one of the guarantees the product actually makes:
 - **Tenant isolation.** Any path where one site's or one organisation's data is
   readable through another's credentials, including through a share link, an API
   key or the MCP server.
-- **Authentication and session handling.** Forged session cookies, share links
-  that ignore their password or expiry, API keys that outlive their revocation.
+- **Authentication and session handling.** Forged session cookies, a sign-in
+  code that works twice, outlives its ten minutes or can be guessed past its
+  limits, any answer or timing that tells whether an address has an account, a
+  code or token reaching a log, share links that ignore their password or
+  expiry, API keys that outlive their revocation.
 - **The ingest path.** Injecting events into a site you do not control, forging
   an edge-log submission past its HMAC, or getting a stored value out of the
   event store into the dashboard as script.

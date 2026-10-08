@@ -3,7 +3,7 @@ title: "GDPR and consent"
 description: "What the product does, what that means for consent, and where our answer stops."
 group: "privacy"
 order: 3
-updated: 2026-08-22
+updated: 2026-10-08
 ---
 
 <aside class="doc-annot">
@@ -79,8 +79,9 @@ task rather than a button in the interface today.
 A self-hosted install has no processor: you run it. There is no transfer, because nothing
 leaves the machine.
 
-If you use SMTP for invitations and reports, that provider is a processor for those emails.
-It is the only outbound path in the product, and it is off by default.
+If you send mail (sign-in codes, invitations and reports) through an SMTP relay or through
+Cloudflare Email Sending, that provider is a processor for those emails. It is the only
+outbound path in the product, and it is off by default.
 
 ## Retention
 

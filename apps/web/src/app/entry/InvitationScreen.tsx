@@ -1,40 +1,35 @@
 /**
  * Accept an invitation.
  *
- * The invitation is read before anything is asked of the reader, so the screen
- * can name the organisation that invited them and the address it was sent to.
- * An invitation that has expired, been withdrawn or already been accepted is a
- * normal outcome and is answered plainly.
+ * The invitation is read before anything is asked of the reader
+ * (`POST /api/invitations/preview`), so the screen can name the organisation
+ * that invited them and the address it was sent to. That address is where the
+ * sign-in code goes: there is no password to set, and the same code signs in an
+ * existing account or creates the new one, even on an install whose
+ * registration is closed. An invitation that has expired, been withdrawn or
+ * already been accepted is a normal outcome and is answered plainly.
+ *
+ * A brand-new account joins the inviting organisation as it is created (the
+ * sign-in answer lists it in `joined`). An existing account joins with
+ * `POST /api/invitations/accept` once it is signed in.
  */
-import type { FormEvent } from "react";
-import { useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "../../components/react/ui";
 import { ApiError, api } from "../../lib/api";
-import {
-  AuthFrame,
-  ENTRY_PATHS,
-  Field,
-  FormError,
-  PasswordField,
-  Waiting,
-  describedBy,
-  fieldError,
-  formError,
-} from "./AuthFrame";
+import { useAuth } from "../providers";
+import { AuthFrame, ENTRY_PATHS, FormError, Waiting, formError } from "./AuthFrame";
+import { CodeSignIn, type SignedIn } from "./CodeSignIn";
 
 interface Invitation {
   email: string;
+  org_id: string;
   org_name: string;
   role: string;
+  /** The inviter's name, when they still have an account here. */
   invited_by: string | null;
   expires_at: string | null;
-  /** True when the invited address already signs in to this instance. */
-  has_account: boolean;
 }
-
-const MIN_PASSWORD = 12;
 
 const ROLE_WORDS: Record<string, string> = {
   owner: "an owner",
@@ -53,41 +48,35 @@ function whenExpires(iso: string | null): string | null {
 export function InvitationScreen() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const auth = useAuth();
   const routeParams = useParams();
   const [query] = useSearchParams();
   const token = routeParams.token ?? query.get("token") ?? "";
 
-  const [name, setName] = useState("");
-  const [password, setPassword] = useState("");
-  const [localError, setLocalError] = useState<string | undefined>();
-
+  // The token travels in a body, never a path, because paths are logged.
   const invitation = useQuery({
     queryKey: ["invitation", token],
-    queryFn: () => api.get<Invitation>(`/api/auth/invitation/${encodeURIComponent(token)}`).then((r) => r.data),
+    queryFn: () => api.post<Invitation>("/api/invitations/preview", { token }).then((r) => r.data),
     enabled: token.length > 0,
     retry: false,
   });
 
   const accept = useMutation({
-    mutationFn: (body: { name: string; password: string }) =>
-      api.post<{ id: string }>(`/api/auth/invitation/${encodeURIComponent(token)}/accept`, body),
+    mutationFn: () => api.post<unknown>("/api/invitations/accept", { token }),
     onSuccess: async () => {
       await queryClient.invalidateQueries();
       navigate(ENTRY_PATHS.chooser, { replace: true });
     },
   });
 
-  const busy = accept.isPending;
-
-  const submit = (e: FormEvent) => {
-    e.preventDefault();
-    if (busy) return;
-    if (password.length < MIN_PASSWORD) {
-      setLocalError(`Use at least ${MIN_PASSWORD} characters.`);
+  /** After a code sign-in: a new account has joined already; an existing one accepts now. */
+  const signedIn = async (answer: SignedIn) => {
+    if (invitation.data && answer.joined?.includes(invitation.data.org_id)) {
+      await queryClient.invalidateQueries();
+      navigate(ENTRY_PATHS.chooser, { replace: true });
       return;
     }
-    setLocalError(undefined);
-    accept.mutate({ name: name.trim(), password });
+    accept.mutate();
   };
 
   if (!token) {
@@ -109,7 +98,7 @@ export function InvitationScreen() {
     );
   }
 
-  if (invitation.isPending) {
+  if (invitation.isPending || auth.isLoading) {
     return (
       <AuthFrame title="Reading the invitation" note="Checking who sent it and whether it is still open.">
         <Waiting label="Reading the invitation" lines={3} />
@@ -131,7 +120,7 @@ export function InvitationScreen() {
       >
         <p className="mf-form__body">
           {gone
-            ? "Ask whoever invited you to send a new one. If you have already accepted it, sign in with the password you set."
+            ? "Ask whoever invited you to send a new one. If you have already accepted it, sign in with your email."
             : "Try again in a moment. If it keeps failing, whoever runs this instance can check the server log."}
         </p>
         <div className="mf-form__foot">
@@ -156,20 +145,29 @@ export function InvitationScreen() {
     </>
   );
 
-  // The address already signs in here, so there is no password to set: the
-  // invitation attaches to the existing account the moment they sign in.
-  if (inv.has_account) {
-    const next = `${ENTRY_PATHS.login}?next=${encodeURIComponent(ENTRY_PATHS.chooser)}`;
+  const acceptError = accept.error;
+  const wrongAddress = acceptError instanceof ApiError && acceptError.status === 403;
+  const acceptBanner = wrongAddress
+    ? `You are signed in with another address. Sign out, then open the invitation link again and sign in as ${inv.email}.`
+    : acceptError instanceof ApiError && acceptError.status === 404
+      ? "This invitation is no longer open. It has expired, been withdrawn, or already been accepted."
+      : formError(acceptError);
+
+  // Already signed in: one button, and the server checks the address.
+  if (!auth.isSignedOut) {
     return (
       <AuthFrame title={`Join ${inv.org_name}`} note={note}>
-        <p className="mf-form__body">
-          That address already has a Micaforge account. Sign in with it and {inv.org_name} will be in
-          your list of sites.
-        </p>
+        {acceptBanner ? <FormError>{acceptBanner}</FormError> : null}
         <div className="mf-form__foot">
-          <Link className="mf-btn mf-btn--primary mf-btn--md" to={next}>
-            <span className="mf-btn__label">Sign in to accept</span>
-          </Link>
+          {wrongAddress ? (
+            <Button tone="primary" onClick={() => void auth.signOut()}>
+              Sign out
+            </Button>
+          ) : (
+            <Button tone="primary" disabled={accept.isPending} onClick={() => accept.mutate()}>
+              {accept.isPending ? "Joining…" : `Join ${inv.org_name}`}
+            </Button>
+          )}
         </div>
       </AuthFrame>
     );
@@ -177,58 +175,12 @@ export function InvitationScreen() {
 
   return (
     <AuthFrame title={`Join ${inv.org_name}`} note={note}>
-      <form className="mf-form" onSubmit={submit} noValidate>
-        {formError(accept.error) ? <FormError>{formError(accept.error)}</FormError> : null}
-
-        <div className="mf-form__fields">
-          <Field label="Email" htmlFor="mf-inv-email" hint="Set by the invitation and cannot be changed here.">
-            <input
-              id="mf-inv-email"
-              className="mf-input mf-input--data"
-              type="email"
-              value={inv.email}
-              readOnly
-              disabled
-              aria-describedby="mf-inv-email-hint"
-            />
-          </Field>
-
-          <Field label="Name" htmlFor="mf-inv-name" error={fieldError(accept.error, "name")}>
-            <input
-              id="mf-inv-name"
-              className="mf-input"
-              type="text"
-              autoComplete="name"
-              value={name}
-              disabled={busy}
-              required
-              aria-invalid={fieldError(accept.error, "name") ? true : undefined}
-              aria-describedby={describedBy("mf-inv-name", { error: fieldError(accept.error, "name") })}
-              onChange={(e) => setName(e.target.value)}
-            />
-          </Field>
-
-          <PasswordField
-            id="mf-inv-password"
-            label="Password"
-            value={password}
-            onChange={(v) => {
-              setPassword(v);
-              if (localError) setLocalError(undefined);
-            }}
-            autoComplete="new-password"
-            disabled={busy}
-            hint={`At least ${MIN_PASSWORD} characters.`}
-            error={localError ?? fieldError(accept.error, "password")}
-          />
-        </div>
-
-        <div className="mf-form__foot">
-          <Button tone="primary" type="submit" disabled={busy}>
-            {busy ? "Joining…" : `Join ${inv.org_name}`}
-          </Button>
-        </div>
-      </form>
+      {acceptBanner ? <FormError>{acceptBanner}</FormError> : null}
+      <CodeSignIn email={inv.email} sendLabel="Send me a code" openToAll onSignedIn={signedIn} />
+      <p className="mf-field__hint">
+        There is no password to choose. The code signs you in, and creates your account if this is
+        your first time here.
+      </p>
     </AuthFrame>
   );
 }

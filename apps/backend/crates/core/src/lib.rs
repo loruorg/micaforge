@@ -12,7 +12,8 @@
 //! - [`config`]: process configuration, read once from `MICAFORGE_*` env vars.
 //! - [`error`]: the single error enum, plus its wire code and HTTP status.
 //! - [`ids`]: UUIDv7 primary keys, generated application-side.
-//! - [`crypto`]: password hashing, sealed secrets, token and visitor digests.
+//! - [`crypto`]: share-link password hashing, sealed secrets, one-time codes,
+//!   token and visitor digests.
 //! - [`types`]: the shared domain vocabulary (dimensions, metrics, filters).
 //! - [`time`]: range resolution, bucket granularity, comparison periods.
 //! - [`filters`]: parsing the wire filter shape from `docs/CONTRACT.md` §3.2.

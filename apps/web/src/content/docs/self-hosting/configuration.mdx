@@ -3,7 +3,7 @@ title: "Configuration"
 description: "Every variable the server reads, what it defaults to, and what happens when it is unset."
 group: "self-hosting"
 order: 2
-updated: 2026-08-22
+updated: 2026-10-08
 ---
 
 `.env.example` in the repository is the complete inventory: every variable, once, with what
@@ -85,7 +85,9 @@ RUST_LOG=info
 
 Registration is closed by default. The first account on an install is always allowed and
 becomes its owner; everyone after it joins by invitation, unless you set
-`MICAFORGE_DISABLE_REGISTRATION=false`.
+`MICAFORGE_DISABLE_REGISTRATION=false`. There are no passwords: every account signs in with
+a six-digit code sent to its address, and an invitation is what lets a new address be sent
+one while registration is closed.
 
 `MICAFORGE_WRITER_BUFFER_MB` is how much each event table may hold in memory while
 ClickHouse is away, for a restart or an upgrade. The server keeps retrying and loses nothing
@@ -133,21 +135,38 @@ user-agent patterns and reverse DNS still apply.
 
 ## Mail, off by default
 
+Two ways to send it. Cloudflare Email Sending, over its HTTPS API:
+
+```sh
+MICAFORGE_CLOUDFLARE_EMAIL_TOKEN=     # an API token allowed to send email
+MICAFORGE_CLOUDFLARE_ACCOUNT_ID=      # the account the token sends for
+MICAFORGE_MAIL_FROM=Micaforge <noreply@example.com>
+```
+
+Or any SMTP relay:
+
 ```sh
 MICAFORGE_SMTP_URL=smtp://user:password@smtp.example.com:587
 MICAFORGE_MAIL_FROM=Micaforge <noreply@example.com>
 ```
 
-With no SMTP URL every email path degrades instead of failing: invitations become links you
-copy from the dashboard, scheduled reports do not run, and a password reset is a link the
+Cloudflare wins when both of its variables are set, then SMTP, then nothing. Setting only
+one of the two Cloudflare variables stops the server at boot and names the one that is
+missing, rather than quietly falling back. The `From` address must be on a domain your
+provider lets you send from.
+
+With no transport every email path degrades instead of failing: invitations become links you
+copy from the dashboard, scheduled reports do not run, and a sign-in code is one the
 operator prints on the host:
 
 ```sh
-docker compose exec micaforge micaforge-server reset-link you@example.com
+docker compose exec micaforge micaforge-server sign-in-code you@example.com
 ```
 
-The link works once and expires in an hour. No link or token is ever written to the log,
-because anyone who can read a log could otherwise take over the account.
+It prints a code only for an address that may sign in, the same rule the sign-in screen
+follows. The code works once, expires in ten minutes, and replaces any code sent to that
+address before. No code, link or token is ever written to the log, because anyone who can
+read a log could otherwise take over the account.
 
 ## Images and ports
 
@@ -200,7 +219,8 @@ MICAFORGE_ALLOW_PRIVATE_OUTBOUND=false  # let webhooks reach your own network
 ```
 
 The first registered account is always an instance admin. An address in
-`MICAFORGE_ADMIN_EMAILS` becomes one only after its owner verifies it.
+`MICAFORGE_ADMIN_EMAILS` becomes one only after its owner verifies it, which every code
+sign-in does.
 
 Outbound requests (robots.txt and sitemap reads, webhooks, imports by URL) refuse private,
 loopback and link-local addresses, after DNS and on every redirect, so a site record cannot

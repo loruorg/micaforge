@@ -1,0 +1,21 @@
+-- Micaforge: accounts have no password.
+--
+-- A person signs in with a six-digit code sent to their address
+-- (`routes::auth` in the server), so `users.password_hash` holds nothing the
+-- product reads any more. Keeping it would keep a column of Argon2 digests in
+-- every dump and every backup for no reason, and its NOT NULL would refuse the
+-- row every new account inserts. Existing accounts keep working: the address
+-- they already have is the account, and their next code signs them in.
+--
+-- This is a drop rather than the additive first step the migration rules ask
+-- for, and that is deliberate. A binary from before this change, still running
+-- beside this one, would be signing people in with passwords, which is the
+-- thing this change removes; it should fail rather than carry on. The shipped
+-- stack runs one server process, so there is no such window on it. Rolling back
+-- past this migration means restoring the dump `update.sh` takes before it
+-- starts, as `docs/self-hosting/upgrading` says for any migration.
+--
+-- `share_links.password_hash` is a different column for a different thing (the
+-- optional password on a shared dashboard link) and stays.
+
+ALTER TABLE users DROP COLUMN IF EXISTS password_hash;

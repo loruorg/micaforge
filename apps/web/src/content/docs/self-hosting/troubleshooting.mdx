@@ -3,7 +3,7 @@ title: "Troubleshooting"
 description: "The faults that actually happen, in the order they happen."
 group: "self-hosting"
 order: 6
-updated: 2026-08-22
+updated: 2026-10-08
 ---
 
 ## Start here
@@ -115,12 +115,30 @@ request header.
 
 ## Emails never arrive
 
-Expected with no `MICAFORGE_SMTP_URL`. Every email path degrades rather than failing:
-invitations become links you copy from the dashboard and scheduled reports do not run. For a
-forgotten password, print a reset link on the host:
+Expected with no mail transport (`MICAFORGE_CLOUDFLARE_EMAIL_TOKEN` with
+`MICAFORGE_CLOUDFLARE_ACCOUNT_ID`, or `MICAFORGE_SMTP_URL`). Every email path degrades
+rather than failing: invitations become links you copy from the dashboard and scheduled
+reports do not run. The sign-in screen says the server sends no email; print the code on
+the host:
 
 ```sh
-docker compose exec micaforge micaforge-server reset-link you@example.com
+docker compose exec micaforge micaforge-server sign-in-code you@example.com
+```
+
+With a transport set, a code that never arrives is in the server log as
+`a sign-in code could not be sent`, with the relay's or Cloudflare's reason. The address and
+the code are not in that line. If the command above answers that the address cannot sign in
+here, it has no account, registration is closed, and no invitation is waiting for it.
+
+## Lost the authenticator
+
+Turning two-factor off from the dashboard asks for a code from the authenticator, so a lost
+phone cannot be fixed from there. On a self-hosted install the operator clears it in
+Postgres, and the next sign-in asks only for the emailed code:
+
+```sh
+docker compose exec postgres psql -U micaforge -d micaforge \
+  -c "UPDATE users SET totp_secret_sealed = NULL WHERE email = 'you@example.com'"
 ```
 
 ## Numbers look wrong

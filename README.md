@@ -91,6 +91,15 @@ Migrations are not a step you run. The server carries its Postgres migrations
 inside the binary and converges the ClickHouse schema on boot, so starting the
 container is what applies them.
 
+There are no passwords. You sign in with a six-digit code sent to your address,
+and the first account to sign in owns the install. Until a mail transport is
+configured (`MICAFORGE_CLOUDFLARE_EMAIL_TOKEN` and `MICAFORGE_CLOUDFLARE_ACCOUNT_ID`,
+or `MICAFORGE_SMTP_URL`), print the code on the host instead:
+
+```sh
+docker compose exec micaforge micaforge-server sign-in-code you@example.com
+```
+
 Then:
 
 ```sh

@@ -182,7 +182,7 @@ Enums are `TEXT` + `CHECK`. Every secret at rest sealed with XChaCha20-Poly1305.
 
 | table | key columns |
 |---|---|
-| `users` | `id`, `email` (citext unique), `password_hash`, `name`, `avatar_url`, `email_verified_at`, `totp_secret_sealed`, `created_at` |
+| `users` | `id`, `email` (citext unique), `name`, `avatar_url`, `email_verified_at`, `totp_secret_sealed`, `created_at` — no credential column: sign-in is by emailed code (§3.6) |
 | `organizations` | `id`, `name`, `slug` unique, `owner_id`, `created_at` |
 | `org_members` | `org_id`, `user_id`, `role` (`owner`\|`admin`\|`member`\|`viewer`), `created_at` |
 | `teams` | `id`, `org_id`, `name` |
@@ -441,22 +441,56 @@ against the organisation owner's memberships but never carries the owner's autho
 
 ### 3.6 Accounts and roles
 
+- There are no passwords. Sign-in is a six-digit code sent to the address, and the same
+  code creates the account when the address has none and may have one:
+
+  ```
+  POST /api/auth/code          { email, name?, org_name? } → { status: "ok", mail_delivered }
+  POST /api/auth/code/verify   { email, code, totp?, name?, org_name? }
+                                 → { status: "totp_required" }
+                                 | { status: "ok", user, expires_at, created, joined: [org_id] }
+  POST /api/auth/logout        → { status: "signed_out" }
+  GET  /api/auth/me            PATCH /api/auth/me { name?, avatar_url? }
+  POST /api/auth/totp/enroll   POST /api/auth/totp/verify { code }
+  POST /api/auth/totp/disable  { code }   (a current authenticator code, not the session alone)
+  ```
+
+- An address may be sent a code when it has an account, when the install has no account
+  yet, when registration is open, or when an unexpired invitation is waiting for it.
+  `POST /api/auth/code` answers the same body for every address, sent or not, padded to a
+  400 ms floor; `mail_delivered` describes the install, not the address. Anybody else is
+  sent nothing.
+- A code is drawn uniformly from a CSPRNG, lives 10 minutes, and is stored in Valkey only
+  as an HMAC (keyed off `MICAFORGE_SECRET_KEY_BASE`) under a keyed digest of the address.
+  A new request replaces the previous code. It is consumed with an atomic compare-and-swap,
+  so it works once; five wrong guesses (a wrong authenticator code counts) delete it.
+  Every refusal is `401` with one sentence, whatever the reason.
+- Limits: 10 code requests per 10 minutes per client address and 3 per 10 minutes per email
+  address; 30 verifications per 10 minutes per client address and 10 per 10 minutes per email
+  address, counted with an atomic increment before the code is read. All answer `429`.
+- `totp_required` does not consume the code; the follow-up sends the same code with `totp`.
+- A new account with invitations waiting joins those organisations (`joined`) instead of
+  getting a workspace of its own. `micaforge-server sign-in-code <email>` mints a code with
+  the same rules and storage for an install with no mail transport.
 - The first account on an install owns it (instance admin, address verified at creation).
   Deciding "first" and creating the account happen under one Postgres advisory lock.
 - `MICAFORGE_DISABLE_REGISTRATION=true` closes registration to everyone except that first
-  account. `GET /api/config` reports `registration_open = !disabled || no users yet`.
+  account and addresses with an invitation. `GET /api/config` reports
+  `registration_open = !disabled || no users yet`.
 - `MICAFORGE_ADMIN_EMAILS` makes an account an instance admin only once its address is
-  verified.
-- Sign-in admits one password guess per backoff state of an address, claimed atomically
-  before the hash is checked, so parallel requests gain nothing. Per-address limits on
-  sign-in, registration, recovery and share unlock key on the address the trusted-proxy
-  rule resolves (`MICAFORGE_TRUSTED_PROXY_HEADER`), never the leftmost `X-Forwarded-For`.
+  verified. Every code sign-in verifies it.
+- Per-address limits on sign-in and share unlock key on the address the trusted-proxy rule
+  resolves (`MICAFORGE_TRUSTED_PROXY_HEADER`), never the leftmost `X-Forwarded-For`.
 - `DELETE /api/stats/visitors/:id` and `DELETE /api/replay/:session` need `admin` on the
   site.
 - A per-site override (`/api/sites/:id/access`) can only be granted to, or revoked from, a
   member ranked below the caller (the higher of their organisation role and any existing
   override), and never the organisation's owner.
 - Re-inviting an address revokes the earlier invitation's token.
+- `POST /api/invitations/preview { token }`, with no account, answers
+  `{ email, org_id, org_name, role, invited_by, expires_at }` for a live invitation and
+  `404` otherwise; the token travels in the body because paths are logged.
+  `POST /api/invitations/accept { token }` needs a session whose address is the invited one.
 
 ---
 

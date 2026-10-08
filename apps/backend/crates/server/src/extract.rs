@@ -1219,7 +1219,7 @@ mod tests {
         let cases = [
             (Method::GET, "/api/auth/me"),
             (Method::POST, "/api/auth/totp/enroll"),
-            (Method::POST, "/api/auth/password"),
+            (Method::POST, "/api/auth/code/verify"),
             (Method::GET, "/api/keys"),
             (Method::POST, "/api/keys"),
             (Method::DELETE, "/api/keys/0190"),
@@ -1232,6 +1232,7 @@ mod tests {
             (Method::PATCH, "/api/orgs/0190/members/0191"),
             (Method::POST, "/api/orgs/0190/invitations"),
             (Method::POST, "/api/invitations/accept"),
+            (Method::POST, "/api/invitations/preview"),
             (Method::POST, "/api/sites/3/access"),
             (Method::DELETE, "/api/sites/3/access/0191"),
             (Method::POST, "/api/teams/0190/members"),
@@ -1429,7 +1430,6 @@ mod tests {
         let user = users::User {
             id: Uuid::nil(),
             email: "a@b.c".into(),
-            password_hash: String::new(),
             name: "A".into(),
             avatar_url: None,
             email_verified_at: None,

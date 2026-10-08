@@ -25,12 +25,11 @@ import "../../styles/app/entry.css";
 
 /* ── where the entry screens live ────────────────────────────────────────
    One place names every route this area navigates to, so the router mounts
-   exactly these paths and no screen guesses at a sibling's URL. */
+   exactly these paths and no screen guesses at a sibling's URL. Signing up is
+   signing in: a code sent to an address does both, so there is no separate
+   signup, recovery or reset screen. */
 export const ENTRY_PATHS = {
   login: "/app/login",
-  signup: "/app/signup",
-  forgot: "/app/forgot-password",
-  reset: "/app/reset-password",
   invitation: "/app/invitation",
   chooser: "/app",
   addSite: "/app/new",
@@ -314,7 +313,11 @@ export function describedBy(id: string, opts: { error?: string; hint?: unknown }
   return undefined;
 }
 
-/** A password input with a real reveal control instead of a decorative icon. */
+/**
+ * A password input with a real reveal control instead of a decorative icon.
+ * Accounts have no password; this is for the optional password on a shared
+ * dashboard link (ShareScreen).
+ */
 export function PasswordField({
   id,
   label,
@@ -467,15 +470,19 @@ export function formError(err: unknown): string | undefined {
  */
 export interface InstanceConfig {
   registration_open: boolean;
+  /** True while the install has no account: the next one to sign in owns it. */
+  setup_required?: boolean;
+  /** Whether this install sends mail at all. */
+  mail_enabled?: boolean;
   self_hosted?: boolean;
   version?: string;
 }
 
 /**
  * A closed instance is a real, common configuration, not an error, so the
- * screens ask before they offer a signup form. While the answer is unknown the
- * screens assume closed and say so, because inviting someone into a form the
- * server will reject is worse than a sentence explaining the door is shut.
+ * sign-in screen asks before it offers to create an account. While the answer
+ * is unknown the screen assumes closed, because promising an account the server
+ * will not create is worse than a sentence explaining the door is shut.
  */
 export function useInstanceConfig() {
   return useQuery({

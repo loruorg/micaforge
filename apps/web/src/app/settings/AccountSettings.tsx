@@ -3,8 +3,12 @@
  *
  * The two-factor and session panels are written the way the rest of this
  * product writes about privacy: state exactly what is stored and what it can
- * do, then give the control. The recovery codes are shown once and the screen
- * says so before it generates them, not after.
+ * do, then give the control.
+ *
+ * There is no password panel because there is no password: every sign-in is a
+ * code sent to the account's address. Two-factor adds an authenticator code on
+ * top of it, and turning two-factor off asks for one, so a session left open on
+ * a shared machine cannot remove it.
  */
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -70,75 +74,48 @@ export function AccountSettings() {
 
   /* profile ------------------------------------------------------------- */
   const [name, setName] = useState<string | null>(null);
-  const [email, setEmail] = useState<string | null>(null);
   const [avatar, setAvatar] = useState<string | null>(null);
   const profile = {
     name: name ?? me.data?.name ?? "",
-    email: email ?? me.data?.email ?? "",
     avatar_url: avatar ?? me.data?.avatar_url ?? "",
   };
   const profileDirty =
     !!me.data &&
-    (profile.name !== me.data.name ||
-      profile.email !== me.data.email ||
-      profile.avatar_url !== (me.data.avatar_url ?? ""));
+    (profile.name !== me.data.name || profile.avatar_url !== (me.data.avatar_url ?? ""));
 
   const saveProfile = useMutation({
     mutationFn: () => api.patch<Me>("/api/auth/me", profile),
     onSuccess: (r) => {
       qc.setQueryData(["account", "me"], r.data);
       setName(null);
-      setEmail(null);
       setAvatar(null);
-    },
-  });
-
-  const resend = useMutation({
-    mutationFn: () => api.post<null>("/api/auth/verify/resend"),
-  });
-
-  /* password ------------------------------------------------------------ */
-  const [current, setCurrent] = useState("");
-  const [next, setNext] = useState("");
-  const [again, setAgain] = useState("");
-  const tooShort = next.length > 0 && next.length < 12;
-  const mismatch = again.length > 0 && next !== again;
-
-  const changePassword = useMutation({
-    mutationFn: () => api.post<null>("/api/auth/password", { current, next }),
-    onSuccess: () => {
-      setCurrent("");
-      setNext("");
-      setAgain("");
     },
   });
 
   /* two-factor ---------------------------------------------------------- */
   const [enrolling, setEnrolling] = useState<TotpStart | null>(null);
   const [code, setCode] = useState("");
-  const [recovery, setRecovery] = useState<string[] | null>(null);
-  const [totpPassword, setTotpPassword] = useState("");
+  const [offCode, setOffCode] = useState("");
 
   const startTotp = useMutation({
-    mutationFn: () => api.post<TotpStart>("/api/auth/totp/start").then((r) => r.data),
+    mutationFn: () => api.post<TotpStart>("/api/auth/totp/enroll").then((r) => r.data),
     onSuccess: (d) => setEnrolling(d),
   });
   const enableTotp = useMutation({
-    mutationFn: () =>
-      api.post<{ recovery_codes: string[] }>("/api/auth/totp/enable", { code }).then((r) => r.data),
-    onSuccess: (d) => {
+    mutationFn: () => api.post<null>("/api/auth/totp/verify", { code }),
+    onSuccess: () => {
       setEnrolling(null);
       setCode("");
-      setRecovery(d.recovery_codes ?? []);
       void qc.invalidateQueries({ queryKey: ["account", "me"] });
     },
   });
   const disableTotp = useMutation({
-    mutationFn: () => api.post<null>("/api/auth/totp/disable", { password: totpPassword }),
+    mutationFn: () => api.post<null>("/api/auth/totp/disable", { code: offCode }),
     onSuccess: () => {
-      setTotpPassword("");
+      setOffCode("");
       void qc.invalidateQueries({ queryKey: ["account", "me"] });
     },
+    onError: () => setOffCode(""),
   });
 
   /* sessions ------------------------------------------------------------ */
@@ -219,27 +196,15 @@ export function AccountSettings() {
                 </SpecRow>
                 <SpecRow
                   name="Email"
-                  hint="Used to sign in and to receive reports. Changing it sends a verification mail to the new address; the old one keeps working until the new one is confirmed."
+                  hint="Your sign-in codes and your reports go to this address. It is the account: there is no password beside it."
                   htmlFor="acc-email"
                 >
-                  <TextInput
-                    id="acc-email"
-                    type="email"
-                    data
-                    value={profile.email}
-                    onChange={(e) => setEmail(e.target.value)}
-                  />
+                  <TextInput id="acc-email" type="email" data value={u.email} readOnly />
                   <div className="mf-set-row">
                     {u.email_verified_at ? (
                       <Status state="done" label={`Verified ${ago(u.email_verified_at)}`} />
                     ) : (
-                      <>
-                        <Status state="waiting" label="Not verified" />
-                        <Button size="sm" tone="quiet" disabled={resend.isPending} onClick={() => resend.mutate()}>
-                          Send the mail again
-                        </Button>
-                        <Result action={resend} done="Sent." working="Sending…" />
-                      </>
+                      <Status state="waiting" label="Confirmed at your next sign-in" />
                     )}
                   </div>
                 </SpecRow>
@@ -272,7 +237,6 @@ export function AccountSettings() {
                   disabled={!profileDirty}
                   onClick={() => {
                     setName(null);
-                    setEmail(null);
                     setAvatar(null);
                   }}
                 >
@@ -288,93 +252,32 @@ export function AccountSettings() {
 
       <Panel>
         <PanelHead
-          title="Password"
-          note="At least twelve characters. Length is the only rule; Micaforge does not demand a symbol and a digit and a capital."
-        />
-        <Spec>
-          <SpecRow name="Current password" htmlFor="pw-current">
-            <TextInput
-              id="pw-current"
-              type="password"
-              autoComplete="current-password"
-              value={current}
-              onChange={(e) => setCurrent(e.target.value)}
-            />
-          </SpecRow>
-          <SpecRow name="New password" htmlFor="pw-next">
-            <Field error={tooShort ? "Twelve characters or more." : undefined}>
-              <TextInput
-                id="pw-next"
-                type="password"
-                autoComplete="new-password"
-                aria-invalid={tooShort || undefined}
-                value={next}
-                onChange={(e) => setNext(e.target.value)}
-              />
-            </Field>
-          </SpecRow>
-          <SpecRow name="New password again" htmlFor="pw-again">
-            <Field error={mismatch ? "The two do not match." : undefined}>
-              <TextInput
-                id="pw-again"
-                type="password"
-                autoComplete="new-password"
-                aria-invalid={mismatch || undefined}
-                value={again}
-                onChange={(e) => setAgain(e.target.value)}
-              />
-            </Field>
-          </SpecRow>
-        </Spec>
-        <Foot>
-          <Button
-            tone="primary"
-            disabled={
-              !current || next.length < 12 || next !== again || changePassword.isPending
-            }
-            onClick={() => changePassword.mutate()}
-          >
-            Change the password
-          </Button>
-          <span className="mf-set-foot__spacer" />
-          <Result action={changePassword} done="Password changed. Other sessions stay signed in." />
-        </Foot>
-      </Panel>
-
-      <Panel>
-        <PanelHead
           title="Two-factor"
-          note="A time-based code from an authenticator app, in addition to the password. The secret is sealed at rest and never leaves the server after enrolment."
+          note="A time-based code from an authenticator app, asked for after the code sent to your email. The secret is sealed at rest and never leaves the server after enrolment."
         />
         <QueryState query={me}>
           {(u) =>
-            recovery ? (
+            u.totp_enabled ? (
               <Block
-                title="Save these recovery codes now"
-                body="Each one signs you in once if you lose the authenticator. This is the only time they are shown."
+                title="Two-factor is on"
+                body="Turning it off needs a code from the authenticator, so a session left open somewhere cannot do it."
               >
-                <CopyField label="Recovery codes" value={recovery.join("\n")} />
                 <div className="mf-set-row">
-                  <Button tone="primary" onClick={() => setRecovery(null)}>
-                    I have saved them
-                  </Button>
-                </div>
-              </Block>
-            ) : u.totp_enabled ? (
-              <Block title="Two-factor is on" body="Turning it off needs your password, so a borrowed session cannot do it.">
-                <div className="mf-set-row">
-                  <Field label="Password" htmlFor="totp-pw">
+                  <Field label="Authenticator code" htmlFor="totp-off">
                     <TextInput
-                      id="totp-pw"
-                      type="password"
-                      autoComplete="current-password"
-                      value={totpPassword}
-                      onChange={(e) => setTotpPassword(e.target.value)}
+                      id="totp-off"
+                      data
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      pattern="[0-9]*"
+                      maxLength={6}
+                      value={offCode}
+                      onChange={(e) => setOffCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
                     />
                   </Field>
                   <Button
                     tone="danger"
-                    disabled={!totpPassword || disableTotp.isPending}
+                    disabled={offCode.length !== 6 || disableTotp.isPending}
                     onClick={() => disableTotp.mutate()}
                   >
                     Turn two-factor off
@@ -415,14 +318,15 @@ export function AccountSettings() {
                   </Button>
                 </div>
                 <Caution>
-                  Recovery codes are generated when you finish and shown once. Have somewhere to put them.
+                  From then on every sign-in asks for a code from this authenticator, and so does
+                  turning two-factor off. If it is lost, the operator of this install can clear it.
                 </Caution>
                 <Result action={enableTotp} done="Two-factor is on." working="Checking the code…" />
               </Block>
             ) : (
               <Block
                 title="Two-factor is off"
-                body="Anyone with your password can read every site in every organisation you belong to."
+                body="Anyone who can read your email can sign in as you and read every site in every organisation you belong to."
               >
                 <div className="mf-set-row">
                   <Button tone="primary" disabled={startTotp.isPending} onClick={() => startTotp.mutate()}>

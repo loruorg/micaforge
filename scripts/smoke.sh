@@ -4,19 +4,31 @@
 #
 #   scripts/smoke.sh                          # http://localhost, fresh install
 #   scripts/smoke.sh https://analytics.example.com
-#   SMOKE_EMAIL=you@example.com SMOKE_PASSWORD=... scripts/smoke.sh https://...
+#   SMOKE_EMAIL=you@example.com scripts/smoke.sh https://...
 #
 # What it proves, in order: the proxy answers, the server is live and ready,
 # the dashboard is served, /mf.js is the real tracker and not the fallback, an
-# account can sign in, a site can be created, a pageview sent the way a browser
-# sends it is accepted, written to ClickHouse, and read back by the stats API.
+# account can sign in with a code, a site can be created, a pageview sent the
+# way a browser sends it is accepted, written to ClickHouse, and read back by
+# the stats API.
 #
-# On a fresh install it registers a throwaway account (the first account, which
+# Sign-in is by a six-digit code, so the script needs a way to read one. By
+# default it asks the server to print it, the way an operator with no mail
+# transport would, which needs the stack's docker compose project in the
+# current directory:
+#
+#   docker compose exec -T micaforge micaforge-server sign-in-code <email>
+#
+# Point SMOKE_CODE_COMMAND at anything else that prints the code on its first
+# line when given the address as its last argument, for instance
+# "ssh host docker compose exec -T micaforge micaforge-server sign-in-code".
+#
+# On a fresh install it creates a throwaway account (the first account, which
 # becomes the instance admin), so run it against a stack you are about to
 # throw away, as CI does. Against a real install, pass an existing account in
-# SMOKE_EMAIL and SMOKE_PASSWORD; it then adds one site named smoke-<time>.
+# SMOKE_EMAIL; it then adds one site named smoke-<time>.
 #
-# Needs curl and jq.
+# Needs curl and jq, and docker unless SMOKE_CODE_COMMAND says otherwise.
 
 set -euo pipefail
 
@@ -82,18 +94,26 @@ pass "/mf.js is the real tracker ($(printf '%s' "$tracker" | wc -c | tr -d ' ') 
 
 # --- an account and a site ---------------------------------------------------
 
-if [ -n "${SMOKE_EMAIL:-}" ]; then
-	EMAIL="$SMOKE_EMAIL"
-	PASSWORD="${SMOKE_PASSWORD:?set SMOKE_PASSWORD with SMOKE_EMAIL}"
-else
-	EMAIL="smoke+$(date +%s)@example.com"
-	PASSWORD="smoke-$(od -An -N12 -tx1 /dev/urandom | tr -d ' \n')"
-	api POST /api/auth/register "$(jq -nc --arg e "$EMAIL" --arg p "$PASSWORD" '{email:$e,password:$p,name:"Smoke"}')" >/dev/null
-	pass "registered $EMAIL"
-fi
+EMAIL="${SMOKE_EMAIL:-smoke+$(date +%s)@example.com}"
+read -r -a CODE_COMMAND <<<"${SMOKE_CODE_COMMAND:-docker compose exec -T micaforge micaforge-server sign-in-code}"
 
-api POST /api/auth/login "$(jq -nc --arg e "$EMAIL" --arg p "$PASSWORD" '{email:$e,password:$p}')" >/dev/null
-pass "signed in"
+# The endpoint the sign-in screen calls. It answers the same for every address,
+# so this proves the route and its limits answer, not that a code was sent.
+sent=$(api POST /api/auth/code "$(jq -nc --arg e "$EMAIL" '{email:$e,name:"Smoke"}')")
+[ "$(jq -r '.data.status' <<<"$sent")" = ok ] || fail "POST /api/auth/code did not answer ok" "$sent"
+pass "asked for a sign-in code for $EMAIL"
+
+# The printed code replaces the one just asked for, so it is the one that works.
+CODE=$("${CODE_COMMAND[@]}" "$EMAIL" | head -n 1 | tr -d '[:space:]') ||
+	fail "could not get a sign-in code" "ran: ${CODE_COMMAND[*]} $EMAIL"
+[[ "$CODE" =~ ^[0-9]{6}$ ]] || fail "the code command did not print a code" "got: $CODE"
+
+signed=$(api POST /api/auth/code/verify "$(jq -nc --arg e "$EMAIL" --arg c "$CODE" '{email:$e,code:$c,name:"Smoke"}')")
+case "$(jq -r '.data.status' <<<"$signed")" in
+ok) pass "signed in with a code (account created: $(jq -r '.data.created' <<<"$signed"))" ;;
+totp_required) fail "$EMAIL has two-factor on" "use an account without it for the smoke test" ;;
+*) fail "POST /api/auth/code/verify did not sign in" "$signed" ;;
+esac
 
 org=$(api GET /api/auth/me | jq -r '.data.organizations[0].id // empty')
 [ -n "$org" ] || fail "the account has no organisation"

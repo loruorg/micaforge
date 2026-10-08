@@ -1,131 +1,88 @@
 /**
- * Sign in.
+ * Sign in, or create an account, with a code sent to an address.
  *
- * Two rules shape this screen. First, a failed sign-in never reveals whether
- * the account exists: whatever the server says about a rejected credential, the
- * reader is told one sentence that fits both cases. Second, validation errors
- * the server pins to a field are shown against that field, so a typo does not
- * arrive as a vague banner.
+ * One screen does both, because the server does: `POST /api/auth/code` sends a
+ * code to an address that may sign in here, and the code signs it in, creating
+ * the account first when there is none and the install allows one. The screen
+ * never knows which case it is in until the code is accepted, and it never
+ * says, so it cannot be used to find out which addresses have accounts.
+ *
+ * The wording follows what the install allows, read from `/api/config`: the
+ * first account on a fresh install is told it will own the install and may name
+ * itself and its workspace; an open install says "sign in or create an
+ * account"; an invite-only one says so before anybody waits for a code that
+ * will never come.
  */
-import type { FormEvent } from "react";
 import { useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Button } from "../../components/react/ui";
-import { ApiError, api } from "../../lib/api";
-import { AuthFrame, ENTRY_PATHS, Field, FormError, PasswordField, describedBy, fieldError, formError, useInstanceConfig } from "./AuthFrame";
-
-interface AuthedUser {
-  id: string;
-  email: string;
-  name: string;
-}
+import { useLocation, useNavigate, useSearchParams } from "react-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { AuthFrame, ENTRY_PATHS, useInstanceConfig } from "./AuthFrame";
+import { CodeSignIn, type CodeStep } from "./CodeSignIn";
 
 /** Only same-origin app paths are followed after sign-in. */
-function safeNext(raw: string | null): string {
+function safeNext(raw: string | null | undefined): string {
   if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return ENTRY_PATHS.chooser;
   return raw;
 }
 
 export function LoginScreen() {
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
   const [params] = useSearchParams();
   const config = useInstanceConfig();
+  const [step, setStep] = useState<CodeStep>("email");
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  // Where the reader was going: `?next=` from a link, or the address the
+  // account gate bounced them from.
+  const from = (location.state as { from?: string } | null)?.from;
+  const next = safeNext(params.get("next") ?? from);
 
-  const signIn = useMutation({
-    mutationFn: (body: { email: string; password: string }) =>
-      api.post<AuthedUser>("/api/auth/login", body).then((r) => r.data),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries();
-      navigate(safeNext(params.get("next")), { replace: true });
-    },
-  });
+  const setup = config.data?.setup_required === true;
+  const open = config.data?.registration_open === true;
 
-  const err = signIn.error;
-  const rejected =
-    err instanceof ApiError && (err.status === 401 || err.status === 403 || err.status === 404);
+  const title =
+    step === "code"
+      ? "Enter your code"
+      : step === "totp"
+        ? "One more code"
+        : setup
+          ? "Create the owner account"
+          : open
+            ? "Sign in or create an account"
+            : "Sign in";
 
-  // One sentence for every rejected credential, whether the address is unknown,
-  // the password is wrong, or the account is disabled. The screen must not be
-  // usable as a tool for finding out which accounts exist.
-  const banner = rejected
-    ? "Those details did not match an account. Check the address and the password, then try again."
-    : formError(err);
-
-  const busy = signIn.isPending;
-
-  const submit = (e: FormEvent) => {
-    e.preventDefault();
-    if (busy) return;
-    signIn.mutate({ email: email.trim(), password });
-  };
+  const note =
+    step !== "email"
+      ? undefined
+      : setup
+        ? "This install has no accounts yet. The first one owns it and can see every site and every setting. Enter your email and Micaforge sends you a six-digit code. There is no password."
+        : open
+          ? "Enter your email and Micaforge sends you a six-digit code. It signs you in, and creates your account if you do not have one yet. There is no password."
+          : "Enter the email of your account and Micaforge sends you a six-digit code. There is no password.";
 
   return (
-    <AuthFrame title="Sign in" note="Read the record for the sites you have access to.">
-      <form className="mf-form" onSubmit={submit} noValidate>
-        {banner ? <FormError>{banner}</FormError> : null}
+    <AuthFrame title={title} note={note}>
+      <CodeSignIn
+        sendLabel="Send a code"
+        askForProfile={setup}
+        openToAll={setup || open}
+        onStepChange={setStep}
+        onSignedIn={async () => {
+          await queryClient.invalidateQueries();
+          navigate(next, { replace: true });
+        }}
+      />
 
-        <div className="mf-form__fields">
-          <Field label="Email" htmlFor="mf-login-email" error={rejected ? undefined : fieldError(err, "email")}>
-            <input
-              id="mf-login-email"
-              className="mf-input"
-              type="email"
-              inputMode="email"
-              autoComplete="username"
-              autoCapitalize="off"
-              spellCheck={false}
-              value={email}
-              disabled={busy}
-              required
-              aria-invalid={!rejected && fieldError(err, "email") ? true : undefined}
-              aria-describedby={describedBy("mf-login-email", { error: rejected ? undefined : fieldError(err, "email") })}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </Field>
-
-          <PasswordField
-            id="mf-login-password"
-            label="Password"
-            value={password}
-            onChange={setPassword}
-            autoComplete="current-password"
-            disabled={busy}
-            error={rejected ? undefined : fieldError(err, "password")}
-          />
-        </div>
-
-        <div className="mf-form__foot">
-          <Button tone="primary" type="submit" disabled={busy}>
-            {busy ? "Signing in…" : "Sign in"}
-          </Button>
-          <Link className="mf-entry__link mf-entry__link--sm" to={ENTRY_PATHS.forgot}>
-            Forgotten your password?
-          </Link>
-        </div>
-
-        {/* An invite-only instance says so here rather than offering a link to
-            a form that would only reject the reader. Until the instance has
-            answered, the screen claims neither. */}
-        {config.isPending ? null : (
+      {/* An invite-only instance says so on the first step, rather than letting
+          a stranger wait for a code. Until the instance has answered, the
+          screen claims nothing. */}
+      {step === "email" && !config.isPending && !setup && !open ? (
         <p className="mf-field__hint">
-          {config.data?.registration_open ? (
-            <>
-              No account yet?{" "}
-              <Link className="mf-entry__link mf-entry__link--sm" to={ENTRY_PATHS.signup}>
-                Create one
-              </Link>
-            </>
-          ) : (
-            "This instance is invite-only. An owner has to send you an invitation before you can sign in."
-          )}
+          This instance is invite-only. If you do not have an account, an owner has to invite you
+          first; the invitation email has a link that opens straight onto this sign-in.
         </p>
-        )}
-      </form>
+      ) : null}
     </AuthFrame>
   );
 }

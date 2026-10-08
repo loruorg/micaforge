@@ -24,16 +24,27 @@
 //! token rather than the token, so a Redis dump is not a set of live invites.
 //! The cost is honest and bounded: a Redis flush loses *pending* invitations and
 //! nothing else, because acceptance writes a real `org_members` row. The
-//! operator re-sends. If the contract later grows the table, `store_invite`,
-//! `load_invite` and `index_invites` are the three functions that move.
+//! operator re-sends. If the contract later grows the table, the functions in
+//! the invitations section below are the ones that move.
+//!
+//! ## An invitation is also a door
+//!
+//! Accounts have no password: a person signs in with a code sent to their
+//! address (`routes::auth`). On an install with registration closed, an
+//! address that has no account may still be sent a code when an invitation is
+//! waiting for it, so the person invited can create the account the invitation
+//! is for. [`pending_invites_for`] answers that question, from a third Redis
+//! entry that lists the invitations sent to one address, keyed by a digest of
+//! the address rather than the address.
 
 use axum::extract::{Path, State};
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 use chrono::{DateTime, Duration, Utc};
-use micaforge_core::{crypto, new_id, Error, Result};
+use micaforge_core::{crypto, new_id, Config, Error, Result};
 use micaforge_store::models::{orgs, sites, users};
 use micaforge_store::pg::PgPool;
+use micaforge_store::Kv;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use uuid::Uuid;
@@ -41,6 +52,7 @@ use uuid::Uuid;
 use crate::error::ApiError;
 use crate::extract::AuthUser;
 use crate::response::ok;
+use crate::routes::auth::address_digest;
 use crate::state::AppState;
 
 /// What every handler in this module returns.
@@ -281,6 +293,7 @@ pub fn router() -> Router<AppState> {
             "/api/orgs/{org}/invitations/{invite}",
             delete(revoke_invite),
         )
+        .route("/api/invitations/preview", post(preview_invite))
         .route("/api/invitations/accept", post(accept_invite))
         .route("/api/orgs/{org}/teams", get(list_teams).post(create_team))
         .route(
@@ -573,10 +586,11 @@ async fn remove_member(
 
 /// A pending invitation, as it is held in Redis.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct Invite {
+pub(crate) struct Invite {
     /// Public identifier, used to revoke without knowing the token.
     id: Uuid,
-    org_id: Uuid,
+    /// The organisation the invitation is into.
+    pub(crate) org_id: Uuid,
     /// Lower-cased. Acceptance requires the signed-in address to match.
     email: String,
     role: String,
@@ -597,11 +611,21 @@ fn invite_index_key(org_id: Uuid) -> String {
     format!("mf:invite:org:{org_id}")
 }
 
+/// `mf:invite:addr:<digest of the address>` — the token digests of every
+/// invitation sent to one address, across organisations.
+///
+/// A hint and not the record: an entry counts only while the token lookup it
+/// names still holds a live invitation for this address, so a revoked or
+/// accepted invitation stops counting the moment its token key is deleted, and
+/// nothing else has to remember to clean this list.
+fn invite_address_key(cfg: &Config, email: &str) -> String {
+    format!("mf:invite:addr:{}", address_digest(cfg, email))
+}
+
 /// Read one organisation's pending invitations, dropping any that have lapsed.
-async fn index_invites(st: &AppState, org_id: Uuid) -> Result<Vec<Invite>> {
+async fn index_invites(kv: &Kv, org_id: Uuid) -> Result<Vec<Invite>> {
     let now = Utc::now();
-    let all: Vec<Invite> = st
-        .kv
+    let all: Vec<Invite> = kv
         .get_json(&invite_index_key(org_id))
         .await?
         .unwrap_or_default();
@@ -609,10 +633,70 @@ async fn index_invites(st: &AppState, org_id: Uuid) -> Result<Vec<Invite>> {
 }
 
 /// Write the index back, with the same TTL as the tokens it describes.
-async fn put_index(st: &AppState, org_id: Uuid, invites: &[Invite]) -> Result<()> {
-    st.kv
-        .set_json(&invite_index_key(org_id), &invites, Some(INVITE_TTL_SECS))
+async fn put_index(kv: &Kv, org_id: Uuid, invites: &[Invite]) -> Result<()> {
+    kv.set_json(&invite_index_key(org_id), &invites, Some(INVITE_TTL_SECS))
         .await
+}
+
+/// A token digest's invitation, if it is still live.
+async fn live_invite(kv: &Kv, token_hash: &str) -> Result<Option<Invite>> {
+    let invite: Option<Invite> = kv.get_json(&invite_token_key(token_hash)).await?;
+    Ok(invite.filter(|i| i.expires_at > Utc::now()))
+}
+
+/// Every live invitation sent to `email`, oldest first.
+///
+/// What the sign-in code path asks before it sends a code to an address that
+/// has no account on an install with registration closed, and what it redeems
+/// once that account exists.
+pub(crate) async fn pending_invites_for(kv: &Kv, cfg: &Config, email: &str) -> Result<Vec<Invite>> {
+    let digests: Vec<String> = kv
+        .get_json(&invite_address_key(cfg, email))
+        .await?
+        .unwrap_or_default();
+    let mut live = Vec::new();
+    for digest in digests {
+        if let Some(invite) = live_invite(kv, &digest).await? {
+            if invite.email.eq_ignore_ascii_case(email) {
+                live.push(invite);
+            }
+        }
+    }
+    Ok(live)
+}
+
+/// Add `token_hash` to the address list, dropping entries that no longer
+/// name a live invitation so the list stays as short as what it describes.
+async fn remember_for_address(kv: &Kv, cfg: &Config, email: &str, token_hash: &str) -> Result<()> {
+    let key = invite_address_key(cfg, email);
+    let mut digests: Vec<String> = Vec::new();
+    for invite in pending_invites_for(kv, cfg, email).await? {
+        digests.push(invite.token_hash);
+    }
+    digests.push(token_hash.to_string());
+    kv.set_json(&key, &digests, Some(INVITE_TTL_SECS)).await
+}
+
+/// Make `user_id` a member on the terms of `invite`, and use the invitation up.
+///
+/// The one place an invitation is redeemed: from the link, by a signed-in
+/// account ([`accept_invite`]), and at the creation of the account the
+/// invitation was for, by the sign-in code path. The caller has already
+/// established that the account's address is the invited one.
+pub(crate) async fn redeem_invite(
+    pg: &PgPool,
+    kv: &Kv,
+    invite: &Invite,
+    user_id: Uuid,
+) -> Result<orgs::OrgMember> {
+    let role = parse_role(&invite.role)?;
+    let member = orgs::add_member(pg, invite.org_id, user_id, role).await?;
+
+    kv.del(&invite_token_key(&invite.token_hash)).await?;
+    let mut index = index_invites(kv, invite.org_id).await?;
+    index.retain(|i| i.id != invite.id);
+    put_index(kv, invite.org_id, &index).await?;
+    Ok(member)
 }
 
 /// `GET /api/orgs/{org}/invitations` — what is outstanding.
@@ -623,7 +707,7 @@ async fn list_invites(
 ) -> ApiResult<Json<Value>> {
     auth.require_session()?;
     let (org, _) = authorize_org(&st.pg, org_id, auth.user.id, ADMIN).await?;
-    let invites = index_invites(&st, org.id).await?;
+    let invites = index_invites(&st.kv, org.id).await?;
 
     let out: Vec<Value> = invites.iter().map(invite_json).collect();
     Ok(ok(out))
@@ -640,8 +724,11 @@ struct NewInvite {
 /// `POST /api/orgs/{org}/invitations` — invite an address.
 ///
 /// The link is returned in the response as well as mailed. On an install with
-/// no SMTP relay that link is the only way an invitation works at all, and
+/// no mail transport that link is the only way an invitation works at all, and
 /// [`micaforge_mail::Mailer::is_sending`] is how the dashboard knows to show it.
+///
+/// Inviting an address that has no account is what lets it sign up by code on
+/// an install whose registration is closed: see the module docs.
 async fn create_invite(
     State(st): State<AppState>,
     auth: AuthUser,
@@ -688,13 +775,14 @@ async fn create_invite(
     // A re-invite replaces the earlier one outright. Dropping it from the index
     // alone would leave its token redeemable and no longer listed, so nobody
     // could see it, let alone revoke it.
-    let mut index = index_invites(&st, org.id).await?;
+    let mut index = index_invites(&st.kv, org.id).await?;
     for replaced in index.iter().filter(|i| i.email == email) {
         st.kv.del(&invite_token_key(&replaced.token_hash)).await?;
     }
     index.retain(|i| i.email != email);
     index.push(invite.clone());
-    put_index(&st, org.id, &index).await?;
+    put_index(&st.kv, org.id, &index).await?;
+    remember_for_address(&st.kv, &st.cfg, &email, &invite.token_hash).await?;
 
     // A relay that refuses the message must not lose the invitation: the link is
     // already in the response and the admin can hand it over.
@@ -720,22 +808,60 @@ async fn revoke_invite(
     auth.require_session()?;
     let (org, _) = authorize_org(&st.pg, org_id, auth.user.id, ADMIN).await?;
 
-    let mut index = index_invites(&st, org.id).await?;
+    let mut index = index_invites(&st.kv, org.id).await?;
     let Some(position) = index.iter().position(|i| i.id == invite_id) else {
         return Err(Error::not_found("invitation").into());
     };
 
+    // Deleting the token key is what ends it everywhere, the address list
+    // included: see `invite_address_key`.
     let invite = index.remove(position);
     st.kv.del(&invite_token_key(&invite.token_hash)).await?;
-    put_index(&st, org.id, &index).await?;
+    put_index(&st.kv, org.id, &index).await?;
 
     Ok(ok(json!({ "revoked": invite.id })))
 }
 
 /// The token from the emailed link.
 #[derive(Debug, Deserialize)]
-struct AcceptInvite {
+struct InviteToken {
     token: String,
+}
+
+/// `POST /api/invitations/preview` — what an invitation is for, before anybody
+/// signs in.
+///
+/// The invitation screen names the organisation and the address before it asks
+/// for anything, and it needs the address to send the sign-in code to. The
+/// token is the credential, so no session is asked for: whoever holds it read
+/// the email it was sent in, which is the same proof the code will ask for.
+/// It travels in the body rather than the path because the access log records
+/// paths. An unknown, expired, withdrawn or used token is one `404`.
+async fn preview_invite(
+    State(st): State<AppState>,
+    Json(body): Json<InviteToken>,
+) -> ApiResult<Json<Value>> {
+    let digest = crypto::token_hash(body.token.trim());
+    let Some(invite) = live_invite(&st.kv, &digest).await? else {
+        return Err(Error::not_found("invitation").into());
+    };
+
+    let org = orgs::get(&st.pg, invite.org_id).await?;
+    // The inviter may have left since. Their name is a courtesy, not a fact
+    // the invitation depends on.
+    let invited_by = users::get(&st.pg, invite.invited_by)
+        .await
+        .ok()
+        .map(|u| u.name);
+
+    Ok(ok(json!({
+        "email": invite.email,
+        "org_id": org.id,
+        "org_name": org.name,
+        "role": invite.role,
+        "invited_by": invited_by,
+        "expires_at": invite.expires_at,
+    })))
 }
 
 /// `POST /api/invitations/accept` — join the organisation.
@@ -746,12 +872,11 @@ struct AcceptInvite {
 async fn accept_invite(
     State(st): State<AppState>,
     auth: AuthUser,
-    Json(body): Json<AcceptInvite>,
+    Json(body): Json<InviteToken>,
 ) -> ApiResult<Json<Value>> {
     auth.require_session()?;
     let digest = crypto::token_hash(body.token.trim());
-    let invite: Option<Invite> = st.kv.get_json(&invite_token_key(&digest)).await?;
-    let Some(invite) = invite.filter(|i| i.expires_at > Utc::now()) else {
+    let Some(invite) = live_invite(&st.kv, &digest).await? else {
         return Err(Error::not_found("invitation").into());
     };
 
@@ -761,14 +886,7 @@ async fn accept_invite(
         );
     }
 
-    let role = parse_role(&invite.role)?;
-    let member = orgs::add_member(&st.pg, invite.org_id, auth.user.id, role).await?;
-
-    st.kv.del(&invite_token_key(&digest)).await?;
-    let mut index = index_invites(&st, invite.org_id).await?;
-    index.retain(|i| i.id != invite.id);
-    put_index(&st, invite.org_id, &index).await?;
-
+    let member = redeem_invite(&st.pg, &st.kv, &invite, auth.user.id).await?;
     let org = orgs::get(&st.pg, invite.org_id).await?;
     Ok(ok(json!({
         "organization": org_json(&org, Some(&member.role), None),
@@ -1134,7 +1252,7 @@ pub fn clean_name(raw: &str, field: &str) -> Result<String> {
 ///
 /// Deliberately not a full RFC 5322 parse. The only thing that proves an address
 /// is real is mail arriving at it, so this rejects what is obviously not an
-/// address and leaves the rest to the verification link.
+/// address and leaves the rest to the sign-in code.
 pub fn clean_email(raw: &str) -> Result<String> {
     let email = raw.trim().to_lowercase();
     let looks_addressable = email.len() >= 3
@@ -1151,6 +1269,31 @@ pub fn clean_email(raw: &str) -> Result<String> {
         return Err(Error::validation("email", "is not a valid email address"));
     }
     Ok(email)
+}
+
+/// What the live tests of other modules need from this one.
+#[cfg(test)]
+pub(crate) mod tests_support {
+    use super::*;
+
+    /// Invite `email` into `org_id` as `auth`, through the real handler, so a
+    /// test elsewhere gets an invitation exactly as an admin would make one.
+    /// Answers what the handler answered, link included.
+    pub(crate) async fn invite(st: &AppState, auth: AuthUser, org_id: Uuid, email: &str) -> Value {
+        create_invite(
+            State(st.clone()),
+            auth,
+            Path(org_id),
+            Json(NewInvite {
+                email: email.to_string(),
+                role: None,
+            }),
+        )
+        .await
+        .expect("an admin may invite an address")
+        .0["data"]
+            .clone()
+    }
 }
 
 #[cfg(test)]

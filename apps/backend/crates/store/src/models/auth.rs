@@ -120,8 +120,9 @@ pub async fn delete_by_token_hash(pool: &PgPool, token_hash: &str) -> Result<()>
 
 /// Sign a user out everywhere.
 ///
-/// What a password change and a "sign out all devices" button both call. An
-/// account recovery that left old cookies working would not be a recovery.
+/// What a "sign out all devices" button calls. Leaving old cookies working
+/// after somebody asked for every device to be signed out would make the
+/// button decoration.
 pub async fn delete_for_user(pool: &PgPool, user_id: Uuid) -> Result<u64> {
     let result = sqlx::query("DELETE FROM sessions_auth WHERE user_id = $1")
         .bind(user_id)

@@ -39,7 +39,6 @@ use uuid::Uuid;
 use crate::error::ApiError;
 use crate::extract::{AuthUser, ClientAddr, PublicSite, SiteAccess};
 use crate::response::ok;
-use crate::routes::auth::{hash_password_blocking, verify_password_blocking};
 use crate::routes::orgs::{clean_name, require_at_least, ADMIN, MEMBER, OWNER, VIEWER};
 use crate::state::AppState;
 
@@ -973,6 +972,27 @@ fn password_fingerprint(password_hash: Option<&str>) -> String {
     crypto::token_hash(password_hash.unwrap_or(""))
 }
 
+/// Hash a share-link password on the blocking pool.
+///
+/// Argon2id is tens to hundreds of milliseconds of pure CPU by design. Run on an
+/// async worker it stalls every other request scheduled on that thread for the
+/// whole of it, which turns a burst of unlock attempts into a stalled server.
+async fn hash_password_blocking(password: String) -> Result<String> {
+    tokio::task::spawn_blocking(move || crypto::hash_password(&password))
+        .await
+        .map_err(|e| Error::internal(format!("the password hasher stopped: {e}")))?
+}
+
+/// Verify a share-link password on the blocking pool. See
+/// [`hash_password_blocking`].
+///
+/// The comparison inside is Argon2's own, which is constant-time.
+async fn verify_password_blocking(password: String, stored: String) -> Result<bool> {
+    tokio::task::spawn_blocking(move || crypto::verify_password(&password, &stored))
+        .await
+        .map_err(|e| Error::internal(format!("the password verifier stopped: {e}")))
+}
+
 /// The live link an unlock token opens, when it still opens one.
 async fn unlocked_link(st: &AppState, token: &str) -> Result<Option<sites::ShareLink>> {
     if !token.starts_with(SHARE_TOKEN_PREFIX) {
@@ -1531,6 +1551,21 @@ fn month_start(timezone: &str) -> DateTime<Utc> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn argon2_runs_off_the_runtime_and_still_agrees_with_itself() {
+        let digest = hash_password_blocking("correct horse battery".into())
+            .await
+            .unwrap();
+        assert!(
+            verify_password_blocking("correct horse battery".into(), digest.clone())
+                .await
+                .unwrap()
+        );
+        assert!(!verify_password_blocking("wrong".into(), digest)
+            .await
+            .unwrap());
+    }
 
     #[test]
     fn a_pasted_url_becomes_a_hostname() {
