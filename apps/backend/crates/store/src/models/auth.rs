@@ -131,6 +131,17 @@ pub async fn delete_for_user(pool: &PgPool, user_id: Uuid) -> Result<u64> {
     Ok(result.rows_affected())
 }
 
+/// Sign a user out everywhere except the session making the request: the
+/// "sign out other devices" button.
+pub async fn delete_others(pool: &PgPool, user_id: Uuid, keep: Uuid) -> Result<u64> {
+    let result = sqlx::query("DELETE FROM sessions_auth WHERE user_id = $1 AND id <> $2")
+        .bind(user_id)
+        .bind(keep)
+        .execute(pool)
+        .await?;
+    Ok(result.rows_affected())
+}
+
 /// Delete expired rows. Housekeeping, run from the job queue.
 pub async fn purge_expired(pool: &PgPool) -> Result<u64> {
     let result = sqlx::query("DELETE FROM sessions_auth WHERE expires_at <= now()")

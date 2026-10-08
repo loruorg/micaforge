@@ -71,7 +71,7 @@ use std::time::Instant;
 
 use axum::extract::State;
 use axum::http::HeaderMap;
-use axum::routing::{get, post};
+use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 use axum_extra::extract::cookie::{Cookie, CookieJar};
 use chrono::{DateTime, Duration, Utc};
@@ -86,7 +86,7 @@ use totp_rs::{Algorithm, Secret, TOTP};
 use uuid::Uuid;
 
 use crate::error::ApiError;
-use crate::extract::{AuthUser, ClientAddr};
+use crate::extract::{AuthMethod, AuthUser, ClientAddr};
 use crate::response::ok;
 use crate::routes::orgs::{
     clean_email, clean_name, pending_invites_for, redeem_invite, unique_slug, OWNER,
@@ -213,6 +213,12 @@ pub fn router() -> Router<AppState> {
         .route("/api/auth/totp/verify", post(totp_verify))
         .route("/api/auth/totp/disable", post(totp_disable))
         .route("/api/auth/me", get(me).patch(update_me))
+        .route("/api/auth/sessions", get(list_sessions))
+        .route(
+            "/api/auth/sessions/revoke-others",
+            post(revoke_other_sessions),
+        )
+        .route("/api/auth/sessions/{id}", delete(revoke_session))
 }
 
 // ---------------------------------------------------------------------------
@@ -1057,6 +1063,68 @@ async fn update_me(
 // ---------------------------------------------------------------------------
 // Sessions
 // ---------------------------------------------------------------------------
+
+/// The session the caller is using, or a refusal for an API key: only a person
+/// signed in to the dashboard has sessions to list or end.
+fn current_session(auth: &AuthUser) -> Result<Uuid> {
+    match auth.method {
+        AuthMethod::Session(id) => Ok(id),
+        AuthMethod::ApiKey(_) => Err(Error::Forbidden(
+            "API keys cannot be used on this endpoint; sign in to the dashboard".to_string(),
+        )),
+    }
+}
+
+/// `GET /api/auth/sessions` — where this account is signed in.
+///
+/// The address is only ever a salted digest, and only its first twelve
+/// characters are shown: enough to tell two devices apart, nothing to recover.
+async fn list_sessions(State(st): State<AppState>, auth: AuthUser) -> ApiResult<Json<Value>> {
+    let current = current_session(&auth)?;
+    let rows = sessions::list_for_user(&st.pg, auth.user.id).await?;
+    let list: Vec<Value> = rows
+        .iter()
+        .map(|s| {
+            json!({
+                "id": s.id,
+                "user_agent": s.user_agent.clone().unwrap_or_default(),
+                "ip_hash": s.ip_hash.as_deref().map(|h| h.chars().take(12).collect::<String>()).unwrap_or_default(),
+                "expires_at": s.expires_at,
+                "current": s.id == current,
+            })
+        })
+        .collect();
+    Ok(ok(json!(list)))
+}
+
+/// `DELETE /api/auth/sessions/{id}` — sign one device out. Only the account's
+/// own sessions can be ended; any other id answers as not found.
+async fn revoke_session(
+    State(st): State<AppState>,
+    auth: AuthUser,
+    axum::extract::Path(id): axum::extract::Path<Uuid>,
+) -> ApiResult<Json<Value>> {
+    current_session(&auth)?;
+    let owned = sessions::list_for_user(&st.pg, auth.user.id)
+        .await?
+        .into_iter()
+        .any(|s| s.id == id);
+    if !owned {
+        return Err(Error::NotFound("session".to_string()).into());
+    }
+    sessions::delete(&st.pg, id).await?;
+    Ok(ok(json!({ "revoked": id })))
+}
+
+/// `POST /api/auth/sessions/revoke-others` — sign every other device out.
+async fn revoke_other_sessions(
+    State(st): State<AppState>,
+    auth: AuthUser,
+) -> ApiResult<Json<Value>> {
+    let current = current_session(&auth)?;
+    let revoked = sessions::delete_others(&st.pg, auth.user.id, current).await?;
+    Ok(ok(json!({ "revoked": revoked })))
+}
 
 /// Open a session and hand the browser its cookie.
 async fn open_session(
