@@ -21,7 +21,7 @@ const firstLive = LIVE.slice(0, 5);
 const dayLabels = ["Sep 8", "Sep 15", "Sep 22", "Sep 29", "Oct 6"];
 ---
 
-<figure class="hp" aria-label="Micaforge dashboard preview with demo data">
+<figure class="hp" aria-label="Micaforge dashboard preview with demo data" data-nosnippet>
   <div class="hp__bar">
     <div class="hp__site">
       <span class="hp__favicon" aria-hidden="true">a</span>
@@ -29,7 +29,7 @@ const dayLabels = ["Sep 8", "Sep 15", "Sep 22", "Sep 29", "Oct 6"];
       <span class="hp__demo">Demo data</span>
     </div>
     <div class="hp__tools">
-      <span class="hp__online"><span class="hp__dot" aria-hidden="true"></span><span data-live-count>37</span> online</span>
+      <span class="hp__online"><span class="hp__dot" aria-hidden="true"></span><span data-live-count>37</span><span class="hp__online-word"> online</span></span>
       <span class="hp__range">Last 30 days</span>
     </div>
   </div>
@@ -107,7 +107,7 @@ const dayLabels = ["Sep 8", "Sep 15", "Sep 22", "Sep 29", "Oct 6"];
     <section class="hp__panel" aria-label="AI crawlers">
       <div class="hp__panel-head">
         <span class="hp__panel-title">AI crawlers</span>
-        <span class="hp__panel-meta">Visits</span>
+        <span class="hp__panel-meta">Crawls</span>
       </div>
       <ul class="hp__rows">
         {
@@ -137,7 +137,7 @@ const dayLabels = ["Sep 8", "Sep 15", "Sep 22", "Sep 29", "Oct 6"];
               <span class="hp__event-mark" aria-hidden="true" />
               <span class="hp__event-text">
                 <strong>{e.who}</strong>
-                <span>{e.kind === "crawler" ? "crawled" : "sent a visitor to"}</span>
+                <span>{e.kind === "crawler" ? "crawled" : e.who === "Direct" ? "visit to" : "sent a visitor to"}</span>
               </span>
               <span class="hp__event-page">{e.page}</span>
             </li>

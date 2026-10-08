@@ -22,15 +22,16 @@ import {
   IconRetention,
   IconSources,
 } from "../components/react/icons.tsx";
-import { CHANNEL_SPLIT, CRAWLERS, GAP_PAGES } from "../lib/home-demo";
+import { CONVERSIONS, CRAWLERS, GAP_PAGES } from "../lib/home-demo";
 import "../styles/home.css";
 
-const title = "Micaforge: open-source web analytics for the AI search era";
+const title = "Micaforge: open-source web analytics that shows AI traffic";
 const description =
-  "Privacy-friendly, open-source web analytics. See the visitors ChatGPT, Perplexity and Google send you, and which AI crawlers read your site.";
+  "Open-source, cookie-free Google Analytics alternative. See the visitors ChatGPT, Perplexity and Google send you, and the AI crawlers that read your site.";
 
 const nf = new Intl.NumberFormat("en-US");
 const maxCrawled = Math.max(...GAP_PAGES.map((p) => p.crawled));
+const maxRate = Math.max(...CONVERSIONS.map((c) => c.conversions / c.visitors));
 
 const FEATURES = [
   { Icon: IconClock, name: "Realtime", hint: "Who is on now" },
@@ -48,7 +49,7 @@ const FEATURES = [
   { Icon: IconExperiments, name: "Feature flags", hint: "Roll out safely" },
   { Icon: IconDashboards, name: "Shared dashboards", hint: "Public or private link" },
   { Icon: IconQuery, name: "Stats API", hint: "And CSV export" },
-  { Icon: IconDownload, name: "Imports", hint: "From GA and Plausible" },
+  { Icon: IconDownload, name: "Imports", hint: "From GA, Plausible, Umami" },
 ];
 
 const FAQ = [
@@ -84,6 +85,8 @@ const jsonLd = [
     operatingSystem: "Web",
     description,
     license: "https://www.gnu.org/licenses/agpl-3.0.html",
+    screenshot: "https://micaforge.com/og/default.png",
+    sameAs: ["https://github.com/loruorg/micaforge"],
     offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
   },
   {
@@ -100,16 +103,35 @@ const jsonLd = [
 
 <Base title={title} description={description} bare>
   <script slot="head" type="application/ld+json" is:inline set:html={JSON.stringify(jsonLd)} />
+  <!--
+    Hold the hero chart's starting pose from the first frame when motion is allowed, so it
+    draws in once instead of showing, blanking and drawing again. If the page script never
+    runs, the timer drops the class and the chart simply shows.
+  -->
+  <script slot="head" is:inline>
+    (function () {
+      try {
+        if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+          var root = document.documentElement;
+          root.classList.add("hm");
+          setTimeout(function () {
+            if (!root.hasAttribute("data-hm-started")) root.classList.remove("hm");
+          }, 3000);
+        }
+      } catch (e) {
+        /* no matchMedia: leave the page as it is */
+      }
+    })();
+  </script>
   <div class="mf-page">
     <SiteHeader />
 
     <main id="main" class="home">
       <section class="hero" aria-labelledby="hero-h">
         <div class="mf-wrap hero__text">
-          <h1 id="hero-h">Web analytics for the AI&nbsp;search era</h1>
+          <h1 id="hero-h">Web analytics that shows your AI&nbsp;traffic</h1>
           <p class="hero__sub">
-            See the visitors ChatGPT, Perplexity and Google send you, and every AI crawler that reads your
-            site. Open source, cookie-free, and set up in two minutes.
+            See the visitors ChatGPT, Perplexity and Google send you, and the AI crawlers that read your site.
           </p>
           <div class="hero__acts">
             <a class="mf-cta" href="/app/">
@@ -120,7 +142,7 @@ const jsonLd = [
             </a>
             <a class="mf-cta mf-cta--ghost" href="/self-host">Self-host</a>
           </div>
-          <p class="hero__fine">Free during beta · No credit card · No cookie banner</p>
+          <p class="hero__fine">Open source · No cookies · Free during the beta</p>
         </div>
         <div class="mf-wrap hero__shot">
           <DashboardPreview />
@@ -132,8 +154,9 @@ const jsonLd = [
           <header class="sec__head">
             <h2 id="ai-h">Your next customers ask an AI first</h2>
             <p>
-              Most analytics tools drop AI crawlers as bots and lump AI answers into referrals. Micaforge shows both.{" "}
-              <a href="/why-agent-analytics">Why it matters</a>
+              AI now reads your docs and blog before people do. Most analytics tools drop AI crawlers as bots and
+              lump AI answers into referrals. Micaforge shows both.{" "}
+              <a href="/why-agent-analytics">Why AI traffic matters</a>
             </p>
           </header>
 
@@ -145,26 +168,40 @@ const jsonLd = [
                 the same goals and conversions.
               </p>
             </div>
-            <div class="feat__vis mf-panel" data-reveal>
+            <div class="feat__vis mf-panel" data-reveal data-nosnippet>
               <div class="vis-head">
-                <span>Visitors by channel</span>
+                <span>Conversions by channel</span>
                 <span class="vis-demo">Demo data</span>
               </div>
-              <div class="split" role="img" aria-label="Search 41%, Direct 24%, Referral 15%, AI answers 11%, Social 9%">
-                {CHANNEL_SPLIT.map((c, i) => <span class="split__seg" data-key={c.key} style={`--w:${c.share}%;--i:${i}`} />)}
-              </div>
-              <ul class="split__legend">
-                {
-                  CHANNEL_SPLIT.map((c) => (
-                    <li data-key={c.key}>
-                      <i aria-hidden="true" />
-                      <span>{c.label}</span>
-                      <strong>{c.share}%</strong>
-                    </li>
-                  ))
-                }
-              </ul>
-              <p class="vis-foot"><strong>AI answers</strong> grew 3.2× in 90 days</p>
+              <table class="conv">
+                <thead>
+                  <tr>
+                    <th scope="col">Channel</th>
+                    <th scope="col" class="is-num">Visitors</th>
+                    <th scope="col" class="is-num">Sign-ups</th>
+                    <th scope="col" class="conv__rate-h">Rate</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {
+                    CONVERSIONS.map((c, i) => (
+                      <tr data-key={c.key} style={`--i:${i}`}>
+                        <th scope="row">
+                          <i aria-hidden="true" />
+                          {c.label}
+                        </th>
+                        <td class="is-num">{nf.format(c.visitors)}</td>
+                        <td class="is-num">{nf.format(c.conversions)}</td>
+                        <td class="conv__rate">
+                          <span class="conv__bar" style={`--w:${((c.conversions / c.visitors) / maxRate).toFixed(3)}`} />
+                          <strong>{((c.conversions / c.visitors) * 100).toFixed(1)}%</strong>
+                        </td>
+                      </tr>
+                    ))
+                  }
+                </tbody>
+              </table>
+              <p class="vis-foot">Visitors from <strong>AI answers</strong> convert more than twice as often as search visitors.</p>
             </div>
           </div>
 
@@ -175,15 +212,19 @@ const jsonLd = [
                 Each crawler is named by company and purpose and checked against the IP ranges that company publishes.
                 Fakes are flagged, and you see who ignores your robots.txt.
               </p>
+              <p class="feat__links">
+                <a href="/docs/agents/verifying-agents">How verification works</a>
+                <a href="/docs/agents/robots-and-llms-txt">robots.txt and llms.txt</a>
+              </p>
             </div>
-            <div class="feat__vis mf-panel" data-reveal>
+            <div class="feat__vis mf-panel" data-reveal data-nosnippet>
               <div class="vis-head">
                 <span>AI crawlers this month</span>
                 <span class="vis-demo">Demo data</span>
               </div>
               <table class="crawl">
                 <thead>
-                  <tr><th scope="col">Crawler</th><th scope="col">Purpose</th><th scope="col" class="is-num">Visits</th><th scope="col">Identity</th></tr>
+                  <tr><th scope="col">Crawler</th><th scope="col" class="is-num">Crawls</th><th scope="col">Identity</th><th scope="col">robots.txt</th></tr>
                 </thead>
                 <tbody>
                   {
@@ -191,13 +232,17 @@ const jsonLd = [
                       <tr data-state={c.state} style={`--i:${i}`}>
                         <th scope="row">
                           {c.name}
-                          <span>{c.owner}</span>
+                          <span>
+                            {c.owner} · {c.purpose}
+                          </span>
                         </th>
-                        <td>{c.purpose}</td>
                         <td class="is-num">{nf.format(c.visits)}</td>
                         <td>
-                          <span class="crawl__id">
-                            {c.state === "verified" ? "Verified" : "Fake: wrong IP range"}
+                          <span class="crawl__id">{c.state === "verified" ? "Verified" : "Fake"}</span>
+                        </td>
+                        <td>
+                          <span class="crawl__rules" data-rules={c.rules}>
+                            {c.rules === "allowed" ? "Allowed" : "Blocked, still crawls"}
                           </span>
                         </td>
                       </tr>
@@ -215,8 +260,11 @@ const jsonLd = [
                 For every page, compare how often AI crawled it with how many readers came back from an answer. Then
                 write more of what works.
               </p>
+              <p class="feat__links">
+                <a href="/docs/agents/the-citation-gap">How the citation gap works</a>
+              </p>
             </div>
-            <div class="feat__vis mf-panel" data-reveal>
+            <div class="feat__vis mf-panel" data-reveal data-nosnippet>
               <div class="vis-head">
                 <span>Crawled vs. visitors sent back</span>
                 <span class="vis-demo">Demo data</span>
@@ -249,8 +297,11 @@ const jsonLd = [
       <section class="sec sec--tint" aria-labelledby="all-h">
         <div class="mf-wrap">
           <header class="sec__head">
-            <h2 id="all-h">Everything else you expect from analytics</h2>
-            <p>One script and one dashboard for the reports you check every day.</p>
+            <h2 id="all-h">Everything you used in Google Analytics, without cookies</h2>
+            <p>
+              One script and one dashboard for the reports you check every day.{" "}
+              <a href="/vs/google-analytics">Compare with Google Analytics</a>
+            </p>
           </header>
           <ul class="grid">
             {
@@ -289,8 +340,12 @@ const jsonLd = [
               <span class="steps__n">2</span>
               <div>
                 <h3>Paste one line</h3>
-                <pre class="steps__code"><code>&lt;script defer src="https://api.micaforge.com/mf.js"
-  data-site="1"&gt;&lt;/script&gt;</code></pre>
+                <pre class="steps__code"><code>&lt;script defer data-site="1"
+  src="https://api.micaforge.com/mf.js"&gt;&lt;/script&gt;</code></pre>
+                <p class="steps__note">
+                  To count AI crawlers too, add the edge middleware or ship your server log.{" "}
+                  <a href="/docs/agents/shipping-server-logs">How</a>
+                </p>
               </div>
             </li>
             <li>
@@ -322,7 +377,7 @@ const jsonLd = [
 
       <section class="sec" aria-labelledby="faq-h">
         <div class="mf-wrap faq">
-          <h2 id="faq-h">Questions</h2>
+          <h2 id="faq-h">Frequently asked questions</h2>
           <div class="faq__list">
             {
               FAQ.map((f) => (
@@ -342,7 +397,7 @@ const jsonLd = [
       <section class="close" aria-labelledby="close-h">
         <div class="mf-wrap close__inner">
           <h2 id="close-h">See what AI does with your site</h2>
-          <p>Free during the beta. Set up in two minutes.</p>
+          <p>Free during the beta. Live in two minutes.</p>
           <div class="hero__acts">
             <a class="mf-cta" href="/app/">Start free</a>
             <a class="mf-cta mf-cta--ghost" href="/docs">Read the docs</a>

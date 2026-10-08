@@ -113,7 +113,7 @@ export const STATS = [
   { label: "Visitors", value: 48213, delta: "+12%", tone: "people" },
   { label: "Pageviews", value: 131904, delta: "+9%", tone: "people" },
   { label: "From AI answers", value: 3904, delta: "+64%", tone: "ai" },
-  { label: "AI crawler visits", value: 212480, delta: "+23%", tone: "ai" },
+  { label: "AI crawls", value: 212480, delta: "+23%", tone: "ai" },
 ] as const;
 
 export const SOURCES = [
@@ -126,12 +126,12 @@ export const SOURCES = [
 ] as const;
 
 export const CRAWLERS = [
-  { name: "GPTBot", owner: "OpenAI", purpose: "Training", visits: 81200, state: "verified" },
-  { name: "ClaudeBot", owner: "Anthropic", purpose: "Training", visits: 44900, state: "verified" },
-  { name: "Googlebot", owner: "Google", purpose: "Search", visits: 38050, state: "verified" },
-  { name: "PerplexityBot", owner: "Perplexity", purpose: "Search", visits: 19610, state: "verified" },
-  { name: "ChatGPT-User", owner: "OpenAI", purpose: "Assistant", visits: 8930, state: "verified" },
-  { name: "ClaudeBot", owner: "Claims Anthropic", purpose: "Unknown", visits: 2140, state: "spoofed" },
+  { name: "GPTBot", owner: "OpenAI", purpose: "Training", visits: 81200, state: "verified", rules: "allowed" },
+  { name: "ClaudeBot", owner: "Anthropic", purpose: "Training", visits: 44900, state: "verified", rules: "allowed" },
+  { name: "OAI-SearchBot", owner: "OpenAI", purpose: "Search", visits: 38050, state: "verified", rules: "allowed" },
+  { name: "PerplexityBot", owner: "Perplexity", purpose: "Search", visits: 19610, state: "verified", rules: "allowed" },
+  { name: "Applebot", owner: "Apple", purpose: "Search", visits: 8930, state: "verified", rules: "allowed" },
+  { name: "ClaudeBot", owner: "Claims Anthropic", purpose: "Unknown", visits: 2140, state: "spoofed", rules: "ignored" },
 ] as const;
 
 export type LiveKind = "people" | "ai-referral" | "crawler";
@@ -149,12 +149,12 @@ export const LIVE: { kind: LiveKind; who: string; page: string; note?: string }[
   { kind: "crawler", who: "PerplexityBot", page: "/docs/sdks", note: "verified" },
 ];
 
-export const CHANNEL_SPLIT = [
-  { key: "search", label: "Search", share: 41 },
-  { key: "direct", label: "Direct", share: 24 },
-  { key: "referral", label: "Referral", share: 15 },
-  { key: "ai", label: "AI answers", share: 11 },
-  { key: "social", label: "Social", share: 9 },
+/** Conversions by channel: the same four channels as the hero chart. */
+export const CONVERSIONS = [
+  { key: "search", label: "Search", visitors: 19840, conversions: 412 },
+  { key: "direct", label: "Direct", visitors: 11920, conversions: 301 },
+  { key: "other", label: "Social and referral", visitors: 8642, conversions: 139 },
+  { key: "ai", label: "AI answers", visitors: 3904, conversions: 187 },
 ] as const;
 
 export const GAP_PAGES = [

@@ -11,7 +11,9 @@
 type LiveEvent = { kind: "people" | "ai-referral" | "crawler"; who: string; page: string };
 
 const FEED_MS = 2600;
-const COUNT_MS = 1100;
+const COUNT_MS = 900;
+/** Figures tick up the last stretch to their value, never from zero: the number is readable at once. */
+const COUNT_FROM = 0.86;
 
 const nf = new Intl.NumberFormat("en-US");
 
@@ -35,7 +37,8 @@ function countUp(el: HTMLElement) {
   const tick = (now: number) => {
     const t = Math.min(1, (now - started) / COUNT_MS);
     const eased = 1 - Math.pow(2, -10 * t);
-    el.textContent = nf.format(Math.round(target * (t === 1 ? 1 : eased)));
+    const share = t === 1 ? 1 : COUNT_FROM + (1 - COUNT_FROM) * eased;
+    el.textContent = nf.format(Math.round(target * share));
     if (t < 1) requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);
@@ -53,7 +56,7 @@ function eventNode(e: LiveEvent): HTMLLIElement {
   const who = document.createElement("strong");
   who.textContent = e.who;
   const verb = document.createElement("span");
-  verb.textContent = e.kind === "crawler" ? "crawled" : "sent a visitor to";
+  verb.textContent = e.kind === "crawler" ? "crawled" : e.who === "Direct" ? "visit to" : "sent a visitor to";
   text.append(who, verb);
   const page = document.createElement("span");
   page.className = "hp__event-page";
@@ -100,6 +103,7 @@ export function startHomeMotion() {
   if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
   const preview = document.querySelector<HTMLElement>(".hp");
+  document.documentElement.setAttribute("data-hm-started", "");
   if (preview) {
     const svg = preview.querySelector("[data-draw]");
     const counts = preview.querySelectorAll<HTMLElement>("[data-count]");

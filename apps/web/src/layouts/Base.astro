@@ -26,6 +26,9 @@ const canonical = new URL(Astro.url.pathname, Astro.site ?? "https://micaforge.c
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonical.href} />
     <meta property="og:image" content={new URL(ogImage, canonical).href} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Micaforge: web analytics that shows your AI traffic" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="generator" content={Astro.generator} />
     <link rel="icon" href="/mark.svg" type="image/svg+xml" />
@@ -56,13 +59,14 @@ const canonical = new URL(Astro.url.pathname, Astro.site ?? "https://micaforge.c
       THESIS: The analytics a small SaaS or developer-tool team opens every morning, plus
       the view nobody else ships: visitors sent by AI answers and the AI crawlers reading
       the site. Refuses the GA4 report wall and the metaphor-heavy instrument look.
-      OWN-WORLD: The category standard, light only. Zinc neutrals on #fafafa, white
-      panels with hairline edges and soft offset shadows, near-black ink and buttons,
-      Geist and Geist Mono. Blue means people and orange means AI, on every surface.
+      OWN-WORLD: The category standard, light only. A white page with #fafafa bands (the
+      dashboard sits on #fafafa), white panels with hairline edges and soft offset shadows,
+      near-black ink and buttons, Geist and Geist Mono. Blue means people and orange means
+      AI, on every surface.
       STORY: A founder sees a real dashboard, spots ChatGPT among the sources, learns
       Micaforge shows AI traffic without cookies, and starts free.
-      FIRST VIEWPORT: Headline and one sentence on the left, Start free and Self-host
-      buttons; a full-width live dashboard preview below (labelled demo data).
+      FIRST VIEWPORT: Centred headline and one sentence, Start free and Self-host buttons;
+      a full-width live dashboard preview below (labelled demo data).
       FORM: category standard, chosen by the user over the roll; seed 670285ec.
       FINISH: unreviewed and undocumented is unfinished; this build ends with the finish
       review, the verdict, and DESIGN.md
