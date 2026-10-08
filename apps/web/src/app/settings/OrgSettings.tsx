@@ -9,7 +9,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Button, Empty, Panel, PanelHead, Sheet, type Column } from "../../components/react/ui";
-import { IconCheck, IconClose, IconOut, IconPlus } from "../../components/react/icons";
+import { IconCheck, IconClose, IconPlus } from "../../components/react/icons";
 import { api } from "../../lib/api";
 import { ago } from "../../lib/format";
 import {
@@ -96,7 +96,7 @@ export function OrgSettings() {
 
   const invites = useQuery({
     queryKey: ["settings", "invites", orgId],
-    queryFn: () => api.get<Invite[]>(`/api/orgs/${orgId}/invites`).then((r) => r.data),
+    queryFn: () => api.get<Invite[]>(`/api/orgs/${orgId}/invitations`).then((r) => r.data),
     enabled: !!orgId,
   });
 
@@ -125,7 +125,7 @@ export function OrgSettings() {
 
   const invite = useMutation({
     mutationFn: () =>
-      api.post<Invite>(`/api/orgs/${orgId}/invites`, { email: inviteEmail, role: inviteRole }),
+      api.post<Invite>(`/api/orgs/${orgId}/invitations`, { email: inviteEmail, role: inviteRole }),
     onSuccess: () => {
       setInviteEmail("");
       void qc.invalidateQueries({ queryKey: ["settings", "invites", orgId] });
@@ -133,17 +133,13 @@ export function OrgSettings() {
   });
 
   const cancelInvite = useMutation({
-    mutationFn: (id: string) => api.del<null>(`/api/orgs/${orgId}/invites/${id}`),
+    mutationFn: (id: string) => api.del<null>(`/api/orgs/${orgId}/invitations/${id}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["settings", "invites", orgId] }),
-  });
-
-  const resendInvite = useMutation({
-    mutationFn: (id: string) => api.post<null>(`/api/orgs/${orgId}/invites/${id}/resend`),
   });
 
   const [heir, setHeir] = useState("");
   const transfer = useMutation({
-    mutationFn: () => api.post<null>(`/api/orgs/${orgId}/transfer`, { user_id: heir }),
+    mutationFn: () => api.post<null>(`/api/orgs/${orgId}/owner`, { user_id: heir }),
     onSuccess: () => {
       setHeir("");
       void qc.invalidateQueries({ queryKey: ["settings", "members", orgId] });
@@ -226,15 +222,6 @@ export function OrgSettings() {
       width: "1%",
       render: (i) => (
         <span className="mf-set-row">
-          <Button
-            size="sm"
-            tone="quiet"
-            icon={<IconOut size={12} />}
-            disabled={resendInvite.isPending}
-            onClick={() => resendInvite.mutate(i.id)}
-          >
-            Send again
-          </Button>
           <Button
             size="sm"
             tone="quiet"

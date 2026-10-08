@@ -53,7 +53,7 @@ export function TeamsSettings() {
 
   const teams = useQuery({
     queryKey: ["settings", "teams", orgId],
-    queryFn: () => api.get<Team[]>(`/api/teams?org=${encodeURIComponent(orgId)}`).then((r) => r.data),
+    queryFn: () => api.get<Team[]>(`/api/orgs/${orgId}/teams`).then((r) => r.data),
     enabled: !!orgId,
   });
 
@@ -85,7 +85,7 @@ export function TeamsSettings() {
   });
 
   const createTeam = useMutation({
-    mutationFn: () => api.post<Team>("/api/teams", { org_id: orgId, name: teamName }),
+    mutationFn: () => api.post<Team>(`/api/orgs/${orgId}/teams`, { name: teamName }),
     onSuccess: () => {
       setTeamName("");
       void qc.invalidateQueries({ queryKey: ["settings", "teams", orgId] });

@@ -168,12 +168,19 @@ export function TrackingSetup() {
 
   const key = useQuery({
     queryKey: ["settings", "ingest-key", id],
-    queryFn: () => api.get<IngestKey>(`/api/sites/${id}/ingest-key`).then((r) => r.data),
+    // The key is part of the site's tracking details; only the key is read here.
+    queryFn: () =>
+      api
+        .get<{ ingest_key: string }>(`/api/sites/${id}/tracking`)
+        .then((r): IngestKey => ({ key: r.data.ingest_key })),
     enabled: !!id,
   });
 
   const rotateKey = useMutation({
-    mutationFn: () => api.post<IngestKey>(`/api/sites/${id}/ingest-key/rotate`).then((r) => r.data),
+    mutationFn: () =>
+      api
+        .post<{ ingest_key: string; rotated_at: string }>(`/api/sites/${id}/rotate-key`)
+        .then((r): IngestKey => ({ key: r.data.ingest_key, rotated_at: r.data.rotated_at })),
     onSuccess: (data) => qc.setQueryData(["settings", "ingest-key", id], data),
   });
 

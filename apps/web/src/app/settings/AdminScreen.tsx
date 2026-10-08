@@ -91,6 +91,30 @@ interface AdminSite {
   created_at: string;
 }
 
+/* ── what the admin endpoints answer ───────────────────────────────────────
+   The server's own shapes, read here and turned into the rows this screen
+   draws, so a field rename on either side breaks in one place. */
+
+interface StatsWire {
+  version: string;
+  self_hosted?: boolean;
+  counts: { users: number; organizations: number; sites: number };
+}
+
+interface ClickhouseWire {
+  tables: { table: string; rows: number; bytes_on_disk: number; parts?: number }[];
+}
+
+interface JobsWire {
+  counts: { status: string; count: number }[];
+  backlog: { oldest_due_at: string | null };
+  failed: { id: string; kind: string }[];
+}
+
+function countOf(rows: JobsWire["counts"], status: string): number {
+  return rows.find((r) => r.status === status)?.count ?? 0;
+}
+
 /** Keeps a search box from asking the server on every keystroke. */
 function useDebounced<T>(value: T, ms = 250): T {
   const [held, setHeld] = useState(value);
@@ -108,7 +132,16 @@ export function AdminScreen() {
 
   const overview = useQuery({
     queryKey: ["admin", "overview"],
-    queryFn: () => api.get<AdminOverview>("/api/admin/overview").then((r) => r.data),
+    queryFn: () =>
+      api.get<StatsWire>("/api/admin/stats").then(
+        (r): AdminOverview => ({
+          version: r.data.version,
+          self_hosted: r.data.self_hosted,
+          users: r.data.counts.users,
+          organizations: r.data.counts.organizations,
+          sites: r.data.counts.sites,
+        }),
+      ),
     retry: false,
   });
 
@@ -116,13 +149,26 @@ export function AdminScreen() {
 
   const storage = useQuery({
     queryKey: ["admin", "storage"],
-    queryFn: () => api.get<StorageTable[]>("/api/admin/storage").then((r) => r.data),
+    queryFn: () =>
+      api.get<ClickhouseWire>("/api/admin/clickhouse").then((r): StorageTable[] =>
+        r.data.tables.map((t) => ({ table: t.table, rows: t.rows, bytes: t.bytes_on_disk, parts: t.parts })),
+      ),
     enabled: !forbidden,
   });
 
   const jobs = useQuery({
     queryKey: ["admin", "jobs"],
-    queryFn: () => api.get<JobHealth>("/api/admin/jobs").then((r) => r.data),
+    queryFn: () =>
+      api.get<JobsWire>("/api/admin/jobs").then(
+        (r): JobHealth & { failedIds: string[] } => ({
+          pending: countOf(r.data.counts, "pending"),
+          running: countOf(r.data.counts, "running"),
+          failed: countOf(r.data.counts, "failed"),
+          oldest_pending_at: r.data.backlog.oldest_due_at,
+          by_kind: [],
+          failedIds: r.data.failed.map((f) => f.id),
+        }),
+      ),
     enabled: !forbidden,
     refetchInterval: 15_000,
   });
@@ -130,24 +176,38 @@ export function AdminScreen() {
   const users = useQuery({
     queryKey: ["admin", "users", q],
     queryFn: () =>
-      api.get<AdminUser[]>(`/api/admin/users?limit=50&q=${encodeURIComponent(q)}`).then((r) => r.data),
+      api
+        .get<{ users: AdminUser[] }>(`/api/admin/users?limit=50&q=${encodeURIComponent(q)}`)
+        .then((r) => r.data.users),
     enabled: !forbidden,
   });
 
   const orgs = useQuery({
     queryKey: ["admin", "orgs"],
-    queryFn: () => api.get<AdminOrg[]>("/api/admin/orgs?limit=50").then((r) => r.data),
+    queryFn: () =>
+      api.get<{ organizations: AdminOrg[] }>("/api/admin/orgs?limit=50").then((r) => r.data.organizations),
     enabled: !forbidden,
   });
 
   const sites = useQuery({
     queryKey: ["admin", "sites"],
-    queryFn: () => api.get<AdminSite[]>("/api/admin/sites?limit=50").then((r) => r.data),
+    queryFn: async (): Promise<AdminSite[]> => {
+      const [list, orgList] = await Promise.all([
+        api.get<{ sites: (Omit<AdminSite, "org"> & { org_id: string })[] }>("/api/admin/sites?limit=50"),
+        api.get<{ organizations: AdminOrg[] }>("/api/admin/orgs?limit=200"),
+      ]);
+      const names = new Map(orgList.data.organizations.map((o) => [o.id, o.name]));
+      return list.data.sites.map((site) => ({ ...site, org: names.get(site.org_id) ?? "" }));
+    },
     enabled: !forbidden,
   });
 
   const retryJobs = useMutation({
-    mutationFn: () => api.post<{ retried: number }>("/api/admin/jobs/retry-failed"),
+    mutationFn: async () => {
+      const ids = jobs.data?.failedIds ?? [];
+      await Promise.all(ids.map((id) => api.post<null>(`/api/admin/jobs/${id}/retry`)));
+      return { retried: ids.length };
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "jobs"] }),
   });
 
