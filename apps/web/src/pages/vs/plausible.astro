@@ -50,7 +50,7 @@ const rows: { q: string; cells: [Cell, Cell, Cell] }[] = [
   {
     q: "Release cadence",
     cells: [
-      { s: "no", w: "Pre-release", n: "No tagged release, no production install, no track record. That is the honest state today." },
+      { s: "no", w: "Early", n: "A hosted beta, but no tagged release and no track record yet. That is the honest state today." },
       { s: "partial", w: "Twice a year", n: "Their README calls CE a long term release, so new work reaches it late." },
       { s: "yes", w: "Continuously", n: "Their README says multiple times per week." },
     ],
@@ -146,7 +146,7 @@ const rows: { q: string; cells: [Cell, Cell, Cell] }[] = [
   {
     q: "Managed hosting",
     cells: [
-      { s: "no", w: "None", n: "There is no hosted Micaforge. You run it, or you do not use it." },
+      { s: "partial", w: "Free beta", n: "Hosted at micaforge.com, free while in beta, with no uptime promise yet." },
       { s: "no", w: "Not applicable" },
       { s: "yes", w: "EU only", n: "Their README: EU-owned infrastructure, servers in Germany." },
     ],
@@ -205,7 +205,7 @@ const sections = [
         <dl>
           <dt>It is finished, and this is not</dt>
           <dd>
-            Micaforge has no tagged release, no production install and no benchmark. Plausible
+            Micaforge has a hosted beta but no tagged release and no benchmark. Plausible
             has years of other people's edge cases already found and fixed. That is worth more
             than any row in the table below.
           </dd>
@@ -284,7 +284,7 @@ const sections = [
                 <th scope="col">Question</th>
                 <th scope="col">
                   <span class="mf-cmp__who">Micaforge</span>
-                  <span class="mf-cmp__who-note">AGPL-3.0, pre-release</span>
+                  <span class="mf-cmp__who-note">AGPL-3.0, hosted beta</span>
                 </th>
                 <th scope="col">
                   <span class="mf-cmp__who">Plausible CE</span>
@@ -394,7 +394,7 @@ const sections = [
             <li>You want to know what the crawl took, not only what came back.</li>
             <li>You want both halves on one time axis and one ratio per page.</li>
             <li>You can get at your web server's access log.</li>
-            <li>You are comfortable running pre-release software you can read.</li>
+            <li>You are comfortable with early software you can read.</li>
           </ul>
           <div class="mf-pick__foot">
             <a class="mf-btn mf-btn--primary" href="/self-host">

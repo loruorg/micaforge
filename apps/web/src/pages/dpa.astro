@@ -1,18 +1,14 @@
 ---
 /**
- * The data processing addendum, as a template.
- *
- * The most important sentence on this page is the first one in section 1: most
- * people reading it do not need it. A self-hosted install where the data never
- * leaves the operator's machine has no processor to sign anything with, and
- * this project is not one. Saying so at the top is worth more than the twelve
- * clauses under it.
+ * The data processing terms for the hosted beta at micaforge.com. A self-hosted
+ * install where the data never leaves the operator's machine has no processor
+ * to sign anything with, and section 1 says so first.
  */
 import Base from "../layouts/Base.astro";
 import SiteHeader from "../components/SiteHeader.astro";
 import SiteFooter from "../components/SiteFooter.astro";
 import Prose from "../components/Prose.astro";
-import { IconAlert, IconOut } from "../components/react/icons.tsx";
+import { IconOut } from "../components/react/icons.tsx";
 
 const sections = [
   { id: "need", t: "1. Whether you need this at all" },
@@ -34,38 +30,24 @@ const sections = [
 
 <Base
   title="Data processing · Micaforge"
-  description="A plain-language DPA template for operators who process personal data for somebody else using Micaforge, starting with an honest account of when you do not need one."
+  description="How Internet Technology Services LLC processes visitor data for sites on the Micaforge hosted beta: roles, sub-processors, transfers, security and deletion."
 >
   <SiteHeader />
 
   <main id="main">
     <article class="mf-wrap mf-doc">
       <header class="mf-doc__head">
-        <h1 class="mf-doc__title">Data processing addendum</h1>
+        <h1 class="mf-doc__title">Data processing terms</h1>
         <p class="mf-doc__lede">
-          For the case where you measure somebody else's visitors on their behalf. If you only
-          measure your own, section 1 will save you the other eleven.
+          How Internet Technology Services LLC processes your visitors' data when you use the
+          hosted beta at micaforge.com. If you self-host Micaforge, section 1 explains why you do
+          not need this.
         </p>
         <div class="mf-doc__meta">
-          <span><strong>Template</strong> version 1</span>
-          <span>Last changed <strong>22 August 2026</strong></span>
+          <span>Last changed <strong>8 October 2026</strong></span>
           <span>Written against GDPR Article 28</span>
         </div>
       </header>
-
-      <div class="mf-note lg-warn">
-        <div class="mf-note__head"><IconAlert size={18} />This is a template, not advice</div>
-        <p>
-          An Article 28 contract is a legal instrument between two named parties. This page is a
-          starting structure with the parts only you can fill in marked{" "}
-          <code>[LIKE THIS]</code>. It has not been reviewed by a lawyer and it is not legal
-          advice.
-        </p>
-        <p>
-          The authors of Micaforge are not a party to anything you sign. They receive no data
-          and have no access to your installation.
-        </p>
-      </div>
 
       <nav class="mf-toc" aria-label="Contents">
         <ol>
@@ -76,34 +58,30 @@ const sections = [
       <Prose class="lg-body" as="section">
         <h2 id="need">1. Whether you need this at all</h2>
         <p>
-          Start here, because for most readers the answer is no.
+          These terms apply when you measure your sites with the hosted service at micaforge.com.
         </p>
         <ul>
           <li>
-            <strong>You self-host and measure your own sites.</strong> You are the controller,
-            there is no processor, and there is nobody to sign a DPA with. Micaforge's authors
-            are not a processor: the build makes no outbound call at runtime, so no data reaches
-            them by any path.
+            <strong>You use the hosted beta.</strong> You are the controller of your visitors'
+            data and we are your processor. These terms are the agreement between us.
           </li>
           <li>
-            <strong>You rent the server it runs on.</strong> Your hosting provider is your
-            processor for the infrastructure. Use their DPA, not this one.
+            <strong>You self-host and measure your own sites.</strong> You are the controller and
+            there is no processor: a self-hosted build makes no outbound call at runtime, so no data
+            reaches us. Your hosting provider's DPA covers the server you rent.
           </li>
           <li>
-            <strong>You measure other people's sites for them.</strong> Now you are a processor
-            and they are the controller, and this is the document that belongs between you.
-          </li>
-          <li>
-            <strong>You are an agency reading a client's install.</strong> Same as above, in the
-            same direction.
+            <strong>You run Micaforge to measure other people's sites.</strong> You are their
+            processor, and you can use this page as a starting point for your own terms.
           </li>
         </ul>
 
         <h2 id="roles">2. Roles</h2>
         <p>
-          <strong>[CUSTOMER]</strong> is the controller. <strong>[OPERATOR NAME]</strong> is the
-          processor. This addendum forms part of <strong>[THE AGREEMENT]</strong> between them
-          and takes precedence over it on data protection matters.
+          The account holder, for the organisation whose sites are measured, is the controller.{" "}
+          <strong>Internet Technology Services LLC</strong> is the processor. These terms form part
+          of the <a href="/terms">terms of service</a> and take precedence over them on data
+          protection matters.
         </p>
         <p>
           Where the processor determines its own purposes for any processing, it is a controller
@@ -112,9 +90,10 @@ const sections = [
 
         <h2 id="scope">3. Subject matter, duration and purpose</h2>
         <p>
-          The processor operates a Micaforge installation that measures traffic to the
-          controller's websites, and provides the controller access to the resulting reports.
-          Processing lasts for the term of the agreement plus the deletion period in section 12.
+          The processor operates the hosted Micaforge service that measures traffic to the
+          controller's websites, and gives the controller access to the resulting reports.
+          Processing lasts while the controller's account exists, plus the deletion period in
+          section 12.
           The details are in Annex I.
         </p>
 
@@ -122,8 +101,8 @@ const sections = [
         <p>
           The processor processes personal data only on the controller's documented
           instructions, which include the configuration the controller sets: which sites are
-          measured, the retention period, whether session replay is on, and whether the site's
-          own code calls <code>identify()</code>.
+          measured, which events the site sends, and whether the site's own code calls{" "}
+          <code>identify()</code>.
         </p>
         <p>
           If an instruction appears to breach data protection law, the processor tells the
@@ -133,34 +112,28 @@ const sections = [
         <h2 id="people">5. Confidentiality</h2>
         <p>
           Everyone the processor allows near the data is bound by confidentiality and is given
-          access only where their work requires it. <strong>[Name how you enforce that: named
-          accounts, roles, review cadence.]</strong>
+          access only where their work requires it. Access to the server is limited to the people
+          who operate the service and requires key-based authentication.
         </p>
 
         <h2 id="security">6. Security</h2>
         <p>
           The processor keeps appropriate technical and organisational measures under Article
-          32. What the software provides is listed in Annex II. What the deployment provides is
-          the processor's responsibility, and Annex II is where you write it down.
+          32. They are listed in Annex II.
         </p>
 
         <h2 id="subs">7. Sub-processors</h2>
         <p>
           The controller gives general authorisation for the sub-processors listed in Annex I.
-          The processor gives <strong>[NUMBER]</strong> days' notice before adding or replacing
-          one, and the controller may object on reasonable data protection grounds.
-        </p>
-        <p>
-          On a single-machine install the list is usually short: the hosting provider, and an
-          email relay if one is configured. It is not zero, and writing &ldquo;none&rdquo; when a
-          server is rented from somebody would be false.
+          The processor gives at least 30 days' notice by email before adding or replacing one,
+          and the controller may object on reasonable data protection grounds.
         </p>
 
         <h2 id="transfers">8. International transfers</h2>
         <p>
-          Personal data is processed in <strong>[COUNTRY]</strong>. Where data leaves the UK or
-          the EEA, the transfer relies on <strong>[ADEQUACY DECISION, STANDARD CONTRACTUAL
-          CLAUSES OR UK ADDENDUM]</strong>, with a transfer risk assessment on file.
+          Personal data is stored in Germany. Requests to micaforge.com and api.micaforge.com pass
+          through Cloudflare's global network; where that is a transfer outside the EEA, it relies
+          on the Standard Contractual Clauses in Cloudflare's data processing addendum.
         </p>
         <p>
           Micaforge itself transfers nothing: geolocation reads a database on disk precisely so
@@ -184,17 +157,15 @@ const sections = [
 
         <h2 id="breach">10. Breach notification</h2>
         <p>
-          The processor notifies the controller without undue delay, and in any case within{" "}
-          <strong>[HOURS]</strong> hours of becoming aware of a personal data breach, with what
-          is known at the time and updates as more is learnt.
+          The processor notifies the controller without undue delay after becoming aware of a
+          personal data breach, with what is known at the time and updates as more is learnt.
         </p>
 
         <h2 id="audit">11. Audit</h2>
         <p>
           The processor makes available the information needed to demonstrate compliance and
-          allows audits by the controller or an auditor it mandates, on reasonable notice, no
-          more than <strong>[NUMBER]</strong> times a year unless a supervisory authority or a
-          breach requires otherwise.
+          allows audits by the controller or an auditor it mandates, on reasonable notice and at
+          reasonable intervals.
         </p>
         <p>
           Because the software is AGPL-3.0, part of the audit is unusually cheap: the controller
@@ -203,16 +174,18 @@ const sections = [
 
         <h2 id="end">12. Deletion and return</h2>
         <p>
-          On the end of the agreement, the processor deletes or returns the personal data at the
-          controller's choice within <strong>[NUMBER]</strong> days, except where law requires
-          it to be kept. Reports export as CSV, and a self-hosted install can be read directly
-          from ClickHouse, so a return is a real option rather than a formality.
+          When the account ends, the processor deletes the personal data within 30 days, except
+          where law requires it to be kept. Before that, the controller can export its reports as
+          CSV, or move to a self-hosted install, which runs the same software.
         </p>
 
         <h2 id="annex-1">Annex I. Details of the processing</h2>
         <dl>
           <dt>Categories of data subject</dt>
-          <dd>Visitors to the controller's websites. <strong>[Add signed-in users if the site calls identify().]</strong></dd>
+          <dd>
+            Visitors to the controller's websites, and the controller's own signed-in users where
+            the site calls <code>identify()</code>.
+          </dd>
           <dt>Categories of personal data</dt>
           <dd>
             Page addresses and titles, referrer, campaign parameters, browser, operating system,
@@ -229,23 +202,24 @@ const sections = [
           <dt>Special category data</dt>
           <dd>
             None by design. The controller must not send it in event properties or in page
-            addresses. <strong>[If the controller's site addresses reveal health, beliefs or
-            similar, say so and treat it accordingly.]</strong>
+            addresses.
           </dd>
           <dt>Frequency</dt>
           <dd>Continuous, for as long as the tracking script is installed.</dd>
           <dt>Retention</dt>
           <dd>
-            <strong>[PERIOD]</strong>. Micaforge defaults to keeping event history indefinitely
-            and session replays for thirty days. The daily secret is never kept beyond
-            forty-eight hours.
+            During the beta, until the controller deletes the site or the account. The daily secret
+            is never kept beyond forty-eight hours.
           </dd>
           <dt>Sub-processors</dt>
-          <dd><strong>[HOSTING PROVIDER, COUNTRY]</strong>. <strong>[EMAIL RELAY, IF CONFIGURED]</strong>.</dd>
+          <dd>
+            netcup GmbH, Germany (hosting). Cloudflare, Inc. (DNS, content delivery, network
+            protection and email delivery).
+          </dd>
         </dl>
 
         <h2 id="annex-2">Annex II. Technical and organisational measures</h2>
-        <p>What the software does, which you may state as fact:</p>
+        <p>What the software does:</p>
         <dl>
           <dt>Data minimisation at collection</dt>
           <dd>
@@ -279,18 +253,20 @@ const sections = [
             port outside the machine.
           </dd>
         </dl>
-        <p>What the deployment must add, which only you can state:</p>
+        <p>What the hosted deployment adds:</p>
         <ul>
-          <li><strong>[Backups: what, where, how often, tested when.]</strong></li>
-          <li><strong>[Patching: how the host and the images are kept current.]</strong></li>
-          <li><strong>[Access: who can reach the machine, and how that is authenticated.]</strong></li>
-          <li><strong>[Monitoring and incident response, including who is called.]</strong></li>
-          <li><strong>[Physical security of the hosting environment, usually your provider's.]</strong></li>
+          <li>TLS on every public address, terminated at Cloudflare and again at the server.</li>
+          <li>The databases are reachable only on the server's internal network, never from the internet.</li>
+          <li>Server access requires key-based authentication and is limited to the operators.</li>
         </ul>
+        <p>
+          For anything this page does not answer, write to{" "}
+          <a href="mailto:contact@micaforge.com">contact@micaforge.com</a>.
+        </p>
       </Prose>
 
       <div class="mf-next">
-        <a class="mf-link" href="/privacy">Privacy template<IconOut size={13} /></a>
+        <a class="mf-link" href="/privacy">Privacy<IconOut size={13} /></a>
         <a class="mf-link" href="/terms">Terms<IconOut size={13} /></a>
         <a class="mf-link" href="/docs/privacy/gdpr">What the GDPR asks of an install<IconOut size={13} /></a>
         <a class="mf-link" href="/docs/privacy/what-we-store">Every column, listed<IconOut size={13} /></a>
@@ -302,6 +278,5 @@ const sections = [
 </Base>
 
 <style>
-  .lg-warn { margin-top: var(--mf-10); max-width: var(--mf-measure); }
   .lg-body { margin-top: var(--mf-12); }
 </style>

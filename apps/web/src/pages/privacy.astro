@@ -1,40 +1,35 @@
 ---
 /**
- * Privacy, as a template.
+ * The privacy policy for micaforge.com and the hosted beta.
  *
- * Micaforge is software other people run. A privacy policy on this site that
- * spoke only for this site would be useless to the person who actually needs
- * one, so this is written as the document an operator adapts, with the
- * placeholders left visible and a warning at the top that nobody can miss.
- *
- * Every factual claim below is checked against docs/CONTRACT.md section 7 and
- * the columns listed in docs/privacy/what-we-store.
+ * Every factual claim about what the tracker records is checked against
+ * docs/CONTRACT.md section 7 and the columns listed in docs/privacy/what-we-store.
  */
 import Base from "../layouts/Base.astro";
 import SiteHeader from "../components/SiteHeader.astro";
 import SiteFooter from "../components/SiteFooter.astro";
 import Prose from "../components/Prose.astro";
-import { IconAlert, IconOut } from "../components/react/icons.tsx";
+import { IconOut } from "../components/react/icons.tsx";
 
 const sections = [
-  { id: "who", n: "1", t: "Who this document is for" },
-  { id: "collected", n: "2", t: "What is collected" },
-  { id: "never", n: "3", t: "What is never collected" },
-  { id: "cookies", n: "4", t: "Cookies and local storage" },
-  { id: "machines", n: "5", t: "Records of machines" },
-  { id: "basis", n: "6", t: "Why it is lawful to collect" },
-  { id: "kept", n: "7", t: "How long it is kept" },
-  { id: "shared", n: "8", t: "Who else sees it" },
-  { id: "rights", n: "9", t: "Your rights, and their limits" },
-  { id: "children", n: "10", t: "Children" },
-  { id: "changes", n: "11", t: "Changes" },
-  { id: "contact", n: "12", t: "Contact" },
+  { id: "who", t: "1. Who we are" },
+  { id: "account", t: "2. If you have an account" },
+  { id: "site", t: "3. If you visit micaforge.com" },
+  { id: "collected", t: "4. What the tracker records" },
+  { id: "never", t: "5. What the tracker never records" },
+  { id: "cookies", t: "6. Cookies and local storage" },
+  { id: "machines", t: "7. Records of crawlers and other software" },
+  { id: "shared", t: "8. Who else processes data" },
+  { id: "kept", t: "9. How long it is kept" },
+  { id: "rights", t: "10. Your rights" },
+  { id: "changes", t: "11. Changes" },
+  { id: "contact", t: "12. Contact" },
 ];
 ---
 
 <Base
   title="Privacy · Micaforge"
-  description="A plain-language privacy policy template for anyone running Micaforge: what a Micaforge install collects, what it never collects, and the honest limits of a data subject request against data that identifies nobody."
+  description="What Micaforge collects for account holders, for visitors of sites that use it, and for visitors of micaforge.com: no cookies on tracked sites, no raw IP addresses, no personal data."
 >
   <SiteHeader />
 
@@ -43,32 +38,14 @@ const sections = [
       <header class="mf-doc__head">
         <h1 class="mf-doc__title">Privacy policy</h1>
         <p class="mf-doc__lede">
-          Written for the person running the software, in language a reader can actually
-          check. Micaforge measures traffic rather than individuals, and this document says
-          exactly what that does and does not mean.
+          Micaforge measures traffic, not people. This page says exactly what that means for you,
+          whether you use Micaforge, visit a site that uses it, or visit micaforge.com.
         </p>
         <div class="mf-doc__meta">
-          <span><strong>Template</strong> version 1</span>
-          <span>Last changed <strong>22 August 2026</strong></span>
-          <span>Covers a Micaforge installation and this project's own site</span>
+          <span>Last changed <strong>8 October 2026</strong></span>
+          <span>Covers micaforge.com and the hosted beta</span>
         </div>
       </header>
-
-      <div class="mf-note lg-warn">
-        <div class="mf-note__head"><IconAlert size={18} />This is a template, not advice</div>
-        <p>
-          Micaforge is open-source software that other people install. This document is written
-          so an operator can adapt it, and the parts only an operator can fill in are marked{" "}
-          <code>[LIKE THIS]</code>. It has not been reviewed by a lawyer, and nothing on this
-          page is legal advice.
-        </p>
-        <p>
-          If you are running Micaforge: read every section, replace every placeholder, delete
-          what does not apply to you, and have somebody qualified check the result before you
-          publish it. If you are a visitor reading this on somebody's site and it still contains
-          placeholders, the operator has not finished, and you should ask them.
-        </p>
-      </div>
 
       <nav class="mf-toc" aria-label="Contents">
         <ol>
@@ -77,21 +54,47 @@ const sections = [
       </nav>
 
       <Prose class="lg-body" as="section">
-        <h2 id="who">1. Who this document is for</h2>
+        <h2 id="who">1. Who we are</h2>
         <p>
-          <strong>[OPERATOR NAME]</strong> (&ldquo;we&rdquo;) runs an analytics installation at{" "}
-          <strong>[ANALYTICS DOMAIN]</strong> and uses it to measure traffic to{" "}
-          <strong>[YOUR SITES]</strong>. This document describes what that installation records.
+          micaforge.com and the hosted Micaforge service are operated by{" "}
+          <strong>Internet Technology Services LLC</strong> (&ldquo;we&rdquo;). For your account, we
+          decide how your data is used. For the analytics data a site sends to Micaforge, the site
+          owner decides, and we process it only on their behalf, as described in the{" "}
+          <a href="/dpa">data processing terms</a>.
         </p>
         <p>
-          The software is Micaforge, which is AGPL-3.0 and self-hosted. Nobody but us operates
-          it, and it makes no outbound network call while it runs, including for geolocation.
-          Your data does not reach the authors of the software, because there is no path by
-          which it could.
+          If you run Micaforge on your own server, none of your data reaches us: a self-hosted
+          install makes no call to us at runtime.
         </p>
 
-        <h2 id="collected">2. What is collected</h2>
-        <p>When you load a page that carries the tracking script, the following is recorded.</p>
+        <h2 id="account">2. If you have an account</h2>
+        <ul>
+          <li>
+            <strong>Your email address</strong>, to sign you in with one-time codes and to send the
+            invitations, reports and alerts you ask for.
+          </li>
+          <li><strong>Your name</strong>, if you give one, and the names of your organisations and sites.</li>
+          <li>
+            <strong>Sign-in sessions</strong>: a digest of the session token, the browser string, and
+            a salted hash of the IP address, to keep you signed in and to protect your account.
+          </li>
+          <li>
+            <strong>Sign-in codes</strong>, stored only as a keyed digest, for ten minutes at most.
+          </li>
+        </ul>
+        <p>
+          We use this data to provide the service you signed up for. We do not sell it and we do not
+          use it for advertising.
+        </p>
+
+        <h2 id="site">3. If you visit micaforge.com</h2>
+        <p>
+          We measure micaforge.com with Micaforge itself, so the tracker sections below describe what
+          is recorded about your visit. No cookie is set on the public pages.
+        </p>
+
+        <h2 id="collected">4. What the tracker records</h2>
+        <p>When you load a page that carries the Micaforge script, the following is recorded for the site owner.</p>
         <ul>
           <li>
             <strong>The page.</strong> The address you visited, its title, the query string and
@@ -124,18 +127,12 @@ const sections = [
           </li>
         </ul>
         <p>
-          <strong>[If session replay is enabled, say so here.]</strong> Replay records the
-          structure of the page and your interactions with it so a visit can be watched back.
-          Delete this paragraph if you have not turned it on.
-        </p>
-        <p>
-          <strong>[If the site calls identify(), say so here.]</strong> A site can attach its own
-          account identifier to events for signed-in users. That is a deliberate choice by the
-          operator, it is off unless the site's code calls it, and it is the one place where
-          data here can be tied to a person.
+          A site owner can choose to attach their own account identifier to events for people who
+          are signed in to their site, by calling <code>identify()</code>. It is off unless the
+          site's code calls it, and it is the one case where these records can be tied to a person.
         </p>
 
-        <h2 id="never">3. What is never collected</h2>
+        <h2 id="never">5. What the tracker never records</h2>
         <ul>
           <li>
             <strong>No raw IP address is ever stored on a visitor's record.</strong> It is read
@@ -152,18 +149,18 @@ const sections = [
           <li><strong>No fingerprinting beyond the daily hash described above.</strong></li>
         </ul>
 
-        <h2 id="cookies">4. Cookies and local storage</h2>
+        <h2 id="cookies">6. Cookies and local storage</h2>
         <p>
           The tracking script sets no cookies. It writes one value into your browser's local
           storage, <code>mf-opt-out</code>, and only if the site gives you an opt-out control and
           you use it. That value stays in your browser and is never sent anywhere.
         </p>
         <p>
-          The dashboard we use to read the statistics sets a session cookie for the people who
-          log into it. That is us, not you.
+          The Micaforge dashboard sets one session cookie, <code>mf_session</code>, for people who
+          sign in to it. It is needed to keep you signed in and is not used for anything else.
         </p>
 
-        <h2 id="machines">5. Records of machines</h2>
+        <h2 id="machines">7. Records of crawlers and other software</h2>
         <p>
           Micaforge also records requests from software rather than people: search crawlers, AI
           agents, link previews, monitoring tools. Those records are kept in separate tables and
@@ -176,87 +173,67 @@ const sections = [
           linked to you, and no further data is collected about it.
         </p>
 
-        <h2 id="basis">6. Why it is lawful to collect</h2>
+        <h2 id="shared">8. Who else processes data</h2>
+        <ul>
+          <li>
+            <strong>netcup GmbH</strong>, Germany: the server that runs Micaforge and stores its data.
+          </li>
+          <li>
+            <strong>Cloudflare, Inc.</strong>: DNS, content delivery and network protection for
+            micaforge.com and api.micaforge.com, which means requests to them pass through
+            Cloudflare's network, and delivery of the emails we send.
+          </li>
+        </ul>
         <p>
-          <strong>[This section needs your own decision and your lawyer's.]</strong> The usual
-          position for cookieless, aggregate measurement in the EU and the UK is legitimate
-          interests under Article 6(1)(f) of the GDPR: understanding how a site is used, with no
-          profiling, no personal identifiers and no cookie requiring consent under PECR.
-        </p>
-        <p>
-          That position depends on facts about your site and not only on the software. If you
-          have enabled replay, if you call <code>identify()</code>, or if your page addresses
-          themselves carry personal data, the analysis changes and you may need consent. Decide
-          it deliberately and write the answer here.
-        </p>
-
-        <h2 id="kept">7. How long it is kept</h2>
-        <p>
-          <strong>[State your retention period.]</strong> By default Micaforge keeps event
-          history indefinitely and session replays for thirty days. An operator can set a
-          retention period, after which whole months of history are dropped.
-        </p>
-        <p>
-          The daily secret used to build visitor identifiers is never kept beyond forty-eight
-          hours, which is what makes yesterday's identifier permanently unlinkable to today's.
+          There is no third-party analytics service, advertising network or data broker behind
+          Micaforge. We share data only where the law requires it.
         </p>
 
-        <h2 id="shared">8. Who else sees it</h2>
+        <h2 id="kept">9. How long it is kept</h2>
         <p>
-          <strong>[List anybody who does. If nobody does, say so.]</strong> On a standard
-          self-hosted install the data sits on our own machine at{" "}
-          <strong>[HOSTING PROVIDER, COUNTRY]</strong> and is shared with nobody. There is no
-          third-party analytics service behind this, no advertising network, and no data broker.
+          Account data is kept while your account exists. Sign-in sessions expire after thirty days
+          without use. During the beta, analytics data is kept until the site owner deletes the site
+          or their account; event rows of a deleted site are removed by the next cleanup run.
         </p>
         <p>
-          We may publish aggregate statistics, and we may share data where the law requires it.
+          The daily secret used to build visitor identifiers is never kept beyond forty-eight hours,
+          which is what makes yesterday's identifier permanently unlinkable to today's.
         </p>
 
-        <h2 id="rights">9. Your rights, and their limits</h2>
+        <h2 id="rights">10. Your rights</h2>
         <p>
           Where the GDPR or a similar law applies to you, you have rights of access, correction,
-          erasure, restriction, portability and objection.
+          erasure, restriction, portability and objection. Account holders can exercise them by
+          writing to us.
         </p>
         <p>
-          There is a real limit worth stating rather than hiding. Because no cookie is set, no
-          address is stored and the visitor identifier changes every day and cannot be reversed,
-          we usually <strong>cannot find your data</strong> in order to show it to you or delete
-          it. Nothing in the store points at a person. That is a consequence of collecting
-          less, not a refusal to help, and under Article 11 of the GDPR we are not required to
-          collect more data purely to be able to identify you.
+          If you are a visitor of a site that uses Micaforge, there is a limit worth stating. No
+          cookie is set, no address is stored, and the visitor identifier changes every day and
+          cannot be reversed, so neither the site owner nor we can usually find your data to show
+          or delete it. That is a result of collecting less, and under Article 11 of the GDPR no
+          one is required to collect more data only to identify you. Where a site attached its own
+          account identifier to events, ask that site: with the identifier, those rows can be found
+          and deleted.
         </p>
-        <p>
-          Where an account identifier has been attached to events, that is different: tell us
-          the identifier and we can find and delete those rows. You can also stop collection
-          entirely by using the opt-out control at <strong>[LINK, IF YOU OFFER ONE]</strong>, or
-          by any browser setting or extension that blocks the script.
-        </p>
-
-        <h2 id="children">10. Children</h2>
-        <p>
-          The site is not directed at children, and nothing collected here identifies anybody of
-          any age. <strong>[Adjust if your site is aimed at children.]</strong>
-        </p>
+        <p>You can also complain to your local data protection authority.</p>
 
         <h2 id="changes">11. Changes</h2>
         <p>
-          If this document changes materially we will change the date at the top and, where the
-          change affects what is collected, say so on the site.
+          If this policy changes in a way that matters, we will update the date at the top and tell
+          account holders by email.
         </p>
 
         <h2 id="contact">12. Contact</h2>
         <p>
-          Write to <strong>[CONTACT ADDRESS]</strong>.{" "}
-          <strong>[If you have appointed a data protection officer or an EU or UK
-          representative, name them here.]</strong> You may also complain to your local
-          supervisory authority.
+          <strong>Internet Technology Services LLC</strong><br />
+          Email: <a href="mailto:contact@micaforge.com">contact@micaforge.com</a>
         </p>
       </Prose>
 
       <div class="mf-next">
         <a class="mf-link" href="/docs/privacy/what-we-store">Every column, listed<IconOut size={13} /></a>
         <a class="mf-link" href="/docs/privacy/cookieless-identification">How the daily hash works<IconOut size={13} /></a>
-        <a class="mf-link" href="/dpa">Data processing template<IconOut size={13} /></a>
+        <a class="mf-link" href="/dpa">Data processing<IconOut size={13} /></a>
         <a class="mf-link" href="/terms">Terms<IconOut size={13} /></a>
       </div>
     </article>
@@ -266,6 +243,5 @@ const sections = [
 </Base>
 
 <style>
-  .lg-warn { margin-top: var(--mf-10); max-width: var(--mf-measure); }
   .lg-body { margin-top: var(--mf-12); }
 </style>

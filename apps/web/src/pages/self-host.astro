@@ -270,8 +270,9 @@ cd micaforge
           </dd>
           <dt>Mail is optional, and degrades rather than fails</dt>
           <dd>
-            With no SMTP URL, invitations become links you copy by hand, password resets become
-            links an admin hands over, and scheduled reports do not run. Nothing else changes.
+            With no mail transport, invitations become links you copy by hand, sign-in codes come
+            from <code>micaforge-server sign-in-code</code>, and scheduled reports do not run.
+            Nothing else changes.
           </dd>
           <dt>The store images are not pinned for you</dt>
           <dd>
@@ -283,11 +284,11 @@ cd micaforge
             <code>./backup.sh</code> exists and works. Nobody is running it for you, and nobody
             is watching the disk.
           </dd>
-          <dt>It is pre-release</dt>
+          <dt>It is early</dt>
           <dd>
-            There is no tagged release, no production install anywhere, and no benchmark. If
-            that is not an acceptable trade for the reporting, it is the right decision to
-            wait.
+            There is no tagged release and no benchmark yet. The hosted beta at micaforge.com runs
+            the same main branch you would install. If early software is not an acceptable trade
+            for the reporting, use the hosted beta or wait.
           </dd>
         </dl>
 
