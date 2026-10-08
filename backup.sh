@@ -304,7 +304,7 @@ password manager before you begin. Everything below assumes the restored
 
 ## 1. An empty stack
 
-    git clone https://github.com/micaforge/micaforge && cd micaforge
+    git clone https://github.com/loruorg/micaforge && cd micaforge
     cp /path/to/your/.env .env        # or ./install.sh, then paste the old key in
     docker compose up -d postgres clickhouse valkey
 

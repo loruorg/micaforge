@@ -3,7 +3,7 @@
 ## Reporting a vulnerability
 
 Use GitHub's private vulnerability reporting: the **Security** tab of
-[micaforge/micaforge](https://github.com/micaforge/micaforge), then **Report a
+[loruorg/micaforge](https://github.com/loruorg/micaforge), then **Report a
 vulnerability**. It opens a private thread with the maintainers.
 
 If that is not available to you, open a normal issue that says only that you have

@@ -171,7 +171,7 @@ cd "$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
 
 [ -f docker-compose.yml ] || die \
 	"docker-compose.yml is not next to this script." \
-	"Run install.sh from inside the Micaforge checkout: git clone https://github.com/micaforge/micaforge && cd micaforge && ./install.sh"
+	"Run install.sh from inside the Micaforge checkout: git clone https://github.com/loruorg/micaforge && cd micaforge && ./install.sh"
 
 #------------------------------------------------------------------------------
 # 1. Can this machine run it
@@ -385,8 +385,8 @@ if [ -n "$PUBLIC_URL" ]; then
 fi
 
 if [ -n "$VERSION" ]; then
-	set_env MICAFORGE_IMAGE "ghcr.io/micaforge/micaforge"
-	set_env MICAFORGE_WEB_IMAGE "ghcr.io/micaforge/micaforge-web"
+	set_env MICAFORGE_IMAGE "ghcr.io/loruorg/micaforge"
+	set_env MICAFORGE_WEB_IMAGE "ghcr.io/loruorg/micaforge-web"
 	set_env MICAFORGE_VERSION "$VERSION"
 	info "Images: the published $VERSION release."
 fi
@@ -412,7 +412,7 @@ if [ "${IMAGE_NAME#*/}" != "$IMAGE_NAME" ]; then
 	step "Pulling the Micaforge $IMAGE_VERSION images"
 	docker compose pull micaforge caddy || die \
 		"The Micaforge $IMAGE_VERSION images could not be pulled." \
-		"Check the tag exists at https://github.com/micaforge/micaforge/releases. To build from this checkout instead, set MICAFORGE_IMAGE=micaforge, MICAFORGE_WEB_IMAGE=micaforge-web and MICAFORGE_VERSION=local in .env and run this script again."
+		"Check the tag exists at https://github.com/loruorg/micaforge/releases. To build from this checkout instead, set MICAFORGE_IMAGE=micaforge, MICAFORGE_WEB_IMAGE=micaforge-web and MICAFORGE_VERSION=local in .env and run this script again."
 else
 	step "Building the Micaforge images"
 	note "The server (Rust) and the web app (Node), inside Docker. Several minutes on a small machine, and only the first time."

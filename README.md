@@ -74,7 +74,7 @@ already points at the machine if you want HTTPS. Nothing else: the server and th
 web app are built inside Docker.
 
 ```sh
-git clone https://github.com/micaforge/micaforge
+git clone https://github.com/loruorg/micaforge
 cd micaforge
 ./install.sh --domain analytics.example.com --email you@example.com
 ```

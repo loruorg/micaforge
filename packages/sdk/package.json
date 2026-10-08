@@ -10,10 +10,10 @@
     "./src/tracker/index.ts",
     "./src/tracker/iife.ts"
   ],
-  "homepage": "https://github.com/micaforge/micaforge/tree/main/packages/sdk",
+  "homepage": "https://github.com/loruorg/micaforge/tree/main/packages/sdk",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/micaforge/micaforge.git",
+    "url": "git+https://github.com/loruorg/micaforge.git",
     "directory": "packages/sdk"
   },
   "keywords": [

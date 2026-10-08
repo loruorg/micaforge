@@ -233,7 +233,7 @@ EXIT CODES
   1  bad usage or bad configuration
   2  could not read the log
 
-Micaforge is AGPL-3.0. This tool is MIT. https://github.com/micaforge/micaforge
+Micaforge is AGPL-3.0. This tool is MIT. https://github.com/loruorg/micaforge
 `;
 
 /* ========================================================================== *
