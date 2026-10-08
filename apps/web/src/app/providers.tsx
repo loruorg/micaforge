@@ -88,7 +88,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const me = useQuery({
     queryKey: ACCOUNT_KEY,
-    queryFn: () => api.get<Account>("/api/auth/me").then((r) => r.data),
+    // The answer is `{ user, organizations, sites, instance }`; the account is `user`.
+    queryFn: () => api.get<{ user: Account }>("/api/auth/me").then((r) => r.data.user),
     staleTime: 5 * 60_000,
     retry: false,
   });

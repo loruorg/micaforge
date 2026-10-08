@@ -36,7 +36,6 @@ import {
   SpecRow,
   Status,
   TextInput,
-  TypedConfirm,
   errText,
 } from "./SettingsLayout";
 
@@ -69,7 +68,7 @@ export function AccountSettings() {
 
   const me = useQuery({
     queryKey: ["account", "me"],
-    queryFn: () => api.get<Me>("/api/auth/me").then((r) => r.data),
+    queryFn: () => api.get<{ user: Me }>("/api/auth/me").then((r) => r.data.user),
   });
 
   /* profile ------------------------------------------------------------- */
@@ -130,13 +129,6 @@ export function AccountSettings() {
   const revokeOthers = useMutation({
     mutationFn: () => api.post<null>("/api/auth/sessions/revoke-others"),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["account", "sessions"] }),
-  });
-
-  const deleteAccount = useMutation({
-    mutationFn: () => api.del<null>("/api/auth/me"),
-    onSuccess: () => {
-      window.location.href = "/";
-    },
   });
 
   const sessionColumns: Column<AuthSession>[] = [
@@ -376,31 +368,10 @@ export function AccountSettings() {
 
       <Panel>
         <PanelHead title="Delete your account" />
-        <QueryState query={me}>
-          {(u) => (
-            <Block
-              title="This cannot be undone"
-              body="Organisations where you are the only owner are deleted with you, and every site inside them goes too."
-            >
-              <TypedConfirm
-                phrase={u.email}
-                label="Delete my account"
-                busy={deleteAccount.isPending}
-                destroys={
-                  <>
-                    Deletes your account, your profile, your sessions and your API keys. Any organisation you
-                    solely own is deleted with it, together with its sites and everything those sites have
-                    recorded. Organisations with another owner keep running without you.
-                  </>
-                }
-                onConfirm={() => deleteAccount.mutate()}
-              />
-              <div className="mf-set-row">
-                <Result action={deleteAccount} done="Account deleted." working="Deleting…" />
-              </div>
-            </Block>
-          )}
-        </QueryState>
+        <Block
+          title="Ask the operator"
+          body="Deleting an account also decides what happens to the organisations and sites it owns, so it is done by the operator of this install. On micaforge.com, write to contact@micaforge.com from the address you sign in with."
+        />
       </Panel>
     </>
   );
