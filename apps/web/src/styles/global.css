@@ -909,7 +909,6 @@
   }
 }
 
-/* ── the first viewport ──────────────────────────────────────────────────── */
 @layer components {
   .mf-hero { padding: 0 var(--mf-6); }
 

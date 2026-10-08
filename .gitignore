@@ -22,3 +22,7 @@ HANDOFF.md
 infra/geoip/*
 !infra/geoip/README.md
 backups/
+
+# Agent worktrees and local design-decision pages
+.claude/worktrees/
+.impeccable/questions/

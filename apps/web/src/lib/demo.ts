@@ -89,68 +89,6 @@ export function demoRecord(days = 60, seed = 20260821, endMs?: number): DemoReco
   };
 }
 
-/**
- * The same demonstration record, `steps` days later.
- *
- * The drum on the landing page runs: every few seconds a day is written at the
- * right edge and the oldest falls off the left. The new days follow the same
- * argued shapes as `demoRecord` (a re-crawl floor that keeps rising, a burst of
- * fetching after each publish, a weekly reading rhythm, answer arrivals that
- * grow far slower than the fetching), and each one comes from its own seed, so
- * day N is the same day however the reader got there.
- */
-export function demoAdvance(days: number, steps: number, seed = 20260821): DemoRecord {
-  const base = demoRecord(days, seed);
-  if (steps <= 0) return base;
-
-  const day = 86_400_000;
-  const times = base.times.slice();
-  const machines = base.machines.slice();
-  const readers = base.readers.slice();
-  const answers = base.answers.slice();
-  const publishedAt: number[] = [];
-
-  for (let k = 1; k <= steps; k++) {
-    const i = days - 1 + k;
-    const rnd = mulberry32(seed ^ Math.imul(k, 2654435761));
-    const t = base.times[base.times.length - 1] + k * day;
-    const dow = new Date(t).getUTCDay();
-    const weekend = dow === 0 || dow === 6;
-
-    const week = weekend ? 0.52 : 1 + 0.12 * Math.sin((i / 7) * Math.PI * 2);
-    readers.push(Math.round(Math.max(60, (780 + i * 6) * week * (0.88 + rnd() * 0.24))));
-
-    // A publish every three weeks of drum, and the crawlers answer it.
-    if (k % 21 === 7) publishedAt.push(k);
-    let m = 1400 + i * 34;
-    for (const p of publishedAt) {
-      const d = k - p;
-      if (d >= 0 && d < 9) m += 5200 * Math.exp(-d / 2.6);
-    }
-    machines.push(Math.round(m * (0.9 + rnd() * 0.2)));
-    answers.push(Math.round(Math.max(0, 6 + i * 0.55 + (rnd() - 0.4) * 9)));
-    times.push(t);
-  }
-
-  const cut = (xs: number[]) => xs.slice(steps);
-  const annotations = [
-    ...base.annotations,
-    ...publishedAt.flatMap((p) => [
-      { at: days - 1 + p, label: "Guide published", tone: "neutral" as const },
-      { at: days - 1 + p + 2, label: "Re-crawl burst", tone: "warn" as const },
-    ]),
-  ]
-    .map((a) => ({ ...a, at: a.at - steps }))
-    .filter((a) => a.at >= 0 && a.at < days);
-
-  return {
-    times: cut(times),
-    machines: cut(machines),
-    readers: cut(readers),
-    answers: cut(answers),
-    annotations,
-  };
-}
 
 export interface DemoGapPage {
   path: string;
