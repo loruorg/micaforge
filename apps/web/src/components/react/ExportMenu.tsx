@@ -1,12 +1,11 @@
 /**
- * Taking the record away with you.
+ * Export: take the data on screen away as a file.
  *
- * Two ways off the instrument, and they are genuinely different jobs rather
- * than two buttons doing the same thing: a comma-separated table for anyone who
+ * Two formats for two different jobs: a comma-separated table for anyone who
  * is going to do their own arithmetic on it, and a printable report for anyone
- * who has to hand the reading to someone else. Both carry the EXACT envelope
- * that is on screen (the same interval, audience and conditions), so what
- * comes out of the file is what the operator was looking at when they asked.
+ * who has to hand the numbers to someone else. Both carry the EXACT envelope
+ * that is on screen (the same date range, audience and filters), so what comes
+ * out of the file is what the user was looking at when they asked.
  *
  * The links are real links. A download that only works when JavaScript agrees
  * to run is not a download.
@@ -22,12 +21,12 @@ import { IconDownload } from "./icons";
 
 export interface ExportMenuProps {
   /**
-   * Which table is being taken, in the same `area:dimension` form the sheets
+   * Which table is exported, in the same `area:dimension` form the tables
    * already use ("pages:pathname", "sources:channel"). The server reads it to
    * decide which query to run.
    */
   report?: string;
-  /** Overrides the envelope. Defaults to the station's current settings. */
+  /** Overrides the envelope. Defaults to the dashboard's current settings. */
   env?: Envelope;
   label?: string;
   /** A short, honest word for what the file will contain. */
@@ -46,7 +45,7 @@ export function ExportMenu({
   report = "overview",
   env: envProp,
   label = "Export",
-  subject = "this reading",
+  subject = "this report",
 }: ExportMenuProps) {
   const state = useAppState();
   const { siteId, domain } = useSite();
@@ -56,7 +55,7 @@ export function ExportMenu({
     if (siteId == null) return null;
     return { ...state.toEnvelope(siteId), report };
     // `toEnvelope` reads the live store, so every setting that changes the
-    // reading has to be a dependency of the URL that exports it.
+    // data has to be a dependency of the URL that exports it.
   }, [envProp, report, siteId, state.range, state.audience, state.compare, state.filters, state]);
 
   const stem = fileStem(report, domain, state.range);
@@ -79,7 +78,7 @@ export function ExportMenu({
       <RMenu.Portal>
         <RMenu.Content className="mfs-slip-panel mfs-menu" sideOffset={8} align="end" collisionPadding={12}>
           <p className="mfs-menu__note">
-            Both files carry the interval, the audience and every condition currently clipped on.
+            Both files use the date range, audience and filters shown on screen.
           </p>
 
           <RMenu.Item asChild>
@@ -90,7 +89,7 @@ export function ExportMenu({
               target="_blank"
               rel="noopener noreferrer"
             >
-              <span className="mfs-menu__item-name">Table of figures</span>
+              <span className="mfs-menu__item-name">Data table</span>
               <span className="mfs-menu__item-note">
                 Comma-separated, one row per line. <span className="mf-data">.csv</span>
               </span>
@@ -107,7 +106,7 @@ export function ExportMenu({
             >
               <span className="mfs-menu__item-name">Printable report</span>
               <span className="mfs-menu__item-note">
-                The record and its sheets, laid out to print. <span className="mf-data">.pdf</span>
+                Charts and tables, laid out to print. <span className="mf-data">.pdf</span>
               </span>
             </a>
           </RMenu.Item>

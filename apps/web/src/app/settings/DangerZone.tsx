@@ -1,9 +1,9 @@
 /**
  * DANGER ZONE.
  *
- * Every action here is confirmed by transcribing the domain it will act on, and
- * every one states what it destroys in counted, itemised terms before the field
- * appears. No modal, no "are you sure": you sign the record.
+ * Every action here is confirmed by typing the domain it will act on, and every
+ * one states what it destroys in counted, itemised terms before the field
+ * appears. No modal, no "are you sure".
  */
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -86,8 +86,8 @@ export function DangerZone() {
   });
 
   const counted = (() => {
-    const r = readers.data ? `${num(readers.data.pageviews)} reader events` : "every reader event";
-    const m = machines.data ? `${num(machines.data.fetches)} machine fetches` : "every machine fetch";
+    const r = readers.data ? `${num(readers.data.pageviews)} visitor events` : "every visitor event";
+    const m = machines.data ? `${num(machines.data.fetches)} AI crawler fetches` : "every AI crawler fetch";
     return `${r} and ${m}`;
   })();
 
@@ -103,26 +103,26 @@ export function DangerZone() {
     <Panel>
       <PanelHead
         title="Danger zone"
-        note="Three actions that cannot be undone. Each one names what it destroys and asks you to write the domain out before it will run."
+        note="Three actions that cannot be undone. Each one names what it destroys and asks you to type the domain before it runs."
       />
 
       <Block
-        title="Reset the record"
-        body="Wipes every event this site has ever recorded and leaves the site itself in place: same site number, same ingest key, same goals, alerts, reports and share links. The tag keeps working and a new record starts from the next hit."
+        title="Reset site data"
+        body="Deletes every event this site has ever recorded and keeps the site itself: same site number, same ingest key, same goals, alerts, reports and share links. The tag keeps working and data collection starts again from the next hit."
       >
         <div className="mf-set-row">
           <a className="mf-btn mf-btn--key mf-btn--md" href={exportUrl}>
             <span className="mf-btn__icon">
               <IconDownload size={14} />
             </span>
-            <span className="mf-btn__label">Export the record first</span>
+            <span className="mf-btn__label">Export the data first</span>
           </a>
-          <Note>A CSV of everything currently on the record, both traces, whole history.</Note>
+          <Note>A CSV of all data for this site: people and AI crawlers, full history.</Note>
         </div>
 
         <TypedConfirm
           phrase={phrase}
-          label="Reset the record"
+          label="Reset site data"
           busy={reset.isPending}
           destroys={
             <>
@@ -133,13 +133,13 @@ export function DangerZone() {
           onConfirm={() => reset.mutate()}
         />
         <div className="mf-set-row">
-          <Result action={reset} done="The record is empty. The next hit starts a new one." working="Resetting…" />
+          <Result action={reset} done="All data is deleted. Collection starts again with the next hit." working="Resetting…" />
         </div>
       </Block>
 
       <Block
         title="Transfer the site"
-        body="Moves this site, its record and everything attached to it into another organisation you belong to."
+        body="Moves this site, its data and everything attached to it into another organisation you belong to."
       >
         <Spec>
           <SpecRow name="Move to" hint="Only organisations where you can create sites are listed." htmlFor="dz-org">

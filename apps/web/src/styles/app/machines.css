@@ -1,12 +1,11 @@
 /* ============================================================================
-   THE WEDGE: agent traffic, the Citation Gap, policy, decay.
+   AI traffic: AI crawlers, the Citation gap, robots.txt rules, content decay.
 
-   Everything here is drawn in the recording-station vocabulary already
-   established in global.css. Three rules govern the file:
+   Built on the shared components in global.css. Three rules govern the file:
 
      1. Only var(--mf-*). No literal colour, size, radius or duration.
-     2. Depth is the scratch ridge: a tight one-directional shadow in the
-        surface's own colour. Nothing glows, blooms or lifts.
+     2. Depth is a soft shadow token (--mf-shadow-*) or a value shift. Nothing
+        glows or lifts.
      3. New classes exist only where no .mf-* class already fits. Where one
         fits (.mf-panel, .mf-sheet, .mf-readout, .mf-btn, .mf-caliper) it is
         reused rather than reskinned.
@@ -15,6 +14,16 @@
 /* ── the screen ─────────────────────────────────────────────────────────── */
 
 .mf-wedge {
+  /* Five steps of the AI orange, darkest first, for breakdowns of AI
+     operators. Blue means people everywhere in the product, so these screens
+     never chart an AI breakdown on the blue categorical ramp. The steps differ
+     by lightness, so the series also separate in greyscale. */
+  --mf-ai-ramp-1: color-mix(in oklab, var(--mf-accent-ink) 70%, var(--mf-ink-strong));
+  --mf-ai-ramp-2: var(--mf-accent-ink);
+  --mf-ai-ramp-3: var(--mf-accent);
+  --mf-ai-ramp-4: color-mix(in oklab, var(--mf-accent) 66%, var(--mf-ground-2));
+  --mf-ai-ramp-5: color-mix(in oklab, var(--mf-accent) 44%, var(--mf-ground-2));
+
   display: flex;
   flex-direction: column;
   gap: var(--mf-6);
@@ -22,9 +31,17 @@
   min-width: 0;
 }
 
-/* Two panels abreast on a wide bench, stacked below it. The columns are not
-   equal on purpose: the files on the left are short monospace lines, while the
-   behaviour on the right is a wide sheet that must not have to scroll. */
+/* Every table on these screens counts AI crawler fetches, so the bar behind a
+   row is the AI orange. Unlayered, so it wins over the people-blue default in
+   global.css. */
+.mf-wedge .mf-sheet__ink { background: var(--mf-ai-fill); }
+
+/* A link drawn as a button keeps the button's look, not a link underline. */
+.mf-linkkey { text-decoration: none; align-self: flex-start; }
+
+/* Two panels side by side on a wide screen, stacked below it. The columns are
+   not equal on purpose: the files on the left are short monospace lines, while
+   the table on the right is wide and must not have to scroll. */
 .mf-wedge-pair {
   display: grid;
   grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
@@ -41,10 +58,9 @@
   .mf-wedge-pair { grid-template-columns: minmax(0, 1fr); }
 }
 
-/* ── the bench ───────────────────────────────────────────────────────────
-   The screen names itself on the same ruled line as the instruments that
-   read it. Deliberately not a stacked page-title-then-subtitle-then-toolbar
-   hero: title left, controls right, one rule under both. */
+/* ── the control bar ─────────────────────────────────────────────────────
+   Title left, controls right, one rule under both. Deliberately not a stacked
+   page-title-then-subtitle-then-toolbar hero. */
 
 .mf-wedge-bar {
   display: flex;
@@ -86,26 +102,24 @@
   .mf-wedge-bar__controls { margin-left: 0; flex-basis: 100%; }
 }
 
-/* The caliper is a fixed bank of stops and cannot shrink, so on a narrow bench
-   it takes a row of its own. How it folds at that width is not this file's
-   business: one behaviour for the whole station lives in styles/app/caliper.css,
-   and the wedge's old wrap (which cut the second row at twice the width of the
-   first) has been dropped in favour of it. */
+/* The range control is a fixed row of buttons and cannot shrink, so on a
+   narrow screen it takes a row of its own. How it folds at that width is not
+   this file's business: one behaviour for the whole app lives in
+   styles/app/caliper.css. */
 @media (max-width: 620px) {
   .mf-wedge-bar__controls { width: 100%; }
 }
 
-/* A filter written onto the bench. A real control with a real action, not a
-   tinted chip wrapped round a noun. */
+/* An active filter. A real control with a real action, not a tinted chip
+   wrapped round a noun. */
 .mf-mark {
   display: inline-flex;
   align-items: center;
   gap: var(--mf-2);
   padding: 2px var(--mf-1) 2px var(--mf-3);
-  background: var(--mf-well);
+  background: var(--mf-ground-3);
   border: 1px solid var(--mf-rule);
   border-radius: var(--mf-r-sm);
-  box-shadow: var(--mf-inset);
   font-size: var(--mf-t-xs);
   color: var(--mf-ink-2);
   max-width: 32ch;
@@ -134,15 +148,15 @@
   cursor: pointer;
   transition: color var(--mf-dur-1) linear, background-color var(--mf-dur-1) linear;
 }
-.mf-mark__off:hover { color: var(--mf-danger); background: var(--mf-ground-3); }
+.mf-mark__off:hover { color: var(--mf-danger); background: var(--mf-ground-2); }
 
-/* ── readout, ruled cell by cell ─────────────────────────────────────────
-   The shipped strip divides its channels with a left border on each one, which
-   goes ragged the moment the strip wraps to a second row: the first channel of
+/* ── metric strip, divided cell by cell ──────────────────────────────────
+   The shared strip divides its metrics with a left border on each one, which
+   goes ragged the moment the strip wraps to a second row: the first metric of
    the new row keeps a stray rule and the rows are not divided at all. Here each
-   channel casts its own hairline to the right and below, outside its own box,
-   so any number of channels wraps correctly, and the tail of a part-filled row
-   stays the panel's own surface rather than a lit block. */
+   metric draws its own hairline to the right and below, outside its own box,
+   so any number of metrics wraps correctly, and the tail of a part-filled row
+   stays the panel's own surface rather than a filled block. */
 
 .mf-wedge .mf-readout,
 .mf-strip .mf-readout {
@@ -160,8 +174,7 @@
 
 /* ── panel interiors ─────────────────────────────────────────────────────
    .mf-panel carries no padding of its own, so anything that is not a
-   full-bleed sheet gets its gutter here, and always more than the pin-feed
-   cut removes, so no glyph is ever shaved by the perforation column. */
+   full-bleed table gets its gutter here. */
 
 .mf-wedge__body,
 .mf-wedge__plot {
@@ -169,9 +182,15 @@
   min-width: 0;
 }
 .mf-wedge__body > * + * { margin-top: var(--mf-4); }
+/* Notes under a table start below a rule, not tight against the last row. */
+.mf-sheet-wrap + .mf-wedge__body {
+  padding-top: var(--mf-4);
+  border-top: 1px solid var(--mf-rule);
+}
 
-/* The caption over a bank of totals. The drum above it prints one sample per
-   channel under the same names, so the bank says which measurement it is. */
+/* The caption over a row of totals. The chart legend above it prints one
+   sample per series under the same names, so the caption says which
+   measurement the totals are. */
 .mf-wedge__caption {
   padding: var(--mf-4) var(--mf-5) var(--mf-3);
   font-size: var(--mf-t-xs);
@@ -213,30 +232,40 @@
   .mf-wedge__plot { padding: 0 var(--mf-4) var(--mf-4); }
 }
 
-/* ── the pivot bank ──────────────────────────────────────────────────────
-   Which channel the sheet below is tabulated by. State is tone and fill; the
-   key never moves, grows or grows an underline. */
+/* ── segmented choice ────────────────────────────────────────────────────
+   Which grouping, scale or view a panel shows. Drawn like the audience switch:
+   a grey track, the chosen option a white raised segment. */
 
 .mf-pivot {
-  display: flex;
+  display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--mf-1);
+  gap: 2px;
+  padding: 2px;
+  background: var(--mf-ground-3);
+  border: 1px solid var(--mf-rule);
+  border-radius: var(--mf-r-sm);
+  max-width: 100%;
 }
 .mf-pivot__key {
   padding: 4px var(--mf-3);
   font: inherit;
   font-size: var(--mf-t-xs);
-  color: var(--mf-ink-3);
+  color: var(--mf-ink-2);
   background: none;
   border: 0;
-  border-radius: var(--mf-r-sm);
+  border-radius: 4px;
   cursor: pointer;
   white-space: nowrap;
   transition: color var(--mf-dur-1) linear, background-color var(--mf-dur-1) linear;
 }
-.mf-pivot__key:hover { color: var(--mf-ink-2); background: var(--mf-ground-3); }
-.mf-pivot__key[aria-pressed="true"] { background: var(--mf-ground-3); color: var(--mf-ink); }
+.mf-pivot__key:hover { color: var(--mf-ink); }
+.mf-pivot__key[aria-pressed="true"] {
+  background: var(--mf-ground-2);
+  color: var(--mf-ink-strong);
+  box-shadow: var(--mf-shadow-xs);
+}
+.mf-pivot__key[disabled] { opacity: 0.5; cursor: not-allowed; }
 
 /* ── sortable column heads ───────────────────────────────────────────────── */
 
@@ -261,9 +290,9 @@
    every heading carrying a permanent caret. */
 .mf-sort:hover .mf-sort__dir,
 .mf-sort:focus-visible .mf-sort__dir { visibility: visible; }
-.mf-sort[data-active="true"] .mf-sort__dir { visibility: visible; color: var(--mf-accent); }
+.mf-sort[data-active="true"] .mf-sort__dir { visibility: visible; color: var(--mf-ink-2); }
 
-/* ── sheet cells that carry two lines ────────────────────────────────────── */
+/* ── table cells that carry two lines ────────────────────────────────────── */
 
 .mf-wedge .mf-sheet__cell > .mf-wedge-stack,
 .mf-strip .mf-sheet__cell > .mf-wedge-stack {
@@ -305,12 +334,13 @@
   white-space: nowrap;
   transition: color var(--mf-dur-1) linear;
 }
-.mf-cellkey:hover { color: var(--mf-accent); }
-.mf-cellkey:hover svg { color: var(--mf-accent); }
+.mf-cellkey:hover { color: var(--mf-blue-ink); }
+.mf-cellkey:hover svg { color: var(--mf-blue-ink); }
 
-/* ── the verdict bank ────────────────────────────────────────────────────
-   Four counts on one ruled strip. Every cell reserves the same two rows above
-   its footnote, so the four figures sit on one line whatever the copy does. */
+/* ── the verdicts ────────────────────────────────────────────────────────
+   Four counts on one divided strip. Every cell reserves the same two rows
+   above its footnote, so the four figures sit on one line whatever the copy
+   does. */
 
 .mf-verdicts {
   display: grid;
@@ -335,14 +365,16 @@
   transition: background-color var(--mf-dur-1) linear;
 }
 .mf-verdicts__cell:hover { background: var(--mf-ground-3); }
-.mf-verdicts__cell[aria-pressed="true"] { background: var(--mf-ground-3); }
-.mf-verdicts__cell[aria-pressed="true"] .mf-verdicts__n { color: var(--mf-accent); }
+.mf-verdicts__cell[aria-pressed="true"] {
+  background: var(--mf-ground-3);
+  box-shadow: inset 0 -2px 0 var(--mf-ink-strong);
+}
 .mf-verdicts__n {
   font-family: var(--mf-font-display);
   font-size: var(--mf-t-2xl);
-  font-weight: 500;
+  font-weight: 600;
   line-height: 1;
-  letter-spacing: -0.012em;
+  letter-spacing: -0.03em;
   color: var(--mf-ink);
   font-variant-numeric: tabular-nums lining-nums;
 }
@@ -367,7 +399,7 @@
   color: var(--mf-ink-2);
 }
 .mf-plan__cell:nth-child(3n) { padding-right: 0; color: var(--mf-ink); }
-.mf-plan__row-on { background: var(--mf-accent-wash); }
+.mf-plan__row-on { background: var(--mf-ground-3); }
 @media (max-width: 760px) {
   .mf-plan { grid-template-columns: minmax(0, 1fr); }
   .mf-plan__head { display: none; }
@@ -377,7 +409,7 @@
 
 /* ── a finding ───────────────────────────────────────────────────────────
    A missing robots.txt is a result, not an empty state. It is written as one:
-   the mark bare in the annotation ink, the fact, then the recommendation. */
+   the warning mark, the fact, then the recommendation. */
 
 .mf-finding {
   display: grid;
@@ -414,7 +446,8 @@
   max-height: calc(var(--mf-24) * 4);
   overflow: auto;
   border-top: 1px solid var(--mf-rule);
-  background: var(--mf-well);
+  border-radius: 0 0 var(--mf-r-md) var(--mf-r-md);
+  background: var(--mf-well-2);
 }
 .mf-file__line {
   display: grid;
@@ -434,12 +467,12 @@
 }
 .mf-file__txt { white-space: pre-wrap; word-break: break-word; }
 .mf-file__line[data-comment="true"] .mf-file__txt { color: var(--mf-ink-3); }
-/* the selected agent's group */
-.mf-file__line[data-group="true"] { background: var(--mf-ground-3); }
+/* the selected crawler's group */
+.mf-file__line[data-group="true"] { background: var(--mf-blue-wash); }
 .mf-file__line[data-group="true"] .mf-file__txt { color: var(--mf-ink); }
-/* the one rule that decides the selected agent */
+/* the one rule that decides the selected crawler */
 .mf-file__line[data-rule="true"] {
-  background: var(--mf-accent-wash);
+  background: var(--mf-accent-lo);
   box-shadow: inset 2px 0 0 var(--mf-accent);
 }
 .mf-file__line[data-rule="true"] .mf-file__txt { color: var(--mf-ink); }
@@ -458,7 +491,7 @@
   .mf-file__pick { padding: 0 var(--mf-4) var(--mf-4); }
 }
 
-/* ── waiting: blank paper feeding through ────────────────────────────────
+/* ── loading skeleton ────────────────────────────────────────────────────
    A real loading state, drawn. Nothing on this page starts invisible waiting
    for an animation or an observer to reveal it. */
 
@@ -471,10 +504,10 @@
 }
 .mf-wedge-wait--plot { min-height: calc(var(--mf-24) * 2); }
 
-/* ── the specimen strip (agent detail) ───────────────────────────────────
-   One channel pulled off the record for inspection. It enters by sliding a
-   short distance; it never fades in, so its content is on screen from the
-   first frame whether or not the animation runs. */
+/* ── the crawler detail panel ────────────────────────────────────────────
+   A side panel for one crawler. It enters by sliding a short distance; it
+   never fades in, so its content is on screen from the first frame whether or
+   not the animation runs. */
 
 .mf-strip {
   position: fixed;
@@ -551,15 +584,15 @@
   display: inline-flex;
   align-items: center;
   gap: var(--mf-2);
-  color: var(--mf-accent);
+  color: var(--mf-blue-ink);
   text-decoration: none;
   border-bottom: 1px solid var(--mf-rule-strong);
   padding-bottom: 1px;
   transition: color var(--mf-dur-1) linear, border-color var(--mf-dur-1) linear;
 }
-.mf-ext:hover { color: var(--mf-accent-hi); border-color: var(--mf-accent); }
+.mf-ext:hover { color: var(--mf-ink-strong); border-color: var(--mf-blue-ink); }
 
-/* ── the decay row trace ─────────────────────────────────────────────────── */
+/* ── the decay row chart ─────────────────────────────────────────────────── */
 
 .mf-rowtrace { display: block; flex: none; }
 .mf-rowtrace__legend {
@@ -598,9 +631,9 @@
 .mf-job__track {
   position: relative;
   width: var(--mf-24);
-  height: 3px;
-  background: var(--mf-well);
-  border-radius: 1px;
+  height: 4px;
+  background: var(--mf-ground-3);
+  border-radius: var(--mf-r-pill);
   overflow: hidden;
 }
 /* A width, eased, with stable square caps, never a scaled rounded bar that
@@ -608,17 +641,18 @@
 .mf-job__pen {
   position: absolute;
   inset: 0 auto 0 0;
-  background: var(--mf-accent);
+  background: var(--mf-ink-2);
   transition: width var(--mf-dur-3) var(--mf-ease-out);
 }
 
-/* ── a panel that is only a readout bank ─────────────────────────────────
+/* ── a panel that is only a metric strip ─────────────────────────────────
    The strip draws its own top and bottom rule, so the panel's border would
    double it. Clip the corners and drop the duplicated hairline instead. */
 
 .mf-panel--bank { overflow: hidden; }
 .mf-panel--bank > .mf-readout:first-child { border-top: 0; }
 .mf-panel--bank > .mf-readout:last-child { border-bottom: 0; }
+.mf-panel--bank > .mf-verdicts:last-child { border-bottom: 0; }
 .mf-wedge .mf-panel > .mf-finding:first-child { border-top: 0; }
 
 /* ── an allow / deny / no-rule flag ──────────────────────────────────────
@@ -642,9 +676,10 @@
 .mf-change[data-tone="good"] { color: var(--mf-success); }
 .mf-change[data-tone="flat"] { color: var(--mf-ink-2); }
 
-/* ── a sheet that has to live in half a bench ─────────────────────────────
-   The policy screen sets the files against the behaviour in two columns, so
-   its sheets get tighter gutters rather than a horizontal scrollbar. */
+/* ── a table that has to fit in half the screen ──────────────────────────
+   The robots.txt screen sets the files beside the crawler tables in two
+   columns, so its tables get tighter gutters rather than a horizontal
+   scrollbar. */
 
 .mf-wedge-tight .mf-sheet th,
 .mf-wedge-tight .mf-sheet td { padding-left: var(--mf-3); padding-right: var(--mf-3); }
@@ -653,7 +688,7 @@
 .mf-wedge-tight .mf-sheet th:last-child,
 .mf-wedge-tight .mf-sheet td:last-child { padding-right: var(--mf-4); }
 
-/* ── the illustrative record shown in place of a reading ─────────────────── */
+/* ── the example chart shown when there is no data ────────────────────── */
 
 .mf-wedge-demo { display: flex; flex-direction: column; gap: var(--mf-4); }
 .mf-wedge-demo .mf-empty { padding-bottom: var(--mf-4); }

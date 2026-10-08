@@ -1,16 +1,15 @@
 /**
- * TRACKING SETUP: where a new site becomes a recording one.
+ * TRACKING SETUP: where a new site starts to collect data.
  *
- * The composition is the product's thesis, not a numbered install checklist.
- * A recorder has two pens, and this screen has two intakes: the READER intake
- * (the browser tag, the npm package, the no-JS pixel) and the MACHINE intake
- * (the server log). They are two panels of equal weight because a crawler runs
- * no JavaScript. Without the second intake half the traffic never arrives and
- * the Citation Gap cannot be computed at all. Putting the log shipper third in
- * a list of four would misreport what this product is.
+ * The screen has two install panels of equal weight: one for PEOPLE (the
+ * browser tag, the npm package, the no-JS pixel) and one for AI CRAWLERS (the
+ * server log). They are equal because a crawler runs no JavaScript. Without
+ * the second panel half the traffic never arrives and the Citation gap cannot
+ * be computed at all. Putting the log shipper third in a list of four would
+ * misreport what this product is.
  *
- * Above both sits the listener: the paper feeding past a stationary pen while
- * nothing has arrived, and the pen's mark the moment the first hit lands.
+ * Above both sits a status line: waiting while nothing has arrived, and live
+ * the moment the first hit lands.
  */
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -61,61 +60,30 @@ interface IngestKey {
   rotated_at?: string | null;
 }
 
-/* ── the listener ────────────────────────────────────────────────────────── */
+/* ── the install status ──────────────────────────────────────────────────── */
 
 /**
- * The paper feeds past a fixed pen. Nothing here depends on the animation: the
- * heading, the reading and both channel lines are plain text that render in
- * full with motion disabled, unsupported or never started.
+ * A status dot and one line of text: grey while waiting, green once data
+ * arrives. Nothing here depends on the soft pulse; the heading, the text and
+ * both counts are plain text that render in full with motion disabled.
  */
 function Listener({ live, siteId }: { live: HasData | undefined; siteId: string }) {
   const marked = !!live?.has_data;
-  const rules: number[] = [];
-  for (let x = -24; x <= 648; x += 24) rules.push(x);
 
   return (
-    <div className="mf-set-listen">
-      <div className="mf-set-listen__paper">
-        <svg
-          viewBox="0 0 600 68"
-          preserveAspectRatio="xMidYMid slice"
-          role="img"
-          aria-label={marked ? "The pen is marking the record" : "Blank paper feeding past the pen"}
-        >
-          <g className="mf-set-listen__feed">
-            {rules.map((x) => (
-              <line key={x} x1={x} y1={6} x2={x} y2={62} stroke="var(--mf-rule-minor)" strokeWidth={1} />
-            ))}
-          </g>
-          <line x1={0} y1={20} x2={600} y2={20} stroke="var(--mf-rule-minor)" strokeWidth={1} />
-          <line x1={0} y1={50} x2={600} y2={50} stroke="var(--mf-rule-major)" strokeWidth={1} />
-          {marked ? (
-            <path
-              className="mf-scratch"
-              d="M404 50 V26"
-              stroke="var(--mf-ink-strong)"
-              strokeWidth={2}
-              strokeLinecap="square"
-            />
-          ) : null}
-          <path d="M420 8 V32" stroke="var(--mf-ink-3)" strokeWidth={1.4} strokeLinecap="square" />
-          <path
-            d="M415.5 30 H424.5 L420 50 Z"
-            fill={marked ? "var(--mf-accent)" : "var(--mf-ink-3)"}
-          />
-        </svg>
-      </div>
+    <div className="mf-set-listen" data-live={marked ? "true" : "false"}>
+      <span className="mf-set-listen__dot" aria-hidden="true" />
 
       <div className="mf-set-listen__text">
         <h2 className="mf-set-listen__title">
-          {marked ? "The pen is marking" : "Listening for the first hit"}
+          {marked ? "This site is live" : "Waiting for the first visit"}
         </h2>
         <p className="mf-set-listen__sub">
           {marked
             ? live?.first_event_at
-              ? `First hit recorded ${ago(live.first_event_at)}. This site is live.`
-              : "Hits are arriving. This site is live."
-            : `Nothing has reached site ${siteId} yet. Install an intake below; this panel checks every few seconds and confirms here on its own.`}
+              ? `First hit recorded ${ago(live.first_event_at)}. Data is arriving.`
+              : "Data is arriving."
+            : `Nothing has reached site ${siteId} yet. Install one of the options below. This panel checks every few seconds and updates on its own.`}
         </p>
 
         {typeof live?.human_events === "number" || typeof live?.agent_events === "number" ? (
@@ -127,7 +95,7 @@ function Listener({ live, siteId }: { live: HasData | undefined; siteId: string 
                   style={{ background: "var(--mf-people)" }}
                   aria-hidden="true"
                 />
-                Readers <span className="mf-data">{num(live.human_events)}</span>
+                People <span className="mf-data">{num(live.human_events)}</span>
               </span>
             ) : null}
             {typeof live?.agent_events === "number" ? (
@@ -138,7 +106,7 @@ function Listener({ live, siteId }: { live: HasData | undefined; siteId: string 
                   style={{ color: "var(--mf-ai)" }}
                   aria-hidden="true"
                 />
-                Machines <span className="mf-data">{num(live.agent_events)}</span>
+                AI crawlers <span className="mf-data">{num(live.agent_events)}</span>
               </span>
             ) : null}
           </div>
@@ -239,7 +207,7 @@ export function TrackingSetup() {
 
   return (
     <>
-      <Panel ruled feed>
+      <Panel>
         <Listener live={live.data} siteId={site ? String(site.site_id) : "this site"} />
         {live.isError ? (
           <Foot tight>
@@ -251,16 +219,16 @@ export function TrackingSetup() {
         ) : null}
       </Panel>
 
-      {/* ── reader intake ────────────────────────────────────────────────── */}
+      {/* ── tracking people ──────────────────────────────────────────────── */}
       <Panel>
         <PanelHead
-          title="Reader intake"
-          note="Three ways to record people in browsers. Pick one. Every snippet below already carries the site number and the capture options set at the foot of this screen."
+          title="Track people"
+          note="Three ways to track people in browsers. Pick one. Each snippet below already includes the site number and the capture options set at the bottom of this page."
         />
 
         <div className="mf-set-intake">
           <div className="mf-set-intake__head">
-            <h3 className="mf-set-intake__name">The tag</h3>
+            <h3 className="mf-set-intake__name">Script tag</h3>
             <span className="mf-set-intake__catch">Under 3 kB. Put it in &lt;head&gt; on every page.</span>
           </div>
           <div className="mf-set-intake__body">
@@ -278,7 +246,7 @@ export function TrackingSetup() {
 
         <div className="mf-set-intake">
           <div className="mf-set-intake__head">
-            <h3 className="mf-set-intake__name">The package</h3>
+            <h3 className="mf-set-intake__name">npm package</h3>
             <span className="mf-set-intake__catch">
               For apps that also send custom events, goals or identify().
             </span>
@@ -295,7 +263,7 @@ export function TrackingSetup() {
 
         <div className="mf-set-intake">
           <div className="mf-set-intake__head">
-            <h3 className="mf-set-intake__name">The pixel</h3>
+            <h3 className="mf-set-intake__name">Tracking pixel</h3>
             <span className="mf-set-intake__catch">
               No JavaScript at all: email, RSS, an AMP page, a CSP that forbids scripts.
             </span>
@@ -315,18 +283,18 @@ export function TrackingSetup() {
         </div>
       </Panel>
 
-      {/* ── machine intake ───────────────────────────────────────────────── */}
+      {/* ── tracking AI crawlers ─────────────────────────────────────────── */}
       <Panel>
         <PanelHead
-          title="Machine intake"
-          note="Crawlers do not run JavaScript, so nothing above ever reaches them. Agent traffic appears only when your server's own access log is shipped here, and until it is the Citation Gap cannot be computed at all. This is half the install, not an appendix to it."
+          title="Track AI crawlers"
+          note="Crawlers do not run JavaScript, so the options above never see them. AI crawler traffic appears only when your server's access log is sent here, and until then the Citation gap cannot be computed. This is half of the install, not an extra."
         />
 
         <div className="mf-set-intake">
           <div className="mf-set-intake__head">
-            <h3 className="mf-set-intake__name">The shipper</h3>
+            <h3 className="mf-set-intake__name">Log shipper</h3>
             <span className="mf-set-intake__catch">
-              Follows an access log, classifies each non-human fetch, forwards nothing else.
+              Follows an access log, finds each crawler request, and sends nothing else.
             </span>
           </div>
           <div className="mf-set-intake__body">
@@ -350,16 +318,17 @@ export function TrackingSetup() {
               </>
             )}
             <Note>
-              Combined, common and JSON log formats are detected automatically. The shipper sends only agent
-              fetches. It sends the source address so the server can check it against the operator&apos;s
-              published ranges; Micaforge stores a salted, rotating hash of it and never the address.
+              Combined, common and JSON log formats are detected automatically. The shipper sends only crawler
+              requests. It sends the source address so the server can check it against the crawler
+              operator&apos;s published address ranges. Micaforge stores a salted, rotating hash of it and
+              never the address.
             </Note>
           </div>
         </div>
 
         <div className="mf-set-intake">
           <div className="mf-set-intake__head">
-            <h3 className="mf-set-intake__name">The edge</h3>
+            <h3 className="mf-set-intake__name">Edge or middleware</h3>
             <span className="mf-set-intake__catch">
               A CDN worker, a reverse-proxy module, or your own framework middleware.
             </span>
@@ -367,8 +336,8 @@ export function TrackingSetup() {
           <div className="mf-set-intake__body">
             <Note>
               Post each request to <span className="mf-data">POST {publicOrigin()}/api/log/edge</span>, signed with
-              the ingest key below. This is the right intake when there is no file to follow, and it records
-              human and machine hits alike. The payload and the signature are documented at{" "}
+              the ingest key below. Use this when there is no log file to follow. It records visits from people
+              and crawlers alike. The payload and the signature are documented at{" "}
               <span className="mf-data">/docs/server-log</span>.
             </Note>
           </div>
@@ -437,7 +406,7 @@ export function TrackingSetup() {
               <Spec>
                 <SpecRow
                   name="Auto-capture"
-                  hint="Each one is an event kind on the record. Nothing here reads a form field's value."
+                  hint="Each one adds a type of event. Nothing here reads a form field's value."
                 >
                   <div className="mf-set-checks mf-set-checks--wide">
                     <CheckRow

@@ -1,5 +1,5 @@
 /**
- * The wedge: the four screens that report on machine readers.
+ * AI traffic: the four screens that report on AI crawlers.
  *
  * The area's stylesheet is imported here, so the router only ever has to know
  * about this barrel.

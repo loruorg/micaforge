@@ -1,5 +1,5 @@
 /**
- * THE BENCH: custom sheets, the query console, feature flags and experiments.
+ * THE WORKSPACE: custom dashboards, the query screen, feature flags and experiments.
  *
  * The four routes the router mounts are the four screens exported first below.
  * `FlagEditor` and `ExperimentResults` are panels their own index screen opens
@@ -20,7 +20,7 @@ export { ExperimentsScreen } from "./ExperimentsScreen";
 export { FlagEditor } from "./FlagEditor";
 export { ExperimentResults } from "./ExperimentResults";
 
-/* The bench's shared query vocabulary, in case another area wants the same
+/* The workspace's shared query parts, in case another area wants the same
    condition builder or the same field controls rather than growing its own. */
 export {
   DIMENSIONS,

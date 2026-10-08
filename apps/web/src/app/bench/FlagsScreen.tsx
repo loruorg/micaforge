@@ -103,9 +103,9 @@ export function FlagsScreen() {
             empty={
               all.length && needle ? (
                 <Empty
-                  title="No flag matches that"
-                  body="Nothing here has that in its key or its description."
-                  action={<Button onClick={() => setFind("")}>Show every flag</Button>}
+                  title="No flags match your search"
+                  body="No flag has that text in its key or its description."
+                  action={<Button onClick={() => setFind("")}>Show all flags</Button>}
                 />
               ) : (
                 <Empty

@@ -1,5 +1,5 @@
 /**
- * ORGANISATION: who is on the station, and what each of them can touch.
+ * ORGANISATION: who has access, and what each of them can change.
  *
  * Roles are explained on the screen rather than in a tooltip, because "member"
  * and "viewer" mean something different in every product that has them and a
@@ -61,7 +61,7 @@ export const ROLE_NAME: Record<Role, string> = {
 
 const ROLE_MEANING: { role: Role; what: string }[] = [
   { role: "owner", what: "Everything an admin can do, plus transferring and deleting the organisation itself. There is always exactly one." },
-  { role: "admin", what: "Adds and deletes sites, invites and removes people, issues and revokes API keys, resets a record." },
+  { role: "admin", what: "Adds and deletes sites, invites and removes people, issues and revokes API keys, resets a site's data." },
   { role: "member", what: "Reads every site, and edits goals, funnels, segments, dashboards and alerts. Cannot delete a site or manage people." },
   { role: "viewer", what: "Reads. Nothing on any screen writes, and export is still allowed." },
 ];

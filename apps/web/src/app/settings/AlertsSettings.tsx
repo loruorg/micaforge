@@ -1,12 +1,12 @@
 /**
- * ALERTS: trip levels.
+ * ALERTS.
  *
- * An alert is not a form with a "threshold" field; it is a rule the station
+ * An alert is not a form with a "threshold" field; it is a rule the server
  * enforces, so each one is WRITTEN as that rule with its figures set into the
  * sentence. Reading the page reads the operating instructions, which is both
  * terser than a labelled grid and harder to misconfigure.
  *
- * A trip level that exists is armed. Throwing the key off deletes the rule
+ * An alert that exists is on. Switching it off deletes the rule
  * rather than storing a disabled copy of it, because `alerts` has no enabled
  * column and a hidden second state is a lie waiting to happen.
  */
@@ -14,7 +14,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Button, Panel, PanelHead } from "../../components/react/ui";
-import { IconCheck, IconPen } from "../../components/react/icons";
+import { IconCheck } from "../../components/react/icons";
 import { api } from "../../lib/api";
 import { ago } from "../../lib/format";
 import { useSite } from "../providers";
@@ -53,11 +53,11 @@ interface Goal {
 }
 
 const KINDS: { kind: AlertKind; name: string; config: Record<string, string | number> }[] = [
-  { kind: "spike", name: "Reader spike", config: { multiple: 3 } },
-  { kind: "drop", name: "Reader drop", config: { percent: 50 } },
+  { kind: "spike", name: "Visitor spike", config: { multiple: 3 } },
+  { kind: "drop", name: "Visitor drop", config: { percent: 50 } },
   { kind: "goal", name: "Goal falls short", config: { goal_id: "", minimum: 1 } },
   { kind: "error", name: "Error surge", config: { count: 25 } },
-  { kind: "agent_surge", name: "Machine surge", config: { multiple: 4 } },
+  { kind: "agent_surge", name: "AI crawler surge", config: { multiple: 4 } },
   { kind: "citation_gap", name: "Citation gap", config: { fetches: 200, days: 14 } },
 ];
 
@@ -143,7 +143,7 @@ function Trip({
       case "spike":
         return (
           <>
-            Fire when readers in an hour exceed
+            Alert when visitors in an hour exceed
             <NumberInput
               aria-label="Multiple of the same hour last week"
               min={1.5}
@@ -157,7 +157,7 @@ function Trip({
       case "drop":
         return (
           <>
-            Fire when readers in a day fall below
+            Alert when visitors in a day fall below
             <NumberInput
               aria-label="Percentage of the seven-day median"
               min={5}
@@ -172,7 +172,7 @@ function Trip({
       case "goal":
         return (
           <>
-            Fire when{" "}
+            Alert when{" "}
             <Select
               auto
               aria-label="Goal to watch"
@@ -201,7 +201,7 @@ function Trip({
       case "error":
         return (
           <>
-            Fire when errors in an hour exceed
+            Alert when errors in an hour exceed
             <NumberInput
               aria-label="Errors in an hour"
               min={1}
@@ -215,7 +215,7 @@ function Trip({
       case "agent_surge":
         return (
           <>
-            Fire when machine fetches in an hour exceed
+            Alert when crawler fetches in an hour exceed
             <NumberInput
               aria-label="Multiple of the seven-day average"
               min={1.5}
@@ -229,18 +229,18 @@ function Trip({
       case "citation_gap":
         return (
           <>
-            Fire when one page passes
+            Alert when one page passes
             <NumberInput
               wide
-              aria-label="Machine fetches"
+              aria-label="Crawler fetches"
               min={10}
               step={10}
               value={numOf(config, "fetches", 200)}
               onChange={(e) => set("fetches", Number(e.target.value))}
             />
-            machine fetches with no answer-engine arrival for
+            crawler fetches with no visit from an AI answer for
             <NumberInput
-              aria-label="Days without an arrival"
+              aria-label="Days without a visit from an AI answer"
               min={1}
               step={1}
               value={numOf(config, "days", 14)}
@@ -270,8 +270,7 @@ function Trip({
 
       {noGoals ? (
         <Note>
-          No goals are defined for this site yet. Define one on the Goals screen and this trip level can watch
-          it.
+          No goals are defined for this site yet. Define one on the Goals screen and this alert can watch it.
         </Note>
       ) : null}
 
@@ -307,11 +306,10 @@ function Trip({
         <Button
           size="sm"
           tone="quiet"
-          icon={<IconPen size={13} />}
           disabled={!armed || !channel.to || test.isPending}
           onClick={() => test.mutate()}
         >
-          Test fire
+          Send a test
         </Button>
         <Result action={save} done="Rule saved." />
         {test.isPending ? <span className="mf-set-foot__say">Sending…</span> : null}
@@ -364,7 +362,7 @@ export function AlertsSettings() {
     <Panel>
       <PanelHead
         title="Alerts"
-        note="Six trip levels. Each fires once when the reading crosses it and holds until the reading comes back, so one long incident is one message rather than a hundred."
+        note="Six alerts. Each one fires once when the value crosses its limit and stays quiet until the value comes back, so one long incident is one message rather than a hundred."
       />
       <QueryState query={alerts}>
         {(rows) => (

@@ -223,9 +223,8 @@ export function useSite(): SiteValue {
 /* ── the notice slip ─────────────────────────────────────────────────────── */
 
 /**
- * A toast is a slip of paper clipped to the log, not a floating glass card. It
- * inherits the record's own ground and rule, and it carries no shadow: the only
- * depth in this product is the scratch ridge, which the stylesheet supplies.
+ * A toast is a white panel like every other surface, not a floating glass card.
+ * Its colours, edge and soft shadow come from the tokens, set in shell.css.
  */
 function NoticeSlips() {
   return (

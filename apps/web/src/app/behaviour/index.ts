@@ -1,5 +1,5 @@
 /**
- * The behaviour bank: events, goals, funnels, journeys, retention.
+ * The behaviour area: events, goals, funnels, journeys, retention.
  *
  * The area's stylesheet is imported here, from the barrel, so a route only has
  * to import the screen it is mounting and the styles arrive with it.

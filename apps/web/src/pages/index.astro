@@ -145,7 +145,9 @@ const jsonLd = [
           <p class="hero__fine">Open source · No cookies · Free during the beta</p>
         </div>
         <div class="mf-wrap hero__shot">
-          <DashboardPreview />
+          <div data-nosnippet>
+            <DashboardPreview />
+          </div>
         </div>
       </section>
 
@@ -187,21 +189,25 @@ const jsonLd = [
                     CONVERSIONS.map((c, i) => (
                       <tr data-key={c.key} style={`--i:${i}`}>
                         <th scope="row">
-                          <i aria-hidden="true" />
-                          {c.label}
+                          <span class="conv__ch">
+                            <i aria-hidden="true" />
+                            {c.label}
+                          </span>
                         </th>
                         <td class="is-num">{nf.format(c.visitors)}</td>
                         <td class="is-num">{nf.format(c.conversions)}</td>
                         <td class="conv__rate">
-                          <span class="conv__bar" style={`--w:${((c.conversions / c.visitors) / maxRate).toFixed(3)}`} />
-                          <strong>{((c.conversions / c.visitors) * 100).toFixed(1)}%</strong>
+                          <span class="conv__rate-in">
+                            <strong>{((c.conversions / c.visitors) * 100).toFixed(1)}%</strong>
+                            <span class="conv__bar" style={`--w:${((c.conversions / c.visitors) / maxRate).toFixed(3)}`} />
+                          </span>
                         </td>
                       </tr>
                     ))
                   }
                 </tbody>
               </table>
-              <p class="vis-foot">Visitors from <strong>AI answers</strong> convert more than twice as often as search visitors.</p>
+              <p class="vis-foot">On acme.dev, visitors from <strong>AI answers</strong> convert at 2.3× the search rate.</p>
             </div>
           </div>
 
@@ -242,7 +248,7 @@ const jsonLd = [
                         </td>
                         <td>
                           <span class="crawl__rules" data-rules={c.rules}>
-                            {c.rules === "allowed" ? "Allowed" : "Blocked, still crawls"}
+                            {c.rules === "allowed" ? "Follows rules" : "Fetched blocked paths"}
                           </span>
                         </td>
                       </tr>
@@ -344,7 +350,7 @@ const jsonLd = [
   src="https://api.micaforge.com/mf.js"&gt;&lt;/script&gt;</code></pre>
                 <p class="steps__note">
                   To count AI crawlers too, add the edge middleware or ship your server log.{" "}
-                  <a href="/docs/agents/shipping-server-logs">How</a>
+                  <a href="/docs/agents/shipping-server-logs">Set up crawler tracking</a>
                 </p>
               </div>
             </li>

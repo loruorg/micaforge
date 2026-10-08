@@ -1,16 +1,14 @@
 /**
- * THE RECORD: the site overview, and the product's home.
+ * The dashboard: the site overview, and the product's home.
  *
- * The screen is built as one instrument rather than a page of widgets: the
- * patch bar sets what is being read, the drum writes it on continuous paper,
- * the readout bank under the drum reports the same interval as figures and
- * chooses which channel the pen is writing, and the bench below tabulates what
- * the trace is made of.
+ * Top to bottom: the audience and range controls, the traffic chart, the
+ * metric totals under it (selecting one charts it), and the breakdown tables
+ * below.
  *
- * The machines strip sits deliberately high on the page. An operator can read
- * the human numbers anywhere; the count of what the crawlers took, and how
- * little of it came back, is the reason this product exists, so it is not
- * buried at the bottom next to the browser table.
+ * The AI traffic panel sits deliberately high on the page. People numbers are
+ * available anywhere; the count of what the crawlers took, and how little of it
+ * came back, is the reason this product exists, so it is not buried at the
+ * bottom next to the browser table.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router";
@@ -52,7 +50,7 @@ import {
 import type { RecordQuery } from "./TopSheets";
 import "../../styles/app/record.css";
 
-/* ── the six channels of the readout bank ────────────────────────────────── */
+/* ── the six metrics under the chart ─────────────────────────────────────── */
 
 type MetricKey =
   | "visitors"
@@ -67,12 +65,12 @@ interface MetricDef {
   label: string;
   /** The figure in the readout. */
   fmt: (v: number | null | undefined) => string;
-  /** What the drum prints for one sample of this channel. */
+  /** What the chart prints for one sample of this metric. */
   write: (v: number) => string;
   /**
-   * A rate crosses the wire as 0..1, and the drum's gain scale is written in
-   * whole numbers, so a rate is handed to the pen as 0..100 and formatted back
-   * on the way out. Without this the gain margin reads 0, 0, 1, 1.
+   * A rate crosses the wire as 0..1, and the chart's axis is written in whole
+   * numbers, so a rate is handed to the chart as 0..100 and formatted back on
+   * the way out. Without this the axis reads 0, 0, 1, 1.
    */
   toPen?: (v: number | null) => number | null;
   /** True where a fall is the good outcome. */
@@ -98,9 +96,9 @@ const METRICS: MetricDef[] = [
   { key: "views_per_session", label: "Views per session", fmt: oneDp, write: (v) => v.toFixed(1) },
 ];
 
-/* ── what the machines did ───────────────────────────────────────────────── */
+/* ── AI traffic ──────────────────────────────────────────────────────────── */
 
-function MachinesStrip({ q, base }: { q: RecordQuery; base: string }) {
+function AiTrafficPanel({ q, base }: { q: RecordQuery; base: string }) {
   const machineQ: RecordQuery = { ...q, audience: "agent" };
 
   const agents = useQuery({
@@ -135,31 +133,31 @@ function MachinesStrip({ q, base }: { q: RecordQuery; base: string }) {
   const channels: Channel[] = [
     {
       key: "fetches",
-      label: "Agent fetches",
+      label: "Crawler fetches",
       value: waiting ? "—" : num(a?.fetches),
       delta: a ? asFraction(a.delta_pct) : null,
     },
     {
       key: "agents",
-      label: "Distinct agents",
+      label: "AI crawlers seen",
       value: waiting ? "—" : num(a?.unique_agents),
       note: verified == null ? undefined : `${pct(verified)} verified`,
     },
     {
       key: "arrivals",
-      label: "Answer-engine arrivals",
+      label: "Visits from AI answers",
       value: waiting ? "—" : num(g?.answer_arrivals),
-      note: "readers sent by an AI answer",
+      note: "people sent by an AI answer",
     },
     {
       key: "gap",
-      label: "Citation Gap",
+      label: "Citation gap",
       value: gapReading,
       note:
         waiting || g == null
           ? undefined
           : g.answer_arrivals > 0
-            ? "fetches for each arrival"
+            ? "fetches for each visit"
             : g.agent_fetches > 0
               ? "nothing has come back yet"
               : "no crawl to measure yet",
@@ -169,12 +167,12 @@ function MachinesStrip({ q, base }: { q: RecordQuery; base: string }) {
   return (
     <Panel>
       <PanelHead
-        title="What the machines did"
-        note="Fetches by named AI clients over the same interval, and how many readers an answer engine sent back."
+        title="AI traffic"
+        note="Pages fetched by named AI crawlers in the same period, and how many people an AI answer sent back."
         actions={
           <>
             <Link className="mf-btn mf-btn--quiet mf-btn--sm mfr-key" to={`${base}/agents`}>
-              <span className="mf-btn__label">Agent traffic</span>
+              <span className="mf-btn__label">AI crawlers</span>
               <span className="mf-btn__icon">
                 <IconOut size={13} />
               </span>
@@ -191,7 +189,7 @@ function MachinesStrip({ q, base }: { q: RecordQuery; base: string }) {
       <div className="mfr-body mfr-body--flush">
         {failed ? (
           <ErrorState
-            title="The machine reading did not come back"
+            title="Could not load AI traffic"
             detail={errorDetail(agents.error ?? gap.error)}
             onRetry={() => {
               void agents.refetch();
@@ -225,7 +223,7 @@ function FirstHit({
   const channels: DrumChannel[] = [
     {
       id: "readers",
-      label: "Readers",
+      label: "People",
       color: "var(--mf-people)",
       pen: "written",
       values: demo.readers,
@@ -233,7 +231,7 @@ function FirstHit({
     },
     {
       id: "machines",
-      label: "Machine fetches",
+      label: "AI crawler fetches",
       color: "var(--mf-ai)",
       pen: "stepped",
       values: demo.machines,
@@ -242,10 +240,10 @@ function FirstHit({
   ];
 
   return (
-    <Panel feed>
+    <Panel>
       <PanelHead
-        title="Waiting for the first hit"
-        note={`${rangeLabel(range)}: nothing was recorded for ${domain ?? "this site"}. Add the tracker and the pen starts on the next pageview.`}
+        title="Waiting for the first visit"
+        note={`${rangeLabel(range)}: no data yet for ${domain ?? "this site"}. Add the tracker and data starts with the next pageview.`}
         actions={
           <Button size="sm" onClick={onRecheck}>
             Check again
@@ -256,8 +254,8 @@ function FirstHit({
         <div className="mfr-install">
           <div className="mfr-install__say">
             <p className="mfr-install__body">
-              One tag, no cookie, no consent banner. Agent fetches are counted server-side, so
-              crawlers are recorded whether or not they run this script.
+              One tag, no cookie, no consent banner. AI crawler fetches are counted on the server, so
+              crawlers are counted whether or not they run this script.
             </p>
             <CopyField
               label="Paste this before </head>"
@@ -274,13 +272,22 @@ function FirstHit({
               demo
             />
             <DemoNotice>
-              Illustrative record. This is the shape the two pens make, not traffic to{" "}
+              Example data. This is the shape the two series make, not traffic to{" "}
               {domain ?? "this site"}.
             </DemoNotice>
           </div>
         </div>
       </div>
     </Panel>
+  );
+}
+
+/** The comparison series' own line, dashed, so the toggle doubles as its legend. */
+function CompareMark() {
+  return (
+    <svg width="16" height="8" viewBox="0 0 16 8" aria-hidden="true" focusable="false">
+      <path d="M0 4h16" stroke="currentColor" strokeWidth="1.5" strokeDasharray="3 2.5" fill="none" />
+    </svg>
   );
 }
 
@@ -294,7 +301,7 @@ export function OverviewScreen() {
   const [metricKey, setMetricKey] = useState<MetricKey>("visitors");
   const [ghost, setGhost] = useState(true);
 
-  /** The named interval to fall back to when the caliper is released. */
+  /** The named range to go back to when a range selected on the chart is cleared. */
   const namedRange = useRef(isMeasuredRange(range) ? "7d" : range);
   useEffect(() => {
     if (!isMeasuredRange(range)) namedRange.current = range;
@@ -332,7 +339,7 @@ export function OverviewScreen() {
   const meta: ApiMeta | undefined = overview.data?.meta;
   const before = ov?.compare ?? null;
 
-  /* ── the trace ─────────────────────────────────────────────────────────── */
+  /* ── the chart series ──────────────────────────────────────────────────── */
 
   const buckets = series.data?.buckets;
   const times = useMemo(() => (buckets ?? []).map((b) => toMs(b.t)), [buckets]);
@@ -349,10 +356,10 @@ export function OverviewScreen() {
     });
   }, [buckets, ghost, series.data, metric]);
 
-  /* The drum's readout prints the value of ONE sample: the one under the
-     cursor, or the last one written. The strip beneath the drum prints the
-     total for the whole interval. Two different measurements, so neither is
-     allowed to wear the bare metric name on its own. */
+  /* The chart legend prints the value of ONE sample: the one under the
+     cursor, or the latest one. The totals under the chart print the whole
+     period. Two different measurements, so neither is allowed to wear the
+     bare metric name on its own. */
   const channels: DrumChannel[] = [
     {
       id: metric.key,
@@ -375,7 +382,7 @@ export function OverviewScreen() {
     });
   }
 
-  /** Annotations are read off the trace itself: never written into it. */
+  /** Annotations are read off the series itself. */
   const annotations = useMemo<DrumAnnotation[]>(() => {
     const out: DrumAnnotation[] = [];
     if (values.length < 3) return out;
@@ -389,11 +396,11 @@ export function OverviewScreen() {
         peakAt = i;
       }
     }
-    /* The peak is deliberately NOT written here. The drum notes it in the
-       margin itself when the pen runs off the top of the paper, and it is the
-       only one that knows the true value it ran off at, so writing a second
-       "Peak" from this side put two identical marks on one sample. `peakAt` is
-       still read, to keep the two notes below off the same bucket. */
+    /* The peak is deliberately NOT noted here. The chart notes it in the
+       margin itself when a value runs off the top of the scale, and it is the
+       only one that knows the true value, so writing a second "Peak" from this
+       side put two identical marks on one sample. `peakAt` is still read, to
+       keep the two notes below off the same bucket. */
 
     let rise = 0;
     let riseAt = -1;
@@ -424,7 +431,7 @@ export function OverviewScreen() {
     return out;
   }, [values, metric]);
 
-  /** The caliper measures an interval off the paper and makes it the range. */
+  /** A range dragged on the chart becomes the date range. */
   const onMeasure = useCallback(
     (from: number, to: number) => {
       const t0 = times[from];
@@ -439,7 +446,7 @@ export function OverviewScreen() {
 
   const onDrill = useCallback((f: Filter) => addFilter(f), [addFilter]);
 
-  /* ── the readout bank ──────────────────────────────────────────────────── */
+  /* ── the metric totals ───────────────────────────────────────────────────── */
 
   const readout: Channel[] = METRICS.map((m) => ({
     key: m.key,
@@ -454,7 +461,7 @@ export function OverviewScreen() {
   const noRecord =
     ov != null && !ov.visitors && !ov.sessions && !ov.pageviews && active.length === 0;
 
-  const heading = <h1 className="mf-sr">The record{domain ? ` for ${domain}` : ""}</h1>;
+  const heading = <h1 className="mf-sr">Dashboard{domain ? ` for ${domain}` : ""}</h1>;
 
   if (noRecord) {
     return (
@@ -475,13 +482,13 @@ export function OverviewScreen() {
 
   const windowNote = `${[rangeLabel(range), timezone, meta?.sampled ? "sampled" : null]
     .filter(Boolean)
-    .join(" · ")}. Choose a channel below to write it on the drum.`;
+    .join(" · ")}. Select a metric below to chart it.`;
 
   return (
     <div className="mfr-screen">
       {heading}
 
-      {/* ── the patch bar ─────────────────────────────────────────────── */}
+      {/* ── audience and range ────────────────────────────────────────── */}
       <div className="mfr-bar">
         <div className="mfr-bar__audience">
           <AudienceSwitch value={audience} onChange={setAudience} />
@@ -493,7 +500,7 @@ export function OverviewScreen() {
           <Button
             size="sm"
             icon={<IconClose size={12} />}
-            aria-label={`Release the caliper and return to ${rangeLabel(namedRange.current)}`}
+            aria-label={`Clear the selected range and go back to ${rangeLabel(namedRange.current)}`}
             onClick={() => setRange(namedRange.current)}
           >
             {rangeLabel(range)}
@@ -501,26 +508,27 @@ export function OverviewScreen() {
         ) : null}
       </div>
 
-      {/* ── the record ────────────────────────────────────────────────── */}
-      <Panel feed>
+      {/* ── traffic chart ─────────────────────────────────────────────── */}
+      <Panel>
         <PanelHead
-          title="The record"
+          title="Traffic"
           note={windowNote}
           actions={
             <Button
               size="sm"
               className="mfr-toggle"
+              icon={<CompareMark />}
               aria-pressed={ghost}
               onClick={() => setGhost((v) => !v)}
             >
-              Previous period
+              Compare to previous period
             </Button>
           }
         />
         <div className="mfr-body">
           {series.isError ? (
             <ErrorState
-              title="The trace did not come back"
+              title="Could not load the chart"
               detail={errorDetail(series.error)}
               onRetry={() => void series.refetch()}
             />
@@ -537,8 +545,8 @@ export function OverviewScreen() {
               live={audience !== "agent"}
               emptyLabel={
                 siteId == null || series.isPending
-                  ? "Reading the record…"
-                  : "No trace in this interval. Nothing was recorded."
+                  ? "Loading…"
+                  : "No data for this period."
               }
             />
           )}
@@ -546,15 +554,15 @@ export function OverviewScreen() {
           <div className="mfr-record__readout">
             {overview.isError ? (
               <ErrorState
-                title="The figures did not come back"
+                title="Could not load the totals"
                 detail={errorDetail(overview.error)}
                 onRetry={() => void overview.refetch()}
               />
             ) : (
               <>
                 <p className="mfr-record__totals">
-                  Totals for {rangeLabel(range)}. The figure beside each channel on the drum above
-                  is a single sample: the interval under the cursor, or the last one written.
+                  Totals for {rangeLabel(range)}. The figure in the chart legend is a single
+                  sample: the one under the cursor, or the latest one.
                 </p>
                 <Readout channels={readout} />
               </>
@@ -563,10 +571,10 @@ export function OverviewScreen() {
         </div>
       </Panel>
 
-      {/* ── what the machines did ─────────────────────────────────────── */}
-      <MachinesStrip q={q} base={base} />
+      {/* ── AI traffic ────────────────────────────────────────────────── */}
+      <AiTrafficPanel q={q} base={base} />
 
-      {/* ── the bench ─────────────────────────────────────────────────── */}
+      {/* ── breakdown tables ──────────────────────────────────────────── */}
       <TopSheets q={q} base={base} onDrill={onDrill} />
     </div>
   );

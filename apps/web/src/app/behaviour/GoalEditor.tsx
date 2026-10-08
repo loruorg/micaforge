@@ -1,9 +1,9 @@
 /**
  * The goal editor.
  *
- * A goal is a rule the record is measured against, so the form is built as a
- * rule: pick what counts, then state the condition. The five kinds are real
- * keys on one bank rather than a dropdown, because which kind you pick changes
+ * A goal is a rule that decides what counts as a conversion, so the form is
+ * built as a rule: pick what counts, then state the condition. The five kinds
+ * are real buttons in one group rather than a dropdown, because which kind you pick changes
  * the rest of the form and that consequence should be visible before you commit
  * to it.
  *
@@ -191,7 +191,7 @@ export function GoalEditor({
         title={goal ? "Edit goal" : "New goal"}
         note={
           goal
-            ? "Changes apply to how the record is read from now on. Past conversions are recounted, not rewritten."
+            ? "Changes apply from now on. Past conversions are recounted, not rewritten."
             : "Name what counts as a conversion, then state the condition that recognises it."
         }
       />
@@ -585,7 +585,7 @@ export function Field({
 
 /**
  * The caret is drawn from the icon set rather than left to the platform, so the
- * control belongs to the bench in both recording media.
+ * control matches the rest of the dashboard on every browser.
  */
 export function Select({
   id,

@@ -1,10 +1,10 @@
 /**
- * THE SHEET EDITOR: a paste-up board for readings.
+ * THE DASHBOARD EDITOR.
  *
- * A sheet is one length of continuous chart paper (the pin feed runs down its
- * left edge) onto which the operator pastes readings and arranges them by hand.
- * The arrangement is real drag-to-place on a twelve-column grid, written with
- * pointer events and CSS grid and no drag-and-drop library.
+ * A dashboard is a board of cards (numbers, charts, tables) that the user adds
+ * and arranges by hand. The arrangement is real drag-to-place on a
+ * twelve-column grid, written with pointer events and CSS grid and no
+ * drag-and-drop library.
  *
  * Three decisions worth keeping:
  *
@@ -92,7 +92,7 @@ function resolve(cards: DashCard[], pinnedId: string): DashCard[] {
   return next;
 }
 
-/** Explicit gap-closing. Only ever run when the operator asks for it. */
+/** Explicit gap-closing. Only ever run when the user asks for it. */
 function tidy(cards: DashCard[]): DashCard[] {
   const next = cards.map((c) => ({ ...c }));
   const order = [...next].sort((a, b) => a.y - b.y || a.x - b.x);
@@ -110,7 +110,7 @@ const byPlace = (cards: DashCard[]) => [...cards].sort((a, b) => a.y - b.y || a.
 
 /* ═══ small hooks ═════════════════════════════════════════════════════════ */
 
-/** Measures a box so a chart can fill the card it was pasted into. */
+/** Measures a box so a chart can fill the card it sits in. */
 function useBoxHeight<T extends HTMLElement>() {
   const ref = useRef<T | null>(null);
   const [h, setH] = useState(0);
@@ -141,7 +141,7 @@ function useNarrow(query = "(max-width: 900px)") {
   return narrow;
 }
 
-/* ═══ one reading ═════════════════════════════════════════════════════════ */
+/* ═══ one card ════════════════════════════════════════════════════════════ */
 
 const RAMP = ["var(--mf-s1)", "var(--mf-s2)", "var(--mf-s3)", "var(--mf-s4)", "var(--mf-s5)"];
 
@@ -152,9 +152,10 @@ function endpointFor(vis: CardVis): string {
 }
 
 /**
- * The height the drum's plot may occupy inside a card: the body box, less the
- * readout strip the drum always writes beneath it (margin included). Measured
- * from the real elements so no pixel figure is guessed here or in the sheet.
+ * The height the chart's plot may occupy inside a card: the body box, less the
+ * legend strip the chart always writes beneath it (margin included). Measured
+ * from the real elements so no pixel figure is guessed here or in the
+ * stylesheet.
  */
 function useDrumHeight(host: { current: HTMLElement | null }, bodyH: number, on: boolean) {
   const [foot, setFoot] = useState(0);
@@ -237,7 +238,7 @@ function CardReading({ card }: { card: DashCard }) {
         lines={3}
         empty={
           <p className="mf-bn-card__none">
-            Nothing in this interval. Widen the interval, or loosen this card&rsquo;s conditions.
+            No data in this period. Choose a longer period, or loosen this card&rsquo;s conditions.
           </p>
         }
       >
@@ -249,7 +250,7 @@ function CardReading({ card }: { card: DashCard }) {
                 key: card.metric,
                 label: def.label,
                 value: def.fmt(Number((data as unknown as Record<string, number>)?.[card.metric] ?? 0)),
-                note: aud === "agent" ? "machines" : aud === "all" ? "readers and machines" : "readers",
+                note: aud === "agent" ? "AI crawlers" : aud === "all" ? "people and AI crawlers" : "people",
               } as Channel,
             ]}
           />
@@ -308,9 +309,9 @@ function CardReading({ card }: { card: DashCard }) {
 }
 
 /**
- * A proportion band. One length of the record divided by share, with every
- * segment named in the list under it, so the picture never depends on being
- * able to tell two tones apart.
+ * A proportion band. One bar divided by share, with every segment named in the
+ * list under it, so the picture never depends on being able to tell two tones
+ * apart.
  */
 function Distribution({ rows, metric }: { rows: BreakdownRow[]; metric: MetricKey }) {
   const def = metricDef(metric);
@@ -380,22 +381,22 @@ function CardComposer({
   const visNote = VISUALS.find((v) => v.v === draft.vis)?.note ?? "";
 
   return (
-    <section className="mf-bn-composer" aria-label={mode === "add" ? "New reading" : "Edit reading"}>
-      <h3 className="mf-bn-composer__title">{mode === "add" ? "Pin a reading" : "Edit this reading"}</h3>
+    <section className="mf-bn-composer" aria-label={mode === "add" ? "New card" : "Edit card"}>
+      <h3 className="mf-bn-composer__title">{mode === "add" ? "Add a card" : "Edit this card"}</h3>
 
       <div className="mf-bn-build__row">
         <Field
-          label="Drawn as"
+          label="Show as"
           hint={visNote}
           control={(id) => (
             <KeyBank<CardVis>
               id={id}
-              label="Drawn as"
+              label="Show as"
               value={draft.vis}
               onChange={(v) =>
                 set({
                   vis: v,
-                  // A record and a sheet want different room; give the card a
+                  // A chart and a table want different room; give the card a
                   // sensible shape for what it is about to hold.
                   w: v === "figure" ? Math.min(draft.w, 3) : Math.max(draft.w, 6),
                   h: v === "figure" ? Math.max(MIN_H, Math.min(draft.h, 2)) : Math.max(draft.h, 4),
@@ -426,9 +427,9 @@ function CardComposer({
               onChange={(v) => set({ audience: v as DashCard["audience"] })}
             >
               <option value="inherit">Follows the screen</option>
-              <option value="human">Readers</option>
-              <option value="agent">Machines</option>
-              <option value="all">Both</option>
+              <option value="human">People</option>
+              <option value="agent">AI crawlers</option>
+              <option value="all">All</option>
             </Select>
           )}
         />
@@ -491,7 +492,7 @@ function CardComposer({
         {draft.vis === "record" ? (
           <Field
             label="Time grain"
-            hint="Automatic lets the server fit the grain to the interval."
+            hint="Automatic lets the server fit the grain to the period."
             control={(id) => (
               <Select
                 id={id}
@@ -525,7 +526,7 @@ function CardComposer({
             <FilterBuilder
               value={draft.filters}
               onChange={(filters) => set({ filters })}
-              emptyNote="No conditions of its own. This card reads whatever the screen is set to."
+              emptyNote="No conditions of its own. This card uses the screen's filters."
             />
           )}
         />
@@ -533,7 +534,7 @@ function CardComposer({
 
       <div className="mf-bn-build__act">
         <Button tone="primary" onClick={onCommit}>
-          {mode === "add" ? "Pin it to the sheet" : "Save this reading"}
+          {mode === "add" ? "Add to dashboard" : "Save card"}
         </Button>
         <Button tone="quiet" onClick={onCancel}>
           Cancel
@@ -596,7 +597,7 @@ export function DashboardEditor({ id: idProp }: { id?: string } = {}) {
   }, []);
   const [say, setSay] = useState("");
 
-  // Load into local state once the record arrives.
+  // Load into local state once the dashboard arrives.
   useEffect(() => {
     if (!q.data) return;
     setName(q.data.name ?? "");
@@ -753,12 +754,12 @@ export function DashboardEditor({ id: idProp }: { id?: string } = {}) {
       <div className="mf-bn-page">
         <Panel>
           <ErrorState
-            title="That sheet did not open"
+            title="Could not open this dashboard"
             detail={errText(q.error)}
             onRetry={() => void q.refetch()}
           />
           <p className="mf-bn-back">
-            <Link to={`/app/${site}/dashboards`}>All sheets</Link>
+            <Link to={`/app/${site}/dashboards`}>All dashboards</Link>
           </p>
         </Panel>
       </div>
@@ -768,25 +769,25 @@ export function DashboardEditor({ id: idProp }: { id?: string } = {}) {
   return (
     <div className="mf-bn-page">
       <p className="mf-bn-back">
-        <Link to={`/app/${site}/dashboards`}>All sheets</Link>
+        <Link to={`/app/${site}/dashboards`}>All dashboards</Link>
       </p>
 
-      <Panel feed className="mf-bn-sheet">
-        <div className="mf-bn-sheet__head">
-          <div className="mf-bn-sheet__ident">
-            <label className="mf-sr" htmlFor="mf-sheet-name">
-              Sheet name
+      <Panel className="mf-bn-board">
+        <div className="mf-bn-board__head">
+          <div className="mf-bn-board__ident">
+            <label className="mf-sr" htmlFor="mf-board-name">
+              Dashboard name
             </label>
             <input
-              id="mf-sheet-name"
-              className="mf-bn-sheet__name"
+              id="mf-board-name"
+              className="mf-bn-board__name"
               value={name}
-              placeholder="Untitled sheet"
+              placeholder="Untitled dashboard"
               onChange={(e) => setName(e.target.value)}
             />
-            <p className="mf-bn-sheet__state">
+            <p className="mf-bn-board__state">
               <span className="mf-data">{layout.cards.length}</span>{" "}
-              {layout.cards.length === 1 ? "reading" : "readings"}
+              {layout.cards.length === 1 ? "card" : "cards"}
               {dirty ? (
                 <> · unsaved changes</>
               ) : q.data?.updated_at ? (
@@ -795,9 +796,9 @@ export function DashboardEditor({ id: idProp }: { id?: string } = {}) {
             </p>
           </div>
 
-          <div className="mf-bn-sheet__act">
+          <div className="mf-bn-board__act">
             <Button icon={<IconPlus size={13} />} onClick={startAdd} disabled={!!composing}>
-              Add a reading
+              Add a card
             </Button>
             <Button
               onClick={() => setCards(tidy(layout.cards))}
@@ -818,14 +819,14 @@ export function DashboardEditor({ id: idProp }: { id?: string } = {}) {
               Revert
             </Button>
             <Button tone="primary" disabled={!dirty || save.isPending} onClick={() => save.mutate()}>
-              {save.isPending ? "Saving…" : "Save the sheet"}
+              {save.isPending ? "Saving…" : "Save dashboard"}
             </Button>
           </div>
         </div>
 
         {save.isError ? (
           <p className="mf-bn-field__err" role="alert">
-            The sheet was not saved. {errText(save.error)}
+            The dashboard was not saved. {errText(save.error)}
           </p>
         ) : null}
 
@@ -850,11 +851,11 @@ export function DashboardEditor({ id: idProp }: { id?: string } = {}) {
           lines={4}
           empty={
             <Empty
-              title="Nothing pinned to this sheet yet"
-              body="Add a reading: choose a metric, a dimension, how it should be drawn and its own conditions. Then drag the cards into the arrangement you want."
+              title="This dashboard has no cards yet"
+              body="Add a card: choose a metric, a dimension, how to show it and its own conditions. Then drag the cards into the layout you want."
               action={
                 <Button tone="primary" icon={<IconPlus size={13} />} onClick={startAdd}>
-                  Add a reading
+                  Add a card
                 </Button>
               }
             />
@@ -878,9 +879,7 @@ export function DashboardEditor({ id: idProp }: { id?: string } = {}) {
                   gridColumn: `${drag.target.x + 1} / span ${drag.target.w}`,
                   gridRow: `${drag.target.y + 1} / span ${drag.target.h}`,
                 }}
-              >
-                <span /> <span /> <span /> <span />
-              </div>
+              />
             ) : null}
 
             {ordered.map((card) => {
@@ -910,7 +909,7 @@ export function DashboardEditor({ id: idProp }: { id?: string } = {}) {
                       onPointerDown={(e) => beginDrag(e, card, "move")}
                       onKeyDown={(e) => nudge(e, card)}
                     >
-                      <span className="mf-bn-card__perf" aria-hidden="true" />
+                      <span className="mf-bn-card__dots" aria-hidden="true" />
                     </button>
 
                     <h3 className="mf-bn-card__title">{cardTitle(card)}</h3>
@@ -952,8 +951,8 @@ export function DashboardEditor({ id: idProp }: { id?: string } = {}) {
         </Reading>
 
         {narrow && layout.cards.length > 1 ? (
-          <p className="mf-bn-sheet__narrow">
-            Stacked in reading order. Arranging needs a screen at least 900 pixels wide.
+          <p className="mf-bn-board__narrow">
+            Cards are stacked in order. Arranging needs a screen at least 900 pixels wide.
           </p>
         ) : null}
       </Panel>

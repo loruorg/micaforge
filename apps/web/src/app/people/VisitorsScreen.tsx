@@ -6,6 +6,11 @@
  * and is not a person. A row appears here only where the site itself called
  * `identify()`, so the empty state is not an apology; it is the product
  * explaining a deliberate constraint, with the one line of code that changes it.
+ *
+ * The list endpoint also returns visitors that were never named (an empty
+ * `identified_id` beside the daily hash). Those rows are shown as anonymous and
+ * do not open a profile: the profile reads and erases by the named id, so a
+ * link to it from a hash would open an empty page.
  */
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router";
@@ -69,7 +74,7 @@ export function IdentifyEmpty({ searched }: { searched?: string }) {
     return (
       <Empty
         title="No named visitor matches that"
-        body={<>Nothing in this interval carries an id containing “{searched}”. Clear the search to see every named visitor.</>}
+        body={<>No visitor in this period has an id containing “{searched}”. Clear the search to see every named visitor.</>}
       />
     );
   }
@@ -79,7 +84,7 @@ export function IdentifyEmpty({ searched }: { searched?: string }) {
       body="Micaforge counts traffic, not people: the visitor hash rotates every day and never leaves the server. A visitor appears here only once your site names one, after a sign-in say, and their sessions, goals and traits collect against that id from then on."
       action={
         <div className="mf-p-empty-code">
-          <CopyField label="Call this once you know who the reader is" value={IDENTIFY_LINE} />
+          <CopyField label="Call this once you know who the visitor is" value={IDENTIFY_LINE} />
         </div>
       }
     />
@@ -123,15 +128,21 @@ export function VisitorsScreen() {
     {
       key: "id",
       head: "Visitor",
-      render: (r) => (
-        <Link
-          className="mf-data"
-          to={`${base}/visitors/${encodeURIComponent(r.identified_id)}`}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {r.identified_id}
-        </Link>
-      ),
+      render: (r) =>
+        r.identified_id ? (
+          <Link
+            className="mf-data"
+            to={`${base}/visitors/${encodeURIComponent(r.identified_id)}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {r.identified_id}
+          </Link>
+        ) : (
+          <span className="mf-p-dim" title={r.visitor_id ? `Daily hash ${r.visitor_id}` : undefined}>
+            Anonymous
+            {r.visitor_id ? <span className="mf-data"> · {r.visitor_id.slice(0, 8)}</span> : null}
+          </span>
+        ),
     },
     {
       key: "traits",
@@ -181,12 +192,12 @@ export function VisitorsScreen() {
 
   return (
     <div className="mf-p-stack">
-      <Panel ruled feed>
+      <Panel>
         <PanelHead
           title="Visitors"
           note={
             total != null
-              ? `${num(total)} named ${total === 1 ? "visitor" : "visitors"}. A visitor is only named where your site called identify().`
+              ? `${num(total)} ${total === 1 ? "visitor" : "visitors"}. A visitor gets a name only where your site called identify().`
               : "Only the ids your own site passed to identify() appear here. Everything else stays an anonymous, daily-rotating hash."
           }
           actions={
@@ -232,7 +243,9 @@ export function VisitorsScreen() {
               columns={columns}
               loading={q.isPending}
               getKey={(r, i) => r.identified_id || String(i)}
-              onRowClick={(r) => navigate(`${base}/visitors/${encodeURIComponent(r.identified_id)}`)}
+              onRowClick={(r) => {
+                if (r.identified_id) navigate(`${base}/visitors/${encodeURIComponent(r.identified_id)}`);
+              }}
               empty={<IdentifyEmpty searched={findApplied} />}
             />
             {rows.length || page > 0 ? (

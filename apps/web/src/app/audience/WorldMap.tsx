@@ -1,30 +1,30 @@
 /**
- * WorldMap: the choropleth plate.
+ * WorldMap: the choropleth map on the Locations screen.
  *
  * This is a real map, drawn from a real topology, and it makes no network call
  * to get one. The path set below was generated offline from the public-domain
  * Natural Earth admin-0 country set, projected once with **Equal Earth**
  * (Šavrič, Patterson & Jenny, 2018) and simplified to roughly four thousand
  * points. Equal Earth is chosen deliberately: it is equal-area, so a shaded
- * country's size on the plate is honestly proportional to its size on the
+ * country's size on the map is honestly proportional to its size on the
  * ground. A Mercator choropleth would hand Greenland the visual weight of
  * Africa, which for a report about where readers are is simply a lie.
  *
- * Conventions the plate keeps:
+ * Conventions the map keeps:
  *   - 232 countries are drawn. The polar and sub-polar territories with no
- *     resident population are out of frame, and any code that arrives with a
- *     reading but has no shape here is named in the readout rather than
+ *     resident population are out of frame, and any code that arrives with
+ *     data but has no shape here is named in the summary rather than
  *     silently dropped.
  *   - A country too small to draw at this scale (Monaco, Singapore, Malta and
  *     their peers) carries a point symbol, the standard cartographic answer,
  *     so it is present and readable rather than absent.
- *   - The plate is a picture: it carries `role="img"` and one summary label,
- *     and the ranked sheet beside it is the keyboard-operable, screen-reader
+ *   - The map is a picture: it carries `role="img"` and one summary label,
+ *     and the ranked table beside it is the keyboard-operable, screen-reader
  *     interface onto exactly the same numbers. Pointing at either highlights
  *     the other.
  *   - Colour is never the only encoding. Every band prints its numeric range,
- *     the strongest reading is marked on the plate with a registration
- *     crosshair and named, and the sheet carries every figure in full.
+ *     the top country is marked on the map with a crosshair and named, and
+ *     the table carries every figure in full.
  */
 import { useMemo } from "react";
 import { compact, num, pct } from "../../lib/format";
@@ -57,9 +57,8 @@ function plate(lon: number, lat: number): [number, number] {
   return [(x - PROJ.minX) * PROJ.k, (-y - PROJ.minY) * PROJ.k];
 }
 
-/* The instrument's ruling, laid on the plate itself and clipped to it, on the
-   same rule as everywhere else in this product: ruling lives inside a panel,
-   never behind the page. Meridians stop short of ±180 so no line is cut. */
+/* The graticule, drawn on the map itself in the chart grid colours, never
+   behind the page. Meridians stop short of ±180 so no line is cut. */
 const MERIDIANS = (() => {
   const out: string[] = [];
   for (let lon = -150; lon <= 150; lon += 30) {
@@ -119,12 +118,14 @@ function bandsFor(values: number[]): number[] {
   const th: number[] = [];
   for (let i = 1; i < k; i++) {
     const cut = v[Math.floor((i / k) * v.length)];
-    if (th[th.length - 1] !== cut) th.push(cut);
+    /* A cut at the smallest value would open an empty first band (nothing is
+       below the minimum), and the legend would print "1" beside "1–2". */
+    if (cut > v[0] && th[th.length - 1] !== cut) th.push(cut);
   }
   return th;
 }
 
-/** The shellac ramp, strongest reading first. */
+/** The blue ramp, strongest value first. */
 const RAMP = ["var(--mf-s1)", "var(--mf-s2)", "var(--mf-s3)", "var(--mf-s4)", "var(--mf-s5)"];
 
 function bandColour(band: number, count: number): string {
@@ -189,13 +190,22 @@ export function WorldMap({
     for (let i = 0; i <= th.length; i++) {
       const lo = i === 0 ? 1 : th[i - 1];
       const hi = i === th.length ? null : th[i] - 1;
-      out.push(hi == null || hi <= lo ? `${compact(lo)}+` : `${compact(lo)}–${compact(hi)}`);
+      /* A band that holds one value prints that value; only the top band is
+         open-ended. Printing "1+" for a band of exactly one gave a legend that
+         read "1+, 1+, 2+". */
+      out.push(
+        hi == null
+          ? `${compact(lo)}+`
+          : hi <= lo
+            ? compact(lo)
+            : `${compact(lo)}–${compact(hi)}`,
+      );
     }
     return out;
   }, [read, data]);
 
   /* The peak mark, resolved once. Its label is placed so it can never be cut
-     by the plate's own edge: it flips below the crosshair near the top, and
+     by the map's own edge: it flips below the crosshair near the top, and
      anchors to its own left or right edge near the sides. */
   const peak = loading ? null : read.peak;
   const peakShape = peak ? WORLD[peak.code] : null;
@@ -214,10 +224,10 @@ export function WorldMap({
         role="img"
         aria-label={
           loading
-            ? "Reading the record"
+            ? "Loading the map"
             : withReadings === 0
-              ? "World plate: no arrivals located in this interval"
-              : `World plate: ${num(read.total)} ${unit} across ${withReadings} countries, strongest in ${read.peak ? worldName(read.peak.code) : "no country"}`
+              ? "World map: no visits located in this period"
+              : `World map: ${num(read.total)} ${unit} across ${withReadings} countries, highest in ${read.peak ? worldName(read.peak.code) : "no country"}`
         }
         aria-busy={loading || undefined}
         onPointerLeave={() => onHover(null)}
@@ -252,9 +262,7 @@ export function WorldMap({
           })}
         </g>
 
-        {/* The peak reading, marked on the plate the way a station marks a
-            fiducial: a registration crosshair with the same filled tick the
-            icon set uses. */}
+        {/* The top country, marked on the map with a small crosshair. */}
         {peakShape ? (
           <g aria-hidden="true">
             <path
@@ -297,9 +305,9 @@ export function WorldMap({
           </div>
         ) : null}
         <span className="mfa-map__spare">
-          {WORLD_DRAWN} countries on the plate
+          {WORLD_DRAWN} countries on the map
           {read.offPlate.length
-            ? ` · ${read.offPlate.length} with readings not drawn here: ${read.offPlate
+            ? ` · ${read.offPlate.length} with data not drawn here: ${read.offPlate
                 .slice(0, 4)
                 .map((d) => d.code)
                 .join(", ")}`
@@ -308,12 +316,12 @@ export function WorldMap({
       </div>
 
       {/* Deliberately not a live region: 232 countries under a moving pointer
-          would announce continuously. The ranked sheet beside the plate is the
+          would announce continuously. The ranked table beside the map is the
           keyboard and screen-reader surface onto the same figures. */}
       <div className="mfa-map__readout">
-        <span className="mf-stamp">{hovered ? "Under the pointer" : "Strongest reading"}</span>
+        <span className="mf-stamp">{hovered ? "Under the pointer" : "Top country"}</span>
         {loading ? (
-          <span className="mfa-map__place">Reading the record…</span>
+          <span className="mfa-map__place">Loading…</span>
         ) : showing ? (
           <>
             <span className="mfa-map__place">{showing.label || worldName(showing.code)}</span>
@@ -321,15 +329,15 @@ export function WorldMap({
             <span className="mfa-map__unit">{unit}</span>
             {read.total > 0 ? (
               <span className="mfa-map__unit">
-                {pct(showing.share ?? showing.value / read.total, 1)} of the located record
+                {pct(showing.share ?? showing.value / read.total, 1)} of the located total
               </span>
             ) : null}
           </>
         ) : (
-          <span className="mfa-map__place">No arrivals were located in this interval</span>
+          <span className="mfa-map__place">No visits located in this period</span>
         )}
         <span className="mfa-map__spare">
-          {withReadings} {withReadings === 1 ? "country" : "countries"} with readings
+          {withReadings} {withReadings === 1 ? "country" : "countries"} with data
         </span>
       </div>
     </div>

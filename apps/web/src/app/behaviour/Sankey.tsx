@@ -1,14 +1,14 @@
 /**
- * The switchyard: an authored Sankey.
+ * The journey flow diagram: an authored Sankey.
  *
- * Nodes are ruled bands, the same band the funnel and the readout are made of.
- * Links are ribbons in the shellac ramp, and their thickness is the only thing
- * carrying their value, so the ramp is decoration on top of a reading that is
- * already complete without it. Hovering or focusing any part of a route lifts
+ * Nodes are solid blue bars. Links are ribbons in three steps of the same blue,
+ * and their thickness is the only thing carrying their value, so the colour
+ * step only helps tell neighbouring ribbons apart; the reading is complete
+ * without it. Hovering or focusing any part of a route lifts
  * the whole route, everything upstream and everything downstream, because a
  * single hop out of context answers nothing.
  *
- * Real records are messy, so the three degenerate cases are handled outright
+ * Real data is messy, so the three degenerate cases are handled outright
  * rather than left to break the layout:
  *
  *   ONE NODE      the band is drawn alone and says so.
@@ -18,10 +18,10 @@
  *   A HUNDRED     each column keeps its strongest bands and gathers the rest
  *                 into one labelled remainder. Nothing is silently dropped.
  *
- * There is no layout library here on purpose: the geometry is the signature and
- * it is written to this instrument's vocabulary.
+ * There is no layout library here on purpose: the geometry is small, and
+ * owning it keeps the label and remainder rules exact.
  */
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { compact, num, pct } from "../../lib/format";
 
 export interface SankeyNode {
@@ -216,7 +216,9 @@ function buildLayout(
   const outAcc = new Map<string, number>();
   const inAcc = new Map<string, number>();
   const rampOf = new Map<string, number>();
-  columns.forEach((col) => col.forEach((n, i) => rampOf.set(n.id, (i % 5) + 1)));
+  /* Only the three deepest blue steps: the two lightest vanish into a white
+     panel at ribbon opacity. */
+  columns.forEach((col) => col.forEach((n, i) => rampOf.set(n.id, (i % 3) + 1)));
 
   const ordered = [...flows].sort((a, b) => {
     const sa = index.get(a.source)!;
@@ -246,7 +248,7 @@ function buildLayout(
       source: s.id,
       target: t.id,
       value: f.value,
-      ramp: rampOf.get(s.id) ?? 3,
+      ramp: rampOf.get(s.id) ?? 2,
       d:
         `M${x0},${sy0}` +
         `C${xm},${sy0} ${xm},${ty0} ${x1},${ty0}` +
@@ -288,9 +290,6 @@ export function Sankey({
 }: SankeyProps) {
   const [wrapRef, width] = useWidth<HTMLDivElement>();
   const [hovered, setHovered] = useState<string | null>(null);
-  /* Two switchyards can sit on one page, so the paper's ruling is defined per
-     instance rather than under a name they would fight over. */
-  const ruleId = `mfb-band-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
 
   /* A column narrower than this cannot hold a label, so the diagram keeps its
      own minimum and scrolls sideways inside its container instead of crushing.
@@ -405,29 +404,6 @@ export function Sankey({
           }, from ${num(total)} sessions. The strongest transitions are listed under the diagram.`}
           onMouseLeave={() => setActive(null)}
         >
-          <defs>
-            {/* A band is a strip of the instrument's own ruled paper, so the
-                ruling is printed into it rather than drawn around it. It is
-                laid in the sheet's coordinates, which keeps every band's lines
-                on one continuous set of rules across the whole diagram. */}
-            <pattern
-              id={ruleId}
-              width={NODE_W}
-              height="4"
-              patternUnits="userSpaceOnUse"
-            >
-              <rect width={NODE_W} height="4" fill="var(--mf-ink-2)" />
-              <line
-                x1="0"
-                y1="3.5"
-                x2={NODE_W}
-                y2="3.5"
-                stroke="var(--mf-ground-2)"
-                strokeWidth="1"
-              />
-            </pattern>
-          </defs>
-
           <g transform={`translate(${PAD.left},${PAD.top})`}>
             {/* column headings, written above the bands they name */}
             {layout.columns.map((col, ci) => (
@@ -453,7 +429,7 @@ export function Sankey({
                     className="mfb-sankey__link"
                     d={r.d}
                     fill={`var(--mf-s${r.ramp})`}
-                    opacity={dim ? 0.09 : lit ? 0.82 : 0.42}
+                    opacity={dim ? 0.08 : lit ? 0.7 : 0.3}
                     onMouseEnter={() => setActive(r.key)}
                     onClick={() => setActive(active === r.key ? null : r.key)}
                   >
@@ -496,22 +472,15 @@ export function Sankey({
                       }
                     }}
                   >
-                    {/* the ridge of displaced ground under the band */}
-                    <rect
-                      x={n.x}
-                      y={n.y + 1}
-                      width={NODE_W}
-                      height={n.h}
-                      fill="var(--mf-well)"
-                    />
                     <rect
                       x={n.x}
                       y={n.y}
                       width={NODE_W}
                       height={n.h}
+                      rx={2}
                       /* A gathered remainder is not a page, so it is not drawn
-                         as one: no ruling, and a dashed edge instead. */
-                      fill={n.remainder ? "var(--mf-ground-3)" : `url(#${ruleId})`}
+                         as one: no fill colour, and a dashed edge instead. */
+                      fill={n.remainder ? "var(--mf-ground-3)" : "var(--mf-s1)"}
                       stroke={n.remainder ? "var(--mf-rule-strong)" : "none"}
                       strokeDasharray={n.remainder ? "2 2" : undefined}
                     />
@@ -542,14 +511,14 @@ export function Sankey({
 
       {layout.columnCount === 1 ? (
         <p className="mfb-note">
-          Only one step was reached in this interval, so there is nothing to branch to yet.
+          Only one step was reached in this period, so there is nothing to branch to yet.
         </p>
       ) : null}
 
       {scrolls ? (
         <p className="mfb-note">
-          The switchyard is wider than this screen. Drag it sideways to follow a route to
-          its end; the list under it carries the same reading in full.
+          The diagram is wider than this screen. Scroll it sideways to follow a route to
+          its end; the list under it has the same data in full.
         </p>
       ) : null}
 
@@ -568,7 +537,7 @@ export function Sankey({
                 layout.cycles === 1 ? " returned" : "s returned"
               } to a step already passed (${num(layout.cycleValue)} sessions) and ${
                 layout.cycles === 1 ? "is" : "are"
-              } counted but not drawn, because a ribbon running backwards would say something the record does not.`
+              } counted but not drawn, because a ribbon running backwards would misrepresent the data.`
             : ""}
         </p>
       ) : null}

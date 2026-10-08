@@ -17,7 +17,6 @@
  *      and left untouched everywhere else, so filtering, sorting and every URL
  *      still carry the slug the server knows.
  */
-import { num } from "../lib/format";
 
 /* ── the ratio ───────────────────────────────────────────────────────────── */
 
@@ -155,17 +154,17 @@ export function agentName(
   return k ? titleCase(k) : "Unnamed client";
 }
 
-/* ── the ink behind a row ────────────────────────────────────────────────── */
+/* ── the share bar behind a row ──────────────────────────────────────────── */
 
 /**
- * Scales a sheet's shares so the leading row's ink runs the full width of the
+ * Scales a table's shares so the leading row's bar runs the full width of the
  * cell and every row below it is read against that leader.
  *
  * A share of the whole is the honest number and it stays in the figures column;
  * as a length it is useless, because a top page with nine per cent and the one
  * under it with seven draw two stubs a reader cannot tell apart. Ranked against
  * the leader the same two rows are plainly different lengths, which is what the
- * ink is for.
+ * bar is for.
  */
 export function againstLeader<T>(
   rows: readonly T[],

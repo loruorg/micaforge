@@ -1,11 +1,11 @@
 /**
  * Locations: country, then region, then city, drilled in place.
  *
- * The plate and the sheet are one instrument read two ways: the plate carries
- * the shape of the record and the sheet carries its figures, and pointing at
- * either marks the other. The drill is local to this screen, because narrowing
- * from a country to a city is a question about *this* report; clipping the
- * whole record to a place is a separate, deliberate action with its own key.
+ * The map and the table are one report read two ways: the map carries the
+ * shape of the data and the table carries its figures, and pointing at either
+ * marks the other. The drill is local to this screen, because narrowing from a
+ * country to a city is a question about *this* report; filtering every screen
+ * by a place is a separate, deliberate action with its own button.
  */
 import { useMemo, useState } from "react";
 import { Button, Empty, ErrorState, Panel, PanelHead, Sheet } from "../../components/react/ui";
@@ -31,7 +31,7 @@ import { WorldMap, worldName } from "./WorldMap";
 import type { MapDatum } from "./WorldMap";
 import "../../styles/app/audience.css";
 
-/** The record writes an unset country as blanks; it is a real, honest bucket. */
+/** The API writes an unset country as blanks; it is a real, honest bucket. */
 const isPlaced = (code: string) => !!code && code.trim().length === 2 && code.trim() !== "--";
 
 export function LocationsScreen() {
@@ -44,7 +44,7 @@ export function LocationsScreen() {
 
   const { env, ready } = useEnvelope();
 
-  /* The plate always reads countries, whatever the sheet has drilled into. */
+  /* The map always shows countries, whatever the table has drilled into. */
   const countryEnv = useMemo<Envelope>(
     () => ({ ...env, dimension: "country", limit: 300 }),
     [env],
@@ -94,8 +94,8 @@ export function LocationsScreen() {
   );
 
   const listQ = level === "country" ? countriesQ : drillQ;
-  /* At the country level the plate and the sheet read the same query, so a
-     failure there is one failure. It is reported once for the whole bench
+  /* At the country level the map and the table read the same query, so a
+     failure there is one failure. It is reported once for the whole panel
      rather than twice, side by side, in the same words. */
   const benchFailed = level === "country" && countriesQ.isError;
   const rows = level === "country" ? countryRows : (drillQ.data?.rows ?? []);
@@ -131,7 +131,7 @@ export function LocationsScreen() {
     },
     {
       key: "visitors",
-      head: machines ? "Clients" : "Visitors",
+      head: machines ? "Crawlers" : "Visitors",
       numeric: true,
       render: (r) => count(n(r, "visitors") ?? n(r, "pageviews")),
     },
@@ -155,7 +155,7 @@ export function LocationsScreen() {
       setRegion(r.key);
       return;
     }
-    // The leaf: nothing further to open, so the click clips the record instead.
+    // The leaf: nothing further to open, so the click adds a filter instead.
     addFilter({ dimension: "city", op: "is", value: r.key } as Filter);
   };
 
@@ -167,29 +167,29 @@ export function LocationsScreen() {
   const emptyForLevel =
     level === "country" ? (
       <Empty
-        title="No arrivals were located in this interval"
-        body="A country appears as soon as one hit can be placed. Locations are derived from the address at ingest and are never stored on the row."
+        title="No visits located in this period"
+        body="A country appears as soon as one visit can be placed. Location comes from the IP address at ingest, and the address is never stored."
       />
     ) : level === "region" ? (
       <Empty
-        title={`No regions were recorded for ${worldName(country ?? "")}`}
+        title={`No regions for ${worldName(country ?? "")}`}
         body="The bundled location database resolves regions for most countries but not all. The country total above is still complete."
       />
     ) : (
       <Empty
-        title={`No cities were recorded in ${region}`}
+        title={`No cities for ${region}`}
         body="City resolution needs a more precise address match than this traffic gave. The region total is still complete."
       />
     );
 
   return (
-    /* Which pen these sheets are written in: the ink behind a row is the trace
-       of the audience being read, never the machine pen on a human table. */
+    /* The share bar behind a row takes the colour of the audience on screen:
+       blue for people, orange for AI crawlers. */
     <div className="mfa-screen" data-trace={machines ? "agent" : "human"}>
-      <Panel ruled feed>
+      <Panel>
         <PanelHead
           title="Locations"
-          note="Where the record was written from, resolved at ingest from the address and never stored on the row itself."
+          note="Where visitors are, worked out from the IP address at ingest. The address itself is never stored."
           actions={<AudienceBar extra={<ExportKey report="locations:country" env={env} />} />}
         />
 
@@ -197,15 +197,15 @@ export function LocationsScreen() {
 
         {machines ? (
           <Caveat>
-            A machine fetch is placed by address to a country and no further, because the machine
-            trace carries no region and no city. Drilling below country reads the human
-            record only.
+            An AI crawler request is placed by address to a country and no further, because
+            crawler data has no region or city. Below country level, the figures are for
+            people only.
           </Caveat>
         ) : null}
 
         {benchFailed ? (
           <ErrorState
-            title="Locations did not come back"
+            title="Could not load locations"
             detail={errorDetail(countriesQ.error)}
             onRetry={() => void countriesQ.refetch()}
           />
@@ -214,7 +214,7 @@ export function LocationsScreen() {
             <div className="mfa-geo__plate">
               {countriesQ.isError ? (
                 <ErrorState
-                  title="The plate did not come back"
+                  title="Could not load the map"
                   detail={errorDetail(countriesQ.error)}
                   onRetry={() => void countriesQ.refetch()}
                 />
@@ -265,7 +265,7 @@ export function LocationsScreen() {
                       <span className="mfa-crumbs__here">{worldName(country)}</span>
                     )}
                     <Button tone="quiet" size="sm" onClick={clipHere}>
-                      Clip the record here
+                      Filter by this place
                     </Button>
                   </>
                 ) : (
@@ -277,10 +277,10 @@ export function LocationsScreen() {
                 <ErrorState
                   title={
                     level === "country"
-                      ? "Countries did not come back"
+                      ? "Could not load countries"
                       : level === "region"
-                        ? "Regions did not come back"
-                        : "Cities did not come back"
+                        ? "Could not load regions"
+                        : "Could not load cities"
                   }
                   detail={errorDetail(listQ.error)}
                   onRetry={() => void listQ.refetch()}
@@ -303,10 +303,10 @@ export function LocationsScreen() {
           <div className="mfa-foot">
             <span>
               {level === "country"
-                ? "Click a country, on the plate or in the sheet, to read its regions."
+                ? "Click a country on the map or in the table to see its regions."
                 : level === "region"
-                  ? "Click a region to read its cities."
-                  : "Click a city to clip the whole record to it."}
+                  ? "Click a region to see its cities."
+                  : "Click a city to filter every screen by it."}
             </span>
             <span className="mf-data">{compact(listQ.data?.total ?? rows.length)} rows</span>
           </div>

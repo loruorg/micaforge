@@ -1,12 +1,10 @@
 /**
- * The vitals printout.
+ * The vitals distribution.
  *
- * Each metric is printed as its own ruled histogram strip on one continuous
- * sheet: the same plot width, the same baseline, the same left edge, so five
- * distributions can be read against each other the way a multi-channel
- * recorder's bands are. Bars are drawn in the house grammar (a fill under a
- * bright cap line with the ridge of displaced soot beneath it), and the
- * thresholds are written into the margins rather than painted over the data.
+ * Each metric is a small histogram row in one list: the same plot width, the
+ * same baseline and the same left edge, so five distributions can be compared
+ * at a glance. Bars are a light fill under a solid cap line, and the
+ * thresholds are labelled under the axis rather than painted over the data.
  *
  * ---------------------------------------------------------------------------
  * THE THRESHOLDS ARE NOT OURS TO CHOOSE.
@@ -187,7 +185,7 @@ function VitalStrip({
   const shares = usable.length ? bandShares(usable, spec.good, spec.ni) : null;
 
   /* The domain always reaches past the poor threshold, so all three bands are
-     on the paper even when every sample landed in the first bin. */
+     on the plot even when every sample landed in the first bin. */
   const dataMax = usable.reduce((m, b) => Math.max(m, b.hi), 0);
   const domain = Math.max(dataMax, spec.ni * 1.2, spec.good * 1.5);
   const X = (v: number) => (Math.max(0, Math.min(domain, v)) / domain) * width;
@@ -229,7 +227,7 @@ function VitalStrip({
               p75 == null ? "not measured" : spec.format(p75)
             }, rated ${RATING_WORD[rating].toLowerCase()}.`}
           >
-            {/* the paper's ruling, clipped to this strip and nowhere else */}
+            {/* grid lines, inside this plot only */}
             {[0, 0.5, 1].map((f) => (
               <line
                 key={f}
@@ -243,7 +241,7 @@ function VitalStrip({
               />
             ))}
 
-            {/* the bars: a fill under a bright cap, with the burr beneath it */}
+            {/* the bars: a light fill under a solid cap line */}
             {usable.map((b, i) => {
               const x0 = X(b.lo);
               const x1 = X(b.hi);
@@ -257,14 +255,6 @@ function VitalStrip({
                   <line
                     x1={x0}
                     x2={x0 + w}
-                    y1={y + 1.1}
-                    y2={y + 1.1}
-                    stroke="var(--mf-well)"
-                    strokeWidth={1.6}
-                  />
-                  <line
-                    x1={x0}
-                    x2={x0 + w}
                     y1={y}
                     y2={y}
                     stroke="var(--mf-people)"
@@ -274,7 +264,7 @@ function VitalStrip({
               );
             })}
 
-            {/* the two thresholds, ruled through the plot and written below */}
+            {/* the two thresholds, drawn through the plot and labelled below */}
             {[spec.good, spec.ni].map((bound) => (
               <g key={bound}>
                 <line
@@ -288,8 +278,8 @@ function VitalStrip({
                   shapeRendering="crispEdges"
                 />
                 <text
-                  /* clear the cut: a bound sitting on the plot's own edge is
-                     written inward rather than half off the paper */
+                  /* a bound on the plot's own edge is written inward, never
+                     half outside the plot */
                   x={Math.min(Math.max(X(bound), 0), width)}
                   y={TOP + PLOT_H + 16}
                   textAnchor={X(bound) < 24 ? "start" : X(bound) > width - 24 ? "end" : "middle"}
@@ -300,7 +290,7 @@ function VitalStrip({
               </g>
             ))}
 
-            {/* band names and their shares, written in the bottom margin */}
+            {/* band names and their shares, under the axis */}
             {shares &&
               (
                 [
@@ -312,10 +302,10 @@ function VitalStrip({
                 const mid = (X(band.from) + X(band.to)) / 2;
                 const room = X(band.to) - X(band.from);
                 const label = `${band.word} ${pct(band.share)}`;
-                /* ~5.6px per character at 10.5px: a band that cannot hold its
-                   own name goes unnamed rather than spilling into its
-                   neighbour. The thresholds under it still say where it is. */
-                if (room < label.length * 5.6 + 10) return null;
+                /* ~6px per character at 11px: a band that cannot hold its own
+                   name goes unnamed rather than spilling into its neighbour.
+                   The thresholds under it still say where it is. */
+                if (room < label.length * 6 + 10) return null;
                 return (
                   <text
                     key={band.word}
@@ -328,7 +318,7 @@ function VitalStrip({
                         ? "var(--mf-danger)"
                         : band.word === "Good"
                           ? "var(--mf-success)"
-                          : "var(--mf-ink-3)"
+                          : "var(--mf-accent-ink)"
                     }
                   >
                     {label}
@@ -336,7 +326,7 @@ function VitalStrip({
                 );
               })}
 
-            {/* the 75th percentile, marked and named above the plot */}
+            {/* the 75th percentile, a solid line named above the plot */}
             {p75 != null && (
               <g>
                 <line
@@ -344,8 +334,8 @@ function VitalStrip({
                   x2={X(p75)}
                   y1={TOP - 7}
                   y2={TOP + PLOT_H}
-                  stroke="var(--mf-accent)"
-                  strokeWidth={1.2}
+                  stroke="var(--mf-ink-strong)"
+                  strokeWidth={1.5}
                   shapeRendering="crispEdges"
                 />
                 <text
@@ -362,8 +352,8 @@ function VitalStrip({
         ) : (
           <p className="mf-vital__none">
             {stat?.samples
-              ? "No distribution came back for this metric, only its percentiles."
-              : "No samples for this metric in this interval."}
+              ? "Only percentiles came back for this metric, no distribution."
+              : "No samples for this metric in this period."}
           </p>
         )}
       </div>
@@ -371,7 +361,7 @@ function VitalStrip({
   );
 }
 
-/* ── the printout ────────────────────────────────────────────────────────── */
+/* ── the list ────────────────────────────────────────────────────────────── */
 
 export function VitalsDistribution({
   metrics,

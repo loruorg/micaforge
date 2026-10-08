@@ -1,8 +1,8 @@
 /**
  * PEOPLE: sessions.
  *
- * One row per run of the pen. The column that matters is the last one: every
- * session says whether a person or a named machine wrote it, because in this
+ * One row per session. The column that matters is the last one: every
+ * session says whether a person or a named AI crawler made it, because in this
  * product a crawler is an audience, not a filtered-out nuisance.
  *
  * This file is also the People area's shared floor. The session shapes, the
@@ -33,7 +33,10 @@ import "../../styles/app/people.css";
    the health of the pipeline. */
 
 export interface SessionRow {
-  session_id: string;
+  /** The contract's name for the session key (docs/CONTRACT.md §1.1). */
+  session_id?: string;
+  /** The name the stats API actually returns the session key under. */
+  id?: string;
   visitor_id?: string;
   identified_id?: string;
   started: number | string;
@@ -130,13 +133,21 @@ export function totalOf(payload: unknown): number | null {
   return null;
 }
 
+/**
+ * The session key, whichever name it arrived under. The sessions endpoints
+ * return it as `id`; the contract calls it `session_id`. Reading only the
+ * contract's name built every link in the list as /sessions/undefined.
+ */
+export const sessionIdOf = (s: Pick<SessionRow, "session_id" | "id">): string =>
+  s.session_id || s.id || "";
+
 /** Errors name the problem; the state that shows them names the recovery. */
 export function apiMessage(err: unknown): string {
   if (err instanceof ApiError) {
     if (err.code === "network") return "The Micaforge server did not answer. It may be restarting.";
     return err.message;
   }
-  return err instanceof Error ? err.message : "The reading failed for a reason the dashboard could not name.";
+  return err instanceof Error ? err.message : "The request failed for a reason the dashboard could not name.";
 }
 
 const fmtCache = new Map<string, Intl.DateTimeFormat>();
@@ -206,13 +217,13 @@ export const isAgentSession = (s: Pick<SessionRow, "is_agent" | "agent_id">): bo
   s.is_agent === true || s.is_agent === 1 || (!!s.agent_id && s.agent_id.length > 0);
 
 /**
- * The hand that wrote the run. The pen SHAPE carries the meaning (a written
- * line for a person, a stepped corner for a machine), so the distinction holds
+ * Who made the session. The mark's SHAPE carries the meaning (a straight line
+ * for a person, a stepped corner for an AI crawler), so the distinction holds
  * with no colour at all, and the name is written out beside it.
  */
 export function Hand({ session }: { session: Pick<SessionRow, "is_agent" | "agent_id" | "agent_name"> }) {
   const machine = isAgentSession(session);
-  const name = machine ? agentName(session.agent_name, session.agent_id) : "Reader";
+  const name = machine ? agentName(session.agent_name, session.agent_id) : "Person";
   return (
     <span className="mf-p-hand" data-pen={machine ? "stepped" : "written"}>
       <span className="mf-p-hand__pen" data-pen={machine ? "stepped" : "written"} aria-hidden="true" />
@@ -295,10 +306,10 @@ export function Pager({
             : `${num(from)}–${num(to)} ${noun}`}
       </p>
       <Button size="sm" disabled={page === 0} onClick={() => onPage(Math.max(0, page - 1))}>
-        Earlier page
+        Previous
       </Button>
       <Button size="sm" disabled={!more} onClick={() => onPage(page + 1)}>
-        Later page
+        Next
       </Button>
     </div>
   );
@@ -316,7 +327,7 @@ export function SessionsScreen() {
   const [findApplied, setFindApplied] = useState("");
 
   const filterKey = JSON.stringify(filters ?? []);
-  // A new interval, audience or filter set is a new record: start at its head.
+  // A new period, audience or filter set is a new list: start at page one.
   useEffect(() => {
     setPage(0);
   }, [range, audience, filterKey, findApplied]);
@@ -349,7 +360,7 @@ export function SessionsScreen() {
       render: (r) => (
         <Link
           className="mf-data"
-          to={`${base}/sessions/${encodeURIComponent(r.session_id)}`}
+          to={`${base}/sessions/${encodeURIComponent(sessionIdOf(r))}`}
           onClick={(e) => e.stopPropagation()}
         >
           {dayAt(r.started, timezone)}
@@ -405,7 +416,7 @@ export function SessionsScreen() {
     },
     {
       key: "hand",
-      head: "Written by",
+      head: "Type",
       width: "16ch",
       render: (r) => <Hand session={r} />,
     },
@@ -416,14 +427,14 @@ export function SessionsScreen() {
   const note = !q.isSuccess
     ? "A session opens on the first hit and closes after thirty minutes of quiet."
     : total != null
-      ? `${num(total)} ${total === 1 ? "session" : "sessions"} in this interval.` +
-        (machines ? ` ${num(machines)} of the ${num(rows.length)} shown were written by a named agent.` : "")
+      ? `${num(total)} ${total === 1 ? "session" : "sessions"} in this period.` +
+        (machines ? ` ${num(machines)} of the ${num(rows.length)} shown are AI crawlers.` : "")
       : `Newest first.` +
-        (machines ? ` ${num(machines)} of the ${num(rows.length)} shown were written by a named agent.` : "");
+        (machines ? ` ${num(machines)} of the ${num(rows.length)} shown are AI crawlers.` : "");
 
   return (
     <div className="mf-p-stack">
-      <Panel ruled feed>
+      <Panel>
         <PanelHead
           title="Sessions"
           note={note}
@@ -478,19 +489,19 @@ export function SessionsScreen() {
               rows={rows}
               columns={columns}
               loading={q.isPending}
-              getKey={(r, i) => r.session_id || String(i)}
-              onRowClick={(r) => navigate(`${base}/sessions/${encodeURIComponent(r.session_id)}`)}
+              getKey={(r, i) => sessionIdOf(r) || String(i)}
+              onRowClick={(r) => navigate(`${base}/sessions/${encodeURIComponent(sessionIdOf(r))}`)}
               empty={
                 <Empty
-                  title={findApplied ? "No session touched that path" : "No sessions in this interval"}
+                  title={findApplied ? "No session visited that path" : "No sessions in this period"}
                   body={
                     findApplied ? (
-                      <>Nothing in this interval hit a path containing “{findApplied}”. Clear the path, or widen the interval.</>
+                      <>No session in this period visited a path containing “{findApplied}”. Clear the path, or choose a longer period.</>
                     ) : (
                       <>
                         Sessions appear here as soon as the tracker reports its first hit
-                        {domain ? ` from ${domain}` : ""}. Widen the interval, or check that the audience switch is not
-                        hiding the traffic you are looking for.
+                        {domain ? ` from ${domain}` : ""}. Choose a longer period, or check that the audience switch
+                        is not hiding the traffic you want.
                       </>
                     )
                   }

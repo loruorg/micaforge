@@ -2,11 +2,11 @@
  * Pages: what was read, where reading started, and where it stopped.
  *
  * The loop this screen is built around is *filtering in place*. Clicking a row
- * does not navigate anywhere; it clips that path onto the record and every
- * panel on every screen re-reads through it. Navigating away and back is the
+ * does not navigate anywhere; it adds that path as a filter and every panel on
+ * every screen reloads through it. Navigating away and back is the
  * slow loop, and an analytics tool lives or dies on the fast one.
  *
- * The area's shared bench also lives in this file, co-located with the screen
+ * The area's shared helpers also live in this file, co-located with the screen
  * that owns the filter loop, and imported by the other three audience screens.
  */
 import { useMemo, useState } from "react";
@@ -34,7 +34,7 @@ import { useAppState } from "../state";
 import { useSite } from "../providers";
 import "../../styles/app/audience.css";
 
-/* ══ the area's shared bench ══════════════════════════════════════════════ */
+/* ══ the area's shared helpers ═════════════════════════════════════════════ */
 
 /**
  * A row as any of the audience reports returns it. Everything past `key` is
@@ -87,10 +87,10 @@ export const secs = (v: number | null | undefined): string =>
 export function errorDetail(err: unknown): string {
   if (err instanceof ApiError) {
     if (err.code === "network")
-      return "The dashboard could not reach the Micaforge server. Check that the backend is running, then take the reading again.";
+      return "The dashboard could not reach the Micaforge server. Check that the backend is running, then try again.";
     return err.message;
   }
-  return "Something went wrong between here and the record. Take the reading again.";
+  return "Something went wrong while loading this data. Try again.";
 }
 
 /** The standard query envelope for an audience read. */
@@ -167,10 +167,10 @@ export function AudienceBar({ extra }: { extra?: ReactNode }) {
 /**
  * A CSV of exactly what is on screen, envelope and all.
  *
- * This one takes THIS sheet, at the dimension it is tabulated by, which is why
- * it sits in the panel head rather than in the station's rail. It wears the same
- * words as every other sheet key in the register, because one control under two
- * names reads as two controls.
+ * This one exports THIS table, at the dimension it is grouped by, which is why
+ * it sits in the panel head rather than in the top bar. It uses the same words
+ * as every other table export, because one control under two names reads as
+ * two controls.
  */
 export function ExportKey({ report, env }: { report: string; env: Envelope }) {
   return (
@@ -231,8 +231,8 @@ const OP_WORDS: Record<string, string> = {
 };
 
 /**
- * The clips currently holding the record. Each one names its dimension and
- * removes itself; nothing here is decorative.
+ * The filters that apply now. Each one names its dimension and removes
+ * itself; nothing here is decorative.
  */
 export function FilterTrail() {
   const { filters, removeFilter, clearFilters } = useAppState();
@@ -244,7 +244,7 @@ export function FilterTrail() {
 
   return (
     <div className="mfa-trail">
-      <span className="mf-stamp">Reading through</span>
+      <span className="mf-stamp">Filtered by</span>
       {list.map((f, i) => (
         <span className="mfa-clip" key={`${f.dimension}-${f.op}-${String(f.value)}-${i}`}>
           <span className="mfa-clip__dim">{dimensionName(f.dimension)}</span>
@@ -256,14 +256,14 @@ export function FilterTrail() {
             type="button"
             className="mfa-clip__drop"
             onClick={() => removeAt(i)}
-            aria-label={`Remove the ${dimensionName(f.dimension)} clip`}
+            aria-label={`Remove the ${dimensionName(f.dimension)} filter`}
           >
             <IconClose size={12} />
           </button>
         </span>
       ))}
       <Button tone="quiet" size="sm" onClick={() => clearFilters()}>
-        Clear all clips
+        Clear all filters
       </Button>
     </div>
   );
@@ -279,11 +279,11 @@ export function Caveat({ children }: { children: ReactNode }) {
   );
 }
 
-/** The readout strip while the reading is still coming back. */
+/** The metric strip while the totals load. */
 export function ReadoutWait({ channels }: { channels: number }) {
   return (
     <div className="mf-readout" aria-busy="true" aria-live="polite">
-      <span className="mf-sr">Reading the record…</span>
+      <span className="mf-sr">Loading…</span>
       {Array.from({ length: channels }).map((_, i) => (
         <div className="mf-readout__chan" key={i}>
           <span className="mf-wait" style={{ width: "52%" }} />
@@ -303,17 +303,17 @@ const TABS: { id: TabId; label: string; note: string }[] = [
   {
     id: "pathname",
     label: "Pages",
-    note: "Every page that was read in this interval, with how far down it people got.",
+    note: "Every page viewed in this period, and how far down people scrolled.",
   },
   {
     id: "entry_path",
     label: "Entry pages",
-    note: "Where reading started. These are the pages the rest of the site is judged by.",
+    note: "Where visits started. These pages make the first impression of the site.",
   },
   {
     id: "exit_path",
     label: "Exit pages",
-    note: "Where reading stopped. A high exit rate is only a problem on a page meant to lead somewhere.",
+    note: "Where visits ended. A high exit rate is only a problem on a page meant to lead somewhere.",
   },
   {
     id: "page_title",
@@ -361,7 +361,7 @@ export function PagesScreen() {
       },
       {
         key: "visitors",
-        label: machines ? "Clients" : "Visitors",
+        label: machines ? "Crawlers" : "Visitors",
         value: count(o?.visitors),
         delta: o ? delta(o.visitors, before?.visitors) : null,
       },
@@ -377,7 +377,7 @@ export function PagesScreen() {
         value: percentOf100(o?.bounce_rate),
         delta: o ? delta(o.bounce_rate, before?.bounce_rate) : null,
         inverse: true,
-        note: machines ? "readers only" : undefined,
+        note: machines ? "people only" : undefined,
       },
       {
         key: "visit",
@@ -418,7 +418,7 @@ export function PagesScreen() {
     };
     const visitors: Column<PageRow> = {
       key: "visitors",
-      head: machines ? "Clients" : "Visitors",
+      head: machines ? "Crawlers" : "Visitors",
       numeric: true,
       render: (r) => count(n(r, "visitors")),
     };
@@ -471,10 +471,10 @@ export function PagesScreen() {
     addFilter({ dimension: tab, op: "is", value: r.key } as Filter);
 
   return (
-    /* Which pen these sheets are written in: the ink behind a row is the trace
-       of the audience being read, never the machine pen on a human table. */
+    /* The share bar behind a row takes the colour of the audience on screen:
+       blue for people, orange for AI crawlers. */
     <div className="mfa-screen" data-trace={machines ? "agent" : "human"}>
-      <Panel ruled feed>
+      <Panel>
         <PanelHead
           title="Pages"
           note={active.note}
@@ -483,7 +483,7 @@ export function PagesScreen() {
 
         {totals.isError ? (
           <ErrorState
-            title="The totals did not come back"
+            title="Could not load the totals"
             detail={errorDetail(totals.error)}
             onRetry={() => void totals.refetch()}
           />
@@ -511,15 +511,15 @@ export function PagesScreen() {
 
         {machines ? (
           <Caveat>
-            You are reading the machine trace. A crawler fetches a URL and leaves, so it has
-            no session, no bounce, no scroll depth and no time on page. Those columns stay
-            empty rather than guess. Switch to Readers for the human figures.
+            You are looking at AI crawler traffic. A crawler fetches a URL and leaves, so it
+            has no session, bounce, scroll depth or time on page. Those columns stay empty
+            rather than guess. Switch to People for visitor figures.
           </Caveat>
         ) : null}
 
         {rowsQ.isError ? (
           <ErrorState
-            title={`${active.label} did not come back`}
+            title={`Could not load ${active.label.toLowerCase()}`}
             detail={errorDetail(rowsQ.error)}
             onRetry={() => void rowsQ.refetch()}
           />
@@ -534,15 +534,15 @@ export function PagesScreen() {
               <Empty
                 title={
                   tab === "page_title"
-                    ? "No titles were recorded in this interval"
-                    : "No pages were read in this interval"
+                    ? "No page titles in this period"
+                    : "No pageviews in this period"
                 }
                 body={
                   <>
                     A page appears here as soon as the tracker reports its first hit
                     {(env.filters as Filter[] | undefined)?.length
-                      ? ". The clips above may be narrower than the record; try clearing one."
-                      : ". Widen the interval, or check that the tracker is installed."}
+                      ? ". The filters above may exclude them; try clearing one."
+                      : ". Choose a longer period, or check that the tracker is installed."}
                   </>
                 }
               />
@@ -553,8 +553,8 @@ export function PagesScreen() {
         {rows.length ? (
           <div className="mfa-foot">
             <span>
-              Click a row to clip the record to that {tab === "page_title" ? "title" : "path"}.
-              Every screen then reads through it.
+              Click a row to filter by that {tab === "page_title" ? "title" : "path"}.
+              Every screen then uses the filter.
             </span>
             <span className="mf-data">
               {compact(rowsQ.data?.total ?? rows.length)} rows

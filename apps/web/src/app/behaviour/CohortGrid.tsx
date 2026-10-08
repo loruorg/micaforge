@@ -1,7 +1,7 @@
 /**
  * The cohort grid.
  *
- * Value is carried twice: as ink density stepped through the shellac ramp, and
+ * Value is carried twice: as shading stepped through the blue ramp, and
  * as the figure itself, printed in every single cell. The ramp is the fast
  * read; the number is the true one. Neither is ever the only encoding, so the
  * grid survives greyscale, colour-vision deficiency and a printer.
@@ -42,7 +42,7 @@ export interface CohortGridProps {
   formatCohort?: (c: Cohort) => string;
 }
 
-/** Fixed thresholds, so the same share always reads as the same weight of ink. */
+/** Fixed thresholds, so the same share always reads as the same shade. */
 function bin(share: number | null): number {
   if (share == null || !Number.isFinite(share) || share <= 0.005) return 0;
   if (share < 0.1) return 1;
@@ -166,7 +166,7 @@ export function CohortGrid({
       </div>
 
       <div className="mfb-legend">
-        <span>Ink weight</span>
+        <span>Shading</span>
         <span className="mfb-legend__ramp" aria-hidden="true">
           {[1, 2, 3, 4, 5].map((b) => (
             <span key={b} className="mfb-legend__step" data-bin={b} />
@@ -176,11 +176,11 @@ export function CohortGrid({
       </div>
 
       <p className="mfb-note">
-        Ink follows the share retained even when the grid is showing people, so two
-        cohorts of different sizes can still be read down a column. A dash is a period
-        the cohort has not lived through yet, not a zero.
+        Shading follows the share retained even when the grid shows people, so two
+        cohorts of different sizes can still be compared down a column. A dash is a period
+        the cohort has not reached yet, not a zero.
         {scrolls
-          ? " There are more periods than fit: drag the grid sideways to read the rest. The cohort's own column stays put."
+          ? " There are more periods than fit: scroll the grid sideways to see the rest. The cohort column stays in place."
           : ""}
       </p>
     </>

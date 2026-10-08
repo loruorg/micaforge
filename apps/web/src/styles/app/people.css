@@ -1,21 +1,21 @@
 /* ============================================================================
    PEOPLE: sessions, visitors, replay.
 
-   Everything a person (or a named machine) did, read off the record one run at
-   a time. Two ideas carry this area:
+   Everything a person (or a named AI crawler) did, one session at a time.
+   Two ideas carry this area:
 
-     1. A SESSION IS A RUN OF THE PEN. The session detail is not a list of rows;
-        it is a strip of paper with the hits marked on a time rule and the
-        interval between them written alongside, and the paper advances further
-        when more time passed. That is the recorder's own behaviour.
-     2. THE HAND IS NAMED. Every row says whether a person or a named agent
-        wrote it, by pen SHAPE (written line / stepped corner) and by name, so
-        the distinction never rests on colour.
+     1. A SESSION IS A TIMELINE. The session detail is not a list of rows; it
+        is a vertical timeline with the hits marked on a time line and the gap
+        between them written alongside, and the gap is drawn taller when more
+        time passed.
+     2. THE VISITOR TYPE IS NAMED. Every row says whether a person or a named
+        AI crawler made it, by mark SHAPE (straight line / stepped corner) and
+        by name, so the distinction never rests on colour.
 
    Class names carry an `mf-p-` prefix: each area ships its own stylesheet into
    one global scope, so an area-local name must not be able to collide with a
    neighbour's. Existing `.mf-*` classes are reused wherever they fit; nothing
-   here re-implements a panel, a key, a sheet or a state that global.css owns.
+   here re-implements a panel, a button, a table or a state that global.css owns.
 
    Deliberately unlayered: global.css declares its components inside
    @layer components, so these rules win a tie without a specificity arms race.
@@ -23,10 +23,10 @@
 
 /* ── shared measures for this area ──────────────────────────────────────── */
 :root {
-  /* the paper advance between two hits, floor and ceiling */
+  /* the drawn gap between two hits, floor and ceiling */
   --mf-p-seg-min: 20px;
   --mf-p-seg-max: 76px;
-  /* the time rule column in the session trail */
+  /* the time line column in the session timeline */
   --mf-p-rule-col: 16px;
 }
 
@@ -70,7 +70,7 @@
 
 /* One column that is allowed to be narrower than its content. Without the
    explicit minmax(0, 1fr) the implicit track sizes to max-content, a panel
-   holding a wide sheet stretches the page, and the sheet's own horizontal
+   holding a wide table stretches the page, and the table's own horizontal
    scroller never engages. */
 .mf-p-stack {
   display: grid;
@@ -128,7 +128,7 @@
   .mf-p-subject__acts { margin-left: 0; }
 }
 
-/* ── the hand: who held the pen ─────────────────────────────────────────── */
+/* ── visitor type: a person or an AI crawler ───────────────────────────── */
 
 .mf-p-hand {
   display: inline-flex;
@@ -136,7 +136,7 @@
   gap: var(--mf-2);
   min-width: 0;
 }
-/* The written pen: a person reads continuously, so the mark is a line. */
+/* A person: the mark is a straight line, as in the chart legend. */
 .mf-p-hand__pen {
   flex: none;
   display: inline-block;
@@ -145,7 +145,7 @@
   border-radius: 1px;
   background: var(--mf-people);
 }
-/* The stepped pen: a crawler fetches in discrete jumps, so the mark steps. */
+/* An AI crawler: the mark steps, as in the chart legend. */
 .mf-p-hand__pen[data-pen="stepped"] {
   width: 7px;
   height: 6px;
@@ -160,9 +160,9 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.mf-p-hand[data-pen="stepped"] .mf-p-hand__name { color: var(--mf-accent); }
+.mf-p-hand[data-pen="stepped"] .mf-p-hand__name { color: var(--mf-accent-ink); }
 
-/* ── a ruled fact list ──────────────────────────────────────────────────── */
+/* ── a fact list ─────────────────────────────────────────────────────────── */
 
 .mf-p-facts {
   display: grid;
@@ -220,7 +220,7 @@
   .mf-p-facts > dt:first-of-type + dd { border-top: 0; }
 }
 
-/* ── the trail: a session's hits as a strip of advancing paper ──────────── */
+/* ── the timeline: a session's hits in order ─────────────────────────────── */
 
 .mf-p-trail {
   list-style: none;
@@ -234,9 +234,8 @@
   column-gap: var(--mf-4);
 }
 
-/* The paper between two hits. Its height follows the interval, so a long
-   pause is visibly longer paper (the recorder's own behaviour) and the
-   written interval sits in the margin exactly where it belongs. */
+/* The gap between two hits. Its height follows the time that passed, so a
+   long pause is visibly longer, and the written gap sits beside it. */
 .mf-p-trail__lead {
   grid-column: 2 / 4;
   display: grid;
@@ -270,9 +269,9 @@
   color: var(--mf-ink-3);
   white-space: nowrap;
 }
-/* The hit mark sits ON the time rule: the icon is the notch. The rule runs
-   faintly through every hit and firms up across a measured gap, so the axis is
-   continuous while the intervals are the part that reads. */
+/* The hit mark sits ON the time line. The line runs faintly through every
+   hit and firms up across a measured gap, so the axis is continuous while the
+   gaps are the part that reads. */
 .mf-p-trail__mark {
   position: relative;
   grid-column: 2;
@@ -295,7 +294,7 @@
 .mf-p-trail__hit[data-kind="error"] .mf-p-trail__mark { color: var(--mf-danger); }
 .mf-p-trail__hit[data-kind="custom"] .mf-p-trail__mark,
 .mf-p-trail__hit[data-kind="outbound"] .mf-p-trail__mark,
-.mf-p-trail__hit[data-kind="file_download"] .mf-p-trail__mark { color: var(--mf-accent); }
+.mf-p-trail__hit[data-kind="file_download"] .mf-p-trail__mark { color: var(--mf-blue-ink); }
 
 .mf-p-trail__body {
   grid-column: 3;
@@ -326,7 +325,7 @@
 }
 .mf-p-trail__meta b { font-weight: 500; color: var(--mf-ink-2); }
 
-/* The entry and the exit are the two ends of the run and read as such. */
+/* The entry and the exit are the two ends of the session and read as such. */
 .mf-p-trail__end {
   display: grid;
   grid-template-columns: auto var(--mf-p-rule-col) minmax(0, 1fr);
@@ -346,7 +345,7 @@
   .mf-p-trail__lead { column-gap: var(--mf-3); }
 }
 
-/* A ruled list for named things with one measured value each. The value column
+/* A list for named things with one measured value each. The value column
    is right-aligned so every row's figure lands on the same axis however long
    the name runs. */
 .mf-p-list {
@@ -381,7 +380,7 @@
 
 /* Row links carry a static rule at rest that firms up on hover. It never grows,
    wipes or travels. Scoped to this area's screens so it cannot restyle another
-   area's sheets from a stylesheet they never asked for. */
+   area's tables from a stylesheet they never asked for. */
 .mf-p-stack .mf-sheet a {
   text-decoration: underline;
   text-underline-offset: 3px;
@@ -397,13 +396,12 @@
   gap: var(--mf-2);
   padding: 0 var(--mf-3);
   color: var(--mf-ink-3);
-  /* One value step below the panel in BOTH media, and light enough that the
-     ink-3 placeholder still clears 4.5:1 on chart paper, which it does not on
-     the deeper well. */
-  background: var(--mf-ground);
-  border: 1px solid var(--mf-rule);
+  /* A white input with a firm hairline, so it reads as a field on the white
+     panel. The ink-3 placeholder clears 4.5:1 on white. */
+  background: var(--mf-well);
+  border: 1px solid var(--mf-rule-strong);
   border-radius: var(--mf-r-sm);
-  box-shadow: var(--mf-inset);
+  box-shadow: var(--mf-shadow-xs);
 }
 .mf-p-find input {
   width: 20ch;
@@ -464,9 +462,9 @@
   width: min(34rem, calc(100vw - var(--mf-8)));
   padding: 0;
   color: var(--mf-ink);
-  /* The panel surface, not the raised one: on ground-3 the oxide error line
-     falls to 4.4:1 and stops clearing AA. Separation comes from the lift and
-     the firm edge instead. */
+  /* The panel surface, not the raised one, so the danger-coloured error line
+     keeps its contrast. Separation comes from the large shadow and the firm
+     edge instead. */
   background: var(--mf-ground-2);
   border: 1px solid var(--mf-rule-strong);
   border-radius: var(--mf-r-md);
@@ -516,9 +514,9 @@
   font-size: var(--mf-t-sm);
   color: var(--mf-ink);
   background: var(--mf-well);
-  border: 1px solid var(--mf-rule);
+  border: 1px solid var(--mf-rule-strong);
   border-radius: var(--mf-r-sm);
-  box-shadow: var(--mf-inset);
+  box-shadow: var(--mf-shadow-xs);
 }
 .mf-p-dialog__foot {
   display: flex;
@@ -541,19 +539,23 @@
   overflow: hidden;
   min-height: 22rem;
   height: clamp(22rem, 58vh, 40rem);
-  background: var(--mf-well);
+  background: var(--mf-well-2);
   border-top: 1px solid var(--mf-rule);
   border-bottom: 1px solid var(--mf-rule);
 }
-/* The recording sits on its own sheet, scaled to fit and pinned top-left so
-   the reconstruction is never stretched out of its true proportions. */
+/* The recording sits on its own white frame, scaled to fit and pinned
+   top-left so the reconstruction is never stretched out of its true
+   proportions. */
 .mf-p-player { display: block; }
 
 .mf-p-stage__sheet {
   position: relative;
   grid-area: 1 / 1;
   flex: none;
-  box-shadow: var(--mf-shadow-xs);
+  background: var(--mf-ground-2);
+  border-radius: var(--mf-r-sm);
+  box-shadow: var(--mf-shadow-md);
+  overflow: hidden;
 }
 .mf-p-stage__frame {
   display: block;
@@ -566,7 +568,7 @@
   pointer-events: none;
 }
 
-/* The replay cursor: drawn in the icon set's grammar, with the scratch ridge
+/* The replay cursor: drawn in the icon set's grammar, with a white outline
    under it so it stays legible over any page it is replaying. */
 /* The transform carries the recorded point, and the margin pulls the drawn
    arrow so its TIP sits on it rather than the box's top-left corner. The tip is
@@ -584,8 +586,8 @@
 .mf-p-cursor svg { display: block; }
 .mf-p-cursor[data-seen="false"] { visibility: hidden; }
 
-/* The click mark is a registration cross, not a ripple. It is invisible at
-   rest, appears where the pointer went down, and clears itself. */
+/* The click mark is a small cross in a ring, not a ripple. It is invisible
+   at rest, appears where the pointer went down, and clears itself. */
 .mf-p-click {
   position: absolute;
   top: 0;
@@ -594,7 +596,7 @@
   height: 22px;
   margin: -11px 0 0 -11px;
   pointer-events: none;
-  color: var(--mf-accent);
+  color: var(--mf-people);
   opacity: 0;
 }
 .mf-p-click.is-on { opacity: 1; }
@@ -635,8 +637,8 @@
 }
 
 /* The scrub track carries the recording's own activity: each bin is how much
-   happened in that slice, so the operator can see where the session is busy
-   before dragging into it. */
+   happened in that slice, so you can see where the session is busy before
+   dragging into it. */
 .mf-p-scrub {
   position: relative;
   flex: 1;
@@ -664,7 +666,8 @@
   position: absolute;
   inset: 5px auto 5px 0;
   width: 0;
-  background: var(--mf-accent-wash);
+  background: var(--mf-blue-wash);
+  border-radius: 2px;
   pointer-events: none;
 }
 .mf-p-scrub input[type="range"] {
@@ -680,25 +683,27 @@
 }
 .mf-p-scrub input[type="range"]::-webkit-slider-runnable-track { height: 28px; background: none; }
 .mf-p-scrub input[type="range"]::-moz-range-track { height: 28px; background: none; }
-/* The pen head, not a ball: a single upright stylus on the time rule. */
+/* The playhead: a slim upright bar over the activity bins, the way an
+   audio editor marks the current position. */
 .mf-p-scrub input[type="range"]::-webkit-slider-thumb {
   appearance: none;
   -webkit-appearance: none;
-  width: 3px;
+  width: 4px;
   height: 28px;
   border: 0;
-  border-radius: 1px;
-  background: var(--mf-accent);
+  border-radius: 2px;
+  background: var(--mf-blue);
   box-shadow: var(--mf-shadow-xs);
 }
 .mf-p-scrub input[type="range"]::-moz-range-thumb {
-  width: 3px;
+  width: 4px;
   height: 28px;
   border: 0;
-  border-radius: 1px;
-  background: var(--mf-accent);
+  border-radius: 2px;
+  background: var(--mf-blue);
   box-shadow: var(--mf-shadow-xs);
 }
+.mf-p-scrub input[type="range"]:focus-visible { outline: 2px solid var(--mf-focus); outline-offset: 2px; border-radius: var(--mf-r-sm); }
 
 .mf-p-status {
   display: flex;

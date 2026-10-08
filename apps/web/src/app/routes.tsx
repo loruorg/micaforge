@@ -14,9 +14,10 @@
  *     would drag the heavy sibling into the first chunk and quietly undo the
  *     split. The stylesheets those barrels used to carry are gathered in
  *     `styles/app/index.css`, which the providers pull in once.
- *  3. NOTHING WAITS ON A SPINNER. A channel that is still arriving shows the
- *     instrument's own waiting state: ruled paper feeding through, already in
- *     the document, announced to a screen reader.
+ *  3. NOTHING WAITS ON A SPINNER. A screen that is still loading shows grey
+ *     placeholder shapes in its own layout, already in the document and
+ *     announced to a screen reader. ("Channel" in this file means "screen";
+ *     the name is historical.)
  */
 import type { ErrorInfo, ReactNode } from "react";
 import { Component, Suspense, lazy } from "react";
@@ -84,15 +85,16 @@ const AdminScreen = lazy(() => import("./settings/AdminScreen"));
 /* ── waiting ─────────────────────────────────────────────────────────────── */
 
 /**
- * Blank paper feeding through the machine. The same figure every other waiting
- * state in this product uses, so a channel arriving looks like a reading being
- * taken rather than like a different application.
+ * Grey placeholder shapes in the layout of a screen: a header, a chart and
+ * some rows. The same shapes every other loading state in this product uses,
+ * so a screen arriving looks like data loading rather than like a different
+ * application.
  */
-export function ScreenWait({ label = "Bringing the channel up…" }: { label?: string }) {
+export function ScreenWait({ label = "Loading…" }: { label?: string }) {
   return (
     <div className="mfs-wait-screen" aria-busy="true" aria-live="polite">
       <span className="mf-sr">{label}</span>
-      <Panel ruled>
+      <Panel>
         <div className="mfs-wait-screen__head">
           <span className="mf-wait" style={{ width: "34%", height: "17px" }} />
           <span className="mf-wait" style={{ width: "52%" }} />
@@ -173,11 +175,11 @@ class ChannelBoundary extends Component<
       <div className="mfs-wait-screen">
         <Panel>
           <ErrorState
-            title={missing ? "This channel did not arrive" : "This channel stopped writing"}
+            title={missing ? "This screen did not load" : "This screen stopped working"}
             detail={
               missing
-                ? "The dashboard asked for this channel's code and the server did not send it. That usually means the page has been open across an update and is asking for a file that has been replaced. Reloading picks up the current build."
-                : `${error.message || "The screen failed while it was being drawn."} Drawing it again often clears it; the full trace is in the browser console.`
+                ? "The dashboard asked for this screen's code and the server did not send it. Usually the page was open during an update and asks for a file that was replaced. Reload to get the current version."
+                : `${error.message || "The screen failed while it was being drawn."} Trying again often clears it. The full error is in the browser console.`
             }
             onRetry={missing ? undefined : () => this.setState({ error: null })}
           />
@@ -222,7 +224,7 @@ function RequireAccount({ children }: { children: ReactNode }) {
   const { isLoading, isSignedOut } = useAuth();
   const location = useLocation();
 
-  if (isLoading) return <ScreenWait label="Checking who is at the bench…" />;
+  if (isLoading) return <ScreenWait label="Checking your account…" />;
   if (isSignedOut) {
     return <Navigate to="/app/login" replace state={{ from: location.pathname + location.search }} />;
   }
@@ -250,7 +252,7 @@ function NotFound() {
     <div className="mfs-wait-screen">
       <Panel>
         <ErrorState
-          title="No channel is recorded at that address"
+          title="There is no page at this address"
           detail="The link may be from an older build of the dashboard, or the site it pointed at has been removed."
         />
         <div className="mfs-rack__foot mfs-rack__foot--centre">

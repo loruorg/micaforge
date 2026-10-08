@@ -1,9 +1,9 @@
 /**
- * Policy versus observed, at /app/:site/policy
+ * Robots.txt rules, at /app/:site/policy
  *
- * What the site SAYS, beside what the machines DID. The files are rendered as
- * the files, in the data face, with the group that decides a given agent lifted
- * out of the page and the deciding rule marked in the margin.
+ * What the site SAYS, beside what the AI crawlers DID. The files are rendered
+ * as the files, in the monospace face, with the group that decides a given
+ * crawler highlighted and the deciding rule marked.
  *
  * The rule this screen will not bend: a violation is only ever reported when the
  * agent's identity was verified against the operator's published address ranges.
@@ -286,8 +286,8 @@ function FileListing({
       {agents?.length ? (
         <>
           <div className="mf-file__pick">
-            <span>Mark the rule that answers</span>
-            <div className="mf-pivot" role="group" aria-label="Agent to mark in the file">
+            <span>Highlight the rule for</span>
+            <div className="mf-pivot" role="group" aria-label="Crawler to highlight in the file">
               {agents.slice(0, 6).map((a) => (
                 <button
                   key={a.agent}
@@ -307,18 +307,18 @@ function FileListing({
               <span>
                 {group ? (
                   <>
-                    <b>{agentName(agent.display_name, agent.agent)}</b> is answered by the group opening at line {(group.lines[0] ?? 0) + 1}
+                    <b>{agentName(agent.display_name, agent.agent)}</b> follows the group that starts at line {(group.lines[0] ?? 0) + 1}
                     {group.tokens.includes("*") && !group.tokens.some((t) => t !== "*")
-                      ? " (the catch-all group, because no rule names this agent)"
+                      ? " (the catch-all group, because no rule names this crawler)"
                       : ""}
                     . {rule
                       ? `Line ${rule.line + 1} decides its access to the site root.`
-                      : `No rule in that group covers the site root, so it may read anything the group does not name.`}
+                      : `No rule in that group covers the site root, so it may fetch anything the group does not name.`}
                   </>
                 ) : (
                   <>
                     No group in this file names <b>{agentName(agent.display_name, agent.agent)}</b>, and there is no catch-all group. Every
-                    crawler reads that as permission.
+                    crawler takes that as permission.
                   </>
                 )}
               </span>
@@ -349,11 +349,11 @@ function FileListing({
 /* ── observed behaviour ─────────────────────────────────────────────────── */
 
 /**
- * The catalog answers whole, and that is the right answer: an operator needs to
- * know the rule their own file gives an agent BEFORE it ever arrives. But it is
- * two readings under one heading, so it is drawn as two. The agents that
+ * The catalog answers whole, and that is the right answer: a site owner needs
+ * to know the rule their own file gives a crawler BEFORE it ever arrives. But
+ * it is two lists under one heading, so it is drawn as two. The crawlers that
  * actually fetched lead the panel and are counted; the rest of the catalog
- * waits under a fold that says how many it holds.
+ * waits in a collapsed section that says how many it holds.
  */
 function splitAgents(agents: PolicyAgentRow[] | undefined): {
   observed: PolicyAgentRow[];
@@ -392,11 +392,11 @@ function ObservedPanel({
     ),
   };
 
-  /** The agents that wrote on the paper. Every counting column earns its place. */
+  /** The crawlers that fetched. Every counting column earns its place. */
   const columns: Column<PolicyAgentRow>[] = [
     {
       key: "agent",
-      head: "Agent",
+      head: "Crawler",
       render: (r) => (
         <span className="mf-wedge-stack">
           <span>
@@ -438,16 +438,16 @@ function ObservedPanel({
   ];
 
   /**
-   * The agents that have not written. Fetches, violations and identity are all
-   * zero or unknowable by definition, so those columns are dropped rather than
-   * filled with noughts a reader has to discount. What is left is the useful
+   * The crawlers that have not fetched. Fetches, violations and identity are
+   * all zero or unknowable by definition, so those columns are dropped rather
+   * than filled with zeros a user has to discount. What is left is the useful
    * part: what this site's files already answer, and the token a group would
    * have to name to answer differently.
    */
   const ruleColumns: Column<PolicyAgentRow>[] = [
     {
       key: "agent",
-      head: "Agent",
+      head: "Crawler",
       render: (r) => (
         <span className="mf-wedge-stack">
           <span>{agentName(r.display_name, r.agent)}</span>
@@ -459,9 +459,9 @@ function ObservedPanel({
     llms,
     {
       key: "token",
-      head: "Names itself",
+      head: "User-agent token",
       render: (r) => (
-        <span className="mf-path" title={`A User-agent group naming ${r.robots_token} answers this agent.`}>
+        <span className="mf-path" title={`A User-agent group naming ${r.robots_token} applies to this crawler.`}>
           {r.robots_token}
         </span>
       ),
@@ -471,8 +471,8 @@ function ObservedPanel({
   return (
     <Panel className="mf-wedge-tight">
       <PanelHead
-        title="What they actually did"
-        note="The agents that fetched this site in this interval, against the rule your own file gives each one. Selecting a row marks that agent's rule in the file beside this one. The rest of the catalog, which has not fetched, reads under the fold."
+        title="What crawlers actually did"
+        note="The crawlers that fetched this site in this period, next to the rule your robots.txt gives each one. Select a row to highlight that crawler's rule in the file. Crawlers in the catalog that did not fetch are listed in the collapsed section below."
       />
       <Reading query={policy} waiting={<Waiting rows={6} />} isEmpty={() => false}>
         {(d) => {
@@ -482,8 +482,8 @@ function ObservedPanel({
               {observed.length ? (
                 <>
                   <p className="mf-wedge__caption">
-                    {num(observed.length)} {observed.length === 1 ? "agent" : "agents"} fetched this site in
-                    this interval.
+                    {num(observed.length)} {observed.length === 1 ? "crawler" : "crawlers"} fetched this site in
+                    this period.
                   </p>
                   <Sheet
                     rows={observed}
@@ -494,19 +494,19 @@ function ObservedPanel({
                 </>
               ) : (
                 <Empty
-                  title="No named agent has fetched this site in this interval"
-                  body="Agent traffic is written by the server-side ingest path. Until it reports, there is nothing to compare this site's policy against. What the files already answer is still readable below."
+                  title="No named crawler fetched this site in this period"
+                  body="Crawler traffic comes from the server-side ingest path. Until it reports, there is nothing to compare your rules against. What the files already say is still shown below."
                 />
               )}
               {catalog.length ? (
                 <div className="mf-wedge__body">
                   <Disclosure
-                    summary={`${num(catalog.length)} catalogued agent${catalog.length === 1 ? " has" : "s have"} not fetched this site`}
+                    summary={`${num(catalog.length)} known crawler${catalog.length === 1 ? " has" : "s have"} not fetched this site`}
                   >
                     <p className="mf-wedge__prose">
-                      Micaforge holds these agents in its catalog, and none of them has fetched this site in
-                      this interval. Your files answer them anyway, from the moment one arrives, so the rule
-                      is listed here and the counts, which would all read zero, are not.
+                      These crawlers are in the Micaforge catalog, and none of them fetched this site in this
+                      period. Your files apply to them as soon as one arrives, so the rule is listed here. The
+                      counts, which would all be zero, are not.
                     </p>
                     <Sheet
                       rows={catalog}
@@ -548,7 +548,7 @@ function ViolationsPanel({ bench }: { bench: MachineEnv }) {
   const columns: Column<ViolationRow>[] = [
     {
       key: "agent",
-      head: "Agent",
+      head: "Crawler",
       render: (r) => (
         <span className="mf-wedge-stack">
           <span>{agentName(r.display_name, r.agent)}</span>
@@ -576,7 +576,7 @@ function ViolationsPanel({ bench }: { bench: MachineEnv }) {
       render: (r) => (
         <span
           className="mf-data"
-          title={`${num(r.unique_sources)} distinct source addresses, held as rotating salted digests. Micaforge never stores an address.`}
+          title={`${num(r.unique_sources)} distinct source IP addresses, kept only as rotating salted hashes. Micaforge never stores an IP address.`}
         >
           {num(r.unique_sources)}
         </span>
@@ -596,7 +596,7 @@ function ViolationsPanel({ bench }: { bench: MachineEnv }) {
     <Panel className="mf-wedge-tight">
       <PanelHead
         title="Fetched anyway"
-        note="Paths an agent read that its own rule disallows. Only a verified identity can be reported as a violation."
+        note="Paths a crawler fetched that its own rule disallows. Only a verified crawler can be reported as a violation."
       />
       <Reading
         query={q}
@@ -607,11 +607,11 @@ function ViolationsPanel({ bench }: { bench: MachineEnv }) {
         {() =>
           confirmed.length === 0 ? (
             <Empty
-              title="No verified agent broke a rule"
+              title="No verified crawler broke a rule"
               body={
                 claimed.length
-                  ? "Nothing verified fetched a path it was refused. There are unverified claims below; they are recorded, not accused."
-                  : "Every verified agent stayed inside the rules your robots.txt gives it."
+                  ? "No verified crawler fetched a disallowed path. There are unverified claims below; they are recorded, not reported."
+                  : "Every verified crawler stayed inside the rules your robots.txt gives it."
               }
             />
           ) : (
@@ -622,11 +622,11 @@ function ViolationsPanel({ bench }: { bench: MachineEnv }) {
       {claimed.length > 0 ? (
         <div className="mf-wedge__body">
           <Disclosure
-            summary={`${num(claimed.length)} unverified claim${claimed.length === 1 ? "" : "s"}, recorded but not accused`}
+            summary={`${num(claimed.length)} unverified claim${claimed.length === 1 ? "" : "s"}, recorded but not reported`}
           >
             <p className="mf-wedge__prose">
-              These fetches carried the user-agent string of an agent that is disallowed here, but the source
-              address did not match ranges the operator publishes, or the operator publishes none at all.
+              These fetches carried the user-agent string of a crawler that is disallowed here, but the IP
+              address did not match the ranges the operator publishes, or the operator publishes none.
               Anyone can send any user-agent string, so Micaforge records these and stops short of calling
               them violations.
             </p>
@@ -638,7 +638,7 @@ function ViolationsPanel({ bench }: { bench: MachineEnv }) {
   );
 }
 
-/* ── the refetch key ────────────────────────────────────────────────────── */
+/* ── the refetch button ─────────────────────────────────────────────────── */
 
 function usePolicy(bench: MachineEnv, polling: boolean) {
   return useQuery({
@@ -694,11 +694,12 @@ function RefetchKey({
   return (
     <div className="mf-job">
       <Button
+        size="sm"
         icon={<IconPolicy size={14} />}
         onClick={() => run.mutate()}
         disabled={run.isPending || job != null}
       >
-        {job ? "Reading the files" : "Read both files again"}
+        {job ? "Checking the files" : "Check both files again"}
       </Button>
       {job ? (
         <>
@@ -710,7 +711,7 @@ function RefetchKey({
           ) : null}
         </>
       ) : null}
-      {slow ? <span>Still queued after a minute. This panel updates when it lands.</span> : null}
+      {slow ? <span>Still queued after a minute. This panel updates when it is done.</span> : null}
       {run.isError ? <span>{errorText(run.error)}</span> : null}
     </div>
   );
@@ -726,9 +727,9 @@ export function PolicyScreen() {
   const policy = usePolicy(bench, job != null);
   const [selected, setSelected] = useState<string | null>(null);
 
-  /* The picker beside the file leads with the agents that actually fetched, so
-     the keys it can show are the ones worth marking first. The rest of the
-     catalog is still reachable, and still markable, from the sheet opposite. */
+  /* The picker above the file leads with the crawlers that actually fetched,
+     so the buttons it can show are the ones worth highlighting first. The rest
+     of the catalog is still reachable from the table beside it. */
   const agents = useMemo(() => {
     const { observed, catalog } = splitAgents(policy.data?.agents);
     return [...observed, ...catalog];
@@ -738,7 +739,7 @@ export function PolicyScreen() {
   return (
     <div className="mf-wedge">
       <Bench
-        title="Policy vs. observed"
+        title="Robots.txt rules"
         bench={bench}
         controls={<RefetchKey policy={policy} job={job} setJob={setJob} />}
       />
@@ -765,9 +766,9 @@ export function PolicyScreen() {
                   missing={{
                     title: "This site serves no robots.txt",
                     body:
-                      "Nothing at the domain root states which operators may read this site, so every crawler treats the whole site as open. That is a decision by default rather than a decision.",
+                      "Nothing at the domain root says which crawlers may fetch this site, so every crawler treats the whole site as open. That is a decision by default, not a choice.",
                     action:
-                      "Publish a robots.txt at the domain root with one User-agent group per operator you want to allow or refuse, then read the files again with the key above.",
+                      "Publish a robots.txt at the domain root with one User-agent group per crawler you want to allow or block, then check the files again with the button above.",
                   }}
                 />
                 <FileListing
@@ -776,9 +777,9 @@ export function PolicyScreen() {
                   missing={{
                     title: "This site serves no llms.txt",
                     body:
-                      "Nothing tells an answer engine which pages are the canonical ones to read, so it answers from whichever copy it already holds, often an old one, often somebody else's.",
+                      "Nothing tells AI tools which pages are the canonical ones to read, so they answer from whichever copy they already hold, often an old one, often somebody else's.",
                     action:
-                      "Publish /llms.txt listing your documentation entry points as markdown links, shortest path first, then read the files again.",
+                      "Publish /llms.txt listing your documentation entry points as markdown links, shortest path first, then check the files again.",
                   }}
                 />
               </>
@@ -797,11 +798,11 @@ export function PolicyScreen() {
               <div>
                 <h3 className="mf-finding__title">How verification works here</h3>
                 <p className="mf-finding__body">
-                  Micaforge resolves the source address of every agent fetch against the address ranges and
+                  Micaforge checks the IP address of every crawler fetch against the IP ranges and
                   reverse-DNS suffixes the operator publishes, using the catalog in{" "}
-                  <span className="mf-path">agent_catalog</span>. A match makes the identity verified. No
-                  published ranges, or an address outside them, leaves it unverified, and an unverified
-                  fetch is never counted as a violation, however plainly its user-agent claims a name.
+                  <span className="mf-path">agent_catalog</span>. A match makes the crawler verified. No
+                  published ranges, or an IP address outside them, leaves it unverified, and an unverified
+                  fetch is never counted as a violation, whatever name its user-agent claims.
                 </p>
                 <p className="mf-finding__body mf-finding__do">
                   <a className="mf-ext" href="/docs" target="_blank" rel="noreferrer noopener">

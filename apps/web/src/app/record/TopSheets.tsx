@@ -1,14 +1,15 @@
 /**
- * The bench under the record, and the plumbing the two record screens share.
+ * The breakdown tables under the dashboard chart, and the plumbing the
+ * dashboard and realtime screens share.
  *
- * The six sheets here are deliberately NOT a grid of identical cards. They are
- * panels laid on one bench at three different widths, assigned by how much room
- * the content genuinely needs: a page path gets the long sheet, a browser name
- * does not, and the event ledger runs the full width because its rows carry
- * four figures. Each sheet also reports a different pair of measures, because
- * the useful question about a country is not the useful question about a page.
+ * The six tables are deliberately NOT a grid of identical cards. They sit at
+ * three different widths, assigned by how much room the content needs: a page
+ * path gets the wide table, a browser name does not, and the events table runs
+ * the full width because its rows carry four figures. Each table also reports a
+ * different pair of measures, because the useful question about a country is
+ * not the useful question about a page.
  *
- * Every row is live: clicking one files that value as a filter on the whole
+ * Every row is live: clicking one adds that value as a filter on the whole
  * screen, which is why the filter bar above is a real control and not a badge.
  */
 import { useMemo } from "react";
@@ -60,7 +61,7 @@ export function useRecordSite(): RecordSite {
 /* ── envelope, keys and honest number handling ───────────────────────────── */
 
 /**
- * The caliper writes a measured interval back into the shared range as
+ * A range dragged on the chart is written back into the shared range as
  * `<startISO>..<endISO>`; every other value is one of the named ranges in
  * CONTRACT §3.1. This is the one place that distinction is unpicked.
  */
@@ -153,11 +154,11 @@ export function baseEnvelope(q: RecordQuery, extra?: Partial<Envelope>): Envelop
 export const errorDetail = (e: unknown): string =>
   e instanceof ApiError
     ? e.code === "network"
-      ? "The Micaforge server did not answer. Check that it is running, then take the reading again."
+      ? "The Micaforge server did not answer. Check that it is running, then try again."
       : e.message
     : "Something went wrong between the dashboard and the server.";
 
-/* ── one sheet on the bench ──────────────────────────────────────────────── */
+/* ── one breakdown table ─────────────────────────────────────────────────── */
 
 type Width = "lead" | "unit" | "full";
 
@@ -202,10 +203,10 @@ function BenchSheet({
   const rows = Array.isArray(query.data) ? query.data : [];
   const loading = q.siteId == null || query.isPending;
 
-  /* The ink behind a row is drawn against the leading row of THIS sheet, not
-     against the whole site: at a typical share of eight per cent every row on
-     the bench drew the same short stub. The figure in the share column is still
-     the share of the whole, which is where that number belongs. */
+  /* The bar behind a row is drawn against the leading row of THIS table, not
+     against the whole site: at a typical share of eight per cent every row
+     drew the same short stub. The figure in the share column is still the
+     share of the whole, which is where that number belongs. */
   const inked = columns.map((c) =>
     c.share ? { ...c, share: againstLeader(rows, c.share) } : c,
   );
@@ -226,12 +227,12 @@ function BenchSheet({
       <div className="mfr-body">
         {!query.isError && rows.length > 0 ? (
           <p className="mf-sr">
-            {drillHint} The ink behind each row is its size against the leading row.
+            {drillHint} The bar behind each row is its size against the leading row.
           </p>
         ) : null}
         {query.isError ? (
           <ErrorState
-            title={`${title} did not come back`}
+            title={`Could not load ${title.toLowerCase()}`}
             detail={errorDetail(query.error)}
             onRetry={() => void query.refetch()}
           />
@@ -251,7 +252,7 @@ function BenchSheet({
 }
 
 /* ── column sets ─────────────────────────────────────────────────────────────
-   Each sheet answers its own question, so no two share a column set. */
+   Each table answers its own question, so no two share a column set. */
 
 const shareOf = (r: BreakdownRow): number | undefined => asFraction(r.share) ?? undefined;
 
@@ -263,7 +264,7 @@ const visitorsCol: Column<BreakdownRow> = {
   render: (r) => <span className="mf-data">{num(r.visitors)}</span>,
 };
 
-/* ── the bench ───────────────────────────────────────────────────────────── */
+/* ── the tables ──────────────────────────────────────────────────────────── */
 
 export function TopSheets({
   q,
@@ -282,7 +283,7 @@ export function TopSheets({
         width: "lead" as Width,
         seeAll: `${base}/pages`,
         limit: 8,
-        emptyTitle: "No page has been read yet",
+        emptyTitle: "No pageviews yet",
         emptyBody: "Pages appear here as soon as the tracker reports its first pageview.",
         drillHint: "Choosing a row filters this screen to that page.",
         onRow: (r: BreakdownRow) => onDrill({ dimension: "pathname", op: "is", value: r.key }),
@@ -322,8 +323,8 @@ export function TopSheets({
         width: "unit" as Width,
         seeAll: `${base}/sources`,
         limit: 8,
-        emptyTitle: "Nothing has sent a reader yet",
-        emptyBody: "Referrers, campaigns and answer engines are grouped here once they arrive.",
+        emptyTitle: "No sources yet",
+        emptyBody: "Referrers, campaigns and AI answers show here once visits arrive.",
         drillHint: "Choosing a row filters this screen to that source.",
         onRow: (r: BreakdownRow) => onDrill({ dimension: "source", op: "is", value: r.key }),
         columns: [
@@ -350,7 +351,7 @@ export function TopSheets({
         width: "unit" as Width,
         seeAll: `${base}/locations`,
         limit: 7,
-        emptyTitle: "No country resolved yet",
+        emptyTitle: "No countries yet",
         emptyBody: "Country comes from the bundled geolocation database, never from a cookie.",
         drillHint: "Choosing a row filters this screen to that country.",
         onRow: (r: BreakdownRow) => onDrill({ dimension: "country", op: "is", value: r.key }),
@@ -372,7 +373,7 @@ export function TopSheets({
         width: "unit" as Width,
         seeAll: `${base}/devices`,
         limit: 7,
-        emptyTitle: "No browser reported yet",
+        emptyTitle: "No browsers yet",
         emptyBody: "The browser is read from the request header at ingest, never fingerprinted.",
         drillHint: "Choosing a row filters this screen to that browser.",
         onRow: (r: BreakdownRow) => onDrill({ dimension: "browser", op: "is", value: r.key }),
@@ -394,8 +395,8 @@ export function TopSheets({
         width: "unit" as Width,
         seeAll: `${base}/devices`,
         limit: 7,
-        emptyTitle: "No device reported yet",
-        emptyBody: "Desktop, mobile, tablet and the rest are split here once hits arrive.",
+        emptyTitle: "No devices yet",
+        emptyBody: "Desktop, mobile, tablet and the rest show here once visits arrive.",
         drillHint: "Choosing a row filters this screen to that device type.",
         onRow: (r: BreakdownRow) => onDrill({ dimension: "device_type", op: "is", value: r.key }),
         columns: [
@@ -422,7 +423,7 @@ export function TopSheets({
         width: "full" as Width,
         seeAll: `${base}/events`,
         limit: 6,
-        emptyTitle: "No custom event has fired yet",
+        emptyTitle: "No custom events yet",
         emptyBody:
           "Call mf.track(\"name\", props) from the tracker, or turn on auto-capture for outbound links, downloads and form submits.",
         drillHint: "Choosing a row filters this screen to that event.",
@@ -460,9 +461,8 @@ export function TopSheets({
   );
 
   return (
-    /* Which pen this bench is written in. The ink behind a row is the trace of
-       the audience the sheet is reading, so a human table is never drawn in the
-       machine pen's shellac. */
+    /* Which audience these tables read. The bar behind a row takes that
+       audience's colour: blue for people, orange for AI crawlers. */
     <div className="mfr-bench" data-trace={q.audience === "agent" ? "agent" : "human"}>
       {sheets.map((s) => (
         <BenchSheet

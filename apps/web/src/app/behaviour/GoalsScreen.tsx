@@ -1,15 +1,13 @@
 /**
- * Goals: what the record is measured against.
+ * Goals: what counts as a conversion.
  *
  * The list is built from the goals that exist, not from the goals that happened
  * to convert, so a goal that has never fired still appears with a zero against
  * it. That is the honest reading: a goal recording nothing is exactly the fact
  * an operator needs to see.
  *
- * Each row carries its own trend written as a trace, drawn the way every other
- * line in this product is drawn: a ridge of displaced soot under a bright
- * scratch. Opening a row states the rule in plain words and offers the two
- * actions that change it.
+ * Each row carries its own trend as a small line chart. Opening a row states
+ * the rule in plain words and offers the two actions that change it.
  */
 import { useMemo, useState } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -59,7 +57,7 @@ export function GoalsScreen() {
     enabled: siteId != null,
   });
 
-  /* What they did over the caliper's interval. */
+  /* What they did over the selected period. */
   const stats = useQuery({
     queryKey: ["stats", "goals", siteId, range, audience, filtersJson],
     queryFn: () =>
@@ -101,13 +99,14 @@ export function GoalsScreen() {
 
   return (
     <div className="mfb-stack">
-      <Panel ruled feed>
+      <Panel>
         <PanelHead
           title="Goals"
-          note="Conversions counted per session over the interval you have set."
+          note="Conversions counted per session over the period you have set."
           actions={
             <Button
               tone="primary"
+              size="sm"
               icon={<IconPlus size={13} />}
               onClick={() => setEditing({ mode: "new" })}
             >
@@ -132,7 +131,7 @@ export function GoalsScreen() {
             },
             {
               key: "count",
-              label: "Goals recording",
+              label: "Active goals",
               /* Once the list has come back, none is 0. An em dash here means
                  the list has not been read, and only that. */
               value: goals.isSuccess ? num(rows.length) : "—",
@@ -142,13 +141,13 @@ export function GoalsScreen() {
 
         {goals.isError ? (
           <ErrorState
-            title="The goals could not be read"
+            title="Could not load goals"
             detail={errorText(goals.error)}
             onRetry={() => void goals.refetch()}
           />
         ) : goals.isPending ? (
           <p className="mfb-note" aria-live="polite">
-            Reading the goals…
+            Loading goals…
           </p>
         ) : rows.length === 0 ? (
           <Empty
@@ -156,7 +155,7 @@ export function GoalsScreen() {
             body="A goal names what counts as a conversion: a page reached, an event fired, a file taken, an amount booked. Set one and this list fills the moment it first fires."
             action={
               <Button tone="primary" onClick={() => setEditing({ mode: "new" })}>
-                Set the first goal
+                Add a goal
               </Button>
             }
           />
@@ -164,10 +163,10 @@ export function GoalsScreen() {
           <>
             {stats.isError ? (
               <p className="mfb-note" role="alert">
-                The goals are listed, but their figures did not come back:{" "}
+                The goals are listed, but their figures could not be loaded:{" "}
                 {errorText(stats.error)}{" "}
                 <button type="button" className="mf-drum__clear" onClick={() => void stats.refetch()}>
-                  Read the figures again
+                  Try again
                 </button>
               </p>
             ) : null}
@@ -311,12 +310,12 @@ function GoalActions({ goal, onEdit }: { goal: Goal; onEdit: () => void }) {
   );
 }
 
-/* ── the trend trace ─────────────────────────────────────────────────────── */
+/* ── the trend sparkline ─────────────────────────────────────────────────── */
 
 /**
- * The same two-pass scratch the drum uses, at register scale: a ridge of
- * displaced ground under a bright line. Drawn from the values that are already
- * in the DOM, so it is never blank waiting for anything.
+ * A small line chart of the goal's conversions over the period, in the people
+ * blue. Drawn from the values that are already in the DOM, so it is never blank
+ * waiting for anything.
  */
 function TrendTrace({ values, label }: { values: number[]; label: string }) {
   if (values.length < 2) {
@@ -342,18 +341,11 @@ function TrendTrace({ values, label }: { values: number[]; label: string }) {
       aria-label={`${label}: ${values.length} intervals, peak ${num(max)}`}
     >
       <path
-        className="mfb-trace__ridge"
-        d={d}
-        fill="none"
-        strokeWidth={1.6}
-        vectorEffect="non-scaling-stroke"
-        transform="translate(0,1.2)"
-      />
-      <path
         d={d}
         fill="none"
         stroke="var(--mf-people)"
-        strokeWidth={1.4}
+        strokeWidth={1.5}
+        strokeLinejoin="round"
         vectorEffect="non-scaling-stroke"
       />
     </svg>
@@ -407,15 +399,18 @@ function describe(goal: Goal, full = false): string {
 /** A money figure, or an em dash where there is genuinely no amount. */
 function money(v: number | null | undefined, currency: string | null | undefined): string {
   if (v == null || !Number.isFinite(v)) return "—";
-  if (!currency) return num(v);
+  /* The API can send a negative zero (or a tiny negative remainder) for a
+     period with no revenue, which rounds to a printed "-0". Zero has no sign. */
+  const amount = Object.is(Math.round(v), -0) ? 0 : v;
+  if (!currency) return num(amount);
   try {
     return new Intl.NumberFormat(undefined, {
       style: "currency",
       currency,
-      maximumFractionDigits: v >= 1000 ? 0 : 2,
-    }).format(v);
+      maximumFractionDigits: amount >= 1000 ? 0 : 2,
+    }).format(amount);
   } catch {
-    return `${num(v)} ${currency}`;
+    return `${num(amount)} ${currency}`;
   }
 }
 

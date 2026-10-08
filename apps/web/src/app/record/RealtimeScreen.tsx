@@ -1,15 +1,16 @@
 /**
- * THE LIVE PEN: the last five minutes.
+ * Realtime: the last five minutes.
  *
- * The same instrument as the overview, wound down to minute resolution and left
- * running. Both pens write here at once and neither is a filter of the other:
- * the count of people reading and the count of machines fetching are two live
- * channels of the same station.
+ * The same chart as the dashboard, at minute resolution and refreshed on a
+ * timer. Both audiences show at once and neither is a filter of the other: the
+ * count of people on the site and the count of AI crawler fetches are two live
+ * series of the same site.
  *
  * The polling is deliberately visible. A dashboard that silently stops updating
  * when its tab goes to the background is lying to whoever comes back to it, so
- * the pen states (writing, held, paused) are printed next to the record, and
- * the reading catches up the moment the tab is looked at again.
+ * the update state (live, paused by the user, paused in the background) is
+ * printed above the chart, and the data catches up the moment the tab is
+ * looked at again.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
@@ -31,11 +32,10 @@ import {
   Sheet,
 } from "../../components/react/ui";
 import type { Column } from "../../components/react/ui";
-import { IconPen } from "../../components/react/icons";
 import { errorDetail, statsKey, toMs, useRecordSite, useRecordState } from "./TopSheets";
 import "../../styles/app/record.css";
 
-/** The interval the pen advances on. The status track below is driven by it. */
+/** The refresh interval. The progress bar in the status line is driven by it. */
 const POLL_MS = 5000;
 
 const KINDS: Record<string, string> = {
@@ -55,6 +55,21 @@ const clock = (t: number) =>
     minute: "2-digit",
     second: "2-digit",
   });
+
+const pagesOpen = (n: number) => `${num(n)} ${n === 1 ? "page" : "pages"} open`;
+
+/** Pause and resume, drawn here because the shared icon set has neither. */
+function PauseMark({ paused }: { paused: boolean }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" focusable="false">
+      {paused ? (
+        <path d="M4 2.5v9l7.5-4.5z" fill="currentColor" />
+      ) : (
+        <path d="M4.5 2.5v9M9.5 2.5v9" stroke="currentColor" strokeWidth="1.8" fill="none" />
+      )}
+    </svg>
+  );
+}
 
 type PageRow = { path: string; n: number };
 type SourceRow = { source: string; n: number };
@@ -96,7 +111,7 @@ export function RealtimeScreen() {
     staleTime: 0,
   });
 
-  /* Coming back to the tab takes a fresh reading at once rather than waiting
+  /* Coming back to the tab fetches fresh data at once rather than waiting
      out the rest of the interval. */
   const refetch = useRef(rt.refetch);
   refetch.current = rt.refetch;
@@ -114,7 +129,7 @@ export function RealtimeScreen() {
   const channels: DrumChannel[] = [
     {
       id: "readers",
-      label: "Reading",
+      label: "People",
       color: "var(--mf-people)",
       pen: "written",
       values: per.map((p) => p[1] ?? 0),
@@ -122,7 +137,7 @@ export function RealtimeScreen() {
     },
     {
       id: "machines",
-      label: "Fetching",
+      label: "AI crawlers",
       color: "var(--mf-ai)",
       pen: "stepped",
       values: per.map((p) => p[2] ?? 0),
@@ -130,7 +145,7 @@ export function RealtimeScreen() {
     },
   ];
 
-  /** Read off the trace, never written into it: each pen's own peak minute. */
+  /** Read off the data: each series' own peak minute. */
   const annotations = useMemo<DrumAnnotation[]>(() => {
     const out: DrumAnnotation[] = [];
     if (per.length < 3) return out;
@@ -149,10 +164,10 @@ export function RealtimeScreen() {
     const readers = peakOf(1);
     const machines = peakOf(2);
     if (readers.at >= 0 && readers.best > 0) {
-      out.push({ at: readers.at, label: `Reading peak ${num(readers.best)}`, tone: "neutral" });
+      out.push({ at: readers.at, label: `People peak ${num(readers.best)}`, tone: "neutral" });
     }
     if (machines.at >= 0 && machines.best > 0) {
-      out.push({ at: machines.at, label: `Fetching peak ${num(machines.best)}`, tone: "neutral" });
+      out.push({ at: machines.at, label: `Crawler peak ${num(machines.best)}`, tone: "neutral" });
     }
     return out;
   }, [per]);
@@ -170,7 +185,7 @@ export function RealtimeScreen() {
     },
     {
       key: "n",
-      head: "Reading",
+      head: "People",
       numeric: true,
       width: "6rem",
       render: (r) => <span className="mf-data">{num(r.n)}</span>,
@@ -190,7 +205,7 @@ export function RealtimeScreen() {
     },
     {
       key: "n",
-      head: "Readers",
+      head: "Visitors",
       numeric: true,
       width: "6rem",
       render: (r) => <span className="mf-data">{num(r.n)}</span>,
@@ -206,7 +221,7 @@ export function RealtimeScreen() {
     },
     {
       key: "what",
-      head: "Channel",
+      head: "Event or crawler",
       width: "12rem",
       render: (r) => (
         <>
@@ -239,29 +254,27 @@ export function RealtimeScreen() {
     },
   ];
 
-  const penState = held ? "held" : hidden ? "paused" : "writing";
+  const penState = held ? "held" : hidden ? "paused" : "live";
 
   return (
     <div className="mfr-screen">
-      <h1 className="mf-sr">Live pen{domain ? ` for ${domain}` : ""}</h1>
+      <h1 className="mf-sr">Realtime{domain ? ` for ${domain}` : ""}</h1>
 
-      {/* ── pen state, and the key that parks it ──────────────────────── */}
+      {/* ── update state, and the button that pauses it ───────────────── */}
       <div className="mfr-bar">
         <div className="mfr-status">
           <span role="status">
-            {penState === "writing" ? (
-              <LivePulse label={`Writing every ${POLL_MS / 1000} seconds`} />
+            {penState === "live" ? (
+              <LivePulse label={`Updates every ${POLL_MS / 1000} seconds`} />
             ) : penState === "held" ? (
-              <span className="mfr-status__held">
-                Held. The pen is parked and nothing is being read.
-              </span>
+              <span className="mfr-status__held">Paused. Updates are stopped.</span>
             ) : (
               <span className="mfr-status__held">
-                Paused. This tab is in the background; the reading resumes when you come back.
+                Paused while this tab is in the background. Updates start again when you come back.
               </span>
             )}
           </span>
-          {penState === "writing" ? (
+          {penState === "live" ? (
             <span
               className="mfr-advance"
               aria-hidden="true"
@@ -271,7 +284,7 @@ export function RealtimeScreen() {
             </span>
           ) : null}
           <span>
-            Last reading {rt.dataUpdatedAt ? ago(rt.dataUpdatedAt) : "not taken yet"}
+            Updated {rt.dataUpdatedAt ? ago(rt.dataUpdatedAt) : "not yet"}
           </span>
         </div>
 
@@ -279,25 +292,25 @@ export function RealtimeScreen() {
           <Button
             size="sm"
             className="mfr-toggle"
-            icon={<IconPen size={14} />}
+            icon={<PauseMark paused={held} />}
             aria-pressed={held}
             onClick={() => setHeld((v) => !v)}
           >
-            {held ? "Release the pen" : "Hold the pen"}
+            {held ? "Resume" : "Pause"}
           </Button>
         </div>
       </div>
 
       {/* ── the last five minutes ─────────────────────────────────────── */}
-      <Panel feed>
+      <Panel>
         <PanelHead
-          title="The last five minutes"
-          note="Both pens at minute resolution. Each carries its own gain, so a flat pen never hides a small channel; the counts underneath are the figures."
+          title="Last five minutes"
+          note="People and AI crawlers, per minute. Each series has its own scale, so a small series never looks flat. The counts below are the exact figures."
         />
         <div className="mfr-body">
           {rt.isError ? (
             <ErrorState
-              title="The live reading did not come back"
+              title="Could not load realtime data"
               detail={errorDetail(rt.error)}
               onRetry={() => void rt.refetch()}
             />
@@ -312,16 +325,16 @@ export function RealtimeScreen() {
                 notchEvery={Math.max(1, Math.round(times.length / 6))}
                 annotations={annotations}
                 live={!paused}
-                // Refreshed in place every poll: a full rewrite each time would be
-                // noise. The live pen's datum tick still marks each new reading.
+                // Refreshed in place every poll: redrawing from the left each time
+                // would be noise. The live marker still shows each new value.
                 write={false}
                 formatTime={(t) =>
                   new Date(t).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
                 }
                 emptyLabel={
                   waiting
-                    ? "Reading the record…"
-                    : "Nothing has been recorded in the last five minutes."
+                    ? "Loading…"
+                    : "No visits in the last five minutes."
                 }
               />
 
@@ -329,20 +342,20 @@ export function RealtimeScreen() {
                 <div className="mfr-live__ch">
                   <span className="mfr-live__label">
                     <span className="mfr-pen" data-pen="written" aria-hidden="true" />
-                    Reading now
+                    People online
                   </span>
                   <span className="mfr-live__n">{waiting ? "—" : num(data?.visitors_now)}</span>
                   <span className="mfr-live__note">
-                    {waiting ? "taking the reading" : `${num(data?.top_pages?.length ?? 0)} pages open`}
+                    {waiting ? "loading" : pagesOpen(data?.top_pages?.length ?? 0)}
                   </span>
                 </div>
                 <div className="mfr-live__ch">
                   <span className="mfr-live__label">
                     <span className="mfr-pen" data-pen="stepped" aria-hidden="true" />
-                    Fetching now
+                    AI crawlers now
                   </span>
                   <span className="mfr-live__n">{waiting ? "—" : num(data?.agents_now)}</span>
-                  <span className="mfr-live__note">named machine clients</span>
+                  <span className="mfr-live__note">named AI crawlers</span>
                 </div>
               </div>
             </>
@@ -353,7 +366,7 @@ export function RealtimeScreen() {
       {/* ── what is open, and what sent it ────────────────────────────── */}
       <div className="mfr-now">
         <Panel>
-          <PanelHead title="Pages being read" />
+          <PanelHead title="Pages people are on" />
           <div className="mfr-body">
             {rt.isError ? (
               <ErrorState detail={errorDetail(rt.error)} onRetry={() => void rt.refetch()} />
@@ -366,7 +379,7 @@ export function RealtimeScreen() {
                 empty={
                   <Empty
                     title="No page is open right now"
-                    body="A page appears here for the five minutes after someone reads it."
+                    body="A page shows here for five minutes after someone opens it."
                   />
                 }
               />
@@ -375,7 +388,7 @@ export function RealtimeScreen() {
         </Panel>
 
         <Panel>
-          <PanelHead title="Where they came from" />
+          <PanelHead title="Sources" />
           <div className="mfr-body">
             {rt.isError ? (
               <ErrorState detail={errorDetail(rt.error)} onRetry={() => void rt.refetch()} />
@@ -388,7 +401,7 @@ export function RealtimeScreen() {
                 empty={
                   <Empty
                     title="No source in the last five minutes"
-                    body="Answer engines are grouped here beside search, social and direct."
+                    body="AI answers show here beside search, social and direct visits."
                   />
                 }
               />
@@ -397,11 +410,11 @@ export function RealtimeScreen() {
         </Panel>
       </div>
 
-      {/* ── the feed ──────────────────────────────────────────────────── */}
+      {/* ── live event list ───────────────────────────────────────────── */}
       <Panel>
         <PanelHead
-          title="As it happens"
-          note="Every hit in the last five minutes, newest first. A stepped mark is a machine; a written mark is a person."
+          title="Live events"
+          note="Every event in the last five minutes, newest first. A stepped line marks an AI crawler; a smooth line marks a person."
         />
         <div className="mfr-body">
           {rt.isError ? (
@@ -415,8 +428,8 @@ export function RealtimeScreen() {
                 getKey={(r, i) => `${r.t}-${r.path}-${i}`}
                 empty={
                   <Empty
-                    title="Nothing has come in yet"
-                    body="Open the site in another tab and the feed writes as it happens."
+                    title="No events yet"
+                    body="Open the site in another tab and events show here as they happen."
                   />
                 }
               />

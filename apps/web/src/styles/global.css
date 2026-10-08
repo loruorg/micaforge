@@ -129,19 +129,14 @@
   }
 }
 
-/* ── the drum ────────────────────────────────────────────────────────────── */
+/* ── the time-series chart (Drum.tsx) ────────────────────────────────────── */
 @layer components {
   .mf-drum {
     position: relative;
     width: 100%;
-    /* Instrument labels sit ON the plot at the smallest size the system allows.
-       At that size anti-aliasing eats contrast: measured on the render, the
-       dimmest ink peaked at 4.25:1 for the gain labels and 4.50:1 for the
-       annotations, i.e. at or under the floor on their brightest pixel. These
-       labels therefore take the second ink, which measures 8.37:1 on soot
-       (#b4ac9c on #13110e) and 6.80:1 on paper (#4a453c on #dddad0), with the
-       size raised to 11px so the stroke has body to carry it. */
-    --mf-drum-label: var(--mf-ink-2);
+    /* Axis labels and margin notes: small, in the dimmest text ink that still
+       passes contrast on white (4.8:1), at 11px so the stroke has body. */
+    --mf-drum-label: var(--mf-ink-3);
   }
 
   .mf-drum svg { display: block; }
@@ -155,9 +150,9 @@
     fill: var(--mf-drum-label);
   }
 
-  /* The live pen writes one datum tick, which draws and then holds. The mark is
-     present at full length with no animation at all, so nothing on this plot
-     depends on a keyframe ever running. */
+  /* A live chart draws one tick at its newest sample, which draws and then
+     holds. The mark is present at full length with no animation at all, so
+     nothing on this plot depends on a keyframe ever running. */
   .mf-drum__tick {
     stroke-dasharray: 1;
     stroke-dashoffset: 0;
@@ -171,15 +166,16 @@
     .mf-drum__tick { animation: none; stroke-dashoffset: 0; }
   }
 
-  /* ── the pen advance ─────────────────────────────────────────────────────
-     The one authored motion in this product. A trace is written left to right
-     by revealing a clip, never by scaling it, and a live drum advances by
-     sliding the record one sample to the left under a pen that stays still.
+  /* ── chart motion ────────────────────────────────────────────────────────
+     The one authored motion in this product. A series is drawn left to right
+     by revealing a clip, never by scaling it, and a live chart advances by
+     sliding one sample to the left under a newest-sample marker that stays
+     still.
 
-     Only the pens move: traces, ruling and ink. Words and figures as text never
-     fade, slide or rise. Everything here is gated on the reader not having asked
-     for reduced motion, and nothing is held hidden unless a script has already
-     arranged to write it back (see lib/pen.ts). */
+     Only chart marks move: lines, grid and bars. Words and figures as text
+     never fade, slide or rise. Everything here is gated on the reader not
+     having asked for reduced motion, and nothing is held hidden unless a script
+     has already arranged to draw it back (see lib/pen.ts). */
   @keyframes mf-pen-write {
     from { clip-path: inset(0 100% 0 0); }
     to   { clip-path: inset(0 0 0 0); }
@@ -195,16 +191,16 @@
   @media (prefers-reduced-motion: no-preference) {
     .mf-drum__write { animation: mf-pen-write var(--mf-dur-4) var(--mf-ease-out) both; }
     .mf-drum__adv { animation: mf-drum-advance 640ms var(--mf-ease-out) both; }
-    /* The pen does not travel with the paper: the head is held at the newest
-       sample by the exact opposite slide, so the two cancel and only the record
-       moves, as it does under a real stylus. */
+    /* The newest-sample marker does not travel with the chart: it is held in
+       place by the exact opposite slide, so the two cancel and only the data
+       moves. */
     .mf-drum__adv .mf-drum__head { animation: mf-drum-hold 640ms var(--mf-ease-out) both; }
     [data-pen="pending"] { clip-path: inset(0 100% 0 0); }
     [data-pen="write"] {
       animation: mf-pen-write var(--mf-dur-4) var(--mf-ease-out) var(--mf-pen-delay, 0ms) both;
     }
-    /* A new reading inked into a readout channel, the way the bank's figure
-       is rewritten when the pen moves on. Short, because it is read often. */
+    /* A new figure revealed in a metric strip when its value changes. Short,
+       because it is read often. */
     .mf-ink-write { animation: mf-pen-write var(--mf-dur-3) var(--mf-ease-out) both; }
   }
 
@@ -239,7 +235,7 @@
     gap: 2px var(--mf-2);
     min-width: 0;
   }
-  /* At phone width each channel takes its own row, so its label, figure and
+  /* At phone width each series takes its own row, so its label, figure and
      scale note read as one entry instead of three columns wrapping against
      each other on different baselines. */
   @media (max-width: 560px) {
@@ -248,8 +244,8 @@
     .mf-drum__at { margin-left: 0; }
   }
 
-  /* The swatch repeats the pen's own line character, so the legend distinguishes
-     the channels by SHAPE as well as by colour. Colour is never the only cue. */
+  /* The swatch repeats the series' own line style, so the legend tells the
+     series apart by SHAPE as well as by colour. Colour is never the only cue. */
   .mf-drum__swatch {
     position: relative;
     align-self: center;
@@ -284,8 +280,8 @@
   }
   .mf-drum__at { font-size: var(--mf-t-xs); color: var(--mf-ink-3); margin-left: auto; }
 
-  /* What the space between two opposed pens does and does not measure. Its own
-     line, under the channels, because it qualifies all of them. */
+  /* What the space between two mirrored series does and does not measure. Its
+     own line, under the legend, because it qualifies all of them. */
   .mf-drum__note {
     flex-basis: 100%;
     font-size: var(--mf-t-xs);
@@ -296,7 +292,7 @@
   .mf-drum__clear {
     font: inherit;
     font-size: var(--mf-t-xs);
-    color: var(--mf-accent);
+    color: var(--mf-blue-ink);
     background: none;
     border: 0;
     border-bottom: 1px solid currentColor;
@@ -305,7 +301,7 @@
   }
 }
 
-/* ── the station spine + app shell ───────────────────────────────────────── */
+/* ── app shell: left navigation, top bar, drawer ─────────────────────────── */
 @layer components {
   .mf-shell {
     display: grid;
@@ -507,7 +503,7 @@
   }
 }
 
-/* ── the bench: panels, readouts, keys, sheets, states ───────────────────── */
+/* ── shared components: panels, metric strip, buttons, tables, states ────── */
 @layer components {
   .mf-sr {
     position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
@@ -736,7 +732,10 @@
   .mf-caliper__stop[aria-pressed="true"] { background: var(--mf-ink-strong); color: #ffffff; }
 
   /* ── tabulation sheet ──────────────────────────────────────────────────── */
-  .mf-sheet-wrap { width: 100%; overflow-x: auto; }
+  /* Positioned so it is the containing block of any absolutely placed child
+     (a screen-reader label in a header cell): without it, that child escapes
+     the scroll clip and widens the whole page on a phone. */
+  .mf-sheet-wrap { position: relative; width: 100%; overflow-x: auto; }
   .mf-sheet { width: 100%; border-collapse: collapse; font-size: var(--mf-t-sm); }
 
   .mf-sheet th {
@@ -763,18 +762,18 @@
   .mf-sheet tbody tr.is-clickable { cursor: pointer; }
   .mf-sheet tbody tr.is-clickable:hover td { background: var(--mf-ground-3); }
 
-  /* Share as ink laid down behind the label: the trace's own fill, not a
-     separate progress bar chip bolted beside the row. */
+  /* A row's share as a light bar behind the label, not a separate progress
+     bar beside the row. People blue by default; a screen that lists AI
+     crawlers sets the AI fill on its own scope. */
   .mf-sheet__ink {
     position: absolute;
     inset: 1px auto 1px 0;
-    background: var(--mf-ai-fill);
+    background: var(--mf-people-fill);
     pointer-events: none;
     border-radius: 0 1px 1px 0;
   }
-  /* Share is laid down behind the row the way ink is: from the left, once, and
-     when the share changes it runs on or back from where it stood. A width with
-     a square leading edge, never a scale on the rounded cap. */
+  /* The share bar grows from the left, once, and when the share changes it
+     runs on or back from where it stood. A width change, never a scale. */
   @media (prefers-reduced-motion: no-preference) {
     .mf-sheet__ink {
       animation: mf-pen-write var(--mf-dur-3) var(--mf-ease-out) both;
@@ -803,7 +802,7 @@
     gap: var(--mf-3);
     padding: var(--mf-14) var(--mf-6);
   }
-  .mf-empty__paper { width: 220px; max-width: 60%; height: auto; opacity: 0.9; }
+  .mf-empty__paper { width: 120px; max-width: 60%; height: auto; }
   .mf-empty__title {
     font-size: var(--mf-t-md);
     font-weight: 500;
@@ -867,7 +866,29 @@
     font-size: var(--mf-t-xs);
     color: var(--mf-ink-3);
   }
-  .mf-pulse svg { color: var(--mf-accent); }
+  /* A small live dot. It pulses softly only when motion is allowed. */
+  .mf-pulse__dot {
+    position: relative;
+    flex: none;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--mf-success);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .mf-pulse__dot::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      background: var(--mf-success);
+      animation: mf-pulse-ring 2s var(--mf-ease-out) infinite;
+    }
+  }
+  @keyframes mf-pulse-ring {
+    from { transform: scale(1); opacity: 0.45; }
+    to   { transform: scale(2.6); opacity: 0; }
+  }
 
   /* ── disclosure ────────────────────────────────────────────────────────── */
   .mf-disc__summary {
@@ -957,7 +978,9 @@
   }
 
   a.mf-btn { text-decoration: none; }
-  .mf-btn--md { padding: 9px var(--mf-5); font-size: var(--mf-t-base); }
+  /* The larger button is for the marketing hero only; in the dashboard every
+     button keeps the base size. */
+  .mf-hero .mf-btn--md { padding: 9px var(--mf-5); font-size: var(--mf-t-base); }
 
   .mf-hero__link {
     display: inline-flex;
@@ -1050,8 +1073,8 @@
 }
 
 @layer components {
-  /* Each pen's own full-scale value, stated so two channels at different gains
-     are never mistaken for two channels on one scale. */
+  /* Each series' own scale, stated so two series on different scales are
+     never mistaken for two series on one scale. */
   .mf-drum__gain-note {
     font-size: var(--mf-t-2xs);
     color: var(--mf-ink-3);

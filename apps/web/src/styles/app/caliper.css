@@ -1,36 +1,27 @@
 /* ============================================================================
-   THE CALIPER at narrow width, settled once for every screen in the station.
+   The date range control (.mf-caliper) at narrow width, settled once for every
+   dashboard screen.
 
-   The control itself is drawn in global.css: six stops in one row, the row set
-   to scroll under a hidden scrollbar when it will not fit. On a phone that row
-   is wider than the paper, so "12 months" was sliced flat by the viewport edge
-   with no gutter at all and "All" sat entirely off-screen with nothing to say
-   it was there. Two area sheets then answered that differently, and the wedge's
-   answer wrapped the stops into a ragged four-over-two block whose second row
-   was cut at twice the width of the first, with the jaw glyph stranded beside
-   it. Three behaviours for one control, all of them wrong.
+   The control itself is drawn in global.css: six presets in one segmented row,
+   set to scroll under a hidden scrollbar when it does not fit. On a phone that
+   row is wider than the screen, so the last presets were cut off by the edge
+   with nothing to say they were there.
 
-   ONE behaviour now, on every screen this application owns: when the bank
-   cannot hold six stops in a row it becomes a three-by-two keypad, ruled inside
-   itself exactly like the readout bank and the medium switch. Six stops divide
-   evenly into three columns, so no row is ever ragged and no cell is ever
-   empty; every stop is on the sheet, so nothing scrolls and nothing is sliced;
-   and the jaw glyph sits on the bank's own centre line, where a fixed jaw
-   belongs, rather than floating beside a block twice its height.
+   ONE behaviour on every screen: when the row cannot hold six presets it
+   becomes a three-by-two grid, divided by hairlines inside itself. Six presets
+   divide evenly into three columns, so no row is ragged and no cell is empty,
+   and every preset stays on screen with nothing to scroll.
 
-   Written outside @layer so it settles the question against the base rules in
-   global.css and against the two area sheets, whatever order they load in.
-   Scoped under .mf-caliper throughout, because the same stop construction is
-   borrowed elsewhere (a campaign pivot, a playback speed bank) by controls that
-   hold a different number of keys.
+   Written outside @layer so it wins against the base rules in global.css and
+   against the area sheets, whatever order they load in. Scoped under
+   .mf-caliper throughout, because the same segmented-button construction is
+   used elsewhere (a campaign pivot, a playback speed row) by controls that hold
+   a different number of buttons.
    ========================================================================= */
 
 @media (max-width: 560px) {
   .mf-caliper {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    align-items: center;
-    gap: var(--mf-3);
+    display: block;
     width: 100%;
     min-width: 0;
   }
@@ -38,8 +29,8 @@
   .mf-caliper__jaws {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    /* Nothing to scroll, so nothing to hide a scrollbar for: every stop has a
-       cell of its own and the whole bank is on the paper. */
+    /* Nothing to scroll, so nothing to hide a scrollbar for: every preset has
+       a cell of its own and the whole control is on screen. */
     overflow: visible;
     min-width: 0;
     max-width: 100%;
@@ -48,7 +39,7 @@
   .mf-caliper .mf-caliper__stop {
     padding: var(--mf-2) var(--mf-2);
     text-align: center;
-    /* The bank is ruled inside itself and nowhere else: the outer edge is the
+    /* Divided inside itself and nowhere else: the outer edge is the
        container's own border. */
     border-left: 1px solid var(--mf-rule);
     border-top: 1px solid var(--mf-rule);

@@ -1,7 +1,7 @@
 /**
- * REPORTS: the posted record.
+ * REPORTS: scheduled summaries.
  *
- * A report is a copy of the record, cut on a schedule and posted to whoever
+ * A report is a summary of the dashboard, sent on a schedule to whoever
  * needs it. Its contents are fixed and stated plainly rather than assembled
  * from a wall of checkboxes: the whole point of a scheduled report is that the
  * reader gets the same shape every time and can compare it to last week's.
@@ -51,17 +51,17 @@ const CADENCE_WORD: Record<Cadence, string> = {
 
 const CONTENTS: { what: string; detail: string }[] = [
   {
-    what: "Both traces, side by side",
-    detail: "Readers and machine fetches over the period, against the period before it.",
+    what: "People and AI crawlers, side by side",
+    detail: "Visitors and crawler fetches over the period, compared with the period before it.",
   },
   {
     what: "The Citation Gap",
     detail: "What was taken, what came back, and the pages where the two moved apart.",
   },
-  { what: "Top pages", detail: "Ten pages by readers, and ten by machine fetches. They are rarely the same ten." },
-  { what: "Acquisition", detail: "Channels including answer engines, with the sources under each." },
+  { what: "Top pages", detail: "Ten pages by visitors, and ten by crawler fetches. They are rarely the same ten." },
+  { what: "Acquisition", detail: "Channels including AI answer engines, with the sources under each." },
   { what: "Goals and events", detail: "Conversions and revenue for every goal defined on the site." },
-  { what: "Anything that tripped", detail: "Alerts that fired during the period, with the reading that fired them." },
+  { what: "Alerts that fired", detail: "Alerts that fired during the period, with the value that set them off." },
 ];
 
 export function ReportsSettings() {
@@ -184,7 +184,7 @@ export function ReportsSettings() {
                 empty={
                   <Empty
                     title="Nothing is scheduled"
-                    body="A report is a copy of the record posted on a cadence. Add one below and it will arrive without anyone opening the dashboard."
+                    body="A report is a summary of the dashboard, sent on a schedule. Add one below and it arrives without anyone opening the dashboard."
                   />
                 }
               />
@@ -316,7 +316,7 @@ export function ReportsSettings() {
       <Panel>
         <PanelHead
           title="What the report contains"
-          note="Fixed, so that this week's can be laid against last week's without reading a legend first."
+          note="Fixed, so that this week's report can be compared with last week's without reading a legend first."
         />
         <div className="mf-set-block">
           <div className="mf-set-ledger">

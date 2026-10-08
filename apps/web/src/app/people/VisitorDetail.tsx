@@ -28,6 +28,7 @@ import {
   apiMessage,
   asRows,
   dayAt,
+  sessionIdOf,
   stampAt,
   toMs,
   useBase,
@@ -38,7 +39,7 @@ import "../../styles/app/people.css";
 
 /* ── the erase mark ──────────────────────────────────────────────────────
    Drawn in the icon set's grammar (16x16, 1.4 stroke, square caps, one filled
-   1.4 registration tick): a scraper blade lifting the trace back off the paper.
+   1.4 tick): an eraser over a baseline.
    It lives here rather than in the shared set so that two areas building in
    parallel cannot collide over the same file. */
 export function IconErase({ size = 16, ...rest }: { size?: number } & SVGProps<SVGSVGElement>) {
@@ -287,7 +288,7 @@ export function VisitorDetail() {
       render: (r) => (
         <Link
           className="mf-data"
-          to={`${base}/sessions/${encodeURIComponent(r.session_id)}`}
+          to={`${base}/sessions/${encodeURIComponent(sessionIdOf(r))}`}
           onClick={(e) => e.stopPropagation()}
         >
           {dayAt(r.started, timezone)}
@@ -309,7 +310,7 @@ export function VisitorDetail() {
       render: (r) => <span className="mf-data">{num(r.pageviews ?? 0)}</span>,
     },
     { key: "channel", head: "Channel", width: "16ch", render: (r) => <span>{channelLabel(r.channel ?? "direct")}</span> },
-    { key: "hand", head: "Written by", width: "16ch", render: (r) => <Hand session={r} /> },
+    { key: "hand", head: "Type", width: "16ch", render: (r) => <Hand session={r} /> },
   ];
 
   if (missing) {
@@ -347,7 +348,7 @@ export function VisitorDetail() {
         </Panel>
       ) : (
         <>
-          <Panel ruled feed>
+          <Panel>
             <Subject
               id={q.isPending ? <span className="mf-wait mf-p-wait-line" /> : visitorId}
               when={
@@ -361,7 +362,7 @@ export function VisitorDetail() {
 
           <div className="mf-p-split">
             <div className="mf-p-stack">
-              <Panel ruled>
+              <Panel>
                 <PanelHead
                   title="Sessions"
                   note="Every session this id has been attached to, newest first, across all time."
@@ -373,8 +374,8 @@ export function VisitorDetail() {
                     rows={sessions}
                     columns={sessionColumns}
                     loading={sessionsQ.isPending}
-                    getKey={(r, i) => r.session_id || String(i)}
-                    onRowClick={(r) => navigate(`${base}/sessions/${encodeURIComponent(r.session_id)}`)}
+                    getKey={(r, i) => sessionIdOf(r) || String(i)}
+                    onRowClick={(r) => navigate(`${base}/sessions/${encodeURIComponent(sessionIdOf(r))}`)}
                     empty={
                       <Empty
                         title="No session carries this id yet"
@@ -476,7 +477,7 @@ export function VisitorDetail() {
             title="Erase this visitor?"
             lead={<>Everything below is deleted from this site&rsquo;s event store. This cannot be undone.</>}
             lines={eraseLines}
-            note="Rolled-up totals that no longer carry the id are unaffected, so past interval counts will not change."
+            note="Rolled-up totals that no longer carry the id are unaffected, so past totals will not change."
             confirmLabel="Erase permanently"
             busy={erase.isPending}
             error={erase.isError ? apiMessage(erase.error) : null}

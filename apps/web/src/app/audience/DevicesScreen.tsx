@@ -1,10 +1,9 @@
 /**
- * Devices: what the record was read on.
+ * Devices: what people used to visit the site.
  *
- * Six readings that belong together, so they are drawn as one bench rather
- * than six cards: a single ruled surface divided into channel cells, the way a
- * recorder's input bank is divided. The cells share the panel's edges and sit
- * on one grid, so every title, every column head and every first row lands on
+ * Six breakdowns that belong together, so they are drawn as one panel rather
+ * than six cards: a single surface divided into cells by hairlines. The cells
+ * share the panel's edges and sit on one grid, so every title, every column head and every first row lands on
  * the same line across the row of cells no matter how long a browser name runs.
  */
 import { useMemo } from "react";
@@ -60,9 +59,9 @@ function BenchCell({
 }) {
   const rows = query.data?.rows ?? [];
   const capped = rows.length >= CELL_ROWS;
-  /* The ink behind a row is drawn against the leading row of this cell. Drawn
-     against the whole site instead, a cell of six similar shares is six
-     identical stubs. */
+  /* The share bar behind a row is drawn against the leading row of this
+     cell. Drawn against the whole site instead, a cell of six similar shares
+     is six identical stubs. */
   const inked = columns.map((c) => (c.share ? { ...c, share: againstLeader(rows, c.share) } : c));
   return (
     <section className="mfa-bench__cell">
@@ -70,9 +69,9 @@ function BenchCell({
         <h3 className="mfa-bench__title">{title}</h3>
         <span className="mfa-bench__count">
           {query.isError
-            ? "no reading"
+            ? "not loaded"
             : query.isLoading
-              ? "reading…"
+              ? "loading…"
               : capped
                 ? `top ${CELL_ROWS}`
                 : `${rows.length} seen`}
@@ -82,7 +81,7 @@ function BenchCell({
         /* A cell is a small space, and when the whole panel fails the reason is
            already stated once at the top. Inside a cell the failure is named
            and offered again, without repeating the diagnosis six times. */
-        <ErrorState title="This reading did not come back" onRetry={() => void query.refetch()} />
+        <ErrorState title="Could not load this table" onRetry={() => void query.refetch()} />
       ) : (
         <Sheet<AudienceRow>
           rows={rows}
@@ -113,7 +112,7 @@ export function DevicesScreen() {
       browser_version: cell("browser_version"),
       os: cell("os"),
       os_version: cell("os_version"),
-      // The device split feeds the readout, so it is never truncated.
+      // The device split feeds the metric strip, so it is never truncated.
       device_type: cell("device_type", 12),
       screen_class: cell("screen_class"),
     };
@@ -152,7 +151,7 @@ export function DevicesScreen() {
   const retryAll = () => cells.forEach((q) => void q.refetch());
 
   /* Device type is a closed set, so these four figures are a complete split of
-     the located record rather than a share of a top-N list. */
+     the traffic rather than a share of a top-N list. */
   const split = useMemo(() => {
     const rows = deviceTypes.data?.rows ?? [];
     let total = 0;
@@ -175,7 +174,7 @@ export function DevicesScreen() {
     () => [
       {
         key: "total",
-        label: machines ? "Clients" : "Visitors",
+        label: machines ? "Crawlers" : "Visitors",
         value: count(split.total),
         note: "across all device types",
       },
@@ -223,7 +222,7 @@ export function DevicesScreen() {
       },
       {
         key: "visitors",
-        head: machines ? "Clients" : "Visitors",
+        head: machines ? "Crawlers" : "Visitors",
         numeric: true,
         render: (r: AudienceRow) => count(n(r, "visitors") ?? n(r, "pageviews")),
       },
@@ -241,27 +240,27 @@ export function DevicesScreen() {
   const nothing = (what: string, why: string) => <Empty title={what} body={why} />;
 
   return (
-    /* Which pen these sheets are written in: the ink behind a row is the trace
-       of the audience being read, never the machine pen on a human table. */
+    /* The share bar behind a row takes the colour of the audience on screen:
+       blue for people, orange for AI crawlers. */
     <div className="mfa-screen" data-trace={machines ? "agent" : "human"}>
-      <Panel ruled feed>
+      <Panel>
         <PanelHead
           title="Devices"
-          note="Browser, system and screen, read from the request rather than from anything stored on the reader."
+          note="Browser, system and screen, read from the request. Nothing is stored on the visitor's device."
           actions={<AudienceBar extra={<ExportKey report="devices:browser" env={env} />} />}
         />
 
         {allFailed ? (
-          /* Every channel on the bench failed, so this is one failure with one
+          /* Every table in the panel failed, so this is one failure with one
              cause. It is reported once, at the top, rather than six times. */
           <ErrorState
-            title="The device readings did not come back"
+            title="Could not load device data"
             detail={errorDetail(deviceTypes.error)}
             onRetry={retryAll}
           />
         ) : deviceTypes.isError ? (
           <ErrorState
-            title="The device split did not come back"
+            title="Could not load the device split"
             detail={errorDetail(deviceTypes.error)}
             onRetry={() => void deviceTypes.refetch()}
           />
@@ -275,9 +274,9 @@ export function DevicesScreen() {
 
         {machines ? (
           <Caveat>
-            A machine client reports a user-agent string, not a browser profile. Screen and
-            viewport are blank for it by definition, and what is named here is whatever that
-            string declares. Read Agent traffic for the classified, verified account.
+            An AI crawler sends a user-agent string, not a browser profile. Screen and viewport
+            are always blank for it, and the names here are what that string declares. Open AI
+            crawlers for the classified, verified list.
           </Caveat>
         ) : null}
 
@@ -339,9 +338,9 @@ export function DevicesScreen() {
               columns={cols("Class", "data")}
               onPick={pick("screen_class")}
               empty={nothing(
-                machines ? "Machines report no screen" : "No screen classes recorded",
+                machines ? "AI crawlers report no screen" : "No screen classes recorded",
                 machines
-                  ? "A crawler has no viewport to report, so this cell stays empty for the machine trace."
+                  ? "A crawler has no viewport to report, so this table stays empty for AI crawlers."
                   : "Screen width is bucketed at ingest; the exact pixel size is never stored.",
               )}
             />
@@ -350,8 +349,8 @@ export function DevicesScreen() {
 
         {allFailed ? null : (
           <div className="mfa-foot">
-            <span>Click any row to clip the whole record to it.</span>
-            <span className="mf-data">6 channels</span>
+            <span>Click any row to filter every screen by it.</span>
+            <span className="mf-data">6 tables</span>
           </div>
         )}
       </Panel>

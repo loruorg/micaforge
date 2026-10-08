@@ -120,6 +120,7 @@
   white-space: nowrap;
 }
 .hp__online { display: inline-flex; align-items: center; gap: 6px; color: var(--mf-ink-2); white-space: nowrap; }
+.hp__now-word { display: none; }
 .hp__online [data-live-count] { font-weight: 600; color: var(--mf-ink-strong); font-variant-numeric: tabular-nums; }
 .hp__dot {
   position: relative;
@@ -373,6 +374,8 @@
 @media (max-width: 560px) {
   .hp__bar { padding: 10px 12px; }
   .hp__range, .hp__online-word { display: none; }
+  .hp__now-word { display: inline; }
+  .steps__code { white-space: pre-wrap; word-break: break-all; }
   .hp__stat { padding: 12px 14px; }
   .hp__stat-value { font-size: 1.3rem; }
   .hp__chart { padding: 12px 12px 8px; }
@@ -462,7 +465,8 @@
 .conv th, .conv td { padding: 10px 8px; text-align: left; border-bottom: 1px solid var(--mf-rule); }
 .conv thead th { padding-top: 0; font-size: var(--mf-t-xs); font-weight: 500; color: var(--mf-ink-3); }
 .conv tbody tr:last-child th, .conv tbody tr:last-child td { border-bottom: 0; }
-.conv tbody th { display: flex; align-items: center; gap: 8px; font-weight: 500; color: var(--mf-ink-strong); white-space: nowrap; }
+.conv tbody th { font-weight: 500; color: var(--mf-ink-strong); white-space: nowrap; }
+.conv__ch { display: inline-flex; align-items: center; gap: 8px; }
 .conv tbody th i { flex: none; width: 10px; height: 10px; border-radius: 3px; background: #2f6bff; }
 .conv tr[data-key="direct"] th i { background: #82a6ff; }
 .conv tr[data-key="other"] th i { background: #c9d8ff; }
@@ -471,11 +475,18 @@
 .conv td { color: var(--mf-ink-2); }
 .conv .is-num { text-align: right; font-variant-numeric: tabular-nums; }
 .conv__rate-h { width: 34%; }
-.conv__rate { display: flex; align-items: center; gap: 10px; }
-.conv__rate strong { font-weight: 600; color: var(--mf-ink-strong); font-variant-numeric: tabular-nums; }
+.conv__rate-in { display: flex; align-items: center; gap: 10px; }
+.conv__rate strong {
+  flex: none;
+  width: 4.5ch;
+  text-align: right;
+  font-weight: 600;
+  color: var(--mf-ink-strong);
+  font-variant-numeric: tabular-nums;
+}
 .conv__bar {
   flex: none;
-  width: calc(70% * var(--w));
+  width: calc((100% - 4.5ch - 10px) * var(--w));
   height: 8px;
   border-radius: 4px;
   background: #2f6bff;
@@ -752,6 +763,7 @@
   .grid li {
     grid-template-columns: minmax(0, 1fr);
     align-items: start;
+    align-content: start;
     row-gap: 4px;
     padding: 16px 14px;
   }

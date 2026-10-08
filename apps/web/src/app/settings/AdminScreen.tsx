@@ -1,5 +1,5 @@
 /**
- * THE INSTANCE: the self-host admin bench.
+ * THE INSTANCE: the self-host admin screen.
  *
  * Whoever runs this instance is the person who has to answer for the disk it is
  * filling and the queue it is draining, so the storage and job panels report in
@@ -157,7 +157,7 @@ export function AdminScreen() {
         <h1 className="mf-set-page__title">Instance</h1>
         <Panel>
           <Empty
-            title="This bench belongs to the instance administrator"
+            title="This page is for the instance administrator"
             body="Your account can read the sites it has been given, but not the users, storage or job queue of the whole instance. Whoever installed this Micaforge can grant that."
           />
         </Panel>
@@ -289,7 +289,7 @@ export function AdminScreen() {
               {typeof overview.data.uptime_s === "number" ? ` · up ${duration(overview.data.uptime_s)}` : ""}
             </>
           ) : (
-            "Everything running on this installation: the people, the record store and the queue behind it."
+            "Everything running on this installation: the people, the data store and the job queue behind it."
           )}
         </p>
       </div>

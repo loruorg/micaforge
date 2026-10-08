@@ -6,7 +6,7 @@
  * from a screen reader. There is no drag handle, because a drag handle is the
  * one reordering affordance that cannot be operated without a pointer.
  *
- * Steps are numbered in the register's own data face and the number is the
+ * Steps are numbered in the mono face and the number is the
  * step's position, recomputed on every move: it is never a label carried along
  * with the row.
  */

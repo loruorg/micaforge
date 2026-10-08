@@ -1,45 +1,34 @@
 /**
- * The bench: Micaforge's shared controls and containers.
+ * Micaforge's shared controls and containers for the dashboard.
  *
- * Everything here is drawn in the recording-station vocabulary. Two rules govern
- * the whole file:
+ * Two rules govern the whole file:
  *
- *   1. A metric is never a card. A recorder reports its channels on one
- *      continuous strip divided by ruling, so `Readout` is a strip, not a grid
- *      of boxes. A page built from same-size icon-heading-text cards is the
- *      thing this product exists not to be.
- *   2. Nothing lifts, glows or bounces. State changes by tone, fill and the
- *      scratch ridge. If you find yourself reaching for a box-shadow bloom, the
- *      answer is a value shift instead.
+ *   1. A row of metrics is one strip divided by hairlines, not a grid of
+ *      separate cards, so the figures line up on one baseline.
+ *   2. Nothing glows or bounces. State changes by tone and fill; depth comes
+ *      only from the soft shadow tokens.
  */
 import type { ReactNode } from "react";
 import { forwardRef, useEffect, useRef, useState } from "react";
-import { IconCaliper, IconCheck, IconChevron, IconClose, IconCopy, IconPen } from "./icons";
+import { IconCheck, IconChevron, IconClose, IconCopy } from "./icons";
 
 /* ── panel ───────────────────────────────────────────────────────────────── */
 
 export interface PanelProps {
   children: ReactNode;
-  /** Draws the instrument's own ruling inside the panel, clipped to it. */
+  /**
+   * Accepted so that older call sites still compile. The single light theme
+   * draws no ruling and no perforated gutter, so these two flags change nothing.
+   */
   ruled?: boolean;
-  /** Draws the sprocket perforations in a dedicated left gutter. */
   feed?: boolean;
   className?: string;
   as?: "section" | "div" | "article";
 }
 
-export function Panel({ children, ruled, feed, className, as: Tag = "section" }: PanelProps) {
+export function Panel({ children, className, as: Tag = "section" }: PanelProps) {
   return (
-    <Tag
-      className={[
-        "mf-panel",
-        ruled ? "mf-panel--ruled" : "",
-        feed ? "mf-panel--feed" : "",
-        className ?? "",
-      ]
-        .filter(Boolean)
-        .join(" ")}
-    >
+    <Tag className={className ? `mf-panel ${className}` : "mf-panel"}>
       {children}
     </Tag>
   );
@@ -85,17 +74,18 @@ export interface Channel {
 }
 
 /**
- * The channel readout. One continuous strip, divided by ruling, the way a
- * recorder's readout bank sits under its drum. Every figure sits on the same
- * baseline across every channel: the row cannot go ragged because a label ran
- * long, since the label row has a reserved height.
+ * The metric strip. One continuous strip divided by hairlines. Every figure
+ * sits on the same baseline across every metric: the row cannot go ragged
+ * because a label ran long, since the label row has a reserved height.
  */
 export function Readout({ channels, dense }: { channels: Channel[]; dense?: boolean }) {
   return (
     <div className={`mf-readout${dense ? " mf-readout--dense" : ""}`} role="list">
       {channels.map((c) => {
         const Tag = c.onSelect ? "button" : "div";
-        const good = c.delta == null ? null : c.inverse ? c.delta < 0 : c.delta > 0;
+        // A change that rounds to 0% is flat, not a loss: it gets no colour.
+        const flat = c.delta == null || Math.abs(c.delta * 100) < 0.05;
+        const good = flat ? null : c.inverse ? (c.delta as number) < 0 : (c.delta as number) > 0;
         return (
           <Tag
             key={c.key}
@@ -106,7 +96,7 @@ export function Readout({ channels, dense }: { channels: Channel[]; dense?: bool
             aria-pressed={c.onSelect ? !!c.active : undefined}
           >
             <span className="mf-readout__label">{c.label}</span>
-            {/* Keyed by the reading, so a new figure is inked in once when it
+            {/* Keyed by the value, so a new figure animates in once when it
                 lands and a re-render that changes nothing leaves it alone. */}
             <span key={String(c.value)} className="mf-readout__value mf-data mf-ink-write">
               {c.value}
@@ -145,10 +135,9 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
 }
 
 /**
- * An instrument key. Deliberately not the filled-primary-beside-outlined-ghost
- * couplet: `key` is the everyday control, `primary` is the one committed action
- * on a screen, and `quiet` is a text control. Two `key`s side by side is the
- * normal pairing here.
+ * A button. `key` is the everyday control (white, hairline edge), `primary` is
+ * the one committed action on a screen, `quiet` is a text control and `danger`
+ * is a destructive action. Two `key`s side by side is the normal pairing here.
  */
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
   { tone = "key", size = "md", icon, children, className, ...rest },
@@ -168,9 +157,9 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
 });
 
 /**
- * The audience selector: the single control that makes this product what it
- * is. Not a segmented pill: three channel keys on one bank, the way you patch a
- * recorder's input.
+ * The audience selector: people, AI crawlers, or both together. Each option
+ * carries the line style its series is drawn with, so the choice does not rest
+ * on colour alone.
  */
 export function AudienceSwitch({
   value,
@@ -180,9 +169,9 @@ export function AudienceSwitch({
   onChange: (v: "human" | "agent" | "all") => void;
 }) {
   const opts: { v: "human" | "agent" | "all"; label: string; pen: string }[] = [
-    { v: "human", label: "Readers", pen: "written" },
-    { v: "agent", label: "Machines", pen: "stepped" },
-    { v: "all", label: "Both", pen: "both" },
+    { v: "human", label: "People", pen: "written" },
+    { v: "agent", label: "AI crawlers", pen: "stepped" },
+    { v: "all", label: "All", pen: "both" },
   ];
   return (
     <div className="mf-audience" role="group" aria-label="Audience">
@@ -211,7 +200,7 @@ const RANGES: { v: string; label: string }[] = [
   { v: "all", label: "All" },
 ];
 
-/** The caliper: set the interval you want read off the record. */
+/** The date range control: one segmented row of preset periods. */
 export function RangePicker({
   value,
   onChange,
@@ -221,8 +210,7 @@ export function RangePicker({
 }) {
   return (
     <div className="mf-caliper">
-      <IconCaliper size={14} />
-      <div className="mf-caliper__jaws" role="group" aria-label="Interval">
+      <div className="mf-caliper__jaws" role="group" aria-label="Date range">
         {RANGES.map((r) => (
           <button
             key={r.v}
@@ -239,7 +227,7 @@ export function RangePicker({
   );
 }
 
-/* ── tabulation sheet ────────────────────────────────────────────────────── */
+/* ── table ───────────────────────────────────────────────────────────────── */
 
 export interface Column<T> {
   key: string;
@@ -248,14 +236,13 @@ export interface Column<T> {
   numeric?: boolean;
   width?: string;
   render: (row: T, index: number) => ReactNode;
-  /** 0..1; draws the row's share as a trace fill behind the cell. */
+  /** 0..1; draws the row's share as a light bar behind the cell. */
   share?: (row: T) => number | undefined;
 }
 
 /**
- * The tabulation sheet. Share is drawn as ink laid down behind the label (the
- * trace's own fill, running the width of the row) rather than as a separate
- * progress bar bolted beside it.
+ * The data table. A row's share is drawn as a light bar behind the label,
+ * running across the cell, rather than as a separate progress bar beside it.
  */
 export function Sheet<T>({
   rows,
@@ -336,7 +323,7 @@ export function Sheet<T>({
 function SheetSkeleton({ columns }: { columns: number }) {
   return (
     <div className="mf-sheet-wrap" aria-busy="true" aria-live="polite">
-      <span className="mf-sr">Reading the record…</span>
+      <span className="mf-sr">Loading…</span>
       <table className="mf-sheet mf-sheet--waiting">
         <tbody>
           {Array.from({ length: 6 }).map((_, r) => (
@@ -357,8 +344,8 @@ function SheetSkeleton({ columns }: { columns: number }) {
 /* ── states ──────────────────────────────────────────────────────────────── */
 
 export function Empty({
-  title = "The pen has not written here yet",
-  body = "Nothing matched this window and these filters. Widen the interval or clear a filter to bring rows back.",
+  title = "No data for this period",
+  body = "Nothing matched this date range and these filters. Choose a longer range or clear a filter.",
   action,
 }: {
   title?: string;
@@ -367,20 +354,12 @@ export function Empty({
 }) {
   return (
     <div className="mf-empty">
-      {/* A blank stretch of ruled paper: the honest picture of no data. */}
-      <svg className="mf-empty__paper" viewBox="0 0 220 54" aria-hidden="true">
-        <line x1="0" y1="27" x2="220" y2="27" stroke="var(--mf-rule-major)" strokeWidth="1" />
-        {[0, 1, 2, 3, 4, 5, 6].map((i) => (
-          <line
-            key={i}
-            x1={i * 36 + 4}
-            y1="21"
-            x2={i * 36 + 4}
-            y2="33"
-            stroke="var(--mf-rule-minor)"
-            strokeWidth="1"
-          />
-        ))}
+      {/* A flat, empty chart: the plain picture of no data. */}
+      <svg className="mf-empty__paper" viewBox="0 0 120 48" aria-hidden="true">
+        <rect x="0.5" y="0.5" width="119" height="47" rx="7.5" fill="var(--mf-ground-2)" stroke="var(--mf-rule)" />
+        <path d="M14 14h92M14 24h92" stroke="var(--mf-rule-minor)" strokeWidth="1" />
+        <path d="M14 34h92" stroke="var(--mf-rule-major)" strokeWidth="1" />
+        <path d="M14 33.5h92" stroke="var(--mf-ink-3)" strokeWidth="1.5" strokeDasharray="3 4" strokeLinecap="round" />
       </svg>
       <h3 className="mf-empty__title">{title}</h3>
       {body ? <p className="mf-empty__body">{body}</p> : null}
@@ -390,8 +369,8 @@ export function Empty({
 }
 
 export function ErrorState({
-  title = "That reading did not come back",
-  detail = "The request to the Micaforge server failed and no reason came back. This usually clears on a second attempt; if it does not, check that the server is running and reachable.",
+  title = "Could not load this data",
+  detail = "The request to the Micaforge server failed with no reason given. Try again. If it fails again, check that the server is running and reachable.",
   onRetry,
 }: {
   title?: string;
@@ -404,7 +383,7 @@ export function ErrorState({
       {detail ? <p className="mf-empty__body">{detail}</p> : null}
       {onRetry ? (
         <div className="mf-empty__action">
-          <Button onClick={onRetry}>Take the reading again</Button>
+          <Button onClick={onRetry}>Try again</Button>
         </div>
       ) : null}
     </div>
@@ -418,8 +397,8 @@ export function ErrorState({
 export function Verdict({ value }: { value: "extracted" | "compounding" | "invisible" | "quiet" }) {
   const copy = {
     extracted: { label: "Extracted", note: "crawled hard, little or nothing came back" },
-    compounding: { label: "Compounding", note: "crawled, and sending readers back" },
-    invisible: { label: "Invisible", note: "sending readers back on almost no crawl trace" },
+    compounding: { label: "Compounding", note: "crawled, and sending visitors back" },
+    invisible: { label: "Invisible", note: "sending visitors back with almost no crawling" },
     quiet: { label: "Quiet", note: "too little crawling or citing to judge yet" },
   }[value];
 
@@ -506,7 +485,7 @@ export function CopyField({ value, label }: { value: string; label: string }) {
 export function LivePulse({ label }: { label: string }) {
   return (
     <span className="mf-pulse">
-      <IconPen size={13} />
+      <span className="mf-pulse__dot" aria-hidden="true" />
       {label}
     </span>
   );
@@ -542,7 +521,7 @@ export function Disclosure({
 export function DemoNotice({ children }: { children?: ReactNode }) {
   return (
     <p className="mf-demo-notice">
-      {children ?? "Demonstration record. These figures are illustrative, not measured traffic."}
+      {children ?? "Demo data. These figures are examples, not real traffic."}
     </p>
   );
 }

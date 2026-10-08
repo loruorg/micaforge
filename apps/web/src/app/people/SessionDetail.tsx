@@ -1,11 +1,11 @@
 /**
- * PEOPLE: one session, read off the paper.
+ * PEOPLE: one session as a timeline.
  *
- * The hits are not a table. They are a strip of the record: a time rule down
- * the left with the hit marked on it, the clock time written in the margin, and
- * the interval between two hits written on the paper between them. The paper
- * advances further when more time passed, exactly as it would on the drum, so a
- * three-second bounce and an eleven-minute read do not look alike.
+ * The hits are not a table. They are a vertical timeline: a time line down the
+ * left with each hit marked on it, the clock time beside it, and the gap
+ * between two hits written between them. The gap is drawn taller when more
+ * time passed, so a three-second bounce and an eleven-minute read do not look
+ * alike.
  */
 import type { CSSProperties, ReactNode } from "react";
 import { Fragment, useMemo } from "react";
@@ -46,6 +46,7 @@ import {
   countryName,
   deviceLabel,
   isAgentSession,
+  sessionIdOf,
   stampAt,
   toMs,
   useBase,
@@ -67,7 +68,7 @@ const MARKS: Record<string, (p: { size?: number }) => ReactNode> = {
 };
 
 /**
- * The paper advance between two hits, as a 0..1 ratio the stylesheet turns into
+ * The gap between two hits, as a 0..1 ratio the stylesheet turns into
  * a height. Logarithmic, because a session's gaps span three orders of
  * magnitude and a linear scale would leave every short gap invisible.
  */
@@ -78,7 +79,7 @@ function advance(gapS: number): number {
   return Math.max(0, Math.min(1, k));
 }
 
-/** "+ 1m 12s", written the way an operator annotates a gap in the trace. */
+/** "+ 1m 12s": the time between two hits. */
 function interval(gapS: number): string {
   if (!Number.isFinite(gapS)) return "";
   if (gapS < 1) return "+ under a second";
@@ -142,8 +143,8 @@ export function SessionDetail() {
       {missing ? (
         <Panel>
           <Empty
-            title="That session is not on the record"
-            body="It was never written, or it has passed the retention window this install keeps. Session ids are not recoverable once the rows expire."
+            title="Session not found"
+            body="It never existed, or it is older than the retention period this install keeps. Session ids cannot be recovered once the rows expire."
             action={
               <Link className="mf-btn mf-btn--key mf-btn--md" to={`${base}/sessions`}>
                 <span className="mf-btn__label">Back to sessions</span>
@@ -157,7 +158,7 @@ export function SessionDetail() {
         </Panel>
       ) : (
         <>
-          <Panel ruled feed>
+          <Panel>
             <Subject
               id={q.isPending ? <span className="mf-wait mf-p-wait-line" /> : (id ?? "")}
               when={session ? stampAt(session.started, timezone) : undefined}
@@ -167,12 +168,12 @@ export function SessionDetail() {
                     {session.has_replay ? (
                       <Link
                         className="mf-btn mf-btn--key mf-btn--sm"
-                        to={`${base}/replay/${encodeURIComponent(session.session_id)}`}
+                        to={`${base}/replay/${encodeURIComponent(sessionIdOf(session))}`}
                       >
                         <span className="mf-btn__icon">
                           <IconReplay size={14} />
                         </span>
-                        <span className="mf-btn__label">Watch the replay</span>
+                        <span className="mf-btn__label">Watch replay</span>
                       </Link>
                     ) : null}
                     {session.identified_id ? (
@@ -194,13 +195,13 @@ export function SessionDetail() {
           </Panel>
 
           <div className="mf-p-split">
-            <Panel ruled>
+            <Panel>
               <PanelHead
-                title={machine ? "Fetches" : "Hits"}
+                title={machine ? "Requests" : "Timeline"}
                 note={
                   machine
-                    ? "Every request this agent made, with the wait between them written on the paper."
-                    : "Every hit in order, with the time between them written on the paper."
+                    ? "Every request this crawler made, in order, with the wait between them."
+                    : "Every hit in order, with the time between them."
                 }
               />
               {q.isPending ? (
@@ -208,7 +209,7 @@ export function SessionDetail() {
               ) : hits.length === 0 ? (
                 <Empty
                   title="No hits are left for this session"
-                  body="The session rollup survives longer than the individual hits on some installs. Widen this site's retention if you need the detail."
+                  body="On some installs the session summary is kept longer than the individual hits. Raise this site's retention if you need the detail."
                 />
               ) : (
                 <Trail hits={hits} session={session} tz={timezone} />
@@ -316,7 +317,7 @@ function Trail({
 
       <li className="mf-p-trail__end">
         <span className="mf-p-trail__end-label">
-          Record ends
+          Session ends
           {session?.exit_path ? (
             <>
               {" "}
@@ -355,7 +356,7 @@ function formatProp(v: unknown): string {
 function TrailWaiting() {
   return (
     <div className="mf-p-trail" aria-busy="true" aria-live="polite">
-      <span className="mf-p-sr">Reading the record…</span>
+      <span className="mf-p-sr">Loading…</span>
       {[0, 1, 2, 3, 4].map((i) => (
         <p key={i} className="mf-p-wait-row">
           <span className="mf-wait" style={{ width: `${44 + ((i * 17) % 40)}%` }} />
@@ -389,7 +390,7 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
 }
 
 function ArrivalFacts({ session }: { session?: SessionRow }) {
-  if (!session) return <Empty title="Nothing was recorded about this arrival" />;
+  if (!session) return <Empty title="No arrival details for this session" />;
   const place = [session.city, session.region].filter(Boolean).join(", ");
   return (
     <dl className="mf-p-facts">
@@ -423,12 +424,12 @@ function ArrivalFacts({ session }: { session?: SessionRow }) {
 }
 
 function ClientFacts({ session, machine }: { session?: SessionRow; machine: boolean }) {
-  if (!session) return <Empty title="Nothing was recorded about this client" />;
+  if (!session) return <Empty title="No client details for this session" />;
 
   if (machine) {
     return (
       <dl className="mf-p-facts">
-        <Fact label="Hand">
+        <Fact label="Type">
           <Hand session={session} />
         </Fact>
         {session.operator ? <Fact label="Operator">{session.operator}</Fact> : null}
@@ -457,7 +458,7 @@ function ClientFacts({ session, machine }: { session?: SessionRow; machine: bool
 
   return (
     <dl className="mf-p-facts">
-      <Fact label="Hand">
+      <Fact label="Type">
         <Hand session={session} />
       </Fact>
       <Fact label="Device">{deviceLabel(session.device_type)}</Fact>

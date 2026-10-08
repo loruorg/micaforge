@@ -15,7 +15,7 @@ import { Link, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../lib/api";
 import { Button, Empty, Panel, PanelHead } from "../../components/react/ui";
-import { IconClose, IconPen, IconPlus, IconSettings } from "../../components/react/icons";
+import { IconClose, IconPlus, IconSettings } from "../../components/react/icons";
 import { ago } from "../../lib/format";
 import { useSite } from "../providers";
 import {
@@ -139,7 +139,7 @@ function Composer({
     <Panel className="mf-bn-editor">
       <PanelHead
         title={isNew ? "New experiment" : `Edit ${e.key || "experiment"}`}
-        note="Decide the split and the goal before any traffic arrives. Changing them mid-flight makes the numbers uninterpretable."
+        note="Decide the split and the goal before any traffic arrives. Changing them while it runs makes the results unreliable."
         actions={
           <Button tone="quiet" onClick={() => onDone("cancelled")}>
             Close
@@ -312,7 +312,7 @@ function Composer({
             {confirmDelete ? (
               <>
                 <span className="mf-bn-editor__ask">
-                  Delete this experiment? The events it produced stay in the record.
+                  Delete this experiment? The events it produced stay in your data.
                 </span>
                 <Button tone="danger" size="sm" disabled={remove.isPending} onClick={() => remove.mutate()}>
                   Delete
@@ -383,7 +383,7 @@ export function ExperimentsScreen() {
       <Panel>
         <PanelHead
           title="Experiments"
-          note="Split traffic across variants and measure one goal. Every result carries its interval and its sample, and stays inconclusive until the record actually supports a difference."
+          note="Split traffic across variants and measure one goal. Every result shows its confidence interval and sample size, and stays inconclusive until the data supports a difference."
           actions={
             <Button
               tone="primary"
@@ -405,7 +405,7 @@ export function ExperimentsScreen() {
             empty={
               <Empty
                 title="No experiments yet"
-                body="An experiment needs three things decided in advance: what you expect to happen, how traffic splits, and the one goal that settles it. Write those down and the results screen does the arithmetic honestly."
+                body="An experiment needs three things decided in advance: what you expect to happen, how traffic splits, and the one goal that settles it. Write those down, and the results screen does the statistics."
                 action={
                   <Button
                     tone="primary"
@@ -434,7 +434,9 @@ export function ExperimentsScreen() {
 
                     <div className="mf-bn-exps__state">
                       <p className="mf-bn-exps__status">
-                        {e.status === "running" ? <IconPen size={13} /> : null}
+                        {e.status === "running" ? (
+                          <span className="mf-bn-exps__live" aria-hidden="true" />
+                        ) : null}
                         {statusLine(e)}
                       </p>
                       <p className="mf-bn-exps__meta">
@@ -480,7 +482,7 @@ export function ExperimentsScreen() {
 
           {goalsQ.isError ? (
             <p className="mf-bn-field__err" role="alert">
-              The goal list did not load, so goals cannot be attached right now. {errText(goalsQ.error)}
+              Could not load goals, so you cannot attach a goal now. {errText(goalsQ.error)}
             </p>
           ) : null}
         </div>

@@ -3,8 +3,8 @@
  *
  * The screen answers one question and then lets you cut it: is this site fast
  * enough by the published Core Web Vitals bounds, and where is it not. So the
- * five metrics sit on one readout strip (never five cards), the distribution
- * behind each figure is printed underneath it, and the breakdown reports the
+ * five metrics sit on one readout strip, the distribution behind each figure
+ * is shown underneath it, and the breakdown reports the
  * ONE metric you selected across whichever dimension you asked for, rather
  * than a wall of twenty-five percentile columns nobody reads.
  *
@@ -109,7 +109,7 @@ function reason(err: unknown): string | undefined {
 export function ReadoutWaiting({ count }: { count: number }) {
   return (
     <div className="mf-readout mf-readout-wait" aria-busy="true" aria-live="polite">
-      <span className="mf-sr">Reading the record…</span>
+      <span className="mf-sr">Loading…</span>
       {Array.from({ length: count }).map((_, i) => (
         <div key={i} className="mf-readout__chan">
           <span className="mf-wait mf-wait--label" />
@@ -232,28 +232,27 @@ export function PerformanceScreen() {
         <p className="mf-hs-note">
           <IconInfo size={16} />
           <span>
-            Machines do not run the tracker, so no vitals are recorded for them. Set the audience
-            to Readers to read this part of the record; what the crawlers were served is on Agent
-            traffic.
+            AI crawlers do not run the tracker, so no vitals are recorded for them. Set the
+            audience to People to see vitals. What crawlers fetched is on the AI crawlers screen.
           </span>
         </p>
       ) : null}
 
-      {/* ── the five channels, on one strip ───────────────────────────────── */}
-      <Panel feed>
+      {/* ── the five metrics, on one strip ────────────────────────────────── */}
+      <Panel>
         <PanelHead
           title="Web vitals"
           note={
             summary.data
               ? `Rated at the 75th percentile, the way Chrome rates them. ${num(
                   summary.data.samples,
-                )} page loads reported vitals in this interval.`
+                )} page loads reported vitals in this period.`
               : "Rated at the 75th percentile, the way Chrome rates them."
           }
         />
         {summary.isError ? (
           <ErrorState
-            title="The vitals did not come back"
+            title="Could not load web vitals"
             detail={reason(summary.error)}
             onRetry={() => void summary.refetch()}
           />
@@ -261,8 +260,8 @@ export function PerformanceScreen() {
           <ReadoutWaiting count={5} />
         ) : noVitals ? (
           <Empty
-            title="No vitals in this interval"
-            body="Vitals arrive on the tracker's web_vitals event. Confirm the snippet on this site is current and has vitals enabled, then read this again after the next few page loads."
+            title="No vitals in this period"
+            body="Vitals arrive on the tracker's web_vitals event. Make sure the snippet on this site is current and has vitals turned on, then check again after the next few page loads."
           />
         ) : (
           <Readout channels={channels} />
@@ -273,25 +272,25 @@ export function PerformanceScreen() {
       <Panel>
         <PanelHead
           title="Distribution"
-          note="Every page load, binned. The dashed rules are the published Core Web Vitals thresholds; the shellac mark is this site's 75th percentile."
+          note="Every page load, grouped into bins. The dashed lines are the published Core Web Vitals thresholds. The solid line is this site's 75th percentile."
         />
         {summary.isError ? (
           <ErrorState
-            title="The distribution did not come back"
+            title="Could not load the distribution"
             detail={reason(summary.error)}
             onRetry={() => void summary.refetch()}
           />
         ) : summary.isPending || siteLoading ? (
           <div className="mf-hs-wait" aria-busy="true">
-            <span className="mf-sr">Reading the record…</span>
+            <span className="mf-sr">Loading…</span>
             {Array.from({ length: 5 }).map((_, i) => (
               <span key={i} className="mf-wait" />
             ))}
           </div>
         ) : noVitals ? (
           <Empty
-            title="Nothing to bin yet"
-            body="The distribution is drawn from the same page loads as the figures above. It fills in as soon as vitals arrive."
+            title="No distribution yet"
+            body="The distribution uses the same page loads as the figures above. It fills in as soon as vitals arrive."
           />
         ) : (
           <VitalsDistribution
@@ -329,7 +328,7 @@ export function PerformanceScreen() {
         </div>
         {breakdown.isError ? (
           <ErrorState
-            title={`${dimLabel} breakdown did not come back`}
+            title={`Could not load the ${dimLabel.toLowerCase()} breakdown`}
             detail={reason(breakdown.error)}
             onRetry={() => void breakdown.refetch()}
           />
@@ -343,12 +342,12 @@ export function PerformanceScreen() {
               dimension === "props.connection" ? (
                 <Empty
                   title="No connection reported"
-                  body="The tracker sends connection as a property, and only where the browser exposes navigator.connection. Chromium does; Safari and Firefox do not. Every other breakdown here still holds."
+                  body="The tracker sends connection as a property, and only when the browser exposes navigator.connection. Chromium does; Safari and Firefox do not. The other breakdowns are not affected."
                 />
               ) : (
                 <Empty
                   title={`No ${dimLabel.toLowerCase()} reported vitals`}
-                  body="Widen the interval, or clear a filter: this cut had no page loads carrying a vital."
+                  body="Choose a longer period or clear a filter. No page loads in this selection reported a vital."
                 />
               )
             }

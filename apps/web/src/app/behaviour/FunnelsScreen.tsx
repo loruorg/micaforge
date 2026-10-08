@@ -1,13 +1,11 @@
 /**
- * Funnels: read as a descending record rather than a graphic.
+ * Funnels: one horizontal bar per step.
  *
- * A funnel here is a run of ruled bands, one per step, each drawn against the
- * extent the step before it reached. What survived is ink; what was lost is the
- * hatched remainder of the track, and the size of that loss is written in the
- * margin on the same right-hand axis every other figure in the panel shares.
- * There is no tapering trapezoid and no bar chart: the instrument records what
- * each step held, and the debt between two steps is the interval between two
- * pens, exactly as it is everywhere else in this product.
+ * Each step is a bar drawn against the extent the step before it reached. What
+ * survived is the filled bar; what was lost is the hatched remainder of the
+ * track, and the size of that loss is written on the same right-hand axis every
+ * other figure in the panel shares. There is no tapering trapezoid: each bar
+ * shows what the step held, and the gap between two steps is the drop-off.
  *
  * Every band is a real control. Choosing one reads back the sessions that got
  * that far, so the drop is never just a number you have to take on faith.
@@ -59,9 +57,12 @@ interface FunnelPayload {
 }
 
 interface StepSession {
-  session_id: string;
-  started: number;
-  reached_at: number;
+  /** The contract's name for the session key. */
+  session_id?: string;
+  /** The name the stats API actually returns the session key under. */
+  id?: string;
+  started: number | string;
+  reached_at?: number;
   entry_path: string;
   country: string;
   device_type: string;
@@ -156,7 +157,7 @@ export function FunnelsScreen() {
 
   return (
     <div className="mfb-stack">
-      <Panel ruled feed>
+      <Panel>
         <PanelHead
           title="Funnels"
           note={
@@ -178,12 +179,13 @@ export function FunnelsScreen() {
                 </span>
               ) : null}
               {current ? (
-                <Button onClick={() => setEditing({ mode: "edit", funnel: current })}>
+                <Button size="sm" onClick={() => setEditing({ mode: "edit", funnel: current })}>
                   Edit steps
                 </Button>
               ) : null}
               <Button
                 tone="primary"
+                size="sm"
                 icon={<IconPlus size={13} />}
                 onClick={() => setEditing({ mode: "new" })}
               >
@@ -195,21 +197,21 @@ export function FunnelsScreen() {
 
         {funnels.isError ? (
           <ErrorState
-            title="The funnels could not be read"
+            title="Could not load funnels"
             detail={errorText(funnels.error)}
             onRetry={() => void funnels.refetch()}
           />
         ) : funnels.isPending ? (
           <p className="mfb-note" aria-live="polite">
-            Reading the funnels…
+            Loading funnels…
           </p>
         ) : list.length === 0 ? (
           <Empty
             title="No funnels built"
-            body="A funnel is an ordered run of steps (a page, an event, a goal) and the record of how many sessions made it from one to the next. Build one and the drops appear here."
+            body="A funnel is an ordered run of steps (a page, an event, a goal) and how many sessions made it from one step to the next. Create one and the drop-off appears here."
             action={
               <Button tone="primary" onClick={() => setEditing({ mode: "new" })}>
-                Build the first funnel
+                Create a funnel
               </Button>
             }
           />
@@ -235,18 +237,18 @@ export function FunnelsScreen() {
 
             {stats.isError ? (
               <ErrorState
-                title="That funnel did not come back"
+                title="Could not load this funnel"
                 detail={errorText(stats.error)}
                 onRetry={() => void stats.refetch()}
               />
             ) : stats.isPending ? (
               <p className="mfb-note" aria-live="polite">
-                Reading {current?.name ?? "the funnel"}…
+                Loading {current?.name ?? "the funnel"}…
               </p>
             ) : steps.length === 0 ? (
               <Empty
                 title="This funnel has no steps yet"
-                body="Add at least two steps and the record between them is drawn here."
+                body="Add at least two steps to see the drop-off between them."
                 action={
                   current ? (
                     <Button onClick={() => setEditing({ mode: "edit", funnel: current })}>
@@ -258,10 +260,10 @@ export function FunnelsScreen() {
             ) : payload && payload.entered === 0 ? (
               <Empty
                 title="No session entered this funnel"
-                body="Nothing matched the first step over this interval. Widen the interval, loosen the first step, or check the path it is matching."
+                body="Nothing matched the first step in this period. Choose a longer period, loosen the first step, or check the path it matches."
               />
             ) : (
-              <FunnelRecord
+              <FunnelSteps
                 steps={steps}
                 selected={step}
                 onSelect={(i) => setStep((v) => (v === i ? null : i))}
@@ -284,9 +286,9 @@ export function FunnelsScreen() {
   );
 }
 
-/* ── the record ──────────────────────────────────────────────────────────── */
+/* ── the steps ───────────────────────────────────────────────────────────── */
 
-function FunnelRecord({
+function FunnelSteps({
   steps,
   selected,
   onSelect,
@@ -307,9 +309,9 @@ function FunnelRecord({
         // reads as one descending scale rather than five colours repeating.
         // It starts at the second step of the ramp: the first is bright enough
         // at full width to pull the eye off the figures that carry the reading.
-        // The far end of the ramp sits close to the track's own tone on paper,
-        // so the band is given a drawn stop at its leading edge (see
-        // behaviour.css) and never has to be found by tone alone.
+        // The far end of the ramp sits close to the track's own tone, so the
+        // bar is given a drawn edge at its leading end (see behaviour.css) and
+        // never has to be found by tone alone.
         const ramp = last === 0 ? 2 : 2 + Math.round((i / last) * 3);
 
         return (
@@ -377,7 +379,7 @@ function FunnelRecord({
       })}
 
       <p className="mfb-note">
-        Choose a step to read the sessions that reached it.
+        Choose a step to see the sessions that reached it.
       </p>
     </div>
   );
@@ -423,8 +425,11 @@ function StepSessions({
   const columns: Column<StepSession>[] = [
     {
       key: "when",
-      head: "Reached",
-      render: (r) => <span className="mf-data">{ago(r.reached_at)}</span>,
+      head: "When",
+      /* The step list comes from the sessions endpoint, which sends the
+         session start and no reach time; the start is shown when that is all
+         there is, rather than "never" on every row. */
+      render: (r) => <span className="mf-data">{ago(r.reached_at ?? r.started)}</span>,
     },
     {
       key: "entry",
@@ -460,8 +465,8 @@ function StepSessions({
       render: (r) =>
         siteSlug ? (
           <Link
-            to={`/app/${siteSlug}/sessions/${r.session_id}`}
-            aria-label={`Open session ${r.session_id}`}
+            to={`/app/${siteSlug}/sessions/${encodeURIComponent(stepSessionId(r))}`}
+            aria-label={`Open session ${stepSessionId(r)}`}
           >
             <IconOut size={14} />
           </Link>
@@ -479,7 +484,7 @@ function StepSessions({
             : undefined
         }
         actions={
-          <Button tone="quiet" onClick={onClose}>
+          <Button tone="quiet" size="sm" onClick={onClose}>
             Close
           </Button>
         }
@@ -492,11 +497,11 @@ function StepSessions({
           rows={rows}
           columns={columns}
           loading={q.isPending}
-          getKey={(r) => r.session_id}
+          getKey={(r, i) => stepSessionId(r) || String(i)}
           empty={
             <Empty
               title="No sessions reached this step"
-              body="Nothing in this interval got this far. Widen the interval or check the step's rule."
+              body="No session in this period got this far. Choose a longer period or check the step's rule."
             />
           }
         />
@@ -504,6 +509,9 @@ function StepSessions({
     </Panel>
   );
 }
+
+/** The session key, whichever name it arrived under (`id` from the API). */
+const stepSessionId = (r: StepSession): string => r.session_id || r.id || "";
 
 const windowWords = (h: number): string =>
   h < 24 ? `${h} hour${h === 1 ? "" : "s"}` : `${Math.round(h / 24)} day${h < 48 ? "" : "s"}`;

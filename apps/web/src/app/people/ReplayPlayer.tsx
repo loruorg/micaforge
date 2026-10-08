@@ -933,7 +933,7 @@ export function ReplayStage({ events, label }: { events: ReplayEvent[]; label?: 
           icon={<IconSkipStill size={14} />}
           onClick={() => setSkipStill((v) => !v)}
         >
-          Skip still paper
+          Skip idle time
         </Button>
       </div>
 
@@ -980,7 +980,7 @@ function IconPause({ size = 16 }: { size?: number }) {
   );
 }
 
-/** The still stretch of paper, jumped over. */
+/** Idle time, jumped over. */
 function IconSkipStill({ size = 16 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.4} strokeLinecap="square" strokeLinejoin="miter" aria-hidden="true" focusable="false">
@@ -1048,10 +1048,10 @@ export function ReplayPlayer() {
       {missing || erased ? (
         <Panel>
           <Empty
-            title={erased ? "The recording is gone" : "That recording is not on the record"}
+            title={erased ? "The recording is gone" : "Recording not found"}
             body={
               erased
-                ? "It was erased from this site's replay store. The session itself is still on the record."
+                ? "It was erased from this site's replay store. The session itself is still in your data."
                 : "It was never recorded, or the replay retention window has passed and it has already been deleted."
             }
             action={
@@ -1072,7 +1072,7 @@ export function ReplayPlayer() {
               title={recording ? stampAt(recording.started, timezone) : "Recording"}
               note={
                 q.isPending
-                  ? "Reading the recording…"
+                  ? "Loading the recording…"
                   : "Replayed in your browser from the stored events. Nothing is sent anywhere to play it."
               }
               actions={
@@ -1084,7 +1084,7 @@ export function ReplayPlayer() {
                     <span className="mf-btn__icon">
                       <IconSessions size={14} />
                     </span>
-                    <span className="mf-btn__label">The session record</span>
+                    <span className="mf-btn__label">Open session</span>
                   </Link>
                   <Button
                     tone="danger"
@@ -1099,7 +1099,7 @@ export function ReplayPlayer() {
             />
             {q.isPending ? (
               <div className="mf-p-stage" aria-busy="true">
-                <p className="mf-p-stage__note">Reading the recording…</p>
+                <p className="mf-p-stage__note">Loading the recording…</p>
               </div>
             ) : events.length === 0 ? (
               <Empty
@@ -1140,7 +1140,7 @@ export function ReplayPlayer() {
             title="Erase this recording?"
             lead={<>The recording below is deleted from this site&rsquo;s replay store. This cannot be undone.</>}
             lines={lines}
-            note="The session itself stays on the record. Only the replay is removed."
+            note="The session itself stays in your data. Only the replay is removed."
             confirmLabel="Erase the recording"
             busy={erase.isPending}
             error={erase.isError ? apiMessage(erase.error) : null}

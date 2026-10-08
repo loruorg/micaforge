@@ -1,19 +1,19 @@
 /**
- * Events: the register of everything the site reported that was not a plain
- * pageview, and the tape of what is arriving right now.
+ * Events: the list of everything the site reported that was not a plain
+ * pageview, and the live list of what is arriving right now.
  *
- * Two readings, in the order an operator actually wants them:
+ * Two views, in the order people actually want them:
  *
- *   1. THE REGISTER. Every event name with its count and the number of distinct
- *      visitors behind it. Opening a row reads the event's property keys off the
- *      record and the top values for each key. Properties are fetched only when
+ *   1. THE EVENT LIST. Every event name with its count and the number of
+ *      distinct visitors behind it. Opening a row loads the event's property
+ *      keys and the top values for each key. Properties are fetched only when
  *      a row is opened, because a site with forty event names has hundreds of
  *      property keys and none of them are worth a request until asked for.
- *   2. THE TAPE. The live log. It runs on its own, it can be held so a row can
- *      be read without the list moving under the pointer, and any row opens to
- *      show the raw props exactly as they were received.
+ *   2. LIVE EVENTS. The live log. It runs on its own, it can be paused so a
+ *      row can be read without the list moving under the pointer, and any row
+ *      opens to show the raw props exactly as they were received.
  *
- * Nothing here invents a figure. With no traffic the register says so and names
+ * Nothing here invents a figure. With no traffic the list says so and names
  * what would fill it.
  */
 import { useEffect, useRef, useState } from "react";
@@ -26,7 +26,7 @@ import { IconChevron } from "../../components/react/icons";
 import { ago, num, pct, shortPath } from "../../lib/format";
 import { agentName, titleCase } from "../display";
 
-/* ── what the record returns ─────────────────────────────────────────────── */
+/* ── what the API returns ────────────────────────────────────────────────── */
 
 interface EventRow {
   name: string;
@@ -66,7 +66,7 @@ interface EventPropsPayload {
   properties: PropertyRow[];
 }
 
-/** The live tape carries the same rows realtime does, plus the raw props. */
+/** The live list carries the same rows realtime does, plus the raw props. */
 type TapeRow = Realtime["recent"][number] & {
   event_id?: string;
   name?: string;
@@ -74,7 +74,7 @@ type TapeRow = Realtime["recent"][number] & {
 };
 type TapePayload = Omit<Realtime, "recent"> & { recent: TapeRow[] };
 
-/* ── the register ────────────────────────────────────────────────────────── */
+/* ── the event list ──────────────────────────────────────────────────────── */
 
 export function EventsScreen() {
   const { siteId, domain } = useSite();
@@ -101,7 +101,7 @@ export function EventsScreen() {
 
   return (
     <div className="mfb-stack">
-      <Panel ruled feed>
+      <Panel>
         <PanelHead
           title="Events"
           note={
@@ -139,7 +139,7 @@ export function EventsScreen() {
           <RegisterSkeleton />
         ) : rows.length === 0 ? (
           <Empty
-            title="No events on this record"
+            title="No custom events in this period"
             body={
               <>
                 Events appear here as soon as the tracker reports one. Call{" "}
@@ -247,13 +247,13 @@ function EventProperties({ id, event }: { id: string; event: string }) {
     <div className="mfb-reg__body" id={id}>
       {q.isError ? (
         <ErrorState
-          title="Those properties did not come back"
+          title="Could not load the properties"
           detail={errorText(q.error)}
           onRetry={() => void q.refetch()}
         />
       ) : q.isPending ? (
         <p className="mfb-note" aria-live="polite">
-          Reading the properties of {event}…
+          Loading the properties of {event}…
         </p>
       ) : properties.length === 0 ? (
         <p className="mfb-note">
@@ -294,7 +294,7 @@ function EventProperties({ id, event }: { id: string; event: string }) {
   );
 }
 
-/* ── the tape ────────────────────────────────────────────────────────────── */
+/* ── live events ─────────────────────────────────────────────────────────── */
 
 function LiveTape() {
   const { siteId } = useSite();
@@ -304,7 +304,7 @@ function LiveTape() {
   const [open, setOpen] = useState<string | null>(null);
 
   const q = useQuery({
-    // The tape does not read the caliper: it is always the last five minutes.
+    // The live list ignores the date range: it is always the last five minutes.
     queryKey: ["stats", "realtime", siteId, "5m", audience, filtersJson],
     queryFn: () =>
       api.get<TapePayload>("/api/stats/realtime", {
@@ -324,19 +324,20 @@ function LiveTape() {
   return (
     <Panel>
       <PanelHead
-        title="Live tape"
-        note="The last five minutes, as it is written. Hold the tape to read a row without the list moving."
+        title="Live events"
+        note="The last five minutes, newest first. Pause to read a row without the list moving."
         actions={
           <>
-            <Button onClick={() => setHeld((v) => !v)} aria-pressed={held}>
-              {held ? "Let it run" : "Hold the tape"}
+            <Button size="sm" onClick={() => setHeld((v) => !v)} aria-pressed={held}>
+              {held ? "Resume" : "Pause"}
             </Button>
             <Button
               tone="quiet"
+              size="sm"
               onClick={() => void q.refetch()}
               disabled={q.isFetching}
             >
-              {q.isFetching ? "Reading…" : "Read now"}
+              {q.isFetching ? "Refreshing…" : "Refresh"}
             </Button>
           </>
         }
@@ -346,7 +347,7 @@ function LiveTape() {
         <ErrorState detail={errorText(q.error)} onRetry={() => void q.refetch()} />
       ) : q.isPending ? (
         <p className="mfb-note" aria-live="polite">
-          Waiting for the pen…
+          Loading…
         </p>
       ) : rows.length === 0 ? (
         <Empty
@@ -356,11 +357,11 @@ function LiveTape() {
       ) : (
         /* A log, not a live region: a bare aria-live here would re-read all
            forty rows on every poll. As a log, only the rows that actually
-           arrived are spoken, and holding the tape stops even that. */
+           arrived are spoken, and pausing the list stops even that. */
         <div
           className="mfb-tape"
           role="log"
-          aria-label="Live event tape"
+          aria-label="Live events"
           aria-live={held ? "off" : "polite"}
           aria-relevant="additions"
         >
@@ -384,7 +385,7 @@ function LiveTape() {
                       data-pen={machine ? "stepped" : "written"}
                       aria-hidden="true"
                     />
-                    <span className="mf-sr">{machine ? "Machine" : "Reader"}</span>
+                    <span className="mf-sr">{machine ? "AI crawler" : "Person"}</span>
                   </span>
                   <span className="mfb-tape__kind">{r.name || r.kind}</span>
                   <span className="mfb-tape__path" title={r.path}>
@@ -411,10 +412,10 @@ function LiveTape() {
 
       <p className="mfb-note">
         {held
-          ? "The tape is held. Nothing is lost: it catches up when you let it run."
-          : `Reading every five seconds. ${num(q.data?.data.visitors_now)} reading, ${num(
+          ? "Paused. Nothing is lost: the list catches up when you resume."
+          : `Updates every five seconds. ${num(q.data?.data.visitors_now)} people online, ${num(
               q.data?.data.agents_now,
-            )} fetching.`}
+            )} AI crawlers.`}
       </p>
     </Panel>
   );
@@ -481,7 +482,7 @@ function useFreshKeys(keys: string[], held: boolean) {
 function RegisterSkeleton() {
   return (
     <div className="mfb-reg mfb-reg--events" aria-busy="true">
-      <span className="mf-sr">Reading the register…</span>
+      <span className="mf-sr">Loading…</span>
       {Array.from({ length: 6 }).map((_, i) => (
         <div className="mfb-reg__row mfb-reg__row--wait" key={i} aria-hidden="true">
           <span />
@@ -500,7 +501,7 @@ export function errorText(e: unknown): string {
   if (e && typeof e === "object" && "message" in e) {
     const m = String((e as { message: unknown }).message);
     const code = "code" in e ? String((e as { code: unknown }).code) : "";
-    if (code === "network") return "Could not reach the Micaforge server. Check that it is running, then read again.";
+    if (code === "network") return "Could not reach the Micaforge server. Check that it is running, then try again.";
     return m;
   }
   return "The server did not say what went wrong.";

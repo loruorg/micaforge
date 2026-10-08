@@ -3,12 +3,12 @@
  *
  * A fingerprint is the unit here, not an occurrence: one broken call in one
  * component can write ten thousand rows, and ten thousand rows is one problem.
- * So the sheet ranks groups, and each group carries the two numbers that decide
- * whether it matters (how often it fired, and how many readers it reached)
- * beside a trend trace that says whether it is getting worse.
+ * So the table ranks groups, and each group carries the two numbers that decide
+ * whether it matters (how often it fired, and how many visitors it reached)
+ * beside a small trend line that says whether it is getting worse.
  *
- * Identity is carried by type hierarchy: the class in the ink, the message in a
- * dimmer tone under it, the state as a word. Nothing here is a coloured chip.
+ * Identity is carried by type hierarchy: the class in dark text, the message in
+ * a dimmer tone under it, the state as a word. Nothing here is a coloured chip.
  *
  * Reads `GET /api/stats/errors` under the standard query envelope
  * (docs/CONTRACT.md §3.1). §3.3 fixes the endpoint but not its body, so the
@@ -58,7 +58,7 @@ export interface ErrorGroup {
   top_path?: string;
   browsers?: string[];
   status?: ErrorStatus;
-  /** Occurrences per bucket across the interval: the group's trend trace. */
+  /** Occurrences per bucket across the interval: the group's trend line. */
   trend?: number[];
 }
 
@@ -89,18 +89,16 @@ function reason(err: unknown): string | undefined {
 
 const PAGE = 50;
 
-/* ── the trend trace ─────────────────────────────────────────────────────── */
+/* ── the trend line ──────────────────────────────────────────────────────── */
 
 /**
- * A group's trend, drawn small. It is a scratch like every other trace in this
- * product: the ridge of displaced soot first, the bright line over it. Oxide is
- * the annotation ink a station operator reached for to mark a fault.
+ * A group's trend, drawn small: a baseline and one line in the danger colour.
  */
 export function ErrorTrace({ values, label }: { values?: number[] | null; label: string }) {
   const pts = (values ?? []).filter((v) => Number.isFinite(v));
   if (pts.length < 2) {
     return (
-      <span className="mf-trace--none" title={`${label}: no trend for this interval`}>
+      <span className="mf-trend-none" title={`${label}: no trend for this period`}>
         —
       </span>
     );
@@ -120,7 +118,7 @@ export function ErrorTrace({ values, label }: { values?: number[] | null; label:
     .join("");
   return (
     <svg
-      className="mf-trace"
+      className="mf-trend"
       width={w}
       height={h}
       viewBox={`0 0 ${w} ${h}`}
@@ -136,15 +134,7 @@ export function ErrorTrace({ values, label }: { values?: number[] | null; label:
         strokeWidth={1}
         shapeRendering="crispEdges"
       />
-      <path
-        d={d}
-        fill="none"
-        stroke="var(--mf-well)"
-        strokeWidth={2.2}
-        transform="translate(0,1)"
-        opacity={0.85}
-      />
-      <path d={d} fill="none" stroke="var(--mf-danger)" strokeWidth={1.3} />
+      <path d={d} fill="none" stroke="var(--mf-danger)" strokeWidth={1.5} strokeLinejoin="round" />
     </svg>
   );
 }
@@ -181,8 +171,8 @@ function Facet({
           !empty
             ? undefined
             : waiting
-              ? "Reading the record…"
-              : `No ${label.toLowerCase()} values came back for this interval`
+              ? "Loading…"
+              : `No ${label.toLowerCase()} values came back for this period`
         }
         onChange={(e) => onChange(e.target.value)}
       >
@@ -329,7 +319,7 @@ export function ErrorsScreen() {
     },
     {
       key: "visitors",
-      head: "Readers",
+      head: "Visitors",
       numeric: true,
       render: (row) => <span className="mf-data">{num(row.visitors)}</span>,
     },
@@ -366,13 +356,13 @@ export function ErrorsScreen() {
         <p className="mf-hs-note">
           <IconInfo size={16} />
           <span>
-            The tracker runs in browsers, so JavaScript errors are only recorded for readers. What
-            the machines were served, status codes included, is on Agent traffic.
+            The tracker runs in browsers, so JavaScript errors are only recorded for people. What
+            AI crawlers were served, status codes included, is on the AI crawlers screen.
           </span>
         </p>
       ) : null}
 
-      <Panel feed>
+      <Panel>
         <PanelHead
           title="Errors"
           note="Grouped by fingerprint: one row is one distinct failure, however many times it fired."
@@ -421,7 +411,7 @@ export function ErrorsScreen() {
 
         {query.isError ? (
           <ErrorState
-            title="The errors did not come back"
+            title="Could not load errors"
             detail={reason(query.error)}
             onRetry={() => void query.refetch()}
           />
@@ -442,15 +432,15 @@ export function ErrorsScreen() {
                 facetsSet || activeFilters.length ? (
                   <Empty
                     title="No errors match this filter"
-                    body="Clear a filter or widen the interval. Nothing was reported for this exact cut."
+                    body="Clear a filter or choose a longer period. Nothing was reported for this selection."
                     action={
                       facetsSet ? <Button onClick={clearFacets}>Clear these filters</Button> : undefined
                     }
                   />
                 ) : (
                   <Empty
-                    title="Nothing has broken in this interval"
-                    body="Errors arrive on the tracker's error event. If you have never seen one here, confirm error capture is switched on in the snippet."
+                    title="No errors in this period"
+                    body="Errors arrive on the tracker's error event. If you have never seen one here, make sure error capture is turned on in the snippet."
                   />
                 )
               }
@@ -461,7 +451,7 @@ export function ErrorsScreen() {
                   disabled={query.isFetching}
                   onClick={() => setLimit((n) => n + PAGE)}
                 >
-                  {query.isFetching ? "Reading…" : `Read ${PAGE} more`}
+                  {query.isFetching ? "Loading…" : `Load ${PAGE} more`}
                 </Button>
               </div>
             ) : null}

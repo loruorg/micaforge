@@ -1,8 +1,8 @@
 /**
  * The audience area: pages, sources, locations, devices.
  *
- * Four screens that read the record from the reader's side, each one honest
- * about what the machine trace can and cannot answer. The router imports only
+ * Four screens about the people who visit, each one honest about what AI
+ * crawler traffic can and cannot answer. The router imports only
  * what this barrel names.
  */
 export { PagesScreen } from "./PagesScreen";

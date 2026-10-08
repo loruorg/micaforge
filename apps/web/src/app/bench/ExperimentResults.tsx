@@ -12,7 +12,7 @@
  * When that interval includes zero the screen says so plainly and estimates how
  * much more traffic would be needed. The word "winner" appears nowhere.
  *
- * The instrument is the interval plot: every variant on one shared rate axis,
+ * The main view is the interval plot: every variant on one shared rate axis,
  * with its interval drawn as a real measured span. Two intervals that overlap
  * are visibly overlapping, so you do not have to read the numbers to see it.
  *
@@ -353,7 +353,7 @@ function IntervalPlot({ arms }: { arms: Arm[] }) {
 
       <p className="mf-bn-iv__legend">
         The bar is the 95% interval and the mark is the observed rate. Two bars that overlap are two
-        rates this record cannot tell apart. The upright rule is the baseline&rsquo;s rate.
+        rates the data cannot tell apart. The vertical line is the baseline&rsquo;s rate.
       </p>
     </div>
   );
@@ -384,14 +384,14 @@ export function ExperimentResults({
         token: `${experiment.started_at}..${experiment.ended_at ?? "now"}`,
       };
     }
-    return { start: undefined, end: undefined, label: `over the screen interval (${range})`, token: range };
+    return { start: undefined, end: undefined, label: `over the selected period (${range})`, token: range };
   }, [experiment.started_at, experiment.ended_at, range]);
 
   const baseEnv = useMemo(
     () => ({
       site: siteId ?? 0,
       ...(span.start ? { start: span.start, end: span.end } : { range }),
-      // An experiment measures people. Machine fetches never see a variant.
+      // An experiment measures people. Crawler fetches never see a variant.
       audience: "human" as const,
       dimension: "variant",
       limit: 20,
@@ -451,7 +451,7 @@ export function ExperimentResults({
         configured: true,
       };
     });
-    // Anything the record holds that the experiment does not declare is shown
+    // Anything the data holds that the experiment does not declare is shown
     // rather than dropped: a stray variant is usually a stale deploy.
     for (const r of exp) {
       if (!configured.some((a) => a.key === r.key) && r.key) {
@@ -535,7 +535,7 @@ export function ExperimentResults({
         title={`Results: ${experiment.key}`}
         note={
           goal
-            ? `Measuring ${goal.name} ${span.label}. Readers only; a machine fetch never sees a variant.`
+            ? `Measuring ${goal.name} ${span.label}. People only; an AI crawler never sees a variant.`
             : `No goal attached, so there is nothing to measure ${span.label}.`
         }
       />
@@ -566,7 +566,7 @@ export function ExperimentResults({
               <p className="mf-bn-res__call" data-call="waiting">
                 {experiment.status === "draft"
                   ? "Not started. Once the experiment is running and your code reads its variants, exposures land here."
-                  : "No exposures recorded in this window. Check that your code is sending the experiment and variant with its events."}
+                  : "No exposures recorded in this period. Check that your code sends the experiment and variant with its events."}
               </p>
             </div>
           }
@@ -580,7 +580,7 @@ export function ExperimentResults({
               {call.kind === "no-goal"
                 ? "No goal attached. An experiment cannot report until it is measuring something. Attach the goal it is meant to move."
                 : call.kind === "no-data"
-                  ? "No exposures recorded in this window."
+                  ? "No exposures recorded in this period."
                   : call.text}
             </p>
 

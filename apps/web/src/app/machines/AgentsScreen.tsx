@@ -1,11 +1,11 @@
 /**
- * Agent traffic, at /app/:site/agents
+ * AI crawlers, at /app/:site/agents
  *
- * The screen that says who the machines are, what they took, and what they have
- * never bothered to read. There is no audience switch here: this screen IS the
- * machines. The one editorial decision worth defending is the coverage panel,
- * which lists pages with NO crawl at all rather than filtering them away. The
- * absence is the finding.
+ * The screen that says who the crawlers are, what they took, and what they have
+ * never bothered to read. There is no audience switch here: this screen is only
+ * about AI crawlers. The one editorial decision worth defending is the coverage
+ * panel, which lists pages with NO crawl at all rather than filtering them away.
+ * The absence is the finding.
  */
 import { useMemo, useState } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
@@ -39,24 +39,35 @@ import type { AgentBreakdownRow, AgentIdentity, AgentSeriesResponse, MachineEnv 
 type Pivot = "agent_id" | "operator" | "purpose" | "pathname" | "status";
 
 const PIVOTS: { v: Pivot; label: string }[] = [
-  { v: "agent_id", label: "Agent" },
+  { v: "agent_id", label: "Crawler" },
   { v: "operator", label: "Operator" },
-  { v: "purpose", label: "Collecting for" },
+  { v: "purpose", label: "Purpose" },
   { v: "pathname", label: "Path" },
   { v: "status", label: "Status" },
 ];
 
-/** The five series colours are a lightness ramp, so the bands survive greyscale. */
-const RAMP = ["var(--mf-s1)", "var(--mf-s2)", "var(--mf-s3)", "var(--mf-s4)", "var(--mf-s5)"];
+/**
+ * Five steps of the AI orange, darkest first, defined in machines.css. Blue
+ * means people everywhere in the product, so a breakdown of AI operators never
+ * uses the blue categorical ramp. The steps differ by lightness, so the bands
+ * survive greyscale, and each operator also has its own band and label.
+ */
+const RAMP = [
+  "var(--mf-ai-ramp-1)",
+  "var(--mf-ai-ramp-2)",
+  "var(--mf-ai-ramp-3)",
+  "var(--mf-ai-ramp-4)",
+  "var(--mf-ai-ramp-5)",
+];
 const MAX_TRACES = 5;
 
-/* ── the record ─────────────────────────────────────────────────────────── */
+/* ── crawls over time ────────────────────────────────────────────────────── */
 
 function CrawlRecord({ bench }: { bench: MachineEnv }) {
-  /* Per-channel gain is the default because five of the six bands are usually
-     an order of magnitude apart, and a pen pinned flat on its baseline records
-     nothing at all. Each band prints its own full scale in the readout, and one
-     shared gain is one key away. */
+  /* Separate scales are the default because five of the six bands are usually
+     an order of magnitude apart, and a series pressed flat on its baseline
+     shows nothing at all. Each band prints its own scale in the legend, and one
+     shared scale is one click away. */
   const [gain, setGain] = useState<"shared" | "per-channel">("per-channel");
 
   const q = useQuery({
@@ -121,20 +132,20 @@ function CrawlRecord({ bench }: { bench: MachineEnv }) {
 
   const foldNote =
     folded && folded.foldedCount > 0
-      ? `The five heaviest operators are drawn; the remaining ${folded.foldedCount} ${folded.foldedCount === 1 ? "is" : "are"} folded into one "Other" channel.`
-      : "One stepped trace per operator: a crawler fetches in discrete jumps, so its pen steps rather than curves.";
+      ? `The five busiest operators each get a band; the other ${folded.foldedCount} ${folded.foldedCount === 1 ? "is" : "are"} grouped as "Other".`
+      : "One stepped line per operator: a crawler fetches in discrete jumps, so its line steps rather than curves.";
 
   return (
-    <Panel ruled feed>
+    <Panel>
       <PanelHead
-        title="Crawl record"
+        title="Crawls over time"
         note={
           gain === "shared"
-            ? `${foldNote} Every channel is on one gain, so the bands compare directly and a quiet operator reads as a quiet band.`
-            : `${foldNote} Each channel is on its own gain, printed beside it, so a quiet operator's shape stays legible, but the band heights no longer compare.`
+            ? `${foldNote} All bands share one scale, so their heights compare directly.`
+            : `${foldNote} Each band has its own scale, shown in the legend, so a quiet operator stays readable, but band heights do not compare.`
         }
         actions={
-          <div className="mf-pivot" role="group" aria-label="Gain">
+          <div className="mf-pivot" role="group" aria-label="Scale">
             <button
               type="button"
               className="mf-pivot__key"
@@ -142,16 +153,16 @@ function CrawlRecord({ bench }: { bench: MachineEnv }) {
               onClick={() => setGain("shared")}
               title="Every operator on one scale. Band heights compare directly."
             >
-              One gain
+              Shared scale
             </button>
             <button
               type="button"
               className="mf-pivot__key"
               aria-pressed={gain === "per-channel"}
               onClick={() => setGain("per-channel")}
-              title="Each operator scaled to its own maximum, with that maximum printed beside it."
+              title="Each operator scaled to its own maximum, with that maximum shown in the legend."
             >
-              Own gain
+              Separate scales
             </button>
           </div>
         }
@@ -163,8 +174,8 @@ function CrawlRecord({ bench }: { bench: MachineEnv }) {
           isEmpty={(d) => !d?.buckets?.length || !(d.series ?? []).some((s) => s.values.some((v) => v))}
           empty={
             <Empty
-              title="No machine has fetched this site in this interval"
-              body="Agent traffic is written by the server-side ingest path: /api/log/edge, the log shipper or the reverse-proxy module. A browser tag alone cannot see a crawler, because a crawler does not run JavaScript."
+              title="No AI crawler fetched this site in this period"
+              body="Crawler traffic comes from the server-side ingest path: /api/log/edge, the log shipper or the reverse-proxy module. The browser script alone cannot see a crawler, because a crawler does not run JavaScript."
             />
           }
         >
@@ -176,7 +187,7 @@ function CrawlRecord({ bench }: { bench: MachineEnv }) {
               scale={gain}
               height={420}
               live
-              /* Every annotation is read off the record itself, so none of them
+              /* Every annotation is read off the data itself, so none of them
                  can say something the data does not. */
               annotations={
                 folded && folded.perBucket[folded.peak] > 0
@@ -197,7 +208,7 @@ function CrawlRecord({ bench }: { bench: MachineEnv }) {
                     ]
                   : []
               }
-              emptyLabel="No crawl recorded in this interval."
+              emptyLabel="No crawls in this period."
             />
           )}
         </Reading>
@@ -206,7 +217,7 @@ function CrawlRecord({ bench }: { bench: MachineEnv }) {
   );
 }
 
-/* ── the totals bank ────────────────────────────────────────────────────── */
+/* ── the totals ──────────────────────────────────────────────────────────── */
 
 function TotalsBank({ bench }: { bench: MachineEnv }) {
   const q = useQuery({
@@ -224,8 +235,8 @@ function TotalsBank({ bench }: { bench: MachineEnv }) {
         isEmpty={(d) => !d || (d.fetches === 0 && d.unique_agents === 0)}
         empty={
           <Empty
-            title="Nothing measured for the machines yet"
-            body="These figures fill in as soon as the server-side ingest path reports its first fetch from a named agent."
+            title="No AI crawler data yet"
+            body="These figures fill in as soon as the server-side ingest path reports its first fetch from a named crawler."
           />
         }
       >
@@ -241,12 +252,12 @@ function TotalsBank({ bench }: { bench: MachineEnv }) {
                 // arrives is a caption for an absence.
                 note: d.delta_pct == null ? undefined : "vs. previous period",
               },
-              { key: "agents", label: "Agents seen", value: num(d.unique_agents) },
+              { key: "agents", label: "Crawlers seen", value: num(d.unique_agents) },
               {
                 key: "verified",
                 label: "Verified share",
                 value: pct(d.verified_pct / 100),
-                note: "address checked",
+                note: "IP address checked",
               },
               { key: "bytes", label: "Bytes served", value: bytes(d.bytes) },
               { key: "paths", label: "Paths reached", value: num(d.unique_paths) },
@@ -258,7 +269,7 @@ function TotalsBank({ bench }: { bench: MachineEnv }) {
   );
 }
 
-/* ── the tabulation ─────────────────────────────────────────────────────── */
+/* ── the breakdown table ─────────────────────────────────────────────────── */
 
 function AgentSheet({
   bench,
@@ -309,7 +320,7 @@ function AgentSheet({
       return [
         {
           key: "agent",
-          head: "Agent",
+          head: "Crawler",
           width: "26%",
           render: (r) => (
             <span className="mf-wedge-stack">
@@ -323,7 +334,7 @@ function AgentSheet({
         },
         {
           key: "purpose",
-          head: "Collecting for",
+          head: "Purpose",
           render: (r) => <span>{r.purpose_label ?? purposeLabel(r.purpose ?? "unknown")}</span>,
         },
         fetches,
@@ -374,7 +385,7 @@ function AgentSheet({
       return [
         {
           key: "purpose",
-          head: "Collecting for",
+          head: "Purpose",
           width: "34%",
           render: (r) => (
             <button type="button" className="mf-cellkey" onClick={() => filterTo("purpose", r.key)}>
@@ -438,9 +449,9 @@ function AgentSheet({
     <Panel>
       <PanelHead
         title="Who fetched"
-        note="Tabulate the same interval by a different channel. Selecting a row on any pivot but Agent reads the whole screen through that value."
+        note="Group the same period by crawler, operator, purpose, path or status. Select a crawler row to see its details; select any other row to filter the whole screen to that value."
         actions={
-          <div className="mf-pivot" role="group" aria-label="Tabulate by">
+          <div className="mf-pivot" role="group" aria-label="Group by">
             {PIVOTS.map((p) => (
               <button
                 key={p.v}
@@ -461,8 +472,8 @@ function AgentSheet({
         isEmpty={(d) => !d?.length}
         empty={
           <Empty
-            title="Nothing tabulated for this pivot"
-            body="No fetch in this interval carried that field. Widen the interval, or clear a filter."
+            title="No data for this grouping"
+            body="No fetch in this period has that field. Choose a longer period, or clear a filter."
           />
         }
       >
@@ -588,7 +599,7 @@ function CoveragePanel({ bench }: { bench: MachineEnv }) {
             {r.agents.length === 1 ? r.agents[0] : `${r.agents[0]} +${r.agents.length - 1}`}
           </span>
         ) : (
-          <span className="mf-dim">nobody</span>
+          <span className="mf-dim">no crawler</span>
         ),
     },
     {
@@ -614,7 +625,7 @@ function CoveragePanel({ bench }: { bench: MachineEnv }) {
     <Panel>
       <PanelHead
         title="Crawl coverage"
-        note="Every page in the content register, including the ones no machine has ever fetched. A page nothing has read is a finding, so it is listed rather than filtered away."
+        note="Every known page on the site, including the ones no AI crawler has ever fetched. A page no crawler has read is a finding, so it is listed, not hidden."
         actions={
           <div className="mf-pivot" role="group" aria-label="Coverage view">
             {views.map((v) => (
@@ -638,8 +649,8 @@ function CoveragePanel({ bench }: { bench: MachineEnv }) {
         isEmpty={(d) => !d?.length}
         empty={
           <Empty
-            title="The content register is empty"
-            body="Coverage joins crawl history against the page register the crawler job builds from your sitemap. Once that job has run, every page appears here whether or not a machine has read it."
+            title="No pages known yet"
+            body="Coverage compares crawl history with the page list that the crawler job builds from your sitemap. After that job runs, every page shows here, crawled or not."
           />
         }
       >
@@ -649,8 +660,8 @@ function CoveragePanel({ bench }: { bench: MachineEnv }) {
               title="No page matches that view"
               body={
                 view === "never"
-                  ? "Every page in the register has been crawled at least once."
-                  : "Every page in the register is listed in llms.txt."
+                  ? "Every known page has been crawled at least once."
+                  : "Every known page is listed in llms.txt."
               }
               action={<Button onClick={() => setView("all")}>Show every page</Button>}
             />
@@ -671,7 +682,7 @@ export function AgentsScreen() {
 
   return (
     <div className="mf-wedge">
-      <Bench title="Agent traffic" bench={bench} />
+      <Bench title="AI crawlers" bench={bench} />
       <TotalsBank bench={bench} />
       <CrawlRecord bench={bench} />
       <AgentSheet bench={bench} onOpen={setOpen} />

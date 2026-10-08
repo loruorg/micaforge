@@ -2,9 +2,9 @@
  * THE FLAG EDITOR.
  *
  * A flag is a switch your code reads at runtime, so this screen is built around
- * one instrument: THE ROLLOUT BAND. It draws the 0-100 bucket space as a ruled
- * track, fills the enrolled part, splits that fill by the weights you set, and
- * then draws a second track directly beneath it split by what actually landed.
+ * one view: THE ROLLOUT BAND. It draws the 0-100 bucket space as a track, fills
+ * the enrolled part, splits that fill by the weights you set, and then draws a
+ * second track directly beneath it split by what actually landed.
  *
  * That pairing is deliberate. It is the same question the rest of Micaforge asks
  * about robots.txt: here is what you declared, here is what really happened. A
@@ -235,7 +235,7 @@ export function RolloutBand({
                     />
                   ))
                 ) : (
-                  <span className="mf-bn-band__none">no exposures recorded in this interval</span>
+                  <span className="mf-bn-band__none">no exposures recorded in this period</span>
                 )}
               </div>
             </div>
@@ -245,7 +245,7 @@ export function RolloutBand({
           <p className="mf-bn-band__note">
             Both tracks are drawn across the enrolled share, so a boundary that does not line up is a
             split landing differently from the way it was set. Exposure counts are the flag values
-            recorded on real events in the current interval.
+            recorded on real events in the selected period.
           </p>
 
           <ul className="mf-bn-band__legend">
@@ -508,7 +508,7 @@ export function FlagEditor({
           />
         </div>
 
-        {/* ── the instrument ───────────────────────────────────────────── */}
+        {/* ── the rollout band ─────────────────────────────────────────── */}
         <section className="mf-bn-editor__band" aria-label="Rollout">
           <h3 className="mf-bn-editor__h">Rollout and what it is landing as</h3>
           {isNew ? (

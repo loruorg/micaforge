@@ -1,9 +1,9 @@
 /**
- * The Citation Gap, at /app/:site/citation-gap
+ * The Citation gap, at /app/:site/citation-gap
  *
- * The reason this product exists, in one image: the machine pen writing up from
- * the centre rule and the answer-engine pen writing down from it. The asymmetry
- * about that rule IS the report.
+ * The reason this product exists, in one image: AI crawler fetches drawn up
+ * from the centre line and visits from AI answers drawn down from it. The
+ * difference between the two sides IS the report.
  *
  * The screen deliberately ends in an instruction rather than a number. A ratio
  * nobody can act on is a statistic; a ratio with a decision attached is a
@@ -41,29 +41,29 @@ const VERDICTS: {
 }[] = [
   {
     v: "extracted",
-    means: "Fetched hard by the machines, almost never cited back.",
+    means: "Fetched often by AI crawlers, almost never cited back.",
     action:
       "Decide whether you want to be in that corpus. Either tighten robots.txt for the operators taking the most, or make the page quotable enough to earn the citation: a clear answer near the top, named and dated.",
   },
   {
     v: "compounding",
-    means: "Crawled, and the crawl comes back as readers.",
+    means: "Crawled, and the crawls come back as visitors.",
     action: "This is the shape that works. Write more pages like these, and keep them current so the re-crawl stays worth it.",
   },
   {
     v: "invisible",
-    means: "Cited more than it is crawled: the engines know it from elsewhere.",
+    means: "Cited more than it is crawled: the AI tools know it from elsewhere.",
     action:
-      "The answer engines are quoting a copy, not your page. Put it in the sitemap and in llms.txt so the current version is the one they read.",
+      "The AI tools are quoting a copy, not your page. Put it in the sitemap and in llms.txt so the current version is the one they read.",
   },
   {
     v: "quiet",
-    means: "Too little of either pen to call.",
+    means: "Too few crawls or visits to judge.",
     action: "Nothing to do yet. It will move into one of the other three once it is crawled or found.",
   },
 ];
 
-/* ── the record ─────────────────────────────────────────────────────────── */
+/* ── the chart ──────────────────────────────────────────────────────────── */
 
 function GapRecord({ summary }: { summary: ReturnType<typeof useGapSummary> }) {
   const [gain, setGain] = useState<"shared" | "per-channel">("shared");
@@ -81,55 +81,55 @@ function GapRecord({ summary }: { summary: ReturnType<typeof useGapSummary> }) {
     const { taken, returned } = record;
     if (!taken.length) return [];
     const out: { at: number; label: string; tone?: "neutral" | "warn" | "good" }[] = [];
-    /* No peak note here. The drum writes its own when the machine pen runs off
-       the top of the paper, and it is the only one that knows the true value it
-       ran off at. These are the notes the drum cannot read for itself. */
+    /* No peak note here. The chart writes its own when the crawler series runs
+       off the top of the scale, and it is the only one that knows the true
+       value. These are the notes the chart cannot read for itself. */
     const first = returned.findIndex((v) => v > 0);
-    if (first >= 0) out.push({ at: first, label: "First arrival back", tone: "good" });
+    if (first >= 0) out.push({ at: first, label: "First visit from AI", tone: "good" });
     let best = -1;
     for (let i = 0; i < returned.length; i++) if (returned[i] > 0 && (best < 0 || returned[i] > returned[best])) best = i;
-    if (best >= 0 && best !== first) out.push({ at: best, label: `Best ${compact(returned[best])} returned`, tone: "good" });
+    if (best >= 0 && best !== first) out.push({ at: best, label: `Best: ${compact(returned[best])} visits`, tone: "good" });
     return out;
   }, [record]);
 
-  /* The illustrative record shown when nothing has been measured yet. It is
-     labelled twice (once by the notice, once inside the drum's own readout)
-     because a demonstration figure that could be mistaken for measured traffic
-     is the one thing this product may never ship. */
+  /* The example chart shown when nothing has been measured yet. It is
+     labelled twice (once by the notice, once inside the chart's own legend)
+     because an example figure that could be mistaken for measured traffic is
+     the one thing this product may never ship. */
   const demo = useMemo(() => demoRecord(45, 20260821, Date.UTC(2026, 7, 21)), []);
 
   return (
-    <Panel ruled feed>
+    <Panel>
       <PanelHead
-        title="The Citation Gap"
+        title="Crawled vs. visitors sent back"
         note={
-          /* The note has to follow the gain, because on one gain the distance
-             between the pens IS the quantity and on separate gains it is not.
-             A fixed sentence made the panel contradict the drum's own note
-             directly below it. */
+          /* The note has to follow the scale, because on one scale the distance
+             between the two series IS the quantity and on separate scales it is
+             not. A fixed sentence made the panel contradict the chart's own
+             note directly below it. */
           gain === "shared"
-            ? "The machine pen writes up from the centre rule: every fetch an AI agent made. The answer pen writes down: every reader who arrived from an answer engine. Both are on one scale, so the distance between them is what was taken and never came back."
-            : "The machine pen writes up from the centre rule: every fetch an AI agent made. The answer pen writes down: every reader who arrived from an answer engine. Each is on its own scale, so compare the shapes here and read the size of the gap from the figures below."
+            ? "Above the line: every page fetch by an AI crawler. Below the line: every visit from an AI answer. Both share one scale, so the hatched area between them is what was taken and never came back."
+            : "Above the line: every page fetch by an AI crawler. Below the line: every visit from an AI answer. Each side has its own scale, so compare the shapes here and read the size of the gap from the totals below."
         }
         actions={
-          <div className="mf-pivot" role="group" aria-label="Gain">
+          <div className="mf-pivot" role="group" aria-label="Scale">
             <button
               type="button"
               className="mf-pivot__key"
               aria-pressed={gain === "shared"}
               onClick={() => setGain("shared")}
-              title="Both pens on one scale, with the debt between them hatched. Shows the true difference in magnitude."
+              title="Both series on one scale, with the difference between them hatched. Shows the true difference in size."
             >
-              One gain
+              Shared scale
             </button>
             <button
               type="button"
               className="mf-pivot__key"
               aria-pressed={gain === "per-channel"}
               onClick={() => setGain("per-channel")}
-              title="Each pen scaled to its own maximum, with its full-scale value printed. Shows the shape of both."
+              title="Each series scaled to its own maximum, with that maximum shown in the legend. Shows the shape of both."
             >
-              Own gain
+              Separate scales
             </button>
           </div>
         }
@@ -142,11 +142,11 @@ function GapRecord({ summary }: { summary: ReturnType<typeof useGapSummary> }) {
           empty={
             <div className="mf-wedge-demo">
               <Empty
-                title="Neither pen has written in this interval"
-                body="Machine fetches come from the server-side ingest path; answer-engine arrivals come from referrals by ChatGPT, Perplexity, Claude, Gemini and their peers. With both reporting, this is the report you get."
+                title="No crawls or AI visits in this period"
+                body="Crawler fetches come from the server-side ingest path. Visits from AI answers come from referrals by ChatGPT, Perplexity, Claude, Gemini and similar tools. With both reporting, this is the report you get."
               />
               <DemoNotice>
-                Below is a demonstration record, not this site. Every figure in it is illustrative.
+                Below is example data, not this site. Every figure in it is an example.
               </DemoNotice>
               <Drum
                 demo
@@ -157,7 +157,7 @@ function GapRecord({ summary }: { summary: ReturnType<typeof useGapSummary> }) {
                 channels={[
                   {
                     id: "demo-taken",
-                    label: "Taken by machines, this sample",
+                    label: "AI crawler fetches, this sample",
                     color: "var(--mf-ai)",
                     pen: "stepped",
                     values: demo.machines,
@@ -165,7 +165,7 @@ function GapRecord({ summary }: { summary: ReturnType<typeof useGapSummary> }) {
                   },
                   {
                     id: "demo-returned",
-                    label: "Returned as readers, this sample",
+                    label: "Visits from AI answers, this sample",
                     color: "var(--mf-people)",
                     pen: "written",
                     values: demo.answers,
@@ -177,9 +177,9 @@ function GapRecord({ summary }: { summary: ReturnType<typeof useGapSummary> }) {
           }
         >
           {() => (
-            /* The gain is explained once, by the drum itself, directly under
-               the pens it governs. A second reading of the same sentence used
-               to sit here and ran into the first one on a narrow screen. */
+            /* The scale is explained once, by the chart itself, directly
+               under the series it governs. A second copy of the same sentence
+               used to sit here and ran into the first one on a narrow screen. */
             <Drum
               times={record.times}
               mode="mirrored"
@@ -190,7 +190,7 @@ function GapRecord({ summary }: { summary: ReturnType<typeof useGapSummary> }) {
               channels={[
                 {
                   id: "taken",
-                  label: "Taken by machines, this sample",
+                  label: "AI crawler fetches, this sample",
                   color: "var(--mf-ai)",
                   pen: "stepped",
                   values: record.taken,
@@ -198,7 +198,7 @@ function GapRecord({ summary }: { summary: ReturnType<typeof useGapSummary> }) {
                 },
                 {
                   id: "returned",
-                  label: "Returned as readers, this sample",
+                  label: "Visits from AI answers, this sample",
                   color: "var(--mf-people)",
                   pen: "written",
                   values: record.returned,
@@ -225,9 +225,9 @@ function useGapSummary(bench: MachineEnv) {
 }
 
 function GapTotals({ summary }: { summary: ReturnType<typeof useGapSummary> }) {
-  /** The trend is read off the record itself: the ratio in the second half of
-      the interval against the ratio in the first. A falling ratio is the good
-      outcome, so the channel is marked inverse. */
+  /** The trend is read off the data itself: the ratio in the second half of
+      the period against the ratio in the first. A falling ratio is the good
+      outcome, so the metric is marked inverse. */
   const trend = useMemo(() => {
     const t = summary.data?.trend ?? [];
     if (t.length < 4) return null;
@@ -245,28 +245,28 @@ function GapTotals({ summary }: { summary: ReturnType<typeof useGapSummary> }) {
         query={summary}
         waiting={<Waiting rows={2} />}
         isEmpty={(d) => !d}
-        empty={<Empty title="Nothing measured yet" body="The totals fill in with the first fetch and the first answer-engine referral." />}
+        empty={<Empty title="No data yet" body="The totals fill in with the first crawler fetch and the first visit from an AI answer." />}
       >
         {(d) => (
           <>
-            {/* The drum above prints one sample per channel. These are the
-                totals for the whole interval, and they say so, because two
+            {/* The chart legend above prints one sample per series. These are
+                the totals for the whole period, and they say so, because two
                 different measurements under one name is a bug. */}
             <p className="mf-wedge__caption">
-              Totals for the whole interval. The readout on the drum above reports a single sample:
-              the one under the cursor, or the last one written.
+              Totals for the whole period. The chart legend above shows a single sample: the one
+              under the cursor, or the latest one.
             </p>
             <Readout
               channels={[
-                { key: "taken", label: "Taken by machines", value: num(d.agent_fetches), note: "agent fetches" },
-                { key: "back", label: "Returned as readers", value: num(d.answer_arrivals), note: "answer-engine arrivals" },
+                { key: "taken", label: "AI crawler fetches", value: num(d.agent_fetches), note: "pages taken" },
+                { key: "back", label: "Visits from AI answers", value: num(d.answer_arrivals), note: "people sent back" },
                 {
                   key: "ratio",
-                  label: "Fetches per arrival",
+                  label: "Fetches per visit",
                   value: gapRatio(d.agent_fetches, d.answer_arrivals),
                   delta: trend,
                   inverse: true,
-                  note: "against the first half of the interval",
+                  note: "vs. the first half of the period",
                 },
                 {
                   key: "pages",
@@ -282,7 +282,7 @@ function GapTotals({ summary }: { summary: ReturnType<typeof useGapSummary> }) {
   );
 }
 
-/* ── the verdict bank ───────────────────────────────────────────────────── */
+/* ── the verdicts ────────────────────────────────────────────────────────── */
 
 function VerdictBank({
   summary,
@@ -297,14 +297,14 @@ function VerdictBank({
   const total = counts ? Object.values(counts).reduce((a: number, b: number) => a + b, 0) : 0;
 
   return (
-    <Panel>
+    <Panel className="mf-panel--bank">
       <PanelHead
-        title="The judgement"
-        note="Every page in the register falls into one of four states. Select one to read only those pages in the sheet below."
+        title="Verdicts"
+        note="Every known page falls into one of four groups. Select one to show only those pages in the table below."
         actions={
           selected ? (
             <Button size="sm" tone="quiet" onClick={() => onSelect(null)}>
-              Read all four again
+              Show all four
             </Button>
           ) : undefined
         }
@@ -315,8 +315,8 @@ function VerdictBank({
         isEmpty={(d) => !d?.verdict_counts}
         empty={
           <Empty
-            title="No page has enough signal to judge"
-            body="A page is judged once either pen has written on it: a machine fetched it, or a reader arrived at it from an answer engine."
+            title="No page has enough data to judge"
+            body="A page is judged once an AI crawler has fetched it or an AI answer has sent a visitor to it."
           />
         }
       >
@@ -348,7 +348,7 @@ function VerdictBank({
   );
 }
 
-/* ── the per-page sheet ─────────────────────────────────────────────────── */
+/* ── the per-page table ─────────────────────────────────────────────────── */
 
 type SortKey = "path" | "taken" | "back" | "humans" | "ratio" | "verdict";
 
@@ -423,18 +423,18 @@ function GapSheet({
           {r.title ? <span className="mf-wedge-stack__sub">{r.title}</span> : null}
         </span>
       ),
-      /* The ink behind the cell is the page's share of the heaviest crawl. */
+      /* The bar behind the cell is the page's share of the most-crawled page. */
       share: (r) => (maxTaken ? r.agent_fetches / maxTaken : undefined),
     },
     {
       key: "taken",
-      head: sort.head("taken", "Taken"),
+      head: sort.head("taken", "Crawler fetches"),
       numeric: true,
       render: (r) => <span className="mf-data">{num(r.agent_fetches)}</span>,
     },
     {
       key: "back",
-      head: sort.head("back", "Returned"),
+      head: sort.head("back", "AI visits"),
       numeric: true,
       render: (r) => (
         <span className={r.answer_arrivals ? "mf-data" : "mf-data mf-dim"}>{num(r.answer_arrivals)}</span>
@@ -442,13 +442,13 @@ function GapSheet({
     },
     {
       key: "humans",
-      head: sort.head("humans", "Read by people"),
+      head: sort.head("humans", "Pageviews"),
       numeric: true,
       render: (r) => <span className="mf-data">{num(r.human_pageviews)}</span>,
     },
     {
       key: "ratio",
-      head: sort.head("ratio", "Fetches per arrival"),
+      head: sort.head("ratio", "Fetches per visit"),
       numeric: true,
       render: (r) => <span className="mf-data">{gapRatio(r.agent_fetches, r.answer_arrivals)}</span>,
     },
@@ -467,13 +467,13 @@ function GapSheet({
         title="Page by page"
         note={
           selected
-            ? `Reading only the pages judged ${selected}.`
-            : "Every judged page, ranked. Any column sorts, and selecting a verdict above reads only those pages. The ink behind each page is its share of the heaviest crawl."
+            ? `Showing only the pages judged ${selected}.`
+            : "Every judged page, ranked. Select a column head to sort, or a verdict above to filter. The bar behind each page shows its crawls against the most-crawled page."
         }
         actions={
           selected ? (
             <Button size="sm" onClick={() => onSelect(null)}>
-              Clear the verdict filter
+              Clear verdict filter
             </Button>
           ) : undefined
         }
@@ -491,17 +491,17 @@ function GapSheet({
         isEmpty={(d) => !d?.length}
         empty={
           <Empty
-            title="No page has been judged in this interval"
-            body="A page appears here once a machine has fetched it or a reader has arrived at it from an answer engine. The page register is built by the crawler job from your sitemap, so a page with no traffic at all still gets a row once that job has run."
+            title="No page judged in this period"
+            body="A page shows here once an AI crawler has fetched it or an AI answer has sent a visitor to it. The crawler job builds the page list from your sitemap, so a page with no traffic at all still gets a row after that job runs."
           />
         }
       >
         {() =>
           rows.length === 0 ? (
             <Empty
-              title={`No page is judged ${selected} in this interval`}
+              title={`No page is judged ${selected} in this period`}
               body="That is a result, not a gap in the data."
-              action={<Button onClick={() => onSelect(null)}>Read all four verdicts</Button>}
+              action={<Button onClick={() => onSelect(null)}>Show all four verdicts</Button>}
             />
           ) : (
             <Sheet rows={rows} columns={columns} getKey={(r) => r.path} />
@@ -540,11 +540,11 @@ function ThePlan({ selected, site }: { selected: GapVerdict | null; site: string
           })}
         </div>
         <p className="mf-wedge__prose">
-          The next question is usually whether a page is losing its readers while the machines keep
-          reading it.
+          The next question is usually whether a page is losing visitors while AI crawlers keep
+          fetching it.
         </p>
-        <Link className="mf-btn mf-btn--key mf-btn--md" to={site ? `/app/${site}/decay` : "/app"}>
-          <span className="mf-btn__label">Open the decay report</span>
+        <Link className="mf-btn mf-btn--key mf-btn--md mf-linkkey" to={site ? `/app/${site}/content-decay` : "/app"}>
+          <span className="mf-btn__label">Open content decay</span>
         </Link>
       </div>
     </Panel>
@@ -561,7 +561,7 @@ export function CitationGapScreen() {
 
   return (
     <div className="mf-wedge">
-      <Bench title="Citation Gap" bench={bench} />
+      <Bench title="Citation gap" bench={bench} />
       <GapRecord summary={summary} />
       <GapTotals summary={summary} />
       <VerdictBank summary={summary} selected={selected} onSelect={setSelected} />

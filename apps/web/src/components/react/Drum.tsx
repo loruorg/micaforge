@@ -1,28 +1,27 @@
 /**
- * The Drum: Micaforge's signature artifact.
+ * The time-series chart used across the dashboard.
  *
- * A continuous-trace recorder writes its channels as parallel ink bands on a
- * ruled paper roll: a fixed time axis, a fiducial notch at each interval
- * boundary, and the operator's annotations written in the margin with a leader
- * line back to the moment they describe. This component is that instrument.
+ * Series are drawn as lines over a fixed time axis with a tick at each calendar
+ * boundary, and notes are written in the right margin with a leader line back
+ * to the moment they describe. The historical name "Drum" (and the "pen" and
+ * "channel" names inside) come from the product's first design; read "pen" as
+ * "series line" and "channel" as "series".
  *
- * Three things here are not decoration and must not be "simplified" away:
+ * Three behaviours here are deliberate and must not be "simplified" away:
  *
- *  1. THE SCRATCH. A stylus through lampblack does not glow; it exposes bright
- *     paper and pushes a ridge of soot to one side. Every trace is therefore
- *     drawn twice: a one-pixel offset ridge in the ground's own colour, then
- *     the bright line over it. That ridge is the house depth treatment and it
- *     is why nothing in this product has a halo.
- *  2. THE MIRROR. In `mirrored` mode the machine pen writes up from the centre
- *     rule and the human pen writes down from it. The asymmetry about that rule
- *     IS the Citation Gap. It is the whole product in one image.
- *  3. THE GAIN. A pen pinned flat against its baseline records nothing at all.
- *     The gain is therefore chosen so the record stays readable, and whatever
- *     that choice costs is PRINTED rather than hidden. See `solveScale`.
+ *  1. TWO LINE STYLES. People are drawn as a smooth line and AI crawlers as a
+ *     stepped line, so the two series differ by shape as well as by colour.
+ *  2. THE MIRROR. In `mirrored` mode the AI series rises from the centre line
+ *     and the people series falls from it. The difference between the two
+ *     sides is the Citation Gap, shown as one picture.
+ *  3. THE SCALE. A series pressed flat against its baseline shows nothing. The
+ *     scale is therefore chosen so every series stays readable, and whatever
+ *     that choice costs (a clipped peak, separate scales) is PRINTED rather
+ *     than hidden. See `solveScale`.
  *
- * Content is never gated on animation: the full trace is in the DOM on first
- * paint. The only motion is the live pen's datum tick, which draws once and
- * holds, and it is disabled under `prefers-reduced-motion` by the stylesheet.
+ * Content is never gated on animation: the full chart is in the DOM on first
+ * paint. The only live motion is the tick at the newest sample, which draws
+ * once and holds, and it is disabled under `prefers-reduced-motion`.
  */
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
@@ -32,14 +31,14 @@ export type PenStyle = "written" | "stepped";
 export interface DrumChannel {
   id: string;
   label: string;
-  /** A CSS colour, normally a var(--mf-trace-*) token. */
+  /** A CSS colour, normally var(--mf-people) or var(--mf-ai). */
   color: string;
   values: (number | null)[];
-  /** `stepped` for machine fetches (discrete jumps), `written` for people. */
+  /** `stepped` for AI crawler fetches (discrete jumps), `written` (smooth) for people. */
   pen?: PenStyle;
   /** Ghost trace for a comparison period; drawn dashed and unfilled. */
   ghost?: boolean;
-  /** Formats the readout in the caliper and the hover rule. */
+  /** Formats the value shown in the legend and under the hover line. */
   format?: (n: number) => string;
 }
 
@@ -99,9 +98,9 @@ export interface DrumProps {
    * its own words, so the reader is not given the same sentence twice.
    */
   gainNote?: boolean;
-  /** Called when the caliper is set, with the inclusive sample indices. */
+  /** Called when the reader drags out a range, with the inclusive sample indices. */
   onMeasure?: (from: number, to: number) => void;
-  /** Shows the live pen head at the newest sample. */
+  /** Marks the newest sample with a dot, for a chart that updates live. */
   live?: boolean;
   formatTime?: (t: number) => string;
   emptyLabel?: string;
@@ -373,8 +372,8 @@ function PenSwatch({ channel }: { channel: DrumChannel }) {
         d={d}
         fill="none"
         stroke={channel.color}
-        strokeWidth={channel.ghost ? 1.1 : 1.7}
-        strokeLinecap="butt"
+        strokeWidth={channel.ghost ? 1.25 : 2}
+        strokeLinecap="round"
         strokeLinejoin="round"
         strokeDasharray={channel.ghost ? "3 3" : undefined}
         opacity={channel.ghost ? 0.55 : 1}
@@ -397,7 +396,7 @@ export function Drum({
   onMeasure,
   live = false,
   formatTime,
-  emptyLabel = "No record yet. The pen has not written since this site started reporting.",
+  emptyLabel = "No data for this period yet.",
   className,
   demo = false,
   write = true,
@@ -814,8 +813,8 @@ export function Drum({
         height={height}
         viewBox={`0 0 ${Math.max(width, 200)} ${height}`}
         role="img"
-        aria-label={`Recorded ${channels.map((c) => c.label).join(" and ")} over ${n} intervals${
-          anyClipped ? ". The gain is clipped; the true peak is stated in the readout." : ""
+        aria-label={`Chart of ${channels.map((c) => c.label).join(" and ")} over ${n} intervals${
+          anyClipped ? ". The scale is clipped; the true peak is given under the chart." : ""
         }`}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -827,7 +826,7 @@ export function Drum({
         style={{ touchAction: "pan-y", cursor: onMeasure && !empty ? "col-resize" : "default" }}
       >
         <defs>
-          {/* The paper's own ruling. Clipped to the plot, never a page grid. */}
+          {/* The plot area. Grid lines and series are clipped to it. */}
           <clipPath id={`clip-${uid}`}>
             <rect x={0} y={0} width={innerW} height={innerH} />
           </clipPath>
@@ -840,12 +839,12 @@ export function Drum({
               x2="0"
               y2={b.dir === -1 ? "0" : "1"}
             >
-              <stop offset="0%" stopColor={b.channel.color} stopOpacity={0.13} />
-              <stop offset="70%" stopColor={b.channel.color} stopOpacity={0.035} />
-              <stop offset="100%" stopColor={b.channel.color} stopOpacity={0.008} />
+              <stop offset="0%" stopColor={b.channel.color} stopOpacity={0.16} />
+              <stop offset="70%" stopColor={b.channel.color} stopOpacity={0.05} />
+              <stop offset="100%" stopColor={b.channel.color} stopOpacity={0.01} />
             </linearGradient>
           ))}
-          {/* The debt hatch: the interval one pen wrote and the other did not. */}
+          {/* The hatch for the difference between the two mirrored series. */}
           <pattern
             id={`hatch-${uid}`}
             width="6"
@@ -858,7 +857,7 @@ export function Drum({
         </defs>
 
         <g transform={`translate(${M.left},${M.top})`}>
-          {/* ── gain rules: the paper's horizontal ruling ─────────────── */}
+          {/* ── horizontal grid lines ────────────────────────────────── */}
           {mode === "stacked"
             ? scaleBands.map((b) =>
                 [0, 0.25, 0.5, 0.75, 1].map((f, k) => (
@@ -909,7 +908,7 @@ export function Drum({
             </text>
           ))}
 
-          {/* ── fiducial notches: the recorder's interval marks ───────── */}
+          {/* ── time axis ticks and labels ───────────────────────────── */}
           {!empty &&
             notches.map(({ i, px, anchor, text }) => (
               <g key={`notch-${i}`}>
@@ -963,7 +962,7 @@ export function Drum({
               />
             )}
 
-            {/* ── the pens ───────────────────────────────────────────── */}
+            {/* ── the series ─────────────────────────────────────────── */}
             {bands.map(({ channel, base, span, dir, ceil }) => {
               const pts: [number, number][] = [];
               const stops: [number, number][] = [];
@@ -985,34 +984,21 @@ export function Drum({
                   {!channel.ghost && mode !== "mirrored" && (
                     <path d={area} fill={`url(#fill-${uid}-${channel.id})`} stroke="none" />
                   )}
-                  {/* the ridge of displaced soot: a real, one-sided shadow */}
-                  {!channel.ghost && (
-                    <path
-                      d={line}
-                      fill="none"
-                      stroke="var(--mf-well)"
-                      strokeWidth={2.6}
-                      strokeLinecap="butt"
-                      strokeLinejoin="round"
-                      transform="translate(0,1.1)"
-                      opacity={0.85}
-                    />
-                  )}
-                  {/* the scratch itself */}
+                  {/* the line itself */}
                   <path
                     d={line}
                     fill="none"
                     stroke={channel.color}
-                    strokeWidth={channel.ghost ? 1.1 : 1.7}
-                    strokeLinecap="butt"
+                    strokeWidth={channel.ghost ? 1.25 : 2}
+                    strokeLinecap="round"
                     strokeLinejoin="round"
                     strokeDasharray={channel.ghost ? "3 3" : undefined}
                     opacity={channel.ghost ? 0.55 : 1}
                   />
-                  {/* Over-range stops. The pen reached the edge of the paper and
-                      was held there, so it leaves a bar against the stop and a
-                      short drag back onto the sheet. The reading itself is
-                      written in the margin, never cropped away in silence. */}
+                  {/* Over-range marks. A sample above the top of the scale is
+                      held on the top line and marked with a short bar and a
+                      tick. Its real value is written in the margin, never
+                      cropped away in silence. */}
                   {stops.map(([sx, sy], k) => (
                     <g key={`${channel.id}-stop-${k}`} opacity={channel.ghost ? 0.55 : 1}>
                       <line
@@ -1036,9 +1022,8 @@ export function Drum({
                       />
                     </g>
                   ))}
-                  {/* The live pen. The tip rests on the paper and the datum tick
-                      it has just written draws once and holds. A recorder's pen
-                      does not breathe, so there is no pulse here. */}
+                  {/* The newest sample of a live chart: a dot and a short tick
+                      that draws once and holds. No pulse. */}
                   {live && !channel.ghost && (
                     <g className="mf-drum__head">
                       <path
@@ -1058,7 +1043,7 @@ export function Drum({
             })}
             </g>
 
-            {/* ── the caliper: two jaws and the interval between them ─── */}
+            {/* ── the dragged range selection ─────────────────────────── */}
             {caliper && (
               <g>
                 <rect
@@ -1084,7 +1069,7 @@ export function Drum({
               </g>
             )}
 
-            {/* ── the read rule under the pointer ─────────────────────── */}
+            {/* ── the hover line under the pointer ────────────────────── */}
             {hover != null && !empty && dragging.current == null && (
               <line
                 x1={x(hover)}
@@ -1099,12 +1084,11 @@ export function Drum({
 
           </g>
 
-          {/* A narrow record has no margin to write in, so a noted moment keeps
-              its mark on the time axis, longer than a fiducial notch and in the
-              note's own tone, even though the words themselves cannot fit.
-              Reduced, not deleted. It sits in the axis gutter beside the
-              fiducial notches, so it is never read as part of a trace, and the
-              over-range notes are left out here because the readout below
+          {/* A narrow chart has no margin to write in, so a noted moment keeps
+              its mark on the time axis, longer than a tick and in the note's
+              own tone, even though the words cannot fit. It sits beside the
+              axis ticks, so it is never read as part of a series, and the
+              over-range notes are left out here because the legend below
               already states every clipped peak in words. */}
           {narrow &&
             !empty &&
@@ -1129,7 +1113,7 @@ export function Drum({
               </line>
             ))}
 
-          {/* ── margin annotations, written beside the record ─────────── */}
+          {/* ── margin notes, written beside the chart ──────────────── */}
           {!narrow &&
             marginNotes.map((a, k) => {
               const px = x(a.at);
@@ -1175,14 +1159,12 @@ export function Drum({
         )}
       </svg>
 
-      {/* Readout. Sits below the record the way a station's digital readout sits
-          under the drum, not floating over the paper as a tooltip. */}
-      {/* A live demonstration record moves every few seconds; announcing each
-          step would drown a screen reader, so its readout is not a live region. */}
+      {/* Legend and values. Sits below the chart rather than floating over it
+          as a tooltip, and shows the hovered sample, or the newest one. */}
+      {/* A live chart moves every few seconds; announcing each step would
+          drown a screen reader, so its legend is not a live region. */}
       <div className="mf-drum__readout" aria-live={advance == null ? "polite" : "off"}>
-        <span className="mf-drum__stamp">
-          {demo ? "Demonstration record, not measured traffic" : "Channel"}
-        </span>
+        {demo && <span className="mf-drum__stamp">Demo data, not real traffic</span>}
         {channels.map((c, ci) => {
           /* A ghost with nothing to compare against is not drawn on the paper,
              so it is not listed here either: an entry for a trace that does not
@@ -1200,9 +1182,9 @@ export function Drum({
           let note: string | null = null;
           if (!c.ghost && sc) {
             if (peak != null && peak > sc.ceil) {
-              note = `full scale ${gainNum(sc.ceil)}, clipped; peak ${write(peak)}`;
+              note = `scale 0–${gainNum(sc.ceil)}, peak ${write(peak)} is off the chart`;
             } else if (perChannel && scaleBands.length > 1) {
-              note = `full scale ${gainNum(sc.ceil)}`;
+              note = `scale 0–${gainNum(sc.ceil)}`;
             }
           }
           return (
@@ -1223,7 +1205,7 @@ export function Drum({
                 <span className="mf-drum__chan-val mf-data">
                   {read ? write(raw as number) : "—"}
                 </span>
-                {!read && <span className="mf-sr">no reading in this interval</span>}
+                {!read && <span className="mf-sr">no value in this interval</span>}
               </span>
               {note && <span className="mf-drum__gain-note mf-data">{note}</span>}
             </span>
@@ -1239,14 +1221,14 @@ export function Drum({
             })}
           </span>
         )}
-        {/* What the space between the two pens does and does not mean. The hatch
-            measures an interval, so it can only be drawn when both pens are on
-            one scale; at separate gains the distance is not a quantity. */}
+        {/* What the space between the two series does and does not mean. The
+            hatch measures a difference, so it can only be drawn when both
+            series share one scale; at separate scales the distance means nothing. */}
         {gainNote && mode === "mirrored" && channels.length >= 2 && !empty && (
           <span className="mf-drum__note">
             {perChannel
-              ? "Separate gains. Each pen has its own full scale, so the distance between them is not a quantity."
-              : "One gain. The hatched area is the interval between the two pens."}
+              ? "Separate scales. Each series has its own scale, so compare the shapes, not the heights."
+              : "Shared scale. The hatched area is the difference between the two series."}
           </span>
         )}
         {caliper && Math.abs(caliper.b - caliper.a) > 0 && (
@@ -1255,7 +1237,7 @@ export function Drum({
             className="mf-drum__clear"
             onClick={() => setCaliper(null)}
           >
-            Release caliper
+            Clear selection
           </button>
         )}
       </div>

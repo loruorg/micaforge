@@ -2,9 +2,9 @@
  * Retention: how many of the people first seen in one interval came back.
  *
  * Two choices, both real: the cohort unit (weekly or monthly), which is asked of
- * the server, and the reading (share or count), which is computed here from the
- * counts already in hand: so switching it costs nothing and the two readings
- * can never disagree with each other.
+ * the server, and the display (share or count), which is computed here from the
+ * counts already in hand: so switching it costs nothing and the two views can
+ * never disagree with each other.
  */
 import { useMemo, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
@@ -75,7 +75,7 @@ export function RetentionScreen() {
 
   return (
     <div className="mfb-stack">
-      <Panel ruled feed>
+      <Panel>
         <PanelHead
           title="Retention"
           note={`Visitors grouped by the ${unitWord} they were first seen${
@@ -102,7 +102,7 @@ export function RetentionScreen() {
                 </button>
               </div>
 
-              <div className="mfb-bank" role="group" aria-label="Reading">
+              <div className="mfb-bank" role="group" aria-label="Show as">
                 <button
                   type="button"
                   className="mfb-bank__key"
@@ -129,7 +129,7 @@ export function RetentionScreen() {
             {
               key: "cohorts",
               label: `${unit === "week" ? "Weekly" : "Monthly"} cohorts`,
-              /* An em dash is "not read yet"; a measured nothing is 0. */
+              /* An em dash is "not loaded yet"; a measured nothing is 0. */
               value: payload ? num(cohorts.length) : "—",
             },
             {
@@ -145,7 +145,7 @@ export function RetentionScreen() {
             },
             {
               key: "last",
-              label: lastIndex > 1 ? `Held at ${unitWord} ${lastIndex}` : "Longest reading",
+              label: lastIndex > 1 ? `Held at ${unitWord} ${lastIndex}` : "Longest period",
               value: lastReturn == null ? "—" : pct(lastReturn, 1),
               note: lastIndex > 1 ? "across cohorts" : undefined,
             },
@@ -154,18 +154,18 @@ export function RetentionScreen() {
 
         {q.isError ? (
           <ErrorState
-            title="The cohorts did not come back"
+            title="Could not load cohorts"
             detail={errorText(q.error)}
             onRetry={() => void q.refetch()}
           />
         ) : q.isPending ? (
           <p className="mfb-note" aria-live="polite">
-            Reading the cohorts…
+            Loading cohorts…
           </p>
         ) : cohorts.length === 0 ? (
           <Empty
-            title="Not enough record to form a cohort"
-            body={`A cohort needs at least one full ${unitWord} of traffic before it can be measured against the ${unitWord} after it. Widen the interval, or come back once this site has been recording longer.`}
+            title="Not enough data to form a cohort"
+            body={`A cohort needs at least one full ${unitWord} of traffic before it can be measured against the ${unitWord} after it. Choose a longer period, or come back once this site has collected more data.`}
           />
         ) : (
           <CohortGrid

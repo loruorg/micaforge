@@ -1,5 +1,5 @@
 /**
- * SHARING: publishing the record.
+ * SHARING: publishing the dashboard.
  *
  * Open-source projects routinely publish their own traffic as a trust signal,
  * so this is a first-class screen rather than a hidden switch. Everything that
@@ -55,8 +55,8 @@ interface ShareState {
 }
 
 const SCOPES: { key: string; label: string; hint: string }[] = [
-  { key: "overview", label: "The record", hint: "Totals, the drum and both traces." },
-  { key: "agents", label: "Agent traffic", hint: "Which machines fetched what, and how often." },
+  { key: "overview", label: "Dashboard", hint: "Totals and the main chart, for people and AI crawlers." },
+  { key: "agents", label: "AI crawlers", hint: "Which crawlers fetched what, and how often." },
   { key: "citation_gap", label: "Citation gap", hint: "What was taken against what came back." },
   { key: "pages", label: "Pages", hint: "Paths, entries, exits and time on page." },
   { key: "sources", label: "Sources", hint: "Channels, referrers and campaigns." },
@@ -334,7 +334,7 @@ export function ShareSettings() {
       <Panel>
         <PanelHead
           title="Embed"
-          note="Drops a share address into a page of your own. The embedded view carries no navigation rail and no account controls."
+          note="Puts a share address into a page of your own. The embedded view has no navigation and no account controls."
         />
         <QueryState query={share}>
           {(s) => {

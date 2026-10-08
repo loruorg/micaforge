@@ -1,5 +1,5 @@
 /**
- * IMPORTS: splicing older paper onto the front of the record.
+ * IMPORTS: adding history from an older analytics tool.
  *
  * Everything is file-based on purpose. A self-hosted Micaforge makes no
  * outbound call at runtime, so there is no "connect your Google account" here
@@ -60,15 +60,15 @@ const CARRIES: { carried: boolean; what: string; detail: string }[] = [
   {
     carried: true,
     what: "Channels and campaigns",
-    detail: "utm values are kept as written and re-resolved by Micaforge's own channel rules, so answer engines appear in history too.",
+    detail: "utm values are kept as written and re-resolved by Micaforge's own channel rules, so AI answer engines appear in the history too.",
   },
   { carried: true, what: "Geography", detail: "Country, region and city wherever the export carries them." },
   { carried: true, what: "Device, browser and system", detail: "Normalised to Micaforge's own names." },
   { carried: true, what: "Custom events and goals", detail: "Plausible and Umami events, matched to goals of the same name." },
   {
     carried: false,
-    what: "Agent traffic",
-    detail: "No source tool records it. Machine history begins the day the log shipper starts, and nothing can recover what was never written down.",
+    what: "AI crawler traffic",
+    detail: "No other tool records it. AI crawler history starts on the day the log shipper starts, and nothing can recover data that was never collected.",
   },
   {
     carried: false,

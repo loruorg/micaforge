@@ -1,20 +1,19 @@
 /**
- * THE BENCH: the settings sub-shell, and the small set of bench controls the
- * eleven settings screens are built from.
+ * The settings sub-layout, and the small set of controls the eleven settings
+ * screens are built from.
  *
  * Two decisions govern everything here:
  *
- *   1. Settings is a SPECIFICATION SHEET, not a form. A recorder ships with a
- *      printed setup card: the name of a setting ruled off against the value it
- *      is set to. That is `Spec` / `SpecRow`, and it is why nothing in this
- *      area is a card, a tile or a grid of boxes.
- *   2. This is a rail inside the content area, never a second app shell. It
- *      carries the section index and nothing else: no logo, no live readout,
- *      no second topbar.
+ *   1. Settings is a list of rows, not a grid of cards: the name of a setting
+ *      on the left, divided by a hairline from its control on the right. That
+ *      is `Spec` / `SpecRow`.
+ *   2. The section list sits inside the content area, never as a second app
+ *      shell. It carries the section index and nothing else: no logo, no live
+ *      counts, no second top bar.
  *
  * The controls live here rather than in a twelfth file because they exist only
- * for this area; the shared bench in components/react/ui.tsx is where anything
- * used beyond settings belongs.
+ * for this area; components/react/ui.tsx is where anything used beyond
+ * settings belongs.
  */
 import type { ReactNode } from "react";
 import { useEffect, useId, useRef, useState } from "react";
@@ -30,7 +29,7 @@ import {
   IconChevron,
   IconClock,
   IconClose,
-  IconPen,
+  IconPartial,
 } from "../../components/react/icons";
 import { ApiError } from "../../lib/api";
 import "../../styles/app/settings.css";
@@ -79,9 +78,6 @@ export function SettingsLayout({
                 end={t.end}
                 className={({ isActive }) => `mf-set-tab${isActive ? " is-live" : ""}`}
               >
-                {/* the registration tick: the fiducial every glyph in this
-                    product carries, used here to mark where you are */}
-                <span className="mf-set-tab__tick" aria-hidden="true" />
                 {t.label}
               </NavLink>
             </li>
@@ -94,7 +90,7 @@ export function SettingsLayout({
   );
 }
 
-/* ── the specification sheet ─────────────────────────────────────────────── */
+/* ── settings rows ───────────────────────────────────────────────────────── */
 
 export function Spec({ children }: { children: ReactNode }) {
   return <div className="mf-set-spec">{children}</div>;
@@ -245,9 +241,9 @@ export function Select({
 }
 
 /**
- * The two-position key. State reads by the lever's POSITION first and its fill
- * second, and the word beside it says which way it is thrown, so the setting is
- * legible with no colour at all.
+ * An on/off switch. State reads by the thumb's POSITION first and the fill
+ * second, and the word beside it says On or Off, so the setting is legible
+ * with no colour at all.
  */
 export function Toggle({
   checked,
@@ -324,7 +320,7 @@ export type StateName = "done" | "failed" | "running" | "waiting";
 /** Each state has its own drawn glyph as well as its tone. No box behind it. */
 export function Status({ state, label }: { state: StateName; label: string }) {
   const Glyph =
-    state === "done" ? IconCheck : state === "failed" ? IconClose : state === "running" ? IconPen : IconClock;
+    state === "done" ? IconCheck : state === "failed" ? IconClose : state === "running" ? IconPartial : IconClock;
   return (
     <span className="mf-set-status" data-state={state}>
       <Glyph size={12} />
@@ -346,7 +342,7 @@ export function Note({ children }: { children: ReactNode }) {
   return <p className="mf-set-note">{children}</p>;
 }
 
-/** The pen advancing across paper: a ruled track, ink behind, the pen at the edge. */
+/** A progress bar: a light track with the done part filled. */
 export function Gauge({
   value,
   label,
@@ -354,7 +350,7 @@ export function Gauge({
 }: {
   value: number;
   label: string;
-  /** Sized to sit beside a word in a tabulation row rather than fill a panel. */
+  /** Sized to sit beside a word in a table row rather than fill a panel. */
   inline?: boolean;
 }) {
   const v = Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
@@ -395,11 +391,11 @@ export function errText(e: unknown): string {
   return "Something failed and the server did not say what. Try again.";
 }
 
-/** The ruled skeleton a specification sheet waits as. */
+/** The placeholder rows a settings list shows while it loads. */
 export function Waiting({ rows = 3 }: { rows?: number }) {
   return (
     <div className="mf-set-spec" aria-busy="true" aria-live="polite">
-      <span className="mf-sr">Reading the current setup…</span>
+      <span className="mf-sr">Loading settings…</span>
       {Array.from({ length: rows }).map((_, i) => (
         <div className="mf-set-spec__row" key={i}>
           <div className="mf-set-spec__label">
@@ -435,7 +431,7 @@ export function QueryState<T>({
   if (query.isError)
     return (
       <ErrorState
-        title="That setting did not come back"
+        title="Could not load these settings"
         detail={errText(query.error)}
         onRetry={() => void query.refetch()}
       />
@@ -480,8 +476,8 @@ export function Result({
 
 /**
  * The same line, in its own action row, and no row at all while there is
- * nothing to say. An empty ruled strip under a panel is a visible band of
- * nothing, which is worse than no strip.
+ * nothing to say. An empty strip under a panel is a visible band of nothing,
+ * which is worse than no strip.
  */
 export function ResultFoot({
   action,
@@ -532,11 +528,11 @@ export function useSyncedForm<T>(server: T | undefined) {
   };
 }
 
-/* ── signing the record ──────────────────────────────────────────────────── */
+/* ── typed confirmation ──────────────────────────────────────────────────── */
 
 /**
- * A destructive action is confirmed by transcribing the exact thing it will
- * destroy. No "are you sure" dialog: you sign the record.
+ * A destructive action is confirmed by typing the exact name of the thing it
+ * will destroy. No "are you sure" dialog.
  */
 export function TypedConfirm({
   phrase,

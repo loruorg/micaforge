@@ -1,23 +1,22 @@
 /**
- * THE QUERY CONSOLE.
+ * THE QUERY SCREEN.
  *
- * The bench is where an operator builds their own instruments, and the console is
- * the patch bay: you patch a shape, a metric, a dimension and a set of conditions
- * into one read, and the request that will actually go over the wire is written out
- * beside it on the tape before anything is sent. Nothing here writes to the site.
+ * You choose a shape, a metric, a dimension and a set of conditions, and the
+ * request that will actually be sent is shown beside the builder before
+ * anything runs. Queries only read; nothing here writes to the site.
  *
- * This file also holds the BENCH VOCABULARY: the field controls, the condition
- * builder, the reading states and the query-key helper, because the console is
- * where the query language lives and the rest of the bench (sheets, flags,
+ * This file also holds the SHARED QUERY PARTS: the field controls, the
+ * condition builder, the loading states and the query-key helper, because the
+ * query language lives here and the rest of the workspace (dashboards, flags,
  * experiments) borrows the same parts rather than growing a parallel set.
  *
  * Two things are deliberate and should not be "tidied":
  *
- *  1. THE BUILDER DOES NOT AUTO-RUN. A console runs when you tell it to, so the
- *     screen says plainly when the builder has drifted from the last reading.
+ *  1. THE BUILDER DOES NOT AUTO-RUN. A query runs when you tell it to, so the
+ *     screen says plainly when the builder has changed since the last run.
  *     Cmd/Ctrl+Enter runs it from anywhere on the screen.
- *  2. THE REQUEST IS SHOWN, NOT DESCRIBED. The URL on the tape is built by the
- *     same serialiser the client uses, so it can never drift from what is sent.
+ *  2. THE REQUEST IS SHOWN, NOT DESCRIBED. The URL is built by the same
+ *     serialiser the client uses, so it can never drift from what is sent.
  */
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import type { InputHTMLAttributes, ReactNode } from "react";
@@ -156,9 +155,9 @@ export const DIMENSIONS: { group: string; items: { v: string; label: string }[] 
     ],
   },
   {
-    group: "Machines",
+    group: "AI crawlers",
     items: [
-      { v: "agent_id", label: "Agent" },
+      { v: "agent_id", label: "Crawler" },
       { v: "operator", label: "Operator" },
       { v: "purpose", label: "Declared purpose" },
       { v: "verified", label: "Verified" },
@@ -169,7 +168,7 @@ export const DIMENSIONS: { group: string; items: { v: string; label: string }[] 
   },
 ];
 
-/** Flat lookup for labelling a dimension anywhere on the bench. */
+/** Flat lookup for labelling a dimension anywhere in the workspace. */
 export function dimensionLabel(v: string): string {
   if (v.startsWith("props.")) return `Property: ${v.slice(6)}`;
   if (v.startsWith("flag.")) return `Flag: ${v.slice(5)}`;
@@ -222,24 +221,24 @@ export function statsKey(
   ];
 }
 
-/* ═══ reading states ══════════════════════════════════════════════════════ */
+/* ═══ loading states ══════════════════════════════════════════════════════ */
 
-/** An error the operator can act on: what failed, and what to do about it. */
+/** An error the user can act on: what failed, and what to do about it. */
 export function errText(e: unknown): string {
   if (e instanceof ApiError) {
     if (e.code === "network")
       return "Could not reach the Micaforge server. Check that it is running and that PUBLIC_API_URL points at it.";
     if (e.status === 401 || e.status === 403)
       return "This account cannot read that. Ask an organisation owner for access to the site.";
-    if (e.status === 404) return "That record no longer exists. It may have been deleted.";
+    if (e.status === 404) return "That item no longer exists. It may have been deleted.";
     return e.message;
   }
   if (e instanceof Error) return e.message;
   return "The server returned something this screen could not read.";
 }
 
-/** Ruled bars standing in for rows that have not arrived. Never a spinner. */
-export function WaitStrip({ lines = 4, label = "Reading the record…" }: { lines?: number; label?: string }) {
+/** Grey bars stand in for rows while they load. Never a spinner. */
+export function WaitStrip({ lines = 4, label = "Loading…" }: { lines?: number; label?: string }) {
   return (
     <div className="mf-bn-wait" aria-busy="true" aria-live="polite">
       <span className="mf-sr">{label}</span>
@@ -251,8 +250,8 @@ export function WaitStrip({ lines = 4, label = "Reading the record…" }: { line
 }
 
 /**
- * Every panel body on the bench goes through this, so no screen can ship with
- * only its happy path wired.
+ * Every panel body in the workspace goes through this, so no screen can ship
+ * with only its happy path wired.
  */
 export function Reading({
   loading,
@@ -441,8 +440,8 @@ export function TextArea({
 }
 
 /**
- * A bank of keys on one shared border: the same construction as the caliper's
- * jaws, so the bench and the record read as one instrument.
+ * A segmented control: one group of keys, with the selected key raised, the
+ * same look as the audience switch.
  */
 export function KeyBank<T extends string>({
   label,
@@ -474,7 +473,7 @@ export function KeyBank<T extends string>({
   );
 }
 
-/** A two-position throw. Not a sliding pill, and never a sun beside a moon. */
+/** An on/off control: two keys side by side, the selected one filled. */
 export function Throw({
   label,
   on,
@@ -520,7 +519,7 @@ export function FilterBuilder({
   value,
   onChange,
   addLabel = "Add condition",
-  emptyNote = "No conditions. The read covers everything in the interval.",
+  emptyNote = "No conditions. The query covers everything in the selected period.",
 }: {
   value: Filter[];
   onChange: (next: Filter[]) => void;
@@ -633,7 +632,7 @@ export function toCsv(headers: string[], rows: (string | number | null | undefin
 }
 
 /**
- * The console exports exactly the rows on screen, built in the browser from the
+ * The export holds exactly the rows on screen, built in the browser from the
  * response already in hand, so the file can never disagree with the table above it.
  */
 export function downloadCsv(filename: string, csv: string): void {
@@ -647,7 +646,7 @@ export function downloadCsv(filename: string, csv: string): void {
   window.setTimeout(() => URL.revokeObjectURL(url), 4000);
 }
 
-/* ═══ the console ═════════════════════════════════════════════════════════ */
+/* ═══ the query screen ════════════════════════════════════════════════════ */
 
 type Shape = "totals" | "series" | "breakdown";
 
@@ -656,13 +655,13 @@ const SHAPES: { v: Shape; label: string; endpoint: string; note: string }[] = [
     v: "totals",
     label: "Totals",
     endpoint: "/api/stats/overview",
-    note: "One set of figures for the whole interval.",
+    note: "One set of figures for the whole period.",
   },
   {
     v: "series",
     label: "Series",
     endpoint: "/api/stats/timeseries",
-    note: "One metric, bucketed over time and written on the drum.",
+    note: "One metric over time, drawn as a chart.",
   },
   {
     v: "breakdown",
@@ -774,8 +773,8 @@ export function QueryScreen() {
 
   const [ran, setRan] = useState<RanRequest | null>(null);
 
-  // One reading on arrival, so the console is never a dead screen. After that it
-  // runs only when asked.
+  // One run on arrival, so the screen is never empty. After that it runs only
+  // when asked.
   useEffect(() => {
     if (siteId != null && !ran) setRan(built);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -841,8 +840,8 @@ export function QueryScreen() {
     <div className="mf-bn-page">
       <Panel className="mf-bn-console">
         <PanelHead
-          title="Query console"
-          note="Build a read against the same envelope every screen uses. Nothing here writes to the site."
+          title="Query"
+          note="Build a query with the same parameters every screen uses. Queries only read data; nothing here changes the site."
           actions={
             <>
               <RangePicker value={range} onChange={setRange} />
@@ -887,7 +886,7 @@ export function QueryScreen() {
                   />
                   <Field
                     label="Time grain"
-                    hint="Left automatic, the server picks a grain that fits the interval."
+                    hint="On Automatic, the server picks a grain that fits the period."
                     control={(id) => (
                       <Select id={id} value={b.grain} onChange={(v) => patch({ grain: v as Granularity | "" })}>
                         <option value="">Automatic</option>
@@ -955,8 +954,8 @@ export function QueryScreen() {
                   control={(id) => (
                     <Select id={id} value={b.compare} onChange={(v) => patch({ compare: v as Compare })}>
                       <option value="none">Nothing</option>
-                      <option value="previous">The interval before</option>
-                      <option value="year">The same interval last year</option>
+                      <option value="previous">The previous period</option>
+                      <option value="year">The same period last year</option>
                     </Select>
                   )}
                 />
@@ -1032,7 +1031,7 @@ export function QueryScreen() {
 
             <div className="mf-bn-build__act">
               <Button tone="primary" onClick={run}>
-                Run the read
+                Run query
               </Button>
               <span className="mf-bn-kbd">
                 <kbd className="mf-data">{mod}</kbd>
@@ -1053,13 +1052,13 @@ export function QueryScreen() {
               ) : null}
               {dirty ? (
                 <span className="mf-bn-dirty" role="status">
-                  The builder has changed since the last reading.
+                  The query has changed since the last run.
                 </span>
               ) : null}
             </div>
           </section>
 
-          {/* ── the tape ─────────────────────────────────────────────────── */}
+          {/* ── the request ──────────────────────────────────────────────── */}
           <section className="mf-bn-tape" aria-label="Generated request">
             <h3 className="mf-bn-tape__title">The request</h3>
             {siteId == null ? (
@@ -1173,8 +1172,8 @@ export function QueryScreen() {
           title="Result"
           note={
             ran
-              ? `${SHAPES.find((s) => s.v === ran.shape)?.label} · ${ran.env.audience === "agent" ? "machines" : ran.env.audience === "all" ? "readers and machines" : "readers"} · ${range}`
-              : "Nothing read yet."
+              ? `${SHAPES.find((s) => s.v === ran.shape)?.label} · ${ran.env.audience === "agent" ? "AI crawlers" : ran.env.audience === "all" ? "people and AI crawlers" : "people"} · ${range}`
+              : "No query run yet."
           }
           actions={
             <ExportKey ran={ran} data={q.data?.data} builder={b} />
@@ -1189,9 +1188,9 @@ export function QueryScreen() {
             lines={6}
             empty={
               <Empty
-                title="Nothing came back for that read"
-                body="The interval, the audience or a condition may be excluding everything. Widen the interval or remove a condition, then run it again."
-                action={<Button onClick={run}>Run the read</Button>}
+                title="No results for this query"
+                body="The period, the audience or a condition may exclude everything. Choose a longer period or remove a condition, then run it again."
+                action={<Button onClick={run}>Run query</Button>}
               />
             }
           >
@@ -1260,7 +1259,7 @@ function ResultView({ ran, data, builder }: { ran: RanRequest; data: unknown; bu
             ? [
                 {
                   id: "before",
-                  label: ran.env.compare === "year" ? "Last year" : "Interval before",
+                  label: ran.env.compare === "year" ? "Last year" : "Previous period",
                   color: "var(--mf-ink-3)",
                   pen: (aud === "agent" ? "stepped" : "written") as "stepped" | "written",
                   ghost: true,

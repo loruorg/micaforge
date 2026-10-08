@@ -1,21 +1,19 @@
 /* ============================================================================
-   THE BENCH: sheets, the query console, feature flags, experiments.
+   THE WORKSPACE: dashboards, the query screen, feature flags, experiments.
 
-   The bench is where an operator builds their own instruments, so everything
-   here is drawn from the same three parts the rest of the station is made of:
-   a sheet of the recorder's paper, a bank of keys on one shared border, and a
-   ruled track with something measured on it.
+   These screens let a user build their own reports, so they reuse the same
+   parts as the rest of the dashboard: white panels, segmented controls, form
+   fields, and a track with something measured on it.
 
    Rules this file keeps, without exception:
      · colour, spacing, radius and duration come from var(--mf-*) and nothing
        else. The only bare numbers are 1px hairlines and the 7px/4px control
        padding, both of which global.css already established so a field lines up
-       with a key to the pixel.
-     · depth is the scratch ridge (--mf-shadow-xs, --mf-shadow-lg, --mf-inset). No glow,
-       no halo, no bloom.
+       with a button to the pixel.
+     · depth is a soft shadow (--mf-shadow-xs, --mf-shadow-lg). No glow, no
+       halo, no bloom.
      · hover changes tone and fill. Nothing rises, grows or bounces.
-     · ruling lives inside a panel, clipped to it, and appears on the paste-up
-       board only while a card is actually being moved.
+     · column guides appear on a dashboard only while a card is being moved.
    ========================================================================= */
 
 /* ── page rhythm ─────────────────────────────────────────────────────────── */
@@ -43,7 +41,7 @@
   border-color: var(--mf-ink-3);
 }
 
-/* Bars of paper standing in for rows that have not arrived. Never a spinner. */
+/* Grey bars stand in for rows while they load. Never a spinner. */
 .mf-bn-wait {
   display: flex;
   flex-direction: column;
@@ -88,16 +86,16 @@
   padding: 7px var(--mf-3);
   color: var(--mf-ink);
   background: var(--mf-well);
-  border: 1px solid var(--mf-rule);
+  border: 1px solid var(--mf-rule-strong);
   border-radius: var(--mf-r-sm);
-  box-shadow: var(--mf-inset);
+  box-shadow: var(--mf-shadow-xs);
   transition: border-color var(--mf-dur-1) linear, background-color var(--mf-dur-1) linear;
 }
 .mf-bn-input::placeholder {
   color: var(--mf-ink-3);
 }
 .mf-bn-input:hover {
-  border-color: var(--mf-rule-strong);
+  border-color: var(--mf-ink-3);
 }
 .mf-bn-input[aria-invalid="true"] {
   border-color: var(--mf-danger);
@@ -123,14 +121,14 @@
   padding: 7px calc(var(--mf-6) + var(--mf-1)) 7px var(--mf-3);
   color: var(--mf-ink);
   background: var(--mf-well);
-  border: 1px solid var(--mf-rule);
+  border: 1px solid var(--mf-rule-strong);
   border-radius: var(--mf-r-sm);
-  box-shadow: var(--mf-inset);
+  box-shadow: var(--mf-shadow-xs);
   cursor: pointer;
   transition: border-color var(--mf-dur-1) linear;
 }
 .mf-bn-select__el:hover {
-  border-color: var(--mf-rule-strong);
+  border-color: var(--mf-ink-3);
 }
 .mf-bn-select__el:disabled {
   opacity: 0.42;
@@ -163,76 +161,50 @@
   color: var(--mf-ink-3);
 }
 
-/* A bank of keys on one shared border: the caliper's construction, reused so
-   the bench and the record read as the same instrument. */
-.mf-bn-bank {
+/* A segmented control: a grey track with the selected key raised in white,
+   the same look as the audience switch. It wraps rather than clips, so no
+   focus ring is ever cut. */
+.mf-bn-bank,
+.mf-bn-throw {
   display: inline-flex;
   flex-wrap: wrap;
-  border: 1px solid var(--mf-rule);
-  border-radius: var(--mf-r-sm);
-  overflow: hidden;
+  gap: 2px;
+  padding: 2px;
   width: fit-content;
   max-width: 100%;
+  background: var(--mf-ground-3);
+  border: 1px solid var(--mf-rule);
+  border-radius: var(--mf-r-sm);
 }
-.mf-bn-bank__key {
-  padding: 6px var(--mf-3);
+.mf-bn-bank__key,
+.mf-bn-throw__pos {
+  padding: 4px var(--mf-3);
   font: inherit;
   font-size: var(--mf-t-xs);
-  color: var(--mf-ink-3);
-  background: var(--mf-ground);
+  line-height: 1.4;
+  color: var(--mf-ink-2);
+  background: none;
   border: 0;
-  border-left: 1px solid var(--mf-rule);
+  border-radius: 4px;
   cursor: pointer;
   white-space: nowrap;
   transition: color var(--mf-dur-1) linear, background-color var(--mf-dur-1) linear;
 }
-.mf-bn-bank__key:first-child {
-  border-left: 0;
-}
-.mf-bn-bank__key:hover {
-  color: var(--mf-ink-2);
-  background: var(--mf-ground-2);
-}
-.mf-bn-bank__key[aria-pressed="true"] {
-  background: var(--mf-ground-3);
-  color: var(--mf-ink);
-  box-shadow: inset 0 1px 0 var(--mf-lip);
-}
-
-/* A two-position throw. The thrown side takes the shellac; the other stays
-   bare, so the state reads from fill as well as from its label. */
-.mf-bn-throw {
-  display: inline-flex;
-  border: 1px solid var(--mf-rule);
-  border-radius: var(--mf-r-sm);
-  overflow: hidden;
-  width: fit-content;
-}
-.mf-bn-throw__pos {
-  padding: 5px var(--mf-3);
-  font: inherit;
-  font-size: var(--mf-t-xs);
-  color: var(--mf-ink-3);
-  background: var(--mf-ground);
-  border: 0;
-  border-left: 1px solid var(--mf-rule);
-  cursor: pointer;
-  transition: color var(--mf-dur-1) linear, background-color var(--mf-dur-1) linear;
-}
-.mf-bn-throw__pos:first-child {
-  border-left: 0;
-}
+.mf-bn-bank__key:hover,
 .mf-bn-throw__pos:hover {
-  color: var(--mf-ink-2);
-}
-.mf-bn-throw__pos[aria-pressed="true"] {
-  background: var(--mf-ground-3);
   color: var(--mf-ink);
-  box-shadow: inset 0 1px 0 var(--mf-lip);
 }
+.mf-bn-bank__key[aria-pressed="true"],
+.mf-bn-throw__pos[aria-pressed="true"] {
+  background: var(--mf-ground-2);
+  color: var(--mf-ink-strong);
+  box-shadow: var(--mf-shadow-xs);
+}
+/* An on/off control. "On" takes the success colour when it is selected, so
+   the state reads from fill as well as from its label. */
 .mf-bn-throw__pos:last-child[aria-pressed="true"] {
-  background: var(--mf-accent);
-  color: var(--mf-ground);
+  background: var(--mf-success);
+  color: var(--mf-ground-2);
 }
 
 .mf-bn-checks {
@@ -250,7 +222,7 @@
 }
 .mf-bn-check input,
 .mf-bn-vars__base input {
-  accent-color: var(--mf-accent);
+  accent-color: var(--mf-blue);
   margin: 0;
 }
 
@@ -302,10 +274,11 @@
   color: var(--mf-ink-3);
 }
 
-/* ── the console ─────────────────────────────────────────────────────────── */
+/* ── the query screen ────────────────────────────────────────────────────── */
 
-/* The tape carries its own surface to the panel's edge, so the panel clips it
-   back to its own corner rather than letting a square well overhang a radius. */
+/* The request pane carries its own edge to the panel's edge, so the panel
+   clips it back to its own corner rather than letting a square box overhang a
+   radius. */
 .mf-bn-console,
 .mf-bn-editor,
 .mf-bn-res {
@@ -364,41 +337,21 @@
 
 .mf-bn-dirty {
   font-size: var(--mf-t-xs);
-  color: var(--mf-accent);
+  color: var(--mf-accent-ink);
 }
 
-/* The tape: the request as it will actually be sent, on its own sunken strip
-   with the pin feed down its edge. */
+/* The request pane: the request exactly as it will be sent. */
 .mf-bn-tape {
   display: flex;
   flex-direction: column;
   gap: var(--mf-3);
-  padding: var(--mf-5) var(--mf-5) var(--mf-5) calc(var(--mf-feed-gutter) + var(--mf-5));
+  padding: var(--mf-5);
   min-width: 0;
   background: var(--mf-ground);
   border-left: 1px solid var(--mf-rule);
-  position: relative;
-}
-.mf-bn-tape::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: var(--mf-feed-gutter);
-  border-right: 1px dashed var(--mf-rule);
-  background-image: radial-gradient(
-    circle at center,
-    var(--mf-well) 0 calc(var(--mf-feed-hole) / 2),
-    transparent calc(var(--mf-feed-hole) / 2 + 0.5px)
-  );
-  background-size: var(--mf-feed-gutter) var(--mf-feed-pitch);
-  background-position: center calc(var(--mf-feed-pitch) / 2);
-  background-repeat: repeat-y;
-  pointer-events: none;
 }
 .mf-bn-tape__title {
-  font-size: var(--mf-t-md);
+  font-size: var(--mf-t-base);
   font-weight: 600;
   color: var(--mf-ink);
 }
@@ -412,18 +365,19 @@
   word-break: break-all;
 }
 .mf-bn-tape__verb {
-  color: var(--mf-accent);
+  color: var(--mf-success);
+  font-weight: 600;
   margin-right: var(--mf-2);
 }
 .mf-bn-tape__body {
   margin: 0;
+  font-family: var(--mf-font-data);
   font-size: var(--mf-t-xs);
   line-height: var(--mf-lead-snug);
   color: var(--mf-ink-2);
-  background: var(--mf-well);
+  background: var(--mf-well-2);
   border: 1px solid var(--mf-rule);
   border-radius: var(--mf-r-sm);
-  box-shadow: var(--mf-inset);
   padding: var(--mf-3);
   overflow-x: auto;
   white-space: pre;
@@ -439,12 +393,12 @@
 .mf-bn-tape__url code {
   flex: 1;
   min-width: 0;
+  font-family: var(--mf-font-data);
   font-size: var(--mf-t-xs);
-  color: var(--mf-ink-3);
-  background: var(--mf-well);
+  color: var(--mf-ink-2);
+  background: var(--mf-well-2);
   border: 1px solid var(--mf-rule);
   border-radius: var(--mf-r-sm);
-  box-shadow: var(--mf-inset);
   padding: 6px var(--mf-2);
   line-height: var(--mf-lead-snug);
   word-break: break-all;
@@ -535,7 +489,7 @@
   transition: color var(--mf-dur-1) linear;
 }
 .mf-bn-saved__load:hover {
-  color: var(--mf-accent);
+  color: var(--mf-blue-ink);
 }
 .mf-bn-saved__desc {
   font-size: var(--mf-t-xs);
@@ -564,7 +518,6 @@
   padding: var(--mf-4) var(--mf-5);
   background: var(--mf-ground);
   border-top: 1px solid var(--mf-rule);
-  box-shadow: var(--mf-inset);
 }
 .mf-bn-compose__label {
   font-size: var(--mf-t-sm);
@@ -599,10 +552,9 @@
   display: block;
   width: calc(var(--mf-20) + var(--mf-4));
   padding: var(--mf-2);
-  background: var(--mf-well);
+  background: var(--mf-well-2);
   border: 1px solid var(--mf-rule);
   border-radius: var(--mf-r-sm);
-  box-shadow: var(--mf-inset);
 }
 .mf-bn-plan {
   display: block;
@@ -617,13 +569,13 @@
 .mf-bn-index__name {
   font-family: var(--mf-font-display);
   font-size: var(--mf-t-md);
-  font-weight: 500;
+  font-weight: 600;
   color: var(--mf-ink);
   text-decoration: none;
   transition: color var(--mf-dur-1) linear;
 }
 .mf-bn-index__name:hover {
-  color: var(--mf-accent);
+  color: var(--mf-blue-ink);
 }
 .mf-bn-index__meta,
 .mf-bn-index__cards {
@@ -655,28 +607,27 @@
   color: var(--mf-danger);
 }
 
-/* ── the paste-up sheet ──────────────────────────────────────────────────── */
+/* ── the dashboard board ─────────────────────────────────────────────────── */
 
-.mf-bn-sheet {
+.mf-bn-board {
   --mf-bn-row: var(--mf-24);
-  padding-right: var(--mf-5);
-  padding-bottom: var(--mf-5);
+  padding: 0 var(--mf-5) var(--mf-5);
   background: var(--mf-ground);
 }
 
-.mf-bn-sheet__head {
+.mf-bn-board__head {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
   gap: var(--mf-4);
   padding: var(--mf-5) 0 var(--mf-4);
 }
-.mf-bn-sheet__ident {
+.mf-bn-board__ident {
   min-width: 0;
   flex: 1 1 18rem;
 }
-/* The sheet names itself in the display face, edited where it stands. */
-.mf-bn-sheet__name {
+/* The dashboard name, edited in place in the display face. */
+.mf-bn-board__name {
   width: 100%;
   font-family: var(--mf-font-display);
   font-size: var(--mf-t-xl);
@@ -691,25 +642,25 @@
   text-overflow: ellipsis;
   transition: border-color var(--mf-dur-1) linear;
 }
-.mf-bn-sheet__name::placeholder {
+.mf-bn-board__name::placeholder {
   color: var(--mf-ink-3);
 }
-.mf-bn-sheet__name:hover,
-.mf-bn-sheet__name:focus {
+.mf-bn-board__name:hover,
+.mf-bn-board__name:focus {
   border-bottom-color: var(--mf-rule-strong);
 }
-.mf-bn-sheet__state {
+.mf-bn-board__state {
   margin-top: var(--mf-2);
   font-size: var(--mf-t-xs);
   color: var(--mf-ink-3);
 }
-.mf-bn-sheet__act {
+.mf-bn-board__act {
   display: flex;
   flex-wrap: wrap;
   gap: var(--mf-2);
   margin-left: auto;
 }
-.mf-bn-sheet__narrow {
+.mf-bn-board__narrow {
   margin-top: var(--mf-4);
   font-size: var(--mf-t-xs);
   color: var(--mf-ink-3);
@@ -722,9 +673,9 @@
   padding: var(--mf-5);
   margin-bottom: var(--mf-5);
   background: var(--mf-ground-2);
-  border: 1px solid var(--mf-rule-strong);
+  border: 1px solid var(--mf-rule);
   border-radius: var(--mf-r-md);
-  box-shadow: inset 0 1px 0 var(--mf-lip);
+  box-shadow: var(--mf-shadow-xs);
 }
 .mf-bn-composer__title {
   font-size: var(--mf-t-md);
@@ -743,8 +694,8 @@
   min-height: var(--mf-bn-row);
 }
 
-/* Placement ruling, drawn only while a card is genuinely being moved, clipped
-   to the board. There is no page-wide grid anywhere in this product. */
+/* Column guides, drawn only while a card is being moved, clipped to the
+   board. */
 .mf-bn-grid::before {
   content: "";
   position: absolute;
@@ -771,45 +722,17 @@
   pointer-events: none;
 }
 
-/* The drop target: four registration marks, the way a paste-up board is
-   cornered. Not a filled ghost box. */
+/* The drop target: a dashed outline where the card will land. */
 .mf-bn-slot {
   position: relative;
   z-index: 1;
   pointer-events: none;
-}
-.mf-bn-slot span {
-  position: absolute;
-  width: var(--mf-4);
-  height: var(--mf-4);
-  border: 0 solid var(--mf-accent);
-}
-.mf-bn-slot span:nth-child(1) {
-  top: 0;
-  left: 0;
-  border-top-width: 1px;
-  border-left-width: 1px;
-}
-.mf-bn-slot span:nth-child(2) {
-  top: 0;
-  right: 0;
-  border-top-width: 1px;
-  border-right-width: 1px;
-}
-.mf-bn-slot span:nth-child(3) {
-  bottom: 0;
-  left: 0;
-  border-bottom-width: 1px;
-  border-left-width: 1px;
-}
-.mf-bn-slot span:nth-child(4) {
-  bottom: 0;
-  right: 0;
-  border-bottom-width: 1px;
-  border-right-width: 1px;
+  background: var(--mf-blue-wash);
+  border: 1px dashed var(--mf-blue);
+  border-radius: var(--mf-r-md);
 }
 
-/* ── a pasted card ───────────────────────────────────────────────────────── */
+/* ── a card ──────────────────────────────────────────────────────────────── */
 
 .mf-bn-card {
   position: relative;
@@ -821,12 +744,12 @@
   background: var(--mf-ground-2);
   border: 1px solid var(--mf-rule);
   border-radius: var(--mf-r-md);
-  box-shadow: inset 0 1px 0 var(--mf-lip), var(--mf-shadow-xs);
+  box-shadow: var(--mf-shadow-xs);
 }
 .mf-bn-card.is-dragging {
   z-index: 4;
-  box-shadow: inset 0 1px 0 var(--mf-lip), var(--mf-shadow-lg);
-  border-color: var(--mf-accent-dim);
+  box-shadow: var(--mf-shadow-lg);
+  border-color: var(--mf-blue);
 }
 
 .mf-bn-card__head {
@@ -855,7 +778,7 @@
   flex: none;
 }
 
-/* The grip is the sheet's own sprocket feed, cut down to handle size. */
+/* The drag handle: the usual two columns of dots. */
 .mf-bn-card__grip {
   flex: none;
   display: inline-flex;
@@ -880,16 +803,12 @@
   opacity: 0.42;
   cursor: default;
 }
-.mf-bn-card__perf {
+.mf-bn-card__dots {
   display: block;
-  width: calc(var(--mf-feed-pitch) / 2);
-  height: calc(var(--mf-feed-pitch) * 0.75);
-  background-image: radial-gradient(
-    circle at center,
-    var(--mf-ink-3) 0 calc(var(--mf-feed-hole) / 2.6),
-    transparent calc(var(--mf-feed-hole) / 2.6 + 0.5px)
-  );
-  background-size: calc(var(--mf-feed-pitch) / 4) calc(var(--mf-feed-pitch) / 4);
+  width: var(--mf-2);
+  height: var(--mf-3);
+  background-image: radial-gradient(circle at center, var(--mf-ink-3) 0 1px, transparent 1.5px);
+  background-size: var(--mf-1) var(--mf-1);
 }
 
 .mf-bn-card__body {
@@ -909,7 +828,7 @@
   border-bottom: 0;
 }
 /* The page readout reserves fixed label and footnote rows so a strip of many
-   channels cannot go ragged. One channel in a card needs neither, and the
+   metrics cannot go ragged. One metric in a card needs neither, and the
    reserved height is exactly what pushed the figure past the card's edge. */
 .mf-bn-card__body .mf-readout__chan {
   grid-template-rows: auto auto auto;
@@ -969,7 +888,7 @@
 }
 .mf-bn-card__scale:hover span {
   opacity: 1;
-  border-color: var(--mf-accent);
+  border-color: var(--mf-ink-2);
 }
 
 /* ── the distribution band ───────────────────────────────────────────────── */
@@ -985,8 +904,7 @@
   height: var(--mf-3);
   border-radius: var(--mf-r-sm);
   overflow: hidden;
-  background: var(--mf-well);
-  box-shadow: var(--mf-inset);
+  background: var(--mf-ground-3);
 }
 .mf-bn-dist__seg {
   display: block;
@@ -1069,7 +987,7 @@
 }
 .mf-bn-flags__row.is-open {
   background: var(--mf-ground);
-  box-shadow: var(--mf-inset);
+  box-shadow: inset 2px 0 0 var(--mf-ink-strong);
 }
 .mf-bn-flags__ident {
   min-width: 0;
@@ -1117,10 +1035,9 @@
   display: block;
   height: var(--mf-3);
   min-width: 0;
-  background: var(--mf-well);
+  background: var(--mf-ground-3);
   border: 1px solid var(--mf-rule);
   border-radius: var(--mf-r-sm);
-  box-shadow: var(--mf-inset);
   overflow: hidden;
 }
 .mf-bn-band__in {
@@ -1134,7 +1051,7 @@
 .mf-bn-band__seg {
   display: block;
   min-width: 1px;
-  border-right: 1px solid var(--mf-well);
+  border-right: 1px solid var(--mf-ground-2);
 }
 .mf-bn-band__seg:last-child {
   border-right: 0;
@@ -1338,8 +1255,7 @@
   border: 1px solid var(--mf-rule);
   border-radius: var(--mf-r-sm);
   overflow: hidden;
-  background: var(--mf-well);
-  box-shadow: var(--mf-inset);
+  background: var(--mf-well-2);
 }
 .mf-bn-snip__head {
   display: flex;
@@ -1348,7 +1264,7 @@
   gap: var(--mf-3);
   padding: var(--mf-2) var(--mf-2) var(--mf-2) var(--mf-3);
   border-bottom: 1px solid var(--mf-rule);
-  background: var(--mf-ground);
+  background: var(--mf-ground-2);
 }
 .mf-bn-snip__label {
   font-size: var(--mf-t-xs);
@@ -1357,6 +1273,7 @@
 .mf-bn-snip__code {
   margin: 0;
   padding: var(--mf-4);
+  font-family: var(--mf-font-data);
   font-size: var(--mf-t-xs);
   line-height: var(--mf-lead-snug);
   color: var(--mf-ink-2);
@@ -1380,7 +1297,7 @@
 }
 .mf-bn-exps__row.is-open {
   background: var(--mf-ground);
-  box-shadow: var(--mf-inset);
+  box-shadow: inset 2px 0 0 var(--mf-ink-strong);
 }
 .mf-bn-exps__ident,
 .mf-bn-exps__state {
@@ -1403,8 +1320,13 @@
   font-size: var(--mf-t-sm);
   color: var(--mf-ink);
 }
-.mf-bn-exps__status svg {
-  color: var(--mf-accent);
+/* A running experiment: a small success dot beside the words. */
+.mf-bn-exps__live {
+  flex: none;
+  width: var(--mf-2);
+  height: var(--mf-2);
+  border-radius: var(--mf-r-pill);
+  background: var(--mf-success);
 }
 .mf-bn-exps__meta,
 .mf-bn-exps__goal {
@@ -1450,8 +1372,9 @@
 .mf-bn-res__call {
   font-family: var(--mf-font-display);
   font-size: var(--mf-t-lg);
+  font-weight: 500;
   line-height: var(--mf-lead-snug);
-  letter-spacing: var(--mf-track-display);
+  letter-spacing: -0.01em;
   color: var(--mf-ink);
   max-width: 68ch;
   padding-left: var(--mf-4);
@@ -1462,7 +1385,7 @@
 }
 .mf-bn-res__call[data-call="inconclusive"],
 .mf-bn-res__call[data-call="insufficient"] {
-  border-left-color: var(--mf-accent);
+  border-left-color: var(--mf-accent-ink);
 }
 .mf-bn-res__call[data-call="no-goal"],
 .mf-bn-res__call[data-call="no-data"],
@@ -1645,7 +1568,7 @@
 }
 
 @media (max-width: 900px) {
-  /* Arranging needs a board. Below this the sheet reads as a stack, in the
+  /* Arranging needs room. Below this the dashboard reads as a stack, in the
      order the cards were placed, and the handles step out of the way. */
   .mf-bn-grid {
     grid-template-columns: minmax(0, 1fr);
@@ -1707,9 +1630,6 @@
   .mf-bn-res__body {
     padding: var(--mf-4);
   }
-  .mf-bn-tape {
-    padding-left: calc(var(--mf-feed-gutter) + var(--mf-4));
-  }
   .mf-bn-res__hyp {
     padding: 0 var(--mf-4) var(--mf-4);
   }
@@ -1721,15 +1641,15 @@
     padding-left: var(--mf-4);
     padding-right: var(--mf-4);
   }
-  .mf-bn-sheet {
-    padding-right: var(--mf-4);
+  .mf-bn-board {
+    padding: 0 var(--mf-4) var(--mf-4);
   }
-  /* Display type has to come down with the column, or a long sheet name runs
-     off the end of its own field. */
-  .mf-bn-sheet__name {
+  /* Display type has to come down with the column, or a long dashboard name
+     runs off the end of its own field. */
+  .mf-bn-board__name {
     font-size: var(--mf-t-lg);
   }
-  .mf-bn-sheet__ident {
+  .mf-bn-board__ident {
     flex-basis: 100%;
   }
 
@@ -1785,15 +1705,15 @@
   .mf-bn-iv__axis {
     display: block;
   }
-  .mf-bn-sheet__act,
+  .mf-bn-board__act,
   .mf-bn-build__act {
     width: 100%;
   }
   .mf-bn-index__plan {
     width: var(--mf-16);
   }
-  /* The URL takes the full strip; the key sits under it rather than squeezing
-     it into a column too narrow to read. */
+  /* The URL takes the full width; the button sits under it rather than
+     squeezing it into a column too narrow to read. */
   .mf-bn-tape__url {
     flex-direction: column;
     align-items: stretch;
@@ -1804,7 +1724,7 @@
   .mf-bn-res__call {
     font-size: var(--mf-t-md);
   }
-  .mf-bn-sheet__name {
+  .mf-bn-board__name {
     font-size: var(--mf-t-md);
   }
 }

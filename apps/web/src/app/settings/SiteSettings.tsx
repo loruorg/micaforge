@@ -1,10 +1,10 @@
 /**
- * SITE DETAILS: what this station is called, where it is, and what it keeps.
+ * SITE DETAILS: what this site is called, where it is, and what it keeps.
  *
  * The third panel is the one that matters most and is the one a competitor's
  * settings screen does not have: a plain statement of what Micaforge stores
- * about a reader. The privacy claim is an engineering fact here, so it is
- * reported like any other instrument reading rather than sold.
+ * about a visitor. The privacy claim is an engineering fact here, so it is
+ * reported like any other setting rather than sold.
  */
 import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -220,7 +220,7 @@ export function SiteSettings() {
       <Panel>
         <PanelHead
           title="How this site is identified"
-          note="The site number is what the tracker, the log shipper and the stats API all refer to. The record id addresses this site in the management API and in MCP."
+          note="The site number is what the tracker, the log shipper and the stats API all refer to. The site id addresses this site in the management API and in MCP."
         />
         <QueryState query={query} loading={undefined}>
           {(site) => (
@@ -228,10 +228,10 @@ export function SiteSettings() {
               <div className="mf-set-stack">
                 <div className="mf-set-pair">
                   <CopyField label="Site number" value={String(site.site_id)} />
-                  <CopyField label="Record id" value={site.id} />
+                  <CopyField label="Site id" value={site.id} />
                 </div>
                 <p className="mf-set-note">
-                  Recording since{" "}
+                  Collecting data since{" "}
                   <span className="mf-data">
                     {new Date(site.created_at).toLocaleDateString(undefined, {
                       year: "numeric",
@@ -250,7 +250,7 @@ export function SiteSettings() {
       <Panel>
         <PanelHead
           title="Identity and retention"
-          note="What Micaforge holds about a reader, stated plainly. There is no cookie, no device id and no raw address on a reader's row."
+          note="What Micaforge keeps about a visitor, stated plainly. There is no cookie, no device id and no raw address on a visitor's row."
         />
         <QueryState query={query} loading={undefined}>
           {(site) => (
@@ -292,8 +292,8 @@ export function SiteSettings() {
 
               <Foot>
                 <Caution>
-                  Rotating now starts a new set of hashes immediately. Readers already counted today will be
-                  counted again as new; nothing already recorded changes.
+                  Rotating now starts a new set of hashes immediately. Visitors already counted today will be
+                  counted again as new. Nothing already recorded changes.
                 </Caution>
               </Foot>
               <Foot tight>

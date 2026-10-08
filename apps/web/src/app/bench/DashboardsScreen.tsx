@@ -1,13 +1,13 @@
 /**
- * SHEETS: the index of user-built dashboards.
+ * DASHBOARDS: the index of user-built dashboards.
  *
- * A sheet is a set of readings an operator pinned together and kept. The index
- * shows each one as a PLAN: the real card rectangles from the stored layout,
- * drawn at scale. It is not a screenshot and not a placeholder; it is the same
- * geometry the editor arranges, so the row tells you which sheet this is before
- * you open it.
+ * A dashboard is a set of cards a user keeps together. The index shows each
+ * one as a PLAN: the real card rectangles from the stored layout, drawn at
+ * scale. It is not a screenshot and not a placeholder; it is the same geometry
+ * the editor arranges, so the row tells you which dashboard this is before you
+ * open it.
  *
- * This file also owns the sheet MODEL (`DashLayout`, `DashCard`) and the
+ * This file also owns the dashboard MODEL (`DashLayout`, `DashCard`) and the
  * `/api/dashboards` calls, because the index is the resource's home. The editor
  * borrows both.
  */
@@ -23,15 +23,19 @@ import { useSite } from "../providers";
 import { Reading, TextInput, dimensionLabel, metricDef } from "./QueryScreen";
 import type { MetricKey } from "./QueryScreen";
 
-/* ═══ the sheet model ═════════════════════════════════════════════════════ */
+/* ═══ the dashboard model ═════════════════════════════════════════════════ */
 
-/** How one reading is drawn. Four, and no more, because a fifth would be noise. */
+/**
+ * How one card is drawn. Four, and no more, because a fifth would be noise.
+ * The stored keys are older than the labels: "record" is the line chart and
+ * "sheet" is the table. They stay as they are because saved layouts use them.
+ */
 export type CardVis = "record" | "sheet" | "figure" | "distribution";
 
 export const VISUALS: { v: CardVis; label: string; note: string }[] = [
-  { v: "figure", label: "Single figure", note: "One number for the whole interval." },
-  { v: "record", label: "Record", note: "The metric written on the drum over time." },
-  { v: "sheet", label: "Sheet", note: "Ranked rows with their metrics." },
+  { v: "figure", label: "Number", note: "One number for the whole period." },
+  { v: "record", label: "Line chart", note: "The metric over time." },
+  { v: "sheet", label: "Table", note: "Ranked rows with their metrics." },
   { v: "distribution", label: "Distribution", note: "Ranked shares of one dimension." },
 ];
 
@@ -42,7 +46,7 @@ export interface DashCard {
   metric: MetricKey;
   /** Required by `sheet` and `distribution`; ignored by the other two. */
   dimension: string;
-  /** Overrides the screen's audience for this one reading. */
+  /** Overrides the screen's audience for this one card. */
   audience: Audience | "inherit";
   /** Added to the screen's own conditions, never instead of them. */
   filters: Filter[];
@@ -69,7 +73,7 @@ export interface Dashboard {
   created_at?: string;
 }
 
-/** The arrangement grid. Twelve columns, the way a paste-up board is ruled. */
+/** The arrangement grid: twelve columns. */
 export const GRID_COLS = 12;
 
 export const emptyLayout = (): DashLayout => ({ v: 1, cols: GRID_COLS, cards: [] });
@@ -97,7 +101,7 @@ export function newCard(partial?: Partial<DashCard>): DashCard {
   };
 }
 
-/** A card's own name when the operator did not give it one. */
+/** A card's own name when the user did not give it one. */
 export function cardTitle(c: DashCard): string {
   if (c.title.trim()) return c.title.trim();
   const m = metricDef(c.metric).label;
@@ -157,11 +161,7 @@ export async function fetchDashboards(siteId: number): Promise<Dashboard[]> {
 
 /* ═══ the plan ════════════════════════════════════════════════════════════ */
 
-/**
- * The sheet drawn at scale from its own layout. Registration ticks at the
- * corners, the way a paste-up board is marked, so an empty sheet still reads as
- * a sheet rather than as a blank box.
- */
+/** The dashboard drawn at scale from its own layout. */
 function Plan({ layout }: { layout: DashLayout }) {
   const rows = Math.max(3, ...layout.cards.map((c) => c.y + c.h));
   const cols = layout.cols;
@@ -176,21 +176,6 @@ function Plan({ layout }: { layout: DashLayout }) {
       preserveAspectRatio="xMidYMid meet"
       aria-hidden="true"
     >
-      {/* corner registration marks */}
-      {[
-        [pad, pad, 1, 0],
-        [w - pad, pad, -1, 0],
-        [pad, h - pad, 1, 0],
-        [w - pad, h - pad, -1, 0],
-      ].map(([cx, cy, sx], i) => (
-        <path
-          key={i}
-          d={`M${cx + sx * 5},${cy} H${cx} V${cy + (i < 2 ? 5 : -5)}`}
-          fill="none"
-          stroke="var(--mf-rule-strong)"
-          strokeWidth="1"
-        />
-      ))}
       {layout.cards.map((c) => (
         <rect
           key={c.id}
@@ -198,8 +183,9 @@ function Plan({ layout }: { layout: DashLayout }) {
           y={pad + c.y * unit + 0.5}
           width={Math.max(1, c.w * unit - 1)}
           height={Math.max(1, c.h * unit - 1)}
-          fill="var(--mf-ai-fill)"
-          stroke="var(--mf-ink-3)"
+          rx="0.8"
+          fill="var(--mf-blue-wash)"
+          stroke="var(--mf-s3)"
           strokeWidth="0.6"
         />
       ))}
@@ -246,18 +232,18 @@ export function DashboardsScreen() {
     },
   });
 
-  const sheets = q.data ?? [];
+  const boards = q.data ?? [];
 
   return (
     <div className="mf-bn-page">
       <Panel>
         <PanelHead
-          title="Sheets"
-          note="A sheet is a set of readings you pin together and keep. Each card carries its own metric, dimension and conditions."
+          title="Dashboards"
+          note="A dashboard is a set of charts and tables you keep together. Each card has its own metric, dimension and conditions."
           actions={
             composing ? null : (
               <Button tone="primary" icon={<IconPlus size={13} />} onClick={() => setComposing(true)}>
-                New sheet
+                New dashboard
               </Button>
             )
           }
@@ -266,13 +252,13 @@ export function DashboardsScreen() {
         {composing ? (
           <div className="mf-bn-compose">
             <label className="mf-bn-compose__label" htmlFor="mf-new-sheet">
-              Name this sheet
+              Name this dashboard
             </label>
             <TextInput
               id="mf-new-sheet"
               value={name}
               onChange={setName}
-              placeholder="Docs and the machines reading them"
+              placeholder="Docs and the AI crawlers reading them"
               autoFocus
               onKeyDown={(e) => {
                 if (e.key === "Enter" && name.trim()) {
@@ -300,7 +286,7 @@ export function DashboardsScreen() {
             </Button>
             {create.isError ? (
               <p className="mf-bn-field__err" role="alert">
-                {(create.error as Error)?.message ?? "The sheet was not created."}
+                {(create.error as Error)?.message ?? "The dashboard was not created."}
               </p>
             ) : null}
           </div>
@@ -311,22 +297,22 @@ export function DashboardsScreen() {
             loading={siteLoading || q.isLoading}
             error={q.isError ? q.error : undefined}
             onRetry={() => void q.refetch()}
-            isEmpty={sheets.length === 0}
+            isEmpty={boards.length === 0}
             lines={3}
             empty={
               <Empty
-                title="No sheets yet"
-                body="A sheet holds the readings you check together: a metric, a dimension, how it should be drawn, and its own conditions. Arrange the cards once and the sheet keeps that arrangement."
+                title="No dashboards yet"
+                body="A dashboard holds the numbers you check together: a metric, a dimension, how to show it, and its own conditions. Arrange the cards once and the dashboard keeps that layout."
                 action={
                   <Button tone="primary" icon={<IconPlus size={13} />} onClick={() => setComposing(true)}>
-                    New sheet
+                    New dashboard
                   </Button>
                 }
               />
             }
           >
             <ul className="mf-bn-index">
-              {sheets.map((d) => {
+              {boards.map((d) => {
                 const titles = d.layout.cards.map(cardTitle);
                 return (
                   <li key={d.id} className="mf-bn-index__row">
@@ -336,11 +322,11 @@ export function DashboardsScreen() {
 
                     <div className="mf-bn-index__text">
                       <Link className="mf-bn-index__name" to={`/app/${site}/dashboards/${d.id}`}>
-                        {d.name || "Untitled sheet"}
+                        {d.name || "Untitled dashboard"}
                       </Link>
                       <p className="mf-bn-index__meta">
                         <span className="mf-data">{d.layout.cards.length}</span>{" "}
-                        {d.layout.cards.length === 1 ? "reading" : "readings"}
+                        {d.layout.cards.length === 1 ? "card" : "cards"}
                         {d.updated_at ? <> · changed {ago(d.updated_at)}</> : null}
                       </p>
                       {titles.length ? (
@@ -349,14 +335,14 @@ export function DashboardsScreen() {
                           {titles.length > 3 ? ` · and ${titles.length - 3} more` : ""}
                         </p>
                       ) : (
-                        <p className="mf-bn-index__cards">Empty. Open it to pin the first reading.</p>
+                        <p className="mf-bn-index__cards">Empty. Open it to add the first card.</p>
                       )}
                     </div>
 
                     <div className="mf-bn-index__act">
                       {confirming === d.id ? (
                         <>
-                          <span className="mf-bn-index__ask">Delete this sheet?</span>
+                          <span className="mf-bn-index__ask">Delete this dashboard?</span>
                           <Button
                             tone="danger"
                             size="sm"
@@ -405,7 +391,7 @@ export function DashboardsScreen() {
 
           {remove.isError ? (
             <p className="mf-bn-field__err" role="alert">
-              That sheet was not deleted. {(remove.error as Error)?.message}
+              That dashboard was not deleted. {(remove.error as Error)?.message}
             </p>
           ) : null}
         </div>

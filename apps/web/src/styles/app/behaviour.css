@@ -2,13 +2,12 @@
    Micaforge: BEHAVIOUR area
    Events · Goals · Funnels · Journeys · Retention
 
-   Everything here is drawn in the recording-station vocabulary already set by
-   global.css. Three rules govern the file:
+   Built on the shared components in global.css. Three rules govern the file:
 
      1. Only var(--mf-*). No literal colour, size, radius or duration.
-     2. Depth is the scratch ridge (--mf-shadow-xs / --mf-inset), never a bloom.
-     3. Ruling, hatching and perforation are the instrument's own marks. They
-        live inside a panel, clipped to it, and never wash across the page.
+     2. Depth is a soft shadow (--mf-shadow-xs) or a hairline, never a glow.
+     3. People data is blue, AI data is orange; neutral highlights use ink or
+        the blue ramp, never the orange.
 
    Left deliberately unlayered so an area rule can correct a base component
    rule without a specificity fight.
@@ -31,7 +30,7 @@
   border-top: 1px solid var(--mf-rule);
 }
 
-/* ── bench controls: fields, selects, key banks ─────────────────────────── */
+/* ── controls: fields, selects, segmented buttons ──────────────────────── */
 
 .mfb-tools {
   display: flex;
@@ -75,16 +74,15 @@
   border: 1px solid var(--mf-rule-strong);
   border-radius: var(--mf-r-sm);
   padding: 7px var(--mf-3);
-  box-shadow: var(--mf-inset);
+  box-shadow: var(--mf-shadow-xs);
   transition: border-color var(--mf-dur-1) linear, background-color var(--mf-dur-1) linear;
 }
 .mfb-input--data { font-family: var(--mf-font-data); }
 
-/* Everything in this file obeys one contrast rule: --mf-ink-3 is the dimmest
-   ink allowed, and it only clears 4.5:1 against a BARE panel. Anywhere a share
-   wash, a sunken well or a fresh-sample wash sits behind the type, the dimmest
-   step available is --mf-ink-2. Every pair below was measured in both media. */
-.mfb-input::placeholder { color: var(--mf-ink-2); }
+/* One contrast rule for the file: --mf-ink-3 is the dimmest text allowed, and
+   it only clears 4.5:1 on a bare white panel. Anywhere a share wash or a grey
+   strip sits behind the type, the dimmest step is --mf-ink-2. */
+.mfb-input::placeholder { color: var(--mf-ink-3); }
 
 .mfb-input:hover,
 .mfb-select:hover { border-color: var(--mf-ink-3); }
@@ -95,8 +93,8 @@
 .mfb-input[disabled],
 .mfb-select[disabled] { opacity: 0.45; cursor: not-allowed; }
 
-/* The caret is drawn from the icon set, so the control matches the bench in
-   both media rather than inheriting whatever the platform paints. */
+/* The caret is drawn from the icon set, so the control matches the rest of
+   the dashboard rather than inheriting whatever the platform paints. */
 .mfb-selectwrap { position: relative; display: block; min-width: 0; }
 .mfb-select {
   appearance: none;
@@ -112,11 +110,11 @@
   pointer-events: none;
 }
 
-/* A segmented bank of keys: same grammar as the audience switch, used for the
-   small mode choices (weekly/monthly, share/count). */
+/* A segmented control: same look as the audience switch, used for the small
+   mode choices (weekly/monthly, share/count). */
 .mfb-bank {
   display: inline-flex;
-  background: var(--mf-well);
+  background: var(--mf-ground-3);
   border: 1px solid var(--mf-rule);
   border-radius: var(--mf-r-sm);
   padding: 2px;
@@ -129,20 +127,24 @@
   color: var(--mf-ink-2);
   background: none;
   border: 0;
-  border-radius: 1px;
+  border-radius: 4px;
   cursor: pointer;
   white-space: nowrap;
   transition: background-color var(--mf-dur-1) linear, color var(--mf-dur-1) linear;
 }
 .mfb-bank__key:hover { color: var(--mf-ink); }
-.mfb-bank__key[aria-pressed="true"] { background: var(--mf-ground-3); color: var(--mf-ink); }
+.mfb-bank__key[aria-pressed="true"] {
+  background: var(--mf-ground-2);
+  color: var(--mf-ink-strong);
+  box-shadow: var(--mf-shadow-xs);
+}
 
-/* ── the register: an expandable ruled list (events, goals) ─────────────── */
+/* ── the expandable list (events, goals) ─────────────────────────────────── */
 
 .mfb-reg { display: block; }
 
 /* Head and rows read their columns from one custom property set on the
-   register itself, so a column can never drift out of step with its heading.
+   list itself, so a column can never drift out of step with its heading.
    Narrow widths drop whole columns (head cell and body cell together) rather
    than letting a figure crush into an unreadable sliver. */
 .mfb-reg__head,
@@ -182,16 +184,16 @@
 .mfb-reg__row:hover { background: var(--mf-ground-3); }
 .mfb-reg__row[aria-expanded="true"] { background: var(--mf-ground-3); }
 
-/* The rows drawn while the register is still being read are not controls and
-   must not offer themselves as ones. */
+/* The rows drawn while the list is still loading are not controls and must
+   not offer themselves as ones. */
 .mfb-reg__row--wait { cursor: default; pointer-events: none; }
 .mfb-reg__row--wait:hover { background: none; }
 
-/* Share drawn as ink laid down under the row, not a bar bolted beside it. */
+/* Share drawn as a light bar under the row, not a bar bolted beside it. */
 .mfb-reg__ink {
   position: absolute;
   inset: 1px auto 1px 0;
-  background: color-mix(in srgb, var(--mf-accent) 9%, transparent);
+  background: var(--mf-people-fill);
   pointer-events: none;
 }
 
@@ -279,7 +281,8 @@
 .mfb-prop__ink {
   position: absolute;
   inset: 0 auto 0 0;
-  background: var(--mf-accent-wash);
+  background: var(--mf-blue-wash);
+  border-radius: 2px;
   pointer-events: none;
 }
 .mfb-prop__vname {
@@ -301,7 +304,7 @@
 }
 .mfb-prop__vfig--dim { color: var(--mf-ink-2); }
 
-/* ── the tape: the live event log ───────────────────────────────────────── */
+/* ── live events: the live event log ──────────────────────────────────── */
 
 .mfb-tape { display: flex; flex-direction: column; }
 
@@ -325,7 +328,7 @@
 /* A fresh sample lands already legible and the wash retreats from it. Nothing
    here is ever hidden waiting for an animation to run. */
 @keyframes mfb-fresh {
-  from { background-color: var(--mf-accent-wash); }
+  from { background-color: var(--mf-blue-wash); }
   to   { background-color: transparent; }
 }
 .mfb-tape__row[data-fresh="true"] {
@@ -334,8 +337,8 @@
 
 .mfb-tape__penbox { display: inline-flex; align-items: center; }
 
-/* A newly arrived row carries the shellac wash while it settles, so the two
-   quietest columns on the tape sit one step up from the dimmest ink. */
+/* A newly arrived row carries a light wash while it settles, so the two
+   quietest columns in the list sit one step up from the dimmest ink. */
 .mfb-tape__t {
   font-family: var(--mf-font-data);
   white-space: nowrap;
@@ -374,7 +377,8 @@
 }
 .mfb-tape__row[aria-expanded="true"] .mfb-tape__caret { transform: rotate(0deg); }
 
-/* The pen mark: the same two-pen grammar the drum and the shell use. */
+/* The audience mark: a line for a person, a stepped corner for an AI crawler,
+   the same shapes the chart legend and the top bar use. */
 .mfb-pen {
   flex: none;
   display: inline-block;
@@ -393,9 +397,8 @@
 .mfb-tape__props {
   margin: 0;
   padding: var(--mf-3) var(--mf-5) var(--mf-4);
-  background: var(--mf-well);
+  background: var(--mf-well-2);
   border-bottom: 1px solid var(--mf-rule);
-  box-shadow: var(--mf-inset);
   overflow-x: auto;
 }
 .mfb-tape__props pre {
@@ -407,7 +410,7 @@
   white-space: pre;
 }
 
-/* ── the funnel: a descending series of ruled bands ─────────────────────── */
+/* ── the funnel: one horizontal bar per step ───────────────────────────── */
 
 .mfb-funnel { display: block; }
 
@@ -452,34 +455,25 @@
   white-space: nowrap;
 }
 
-/* The track is the extent the step before it reached. The band is what
-   survived; the hatched remainder is the debt between them. */
+/* The track is the extent the step before it reached. The bar is what
+   survived; the hatched remainder is the drop-off between them. */
 .mfb-fstep__track {
   display: block;
   position: relative;
   height: var(--mf-6);
-  background: var(--mf-well);
+  background: var(--mf-ground-3);
   border-radius: var(--mf-r-sm);
-  box-shadow: var(--mf-inset);
   overflow: hidden;
 }
 .mfb-fstep__band {
   position: absolute;
   inset: 0 auto 0 0;
   border-radius: var(--mf-r-sm) 0 0 var(--mf-r-sm);
-  /* Where the pen stopped, drawn: one hairline at the band's leading edge, and
-     nowhere else. It is what makes the band's extent readable at the far end
-     of the ramp, where the tone sits close to the track's own. The figure
-     beside it is the true reading, but the band should never have to be
-     hunted for. Not a halo round the shape; one edge, on one side. */
+  /* One hairline at the bar's leading edge, and nowhere else. It keeps the
+     bar's extent readable at the light end of the ramp, where the tone sits
+     close to the track's own. The figure beside it is the true value, but the
+     bar should never have to be hunted for. */
   box-shadow: 1px 0 0 var(--mf-rule-strong);
-  /* The paper's own ruling, printed under the ink, so it reads on the light
-     end of the ramp exactly where the band is widest. */
-  background-image: repeating-linear-gradient(
-    to right,
-    color-mix(in srgb, var(--mf-well) 15%, transparent) 0 1px,
-    transparent 1px 21px
-  );
   background-color: var(--mf-s3);
   min-width: 2px;
 }
@@ -489,7 +483,7 @@
 .mfb-fstep__band[data-ramp="4"] { background-color: var(--mf-s4); }
 .mfb-fstep__band[data-ramp="5"] { background-color: var(--mf-s5); }
 
-/* The hatched remainder needs no edge of its own: the band's drawn stop is
+/* The hatched remainder needs no edge of its own: the bar's drawn edge is
    already sitting on that boundary, and two hairlines on one line read as a
    2px rule nobody asked for. */
 .mfb-fstep__lost {
@@ -523,8 +517,8 @@
   color: var(--mf-ink-3);
 }
 
-/* The drop is written in the margin between two steps, on the same right-hand
-   axis every figure in this panel shares. */
+/* The drop is written between two steps, on the same right-hand axis every
+   figure in this panel shares. */
 .mfb-fdrop {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 10.5rem;
@@ -561,9 +555,8 @@
 
 .mfb-sankey__label,
 .mfb-sankey__val {
-  /* The label is scratched clear of the ribbon beneath it: the ground is laid
-     back in as an underlay stroke so every label keeps its contrast whatever
-     it crosses. */
+  /* A white halo under each label, so every label keeps its contrast
+     whatever ribbon it crosses. */
   paint-order: stroke;
   stroke: var(--mf-ground-2);
   stroke-width: 3px;
@@ -582,9 +575,10 @@
   fill: var(--mf-ink-2);
 }
 .mfb-sankey__col {
-  font-family: var(--mf-font-data);
+  font-family: var(--mf-font-ui);
   font-size: var(--mf-t-2xs);
-  letter-spacing: 0.09em;
+  font-weight: 500;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   fill: var(--mf-ink-3);
 }
@@ -681,7 +675,7 @@
 .mfb-cohort th:first-child,
 .mfb-cohort td:first-child { text-align: left; }
 
-/* The cohort's own name stays on the sheet while the periods scroll under it.
+/* The cohort's own name stays in place while the periods scroll under it.
    Scoped by section on purpose: a bare th:first-child would also catch every
    row's own header and set the cohort's name in the wrong face at the wrong
    weight of ink, which is exactly the label a reader is scanning for. */
@@ -705,7 +699,7 @@
   border-bottom: 0;
 }
 
-/* Ink density. The figure is printed in every cell, so the ramp is a second
+/* Shading. The figure is printed in every cell, so the ramp is a second
    reading of the same number and never the only one. */
 .mfb-cell {
   font-family: var(--mf-font-data);
@@ -738,6 +732,7 @@
   width: var(--mf-6);
   height: var(--mf-3);
   border: 1px solid var(--mf-rule);
+  border-radius: 2px;
 }
 .mfb-legend__step[data-bin="1"] { background-color: color-mix(in srgb, var(--mf-s5) 18%, transparent); }
 .mfb-legend__step[data-bin="2"] { background-color: color-mix(in srgb, var(--mf-s4) 22%, transparent); }
@@ -745,27 +740,9 @@
 .mfb-legend__step[data-bin="4"] { background-color: color-mix(in srgb, var(--mf-s2) 28%, transparent); }
 .mfb-legend__step[data-bin="5"] { background-color: color-mix(in srgb, var(--mf-s1) 30%, transparent); }
 
-/* ── the trend trace (goals) ────────────────────────────────────────────── */
+/* ── the trend sparkline (goals) ──────────────────────────────────────── */
 
 .mfb-trace { display: block; width: 100%; height: var(--mf-6); }
-.mfb-trace__ridge { stroke: var(--mf-well); }
-
-/* The destructive key sits SUNKEN and lifts when you reach for it.
-   ----------------------------------------------------------------------
-   This is a correction to the bench, not a new component: --mf-danger on the
-   key's default raised surface measures 4.42:1 in the smoked medium, and its
-   hover fill takes it to 3.86:1, both under the 4.5:1 floor. Dropping the key
-   to the sunken surface and lifting it to the ground on hover clears the floor
-   in both media (5.13 / 4.92 smoked, 4.79 / 5.39 paper) while keeping the
-   oxide label and the oxide edge that say what the key does.
-   This belongs in global.css with the rest of .mf-btn; it is scoped here only
-   because that file is not this area's to write. Delete these two rules the
-   moment the bench carries the fix. */
-.mfb-tools .mf-btn--danger { background: var(--mf-well); }
-.mfb-tools .mf-btn--danger:hover {
-  background: var(--mf-ground);
-  border-color: var(--mf-danger);
-}
 
 /* ── editors ────────────────────────────────────────────────────────────── */
 
@@ -777,7 +754,7 @@
    workarounds (floating the legend, or shrinking the fieldset) each break the
    grid that sits inside it. A group with aria-labelledby carries the same
    semantics with none of that.
-   The section's ruling runs the full width of the sheet; it is the CONTENT
+   The section's hairline runs the full width of the panel; it is the CONTENT
    inside it that is held to a measure. */
 .mfb-form__section {
   border: 0;
@@ -835,9 +812,8 @@
    opposite rims leaves a dead gulf down the middle of a wide panel. */
 .mfb-form__foot-spacer { margin-left: var(--mf-3); }
 
-/* The sentence is set in ink, not in the annotation colour: oxide on its own
-   wash does not clear 4.5:1, and a failure notice is the last text on a page
-   that should be hard to read. The oxide carries on the mark and the edge,
+/* The sentence is set in ink, not in the danger colour, so it is easy to
+   read on its wash. The danger colour carries on the icon and the edge,
    where 3:1 is the bar and it passes. */
 .mfb-alert {
   display: flex;
@@ -848,17 +824,16 @@
   font-size: var(--mf-t-sm);
   color: var(--mf-ink);
   background: var(--mf-danger-wash);
-  /* Edged all round in its own ink rather than tabbed with a thick bar down one
-     side: the coloured left border is a component-kit tell, and the wash plus
-     the oxide glyph already carry the tone. */
+  /* Edged all round rather than tabbed with a thick bar down one side: the
+     wash plus the danger icon already carry the tone. */
   border: 1px solid var(--mf-danger-deep);
   border-radius: var(--mf-r-sm);
 }
 .mfb-alert svg { flex: none; margin-top: 2px; color: var(--mf-danger); }
 
-/* The kind chooser: five keys on ONE bank, divided by the instrument's own
-   ruling, exactly like the caliper's stops. Five separate bordered boxes would
-   read as a card grid, which this product does not use. */
+/* The kind chooser: five buttons in ONE bordered group, divided by
+   hairlines, like the range picker. Five separate bordered boxes would read as
+   a card grid, which this product does not use. */
 .mfb-kinds {
   display: grid;
   max-width: 74rem;
@@ -884,14 +859,13 @@
 }
 .mfb-kind:first-child { border-left: 0; }
 .mfb-kind:hover { background: var(--mf-ground-3); color: var(--mf-ink); }
-/* A key that has been chosen is a key that has been pushed IN: it drops to the
-   sunken surface and takes the press. The chosen one is marked at its own
-   foot, in the accent, so the mark reads as a setting on the bank rather than
-   an outline drawn round a card. */
+/* The chosen kind takes the hover grey and a 2px underline in the strongest
+   ink, the same mark the tabs use, rather than an outline drawn round a
+   card. */
 .mfb-kind[aria-pressed="true"] {
-  background: var(--mf-well);
-  color: var(--mf-ink);
-  box-shadow: var(--mf-inset), inset 0 -2px 0 var(--mf-accent);
+  background: var(--mf-ground-3);
+  color: var(--mf-ink-strong);
+  box-shadow: inset 0 -2px 0 var(--mf-ink-strong);
 }
 .mfb-kind[aria-pressed="true"] .mfb-kind__what { color: var(--mf-ink-2); }
 .mfb-kind:hover .mfb-kind__what { color: var(--mf-ink-2); }
@@ -932,8 +906,8 @@
 /* ── responsive ─────────────────────────────────────────────────────────── */
 
 @media (max-width: 900px) {
-  /* The pen mark stays: which audience wrote the row is the one thing this
-     product will not drop to save space. */
+  /* The audience mark stays: whether a person or an AI crawler made the row is
+     the one thing this product will not drop to save space. */
   .mfb-tape__row { grid-template-columns: 4.75rem 14px minmax(0, 1fr) 14px; }
   .mfb-tape__kind { display: none; }
   .mfb-tape__from { display: none; }
@@ -958,8 +932,8 @@
 
 @media (max-width: 620px) {
   .mfb-col-3 { display: none; }
-  /* The bank stacks, so its dividers turn with it: a vertical rule between
-     rows separates nothing. */
+  /* The group stacks, so its dividers turn with it: a vertical hairline
+     between rows separates nothing. */
   .mfb-kinds { grid-template-columns: minmax(0, 1fr); }
   .mfb-kind { border-left: 0; border-top: 1px solid var(--mf-rule); }
   .mfb-kind:first-child { border-top: 0; }
@@ -968,11 +942,10 @@
 }
 
 @media (max-width: 560px) {
-  /* Below this there is no margin left to write the figures in, so the step
-     stops being two columns and becomes one reading run: what the step is,
-     the band it held, then the figures on one line under it. Held in two
-     columns they wrap to three lines each and the drop note runs straight off
-     the sheet. */
+  /* Below this there is no room left for the figures column, so the step
+     stops being two columns and becomes one run: what the step is, the bar it
+     held, then the figures on one line under it. Held in two columns they wrap
+     to three lines each and the drop note runs straight off the panel. */
   .mfb-fstep { grid-template-columns: minmax(0, 1fr); gap: var(--mf-2); }
   .mfb-fstep__figs {
     display: flex;

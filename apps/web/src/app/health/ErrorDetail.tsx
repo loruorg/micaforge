@@ -2,7 +2,7 @@
  * One error, in full.
  *
  * The list answers "what is broken"; this answers "who did it reach, where, and
- * is it still happening". So the trend is drawn on the Drum at full size rather
+ * is it still happening". So the trend is drawn as a full-size chart rather
  * than as a thumbnail, the stack is printed as numbered frames instead of a
  * wall of text, and the affected pages, browsers and systems sit in three
  * columns on one shared grid so they can be read across.
@@ -189,9 +189,9 @@ export function ErrorDetail(props: { fingerprint?: string }) {
   const series = detail?.series ?? [];
   const stackFrames = frames(detail?.stack, detail?.name ?? "");
 
-  /* Two facts read straight off the series, written into the record's margin
-     the way an operator annotates a chart: the worst interval, and the last
-     one that carried anything at all. Neither is invented. */
+  /* Two facts read straight off the series, written in the chart's margin:
+     the worst interval, and the last one that carried anything at all.
+     Neither is invented. */
   const annotations: DrumAnnotation[] = useMemo(() => {
     if (series.length < 2) return [];
     let peak = 0;
@@ -212,7 +212,7 @@ export function ErrorDetail(props: { fingerprint?: string }) {
     return marks;
   }, [series]);
 
-  /* An hourly record labelled by date repeats the same word eight times, so
+  /* An hourly chart labelled by date repeats the same word eight times, so
      the axis is written in whichever unit the interval actually moves in. */
   const span = series.length > 1 ? series[series.length - 1].t - series[0].t : 0;
   const hourly = span > 0 && span <= 2 * 86_400_000;
@@ -224,7 +224,7 @@ export function ErrorDetail(props: { fingerprint?: string }) {
 
   const channels: Channel[] = [
     { key: "count", label: "Occurrences", value: num(detail?.count) },
-    { key: "visitors", label: "Readers affected", value: num(detail?.visitors) },
+    { key: "visitors", label: "Visitors affected", value: num(detail?.visitors) },
     {
       key: "sessions",
       label: "Sessions",
@@ -289,15 +289,15 @@ export function ErrorDetail(props: { fingerprint?: string }) {
       {query.isError ? (
         <Panel>
           <ErrorState
-            title="That error did not come back"
+            title="Could not load this error"
             detail={reason(query.error)}
             onRetry={() => void query.refetch()}
           />
         </Panel>
       ) : query.isPending || siteLoading ? (
-        <Panel feed>
+        <Panel>
           <div className="mf-hs-wait" aria-busy="true" aria-live="polite">
-            <span className="mf-sr">Reading the record…</span>
+            <span className="mf-sr">Loading…</span>
             {Array.from({ length: 4 }).map((_, i) => (
               <span key={i} className="mf-wait" />
             ))}
@@ -314,7 +314,7 @@ export function ErrorDetail(props: { fingerprint?: string }) {
       ) : (
         <>
           {/* ── identity, state, and the four figures ───────────────────── */}
-          <Panel feed>
+          <Panel>
             <PanelHead
               title={detail.name || "Error"}
               note={detail.message || "No message was recorded with this error."}
@@ -356,7 +356,7 @@ export function ErrorDetail(props: { fingerprint?: string }) {
                 <IconAlert size={16} />
                 <span>
                   {reason(setStatus.error) ?? "The server refused that change."} The error is still{" "}
-                  {STATE_WORD[status].toLowerCase()}. Try the key again.
+                  {STATE_WORD[status].toLowerCase()}. Try again.
                 </span>
               </p>
             ) : null}
@@ -378,7 +378,7 @@ export function ErrorDetail(props: { fingerprint?: string }) {
           <Panel>
             <PanelHead
               title="When it fired"
-              note="Occurrences across the interval."
+              note="Occurrences across the selected period."
             />
             <Drum
               times={series.map((b) => b.t)}
@@ -395,7 +395,7 @@ export function ErrorDetail(props: { fingerprint?: string }) {
               height={220}
               annotations={annotations}
               formatTime={formatTime}
-              emptyLabel="No occurrences were bucketed for this interval."
+              emptyLabel="No occurrences in this period."
             />
           </Panel>
 
@@ -460,7 +460,7 @@ export function ErrorDetail(props: { fingerprint?: string }) {
           <Panel>
             <PanelHead
               title="Sessions where it happened"
-              note="Open one to see what the reader did before it fired."
+              note="Open one to see what the visitor did before it fired."
             />
             <Sheet
               rows={detail.sessions ?? []}

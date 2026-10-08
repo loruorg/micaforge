@@ -53,11 +53,11 @@ interface IssuedKey extends ApiKeyRecord {
 }
 
 const SCOPES: { key: string; label: string; hint: string }[] = [
-  { key: "stats:read", label: "Read the record", hint: "Every endpoint under /api/stats, plus CSV and PDF export." },
+  { key: "stats:read", label: "Read analytics", hint: "Every endpoint under /api/stats, plus CSV and PDF export." },
   {
     key: "agents:read",
-    label: "Read machine traffic",
-    hint: "Agent traffic, crawl coverage, the Citation Gap and the policy audit.",
+    label: "Read AI crawler traffic",
+    hint: "AI crawler traffic, crawl coverage, the Citation gap and the robots.txt check.",
   },
   { key: "sites:read", label: "Read site configuration", hint: "The site list, its settings and its goals." },
   {
@@ -181,7 +181,7 @@ export function ApiKeysSettings() {
   return (
     <>
       {issued ? (
-        <Panel ruled>
+        <Panel>
           <PanelHead title="Copy this key now" />
           <Block
             title={issued.name || "New key"}
@@ -213,7 +213,7 @@ export function ApiKeysSettings() {
                 empty={
                   <Empty
                     title="No key has been issued"
-                    body="A key lets a script, a CI job or an agent read this organisation's record without a browser session."
+                    body="A key lets a script, a CI job or an AI agent read this organisation's data without a browser session."
                   />
                 }
               />

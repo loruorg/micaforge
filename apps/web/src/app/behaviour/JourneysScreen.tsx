@@ -1,8 +1,8 @@
 /**
  * Journeys: where a session went after it arrived.
  *
- * The switchyard carries the shape; the transitions listed under it carry the
- * same reading in words and numbers, so nothing on this screen depends on being
+ * The flow diagram carries the shape; the transitions listed under it carry
+ * the same data in words and numbers, so nothing on this screen depends on being
  * able to see the diagram or on being able to use a pointer. Choosing a
  * transition in the list lifts its whole route in the diagram, and hovering a
  * ribbon marks the matching row.
@@ -107,7 +107,7 @@ export function JourneysScreen() {
 
   return (
     <div className="mfb-stack">
-      <Panel ruled feed>
+      <Panel>
         <PanelHead
           title="Journeys"
           note="Every route a session took, from where it landed to where it stopped."
@@ -143,9 +143,9 @@ export function JourneysScreen() {
           }
         />
 
-        {/* An em dash means "not read yet"; once the record has answered, a
+        {/* An em dash means "not loaded yet"; once the API has answered, a
             genuine nothing is written as 0. Conflating the two would let a
-            failed read pass for an empty one. */}
+            failed load pass for an empty one. */}
         <Readout
           channels={[
             { key: "sessions", label: "Sessions traced", value: num(payload?.sessions) },
@@ -153,7 +153,7 @@ export function JourneysScreen() {
               key: "pages",
               label: "Pages",
               value: payload ? num(nodes.length) : "—",
-              note: "on the record",
+              note: "in these journeys",
             },
             {
               key: "links",
@@ -166,20 +166,20 @@ export function JourneysScreen() {
 
         {journeys.isError ? (
           <ErrorState
-            title="The journeys did not come back"
+            title="Could not load journeys"
             detail={errorText(journeys.error)}
             onRetry={() => void journeys.refetch()}
           />
         ) : journeys.isPending ? (
           <p className="mfb-note" aria-live="polite">
-            Tracing the routes…
+            Loading journeys…
           </p>
         ) : nodes.length === 0 ? (
           <Empty
-            title="No routes on this record"
+            title="No journeys in this period"
             body={
               start
-                ? "No session started on that page over this interval. Choose another starting page or widen the interval."
+                ? "No session started on that page in this period. Choose another starting page or a longer period."
                 : "A route needs a session that saw at least two pages. Once one does, its path is drawn here."
             }
           />
@@ -200,7 +200,7 @@ export function JourneysScreen() {
         <Panel>
           <PanelHead
             title="Strongest transitions"
-            note="The same record, read as hops. Choose one to lift its whole route in the diagram above."
+            note="The same data as single steps. Choose one to highlight its whole route in the diagram above."
           />
 
           <div className="mfb-routes">
@@ -245,16 +245,16 @@ export function JourneysScreen() {
           </div>
 
           <p className="mfb-note">
-            Share is measured against the {num(payload?.sessions)} sessions traced over this
-            interval.
+            Share is measured against the {num(payload?.sessions)} sessions traced in this
+            period.
             {links.length > forward.length
               ? ` ${num(links.length - forward.length)} hop${
                   links.length - forward.length === 1 ? " that returned" : "s that returned"
                 } to an earlier step ${
                   links.length - forward.length === 1 ? "is" : "are"
-                } counted in the record but ${
+                } counted in the diagram but ${
                   links.length - forward.length === 1 ? "is" : "are"
-                } not listed here, because there is no single route to lift.`
+                } not listed here, because there is no single route to highlight.`
               : ""}
           </p>
         </Panel>

@@ -1,11 +1,10 @@
 /**
- * The station's shared settings: what the whole dashboard is currently reading.
+ * The dashboard's shared settings: what every screen is currently showing.
  *
- * Four things travel with the operator from screen to screen: the interval the
- * caliper is set to, which audience the pens are patched to, what the reading is
- * being compared against, and the conditions clipped to the record. Every screen
- * reads them from here, so filing a filter on the pages sheet is still filed
- * when the operator walks over to sources.
+ * Four things travel with the user from screen to screen: the date range, the
+ * audience (people, AI crawlers or all), what the range is compared against,
+ * and the filters. Every screen reads them from here, so a filter set on the
+ * Pages screen is still set when the user moves over to Sources.
  *
  * Two decisions worth knowing about:
  *
@@ -283,7 +282,7 @@ const dayWords = (iso: string): string => {
     : iso;
 };
 
-/** What the caliper is set to, in words. */
+/** The date range, in words. */
 export function rangeWords(range: string): string {
   const measured = splitMeasured(range);
   if (measured) return `${dayWords(measured.start)} to ${dayWords(measured.end)}`;
@@ -291,7 +290,7 @@ export function rangeWords(range: string): string {
 }
 
 export const COMPARE_WORDS: Record<Compare, string> = {
-  none: "Nothing",
-  previous: "The interval before",
-  year: "The same interval last year",
+  none: "No comparison",
+  previous: "Previous period",
+  year: "Same period last year",
 };

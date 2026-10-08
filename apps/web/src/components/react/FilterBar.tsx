@@ -1,18 +1,17 @@
 /**
- * The clip rack: the control that decides which part of the record is being read.
+ * The filter control: it decides which part of the traffic every screen shows.
  *
- * A recording station narrows a reading by clipping the roll, and it writes on
- * the clip what it holds. So the conditions here are written out as sentences,
- * "Path starts with /docs", "Agent is gptbot", each one removable on its own.
- * They are deliberately NOT a row of tinted capsules: a capsule tells you a
- * value exists, a sentence tells you what it is doing to your numbers, and rank
- * is carried by type rather than by a coloured box.
+ * Filters are written out as sentences, "Path starts with /docs", "Crawler is
+ * gptbot", each one removable on its own. They are deliberately NOT a row of
+ * tinted capsules: a capsule tells you a value exists, a sentence tells you
+ * what it is doing to your numbers, and rank is carried by type rather than by
+ * a coloured box. (The .mfs-rack and "clip" names in the code are historical.)
  *
- * Three parts, in the order an operator uses them:
- *   1. the conditions already clipped on, written out;
- *   2. the builder that adds one, whose value field is fed by what the record
- *      has actually observed for that dimension rather than by guesswork;
- *   3. the saved segments, which are just a set of clips somebody named.
+ * Three parts, in the order people use them:
+ *   1. the active filters, written out;
+ *   2. the builder that adds one, whose value field suggests the values this
+ *      site has actually recorded for that dimension;
+ *   3. the saved segments, which are a named set of filters.
  */
 import type { ReactNode } from "react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
@@ -90,7 +89,7 @@ export const FILTER_DIMENSIONS: { group: string; items: { v: string; label: stri
     ],
   },
   {
-    group: "Behaviour",
+    group: "Behavior",
     items: [
       { v: "event_name", label: "Event name" },
       { v: "goal", label: "Goal" },
@@ -102,9 +101,9 @@ export const FILTER_DIMENSIONS: { group: string; items: { v: string; label: stri
     ],
   },
   {
-    group: "Machines",
+    group: "AI crawlers",
     items: [
-      { v: "agent_id", label: "Agent" },
+      { v: "agent_id", label: "Crawler" },
       { v: "operator", label: "Operator" },
       { v: "purpose", label: "Declared purpose" },
       { v: "verified", label: "Verified" },
@@ -122,7 +121,7 @@ export const FILTER_DIMENSIONS: { group: string; items: { v: string; label: stri
   },
 ];
 
-/** The two dimensions that are a prefix plus a key the operator names. */
+/** The two dimensions that are a prefix plus a key the user names. */
 const KEYED = new Set(["props.", "flag."]);
 
 export const FILTER_OPS: { v: Filter["op"]; label: string; valueless?: boolean }[] = [
@@ -193,11 +192,11 @@ function problem(e: unknown): string {
 /* ══ the value field ══════════════════════════════════════════════════════ */
 
 /**
- * A value field that offers what the record has actually observed.
+ * A value field that suggests the values this site has actually recorded.
  *
  * It is a real combobox, not an input with a decorative list beside it: the
  * suggestions are reachable from the keyboard, the active one is announced, and
- * typing a value the record has never seen is still allowed, because filtering
+ * typing a value that was never recorded is still allowed, because filtering
  * for something that has not happened yet is a legitimate thing to ask.
  */
 function ValueField({
@@ -326,10 +325,10 @@ function ValueField({
       />
 
       {showList ? (
-        <ul className="mfs-combo__list" id={listId} role="listbox" aria-label="Observed values">
+        <ul className="mfs-combo__list" id={listId} role="listbox" aria-label="Recorded values">
           {observed.isPending ? (
             <li className="mfs-combo__waiting" role="presentation">
-              <span className="mf-sr">Reading which values the record holds…</span>
+              <span className="mf-sr">Loading values…</span>
               <span className="mf-wait" style={{ width: "62%" }} />
               <span className="mf-wait" style={{ width: "44%" }} />
             </li>
@@ -408,7 +407,7 @@ function Builder({
     >
       <div className="mfs-build__row">
         <label className="mfs-build__lab" htmlFor={dimId}>
-          Read only where
+          Show only where
         </label>
         <span className="mfs-selwrap">
           <select
@@ -475,9 +474,9 @@ function Builder({
 
       {/* The action sits at the END of the sentence being built, beside the
           value rather than under it. That is the way the phrase reads, and it
-          is also the only arrangement the observed-values list cannot cover:
-          the list drops from the field, so a button below it would be sitting
-          under a panel the operator is trying to click through. */}
+          is also the only arrangement the suggestions list cannot cover: the
+          list drops from the field, so a button below it would sit under a
+          panel the user is trying to click through. */}
       <div className="mfs-build__row mfs-build__row--act">
         <span className="mfs-build__lab" aria-hidden="true" />
         <div className="mfs-build__act">
@@ -493,7 +492,7 @@ function Builder({
             />
           )}
           <Button type="submit" tone="primary" size="sm" icon={<IconPlus size={13} />} disabled={!ready}>
-            Clip this on
+            Add filter
           </Button>
         </div>
       </div>
@@ -556,7 +555,7 @@ function Segments({
 
       {list.isPending ? (
         <div className="mfs-seg__waiting" aria-busy="true">
-          <span className="mf-sr">Reading the saved segments…</span>
+          <span className="mf-sr">Loading saved segments…</span>
           <span className="mf-wait" style={{ width: "58%" }} />
           <span className="mf-wait" style={{ width: "41%" }} />
         </div>
@@ -566,7 +565,7 @@ function Segments({
         </p>
       ) : rows.length === 0 ? (
         <p className="mfs-say">
-          Nothing saved yet. Clip some conditions on, then name them below to keep them.
+          No saved segments yet. Add filters, then name them below to save them.
         </p>
       ) : (
         <ul className="mfs-seg__list">
@@ -579,7 +578,7 @@ function Segments({
               >
                 {s.name}
                 <span className="mfs-seg__n mf-data">
-                  {s.filters.length} {s.filters.length === 1 ? "condition" : "conditions"}
+                  {s.filters.length} {s.filters.length === 1 ? "filter" : "filters"}
                 </span>
               </button>
               <button
@@ -604,7 +603,7 @@ function Segments({
         }}
       >
         <label className="mf-sr" htmlFor={nameId}>
-          Name for these conditions
+          Name for these filters
         </label>
         <input
           id={nameId}
@@ -612,7 +611,7 @@ function Segments({
           value={name}
           spellCheck={false}
           autoComplete="off"
-          placeholder={filters.length ? "Name these conditions" : "Clip a condition on first"}
+          placeholder={filters.length ? "Name these filters" : "Add a filter first"}
           disabled={!filters.length}
           onChange={(e) => setName(e.target.value)}
         />
@@ -638,12 +637,12 @@ function Segments({
   );
 }
 
-/* ══ the written conditions ═══════════════════════════════════════════════ */
+/* ══ the active filters ═══════════════════════════════════════════════════ */
 
 /**
- * What is clipped on, written out. Type carries the rank: the dimension is the
+ * The active filters, written out. Type carries the rank: the dimension is the
  * subject, the operator is quiet because it is grammar, and the value is set in
- * the data face because it is the thing that came off the record.
+ * the data face because it is the recorded value.
  */
 export function ConditionList({
   filters,
@@ -657,7 +656,7 @@ export function ConditionList({
   if (!filters.length) {
     return (
       <p className="mfs-say">
-        Nothing is clipped on. The whole record is being read.
+        No filters. All traffic is shown.
       </p>
     );
   }
@@ -680,7 +679,7 @@ export function ConditionList({
               type="button"
               className="mfs-drop"
               onClick={() => onRemove(i)}
-              aria-label={`Unclip ${filterDimensionLabel(f.dimension)} ${filterOpLabel(f.op)} ${filterValueText(f)}`}
+              aria-label={`Remove filter ${filterDimensionLabel(f.dimension)} ${filterOpLabel(f.op)} ${filterValueText(f)}`}
             >
               <IconClose size={12} />
             </button>
@@ -688,11 +687,11 @@ export function ConditionList({
         ))}
       </ul>
       <div className="mfs-rack__foot">
-        {/* A real key, not a quiet text control: at the foot of a list, an
+        {/* A real button, not a quiet text control: at the foot of a list, an
             unbordered word reads as a caption rather than as something that
             does anything. */}
         <Button size="sm" onClick={onClear}>
-          Unclip everything
+          Clear all filters
         </Button>
       </div>
     </>
@@ -702,7 +701,7 @@ export function ConditionList({
 /* ══ the control ══════════════════════════════════════════════════════════ */
 
 export interface FilterBarProps {
-  /** Conditions to show. Defaults to the station's shared settings. */
+  /** Filters to show. Defaults to the dashboard's shared settings. */
   filters?: Filter[];
   onAdd?: (f: Filter) => void;
   onRemove?: (index: number) => void;
@@ -711,9 +710,9 @@ export interface FilterBarProps {
   /** Overrides the site the value suggestions are read from. */
   siteId?: number;
   /**
-   * `key` is the compact control for the station's top rail: one key that opens
-   * the rack. `bar` writes the rack out in place, for a screen that owns a
-   * whole row for it.
+   * `key` is the compact control for the top bar: one button that opens the
+   * filter popover. `bar` writes the form out in place, for a screen that owns
+   * a whole row for it.
    */
   variant?: "key" | "bar";
   /** Saved segments are a per-site feature; a screen without one hides them. */
@@ -730,7 +729,7 @@ export function FilterBar({
   siteId: siteIdProp,
   variant = "key",
   segments = true,
-  label = "Conditions",
+  label = "Filters",
 }: FilterBarProps) {
   const state = useAppState();
   const site = useSite();
@@ -752,12 +751,12 @@ export function FilterBar({
   const rack = (
     <div className="mfs-rack">
       <section className="mfs-rack__part">
-        <h4 className="mfs-rack__head">Clipped on</h4>
+        <h4 className="mfs-rack__head">Active filters</h4>
         <ConditionList filters={filters} onRemove={remove} onClear={clear} />
       </section>
 
       <section className="mfs-rack__part">
-        <h4 className="mfs-rack__head">Add a condition</h4>
+        <h4 className="mfs-rack__head">Add a filter</h4>
         <Builder onAdd={add} siteId={siteId} range={state.range} audience={state.audience} />
       </section>
 
@@ -781,8 +780,8 @@ export function FilterBar({
           className="mfs-key"
           aria-label={
             filters.length
-              ? `${label}: ${filters.length} clipped on`
-              : `${label}: none clipped on`
+              ? `${label}: ${filters.length} active`
+              : `${label}: none active`
           }
         >
           <IconFilter size={14} />

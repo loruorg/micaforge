@@ -1,19 +1,18 @@
 /**
- * The station itself: the spine, the live readout, and the controls that belong
- * to the instrument rather than to any one sheet.
+ * The dashboard frame: the left navigation, the live counts, and the controls
+ * that belong to every screen rather than to any one of them.
  *
- * What lives up here is exactly what is true no matter which channel you are
- * reading: the interval the caliper is set to, which pens are patched in, the
- * conditions clipped to the roll, and the way off the machine. Screens that
- * repeat one of those controls in their own masthead are not fighting this bar;
- * they drive the same settings, so moving either moves both.
+ * What lives up here is exactly what is true on every screen: the date range,
+ * the audience (people, AI crawlers or both), the filters, and export. Screens
+ * that repeat one of those controls in their own header are not fighting this
+ * bar; they drive the same settings, so changing either changes both.
  *
- * The live figures poll on their own clock and stop entirely when the tab is
+ * The live counts poll on their own clock and stop entirely when the tab is
  * hidden. Nobody's ClickHouse should be answering a question for a window
  * nobody is looking at.
  */
 import type { ReactNode } from "react";
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import * as RPopover from "@radix-ui/react-popover";
@@ -24,7 +23,7 @@ import { AppShell } from "../components/react/AppShell";
 import { AudienceSwitch, Button, RangePicker } from "../components/react/ui";
 import { FilterBar } from "../components/react/FilterBar";
 import { ExportMenu } from "../components/react/ExportMenu";
-import { IconCaliper, IconChevron, IconSettings } from "../components/react/icons";
+import { IconChevron, IconClock, IconSettings } from "../components/react/icons";
 import { COMPARE_WORDS, rangeWords, useAppState } from "./state";
 import { useAuth, useSite } from "./providers";
 
@@ -45,13 +44,13 @@ function useHidden(): boolean {
 
 const LIVE_POLL_MS = 10_000;
 
-/* ── the caliper, and what it is being measured against ──────────────────── */
+/* ── the date range, and what it is compared against ─────────────────────── */
 
 /**
- * The interval control. The named stops sit on the caliper's jaws; a measured
- * interval is written on the two date fields beneath them, which is the only
- * honest way to ask for "the fortnight of the launch". The comparison lives in
- * the same slip because it is a property of the interval, not a separate idea.
+ * The date range control. The presets come first; a custom range is set with
+ * the two date fields beneath them, which is the only honest way to ask for
+ * "the fortnight of the launch". The comparison lives in the same popover
+ * because it is a property of the range, not a separate idea.
  */
 function IntervalKey() {
   const { range, setRange, customRange, setCustomRange, compare, setCompare } = useAppState();
@@ -61,8 +60,8 @@ function IntervalKey() {
   const startId = useId();
   const endId = useId();
 
-  // Reopening the slip should show what is actually set, not what was typed and
-  // abandoned the last time it was open.
+  // Reopening the popover should show what is actually set, not what was typed
+  // and abandoned the last time it was open.
   useEffect(() => {
     if (!open) return;
     setStart(customRange?.start ?? "");
@@ -78,8 +77,8 @@ function IntervalKey() {
   return (
     <RPopover.Root open={open} onOpenChange={setOpen}>
       <RPopover.Trigger asChild>
-        <button type="button" className="mfs-key" aria-label={`Interval: ${rangeWords(range)}`}>
-          <IconCaliper size={14} />
+        <button type="button" className="mfs-key" aria-label={`Date range: ${rangeWords(range)}`}>
+          <IconClock size={14} />
           <span className="mfs-key__label">{rangeWords(range)}</span>
           <IconChevron size={12} className="mfs-key__caret" />
         </button>
@@ -88,12 +87,12 @@ function IntervalKey() {
         <RPopover.Content className="mfs-slip-panel" sideOffset={8} align="end" collisionPadding={12}>
           <div className="mfs-rack">
             <section className="mfs-rack__part">
-              <h4 className="mfs-rack__head">Interval</h4>
+              <h4 className="mfs-rack__head">Date range</h4>
               <RangePicker value={range} onChange={setRange} />
             </section>
 
             <section className="mfs-rack__part">
-              <h4 className="mfs-rack__head">Or measure one off</h4>
+              <h4 className="mfs-rack__head">Custom range</h4>
               <div className="mfs-span">
                 <div className="mfs-span__field">
                   <label className="mfs-build__lab" htmlFor={startId}>
@@ -124,7 +123,7 @@ function IntervalKey() {
               </div>
               {backwards ? (
                 <p className="mfs-say" data-tone="warn" role="alert">
-                  The first date falls after the second. Swap them, or move one.
+                  The start date is after the end date. Swap them or change one.
                 </p>
               ) : null}
               <div className="mfs-rack__foot">
@@ -138,11 +137,11 @@ function IntervalKey() {
                     setOpen(false);
                   }}
                 >
-                  Set the caliper
+                  Apply range
                 </Button>
                 {customRange ? (
                   <Button size="sm" tone="quiet" onClick={() => setCustomRange(null)}>
-                    Back to a named interval
+                    Use a preset range
                   </Button>
                 ) : null}
               </div>
@@ -171,9 +170,9 @@ function IntervalKey() {
   );
 }
 
-/* ── who is at the bench ─────────────────────────────────────────────────── */
+/* ── the signed-in user ──────────────────────────────────────────────────── */
 
-/** The operator's own key: their account, the instance, and the way out. */
+/** The account button: the user's account, the instance, and sign out. */
 function AccountKey() {
   const { user, isSignedOut, signOut } = useAuth();
   const [open, setOpen] = useState(false);
@@ -186,9 +185,9 @@ function AccountKey() {
     );
   }
 
-  /* A placeholder character is not an identity. Until the account read lands,
-     the key is the settings glyph alone: never a literal question mark, which
-     reads as a broken control rather than as a signed-in operator. */
+  /* A placeholder character is not an identity. Until the account loads, the
+     button is the settings icon alone: never a literal question mark, which
+     reads as a broken control rather than as a signed-in user. */
   const who = (user?.name || user?.email || "").trim();
   const initial = who ? who.charAt(0).toUpperCase() : null;
 
@@ -237,21 +236,20 @@ function AccountKey() {
   );
 }
 
-/* ── the bar in the top rail ─────────────────────────────────────────────── */
+/* ── the controls in the top bar ─────────────────────────────────────────── */
 
 /**
- * What each channel already carries in its own masthead.
+ * What each screen already carries in its own header.
  *
- * Several screens were built with a caliper, an audience bank or an export key
- * of their own, sitting in the panel head where the figures they govern are.
- * Those are better placed than a control in the top rail, so the station does
- * not repeat them: two identical audience banks seventy pixels apart read as a
- * bug, not as a design. The station supplies only what the live channel is
- * missing, which is why the thirteen screens that carry nothing are still
- * fully operable.
+ * Several screens have a date range, an audience switch or an export button of
+ * their own, in the panel head next to the figures they govern. Those are
+ * better placed than a control in the top bar, so the top bar does not repeat
+ * them: two identical audience switches seventy pixels apart read as a bug, not
+ * as a design. The top bar supplies only what the current screen is missing,
+ * which is why the screens that carry nothing are still fully operable.
  *
- * The record's own channel is the empty string, because its address is just
- * `/app/<site>`.
+ * The dashboard's own screen is the empty string, because its address is just
+ * `/app/<site>`. (The code calls a screen a "channel" for historical reasons.)
  */
 const OWN_CALIPER = new Set([
   "",
@@ -266,31 +264,38 @@ const OWN_CALIPER = new Set([
   "query",
 ]);
 const OWN_AUDIENCE = new Set(["", "pages", "sources", "locations", "devices", "query"]);
-/* The record no longer keeps an export key of its own. Two sibling screens put
-   the same control in two places under two names, so the way off the machine is
-   the station's everywhere: one key, in the top rail, reading "Export". The
-   screens listed here still carry theirs because what they take is ONE sheet at
-   the dimension it is currently tabulated by, which the station cannot name. */
+/* The dashboard no longer keeps an export button of its own. Two sibling
+   screens put the same control in two places under two names, so export lives
+   in the top bar everywhere, as one button reading "Export". The screens listed
+   here still carry theirs because what they export is ONE table at the
+   dimension it is currently grouped by, which the top bar cannot name. */
 const OWN_EXPORT = new Set(["pages", "sources", "locations", "devices", "query", "sessions"]);
 
 /**
- * The wedge screens ARE the machines, and say so. Offering an audience switch
- * on them would invite a reading they do not answer.
+ * The AI traffic screens are about AI crawlers only. Offering an audience
+ * switch on them would invite a question they do not answer.
  */
-const NO_AUDIENCE = new Set(["agents", "citation-gap", "policy", "content-decay"]);
+const NO_AUDIENCE = new Set(["agents", "citation-gap", "policy", "content-decay", "realtime"]);
 
-/** Setup is not a reading. None of the reading controls belong on it. */
+/**
+ * Realtime always shows the last five minutes for both audiences, so a date
+ * range or an audience switch in the top bar would be a control that does
+ * nothing there. Filters still apply, so the filter button stays.
+ */
+const NO_RANGE = new Set(["realtime"]);
+
+/** Setup is not a report. None of the report controls belong on it. */
 const NOT_A_READING = new Set(["settings", "onboarding"]);
 
-/** The channel a path is on: `/app/<site>/<channel>/…`, or "" for the record. */
+/** The screen a path is on: `/app/<site>/<screen>/…`, or "" for the dashboard. */
 export function channelOf(pathname: string): string {
   const parts = pathname.split("/").filter(Boolean);
   return parts.length >= 3 ? (parts[2] as string) : "";
 }
 
 /**
- * Which table the export key would take. The station bar cannot see what a
- * screen is showing, but it knows which channel is live, and that is the name
+ * Which table the export button would export. The top bar cannot see what a
+ * screen is showing, but it knows which screen is open, and that is the name
  * the server wants.
  */
 const EXPORTABLE = new Set([
@@ -327,7 +332,7 @@ function StationControls({ hasSite, pathname }: { hasSite: boolean; pathname: st
           {OWN_AUDIENCE.has(channel) || NO_AUDIENCE.has(channel) ? null : (
             <AudienceSwitch value={audience} onChange={setAudience} />
           )}
-          {OWN_CALIPER.has(channel) ? null : <IntervalKey />}
+          {OWN_CALIPER.has(channel) || NO_RANGE.has(channel) ? null : <IntervalKey />}
           <FilterBar />
           {OWN_EXPORT.has(channel) ? null : <ExportMenu report={reportFor(channel)} />}
         </>
@@ -337,7 +342,7 @@ function StationControls({ hasSite, pathname }: { hasSite: boolean; pathname: st
   );
 }
 
-/* ── the station ─────────────────────────────────────────────────────────── */
+/* ── the frame ───────────────────────────────────────────────────────────── */
 
 export function AppRoot({ children }: { children?: ReactNode }) {
   const { siteId, domain, notFound, requested } = useSite();
@@ -345,7 +350,7 @@ export function AppRoot({ children }: { children?: ReactNode }) {
   const hidden = useHidden();
 
   const live = useQuery({
-    // The same key the live-pen screen reads on, so one poll feeds both rather
+    // The same key the Realtime screen reads on, so one poll feeds both rather
     // than two clocks asking the same question out of step.
     queryKey: ["stats", "realtime", siteId ?? null, "5m", "all", "[]"],
     enabled: siteId != null,

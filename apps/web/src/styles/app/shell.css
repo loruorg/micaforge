@@ -1,36 +1,36 @@
 /* ============================================================================
-   The station's own chrome: the controls in the top rail, the slips they open,
-   the waiting state a channel arrives on, and the sheet a failure is reported
-   on. Everything the router agent added lives here under .mfs-*; the bench
-   classes in global.css are reused wherever they already fit.
+   The dashboard's own chrome: the controls in the top bar, the popovers they
+   open, the loading state a screen arrives on, and the page a failure is
+   reported on. Everything here lives under .mfs-*; the shared classes in
+   global.css are reused wherever they already fit.
 
-   The two rules that govern every line below are the two that govern the
-   bench:
-     1. Depth is the scratch ridge and the lift token, never a bloom. Nothing
-        glows, nothing rises on hover, state changes by tone and fill.
-     2. Parallel things sit on one grid. A long dimension name cannot shove a
+   Two rules govern every line below:
+     1. Depth comes from the soft shadow tokens only. Nothing glows, nothing
+        rises on hover; state changes by tone and fill.
+     2. Parallel things sit on one grid. A long dimension name cannot push a
         neighbouring figure out of line, because the rows that must align have
         reserved slots rather than content-sized ones.
    ========================================================================= */
 
 @layer components {
-  /* ── the top rail's keys ──────────────────────────────────────────────────
-     A key on the station's rail, cut to the same height as the caliper's jaws
-     so the whole bar reads as one bank rather than four borrowed controls. */
+  /* ── the top bar's buttons ────────────────────────────────────────────────
+     Cut to the same height as the date range control, so the whole bar reads
+     as one set of controls. */
   .mfs-key {
     display: inline-flex;
     align-items: center;
     gap: var(--mf-2);
     max-width: 15rem;
-    padding: 5px var(--mf-3);
+    padding: 6px var(--mf-3);
     font: inherit;
     font-size: var(--mf-t-xs);
+    font-weight: 500;
     line-height: 1.2;
     color: var(--mf-ink-2);
-    background: var(--mf-ground);
-    border: 1px solid var(--mf-rule);
+    background: var(--mf-ground-2);
+    border: 1px solid var(--mf-rule-strong);
     border-radius: var(--mf-r-sm);
-    box-shadow: inset 0 1px 0 var(--mf-lip);
+    box-shadow: var(--mf-shadow-xs);
     text-decoration: none;
     cursor: pointer;
     transition:
@@ -69,20 +69,20 @@
     .mfs-key__caret { transition: none; }
   }
 
-  /* The count of what is clipped on. A figure, so it is set in the data face;
-     it earns its contrast from the shellac wash, not from a capsule. */
+  /* The count of active filters: a small blue badge. */
   .mfs-key__n {
     flex: none;
     min-width: 1.25em;
-    padding: 0 3px;
+    padding: 0 4px;
     font-size: var(--mf-t-2xs);
+    font-weight: 600;
     text-align: center;
-    color: var(--mf-accent);
-    background: var(--mf-accent-wash);
-    border-radius: var(--mf-r-sm);
+    color: var(--mf-blue-ink);
+    background: var(--mf-blue-wash);
+    border-radius: var(--mf-r-pill);
   }
 
-  /* The operator's own key carries their initial, so it is sized to a glyph. */
+  /* The account button carries the user's initial, so it is sized to a glyph. */
   .mfs-key--who { padding-inline: var(--mf-2); }
   .mfs-key__label--who {
     display: inline-flex;
@@ -93,38 +93,8 @@
     color: var(--mf-ink);
   }
 
-  /* ── the mark on the channel the pen is writing ───────────────────────────
-     The rail's live channel is marked in shellac, which is right: it is the pen
-     mark. A rounded three-pixel bar down the edge of a list item is not: that is
-     the accent border every component kit ships. Same idea, drawn the way the
-     instrument would draw it: the short trace the pen has already laid down
-     along the paper edge, and the nib itself resting on the channel it writes.
-     Square caps, one colour, no bloom. */
-  .mf-rail .mf-chan.is-live::before {
-    left: calc(var(--mf-3) * -1 + 2px);
-    top: 50%;
-    width: 8px;
-    height: 2px;
-    transform: translateY(-50%);
-    border-radius: 0;
-    background: var(--mf-accent);
-  }
-  .mf-rail .mf-chan.is-live::after {
-    content: "";
-    position: absolute;
-    left: calc(var(--mf-3) * -1 + 9px);
-    top: 50%;
-    width: 5px;
-    height: 9px;
-    transform: translateY(-50%);
-    background: var(--mf-accent);
-    /* the nib: a drawn silhouette, not a rounded rectangle */
-    clip-path: polygon(0 0, 100% 50%, 0 100%);
-  }
-
-  /* ── the slip a key opens ─────────────────────────────────────────────────
-     A log slip pinned to the rail: the panel's own surface, a self-coloured
-     edge, and the one directional lift token. No halo, no backdrop blur. */
+  /* ── the popover a button opens ───────────────────────────────────────────
+     White, a hairline edge and the large soft shadow. No backdrop blur. */
   .mfs-slip-panel {
     z-index: 40;
     width: min(26rem, calc(100vw - var(--mf-6)));
@@ -134,17 +104,16 @@
     background: var(--mf-ground-2);
     border: 1px solid var(--mf-rule-strong);
     border-radius: var(--mf-r-md);
-    box-shadow: var(--mf-shadow-lg), inset 0 1px 0 var(--mf-lip);
+    box-shadow: var(--mf-shadow-lg);
     color: var(--mf-ink);
   }
 
-  /* The interval slip carries the caliper, and the caliper is six stops wide.
-     A slip cut to the account menu's width sliced the last stop off inside its
-     own panel, which is the same fault as the viewport edge cutting it. The
-     slip that holds a rack is cut to fit the instrument in it. */
+  /* The date range popover carries the six-preset range control. Cut to the
+     account menu's width it cut the last preset off inside its own panel, so
+     a popover that holds a form is cut wider. */
   .mfs-slip-panel:has(.mfs-rack) { width: min(30rem, calc(100vw - var(--mf-6))); }
 
-  /* ── the rack inside it ───────────────────────────────────────────────── */
+  /* ── the form inside it ───────────────────────────────────────────────── */
   .mfs-rack {
     display: grid;
     gap: var(--mf-5);
@@ -155,17 +124,16 @@
     gap: var(--mf-3);
     min-width: 0;
   }
-  /* Each part after the first is ruled off from the one above, the way a slip
-     is divided. The rule is the panel's own edge value, not a drawn line. */
+  /* Each part after the first is divided from the one above by a hairline. */
   .mfs-rack__part + .mfs-rack__part {
     padding-top: var(--mf-5);
     border-top: 1px solid var(--mf-rule);
   }
-  /* An instrument label, in the data face because that is what it labels. */
+  /* A small section label. */
   .mfs-rack__head {
-    font-family: var(--mf-font-data);
+    font-family: var(--mf-font-ui);
     font-size: var(--mf-t-2xs);
-    font-weight: 400;
+    font-weight: 500;
     letter-spacing: 0.04em;
     text-transform: uppercase;
     color: var(--mf-ink-3);
@@ -178,17 +146,16 @@
   }
   .mfs-rack__foot--centre { justify-content: center; }
 
-  /* Written out in place, for a screen that owns a whole row for the rack. */
+  /* Written out in place, for a screen that owns a whole row for the form. */
   .mfs-rack-bar {
     background: var(--mf-ground-2);
     border: 1px solid var(--mf-rule);
     border-radius: var(--mf-r-md);
   }
 
-  /* ── a sentence the operator can read ─────────────────────────────────────
-     Rank is carried by type: the dimension is the subject, the operator is
-     grammar and stays quiet, and the value is set in the data face because it
-     came off the record. No capsule, no tint, no chip. */
+  /* ── a filter, written as a sentence ──────────────────────────────────────
+     Rank is carried by type: the dimension is the subject, the operator stays
+     quiet, and the value is the strongest ink. No capsule, no tint, no chip. */
   .mfs-conds {
     display: grid;
     gap: 1px;
@@ -215,9 +182,9 @@
     color: var(--mf-ink);
   }
   .mfs-cond__op { color: var(--mf-ink-3); }
-  .mfs-cond__val { color: var(--mf-accent); }
+  .mfs-cond__val { color: var(--mf-ink-strong); font-weight: 500; }
 
-  /* The unclip control. A bare mark, no tile behind it. */
+  /* The remove-filter control. A bare mark, no tile behind it. */
   .mfs-drop {
     flex: none;
     display: inline-flex;
@@ -240,7 +207,7 @@
   }
   .mfs-drop[disabled] { opacity: 0.42; cursor: not-allowed; }
 
-  /* One quiet line the rack says about itself. */
+  /* One quiet line of help under a form. */
   .mfs-say {
     font-size: var(--mf-t-xs);
     line-height: var(--mf-lead-body);
@@ -262,24 +229,21 @@
     background: var(--mf-well);
     border: 1px solid var(--mf-rule-strong);
     border-radius: var(--mf-r-sm);
-    box-shadow: var(--mf-inset);
+    box-shadow: var(--mf-shadow-xs);
+    transition: border-color var(--mf-dur-1) linear;
   }
-  .mfs-input::placeholder { color: var(--mf-ink-2); }
+  .mfs-input:hover,
+  .mfs-select:hover { border-color: var(--mf-ink-3); }
+  .mfs-input::placeholder { color: var(--mf-ink-3); }
   .mfs-input[disabled],
   .mfs-select[disabled] { opacity: 0.5; cursor: not-allowed; }
-  /* The native picker indicator is drawn by the browser in its own ink; on the
-     soot record it has to be inverted to be visible at all. */
   .mfs-input[type="date"]::-webkit-calendar-picker-indicator {
-    filter: invert(1) opacity(0.5);
+    filter: opacity(0.6);
     cursor: pointer;
   }
-  :root[data-record="paper"] .mfs-input[type="date"]::-webkit-calendar-picker-indicator {
-    filter: opacity(0.6);
-  }
-  /* `appearance: none` removes the platform's own caret, so one is drawn back.
-     A control with no affordance is not a restrained control, it is a broken
-     one. The mark is the same chevron the rest of the station uses, rotated
-     down, and it sits over the field rather than in a box beside it. */
+  /* `appearance: none` removes the platform's own caret, so one is drawn back:
+     a select with no caret looks like a text field. It is the same chevron
+     the rest of the dashboard uses, rotated down, over the field. */
   .mfs-selwrap { position: relative; display: block; min-width: 0; }
   .mfs-select { appearance: none; padding-right: var(--mf-6); }
   .mfs-selwrap__caret {
@@ -309,8 +273,8 @@
     color: var(--mf-ink-3);
     text-align: right;
   }
-  /* The value and its action on one line: the field can grow, the key cannot
-     shrink, and the observed-values list drops clear of both. */
+  /* The value and its action on one line: the field can grow, the button
+     cannot shrink, and the suggestions list drops clear of both. */
   .mfs-build__act {
     display: flex;
     align-items: center;
@@ -321,7 +285,7 @@
   .mfs-build__act > .mfs-selwrap { flex: 1; min-width: 0; }
   .mfs-build__act > .mf-btn { flex: none; }
   .mfs-build__row--act { margin-top: var(--mf-1); }
-  /* With no value to write, the key is all that is left on the row. */
+  /* With no value to enter, the button is all that is left on the row. */
   .mfs-build__row--act .mfs-build__act:only-child { justify-content: flex-end; }
   .mfs-build__act:has(> .mf-btn:only-child) { justify-content: flex-end; }
 
@@ -339,7 +303,7 @@
     list-style: none;
     margin: 0;
     padding: 2px;
-    background: var(--mf-ground-3);
+    background: var(--mf-ground-2);
     border: 1px solid var(--mf-rule-strong);
     border-radius: var(--mf-r-sm);
     box-shadow: var(--mf-shadow-lg);
@@ -361,8 +325,8 @@
     cursor: pointer;
   }
   .mfs-combo__opt.is-cursor {
-    background: var(--mf-accent-wash);
-    color: var(--mf-ink);
+    background: var(--mf-ground-3);
+    color: var(--mf-ink-strong);
   }
   .mfs-combo__opt-key {
     min-width: 0;
@@ -377,7 +341,7 @@
     padding: var(--mf-2);
   }
 
-  /* ── the measured interval ────────────────────────────────────────────── */
+  /* ── a custom date range ──────────────────────────────────────────────── */
   .mfs-span {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -386,13 +350,13 @@
   .mfs-span__field { display: grid; gap: var(--mf-1); min-width: 0; }
   .mfs-span__field .mfs-build__lab { text-align: left; }
 
-  /* ── a bank of exclusive keys ─────────────────────────────────────────── */
+  /* ── a segmented control: one choice of several ───────────────────────── */
   .mfs-bank {
     display: inline-flex;
     flex-wrap: wrap;
     gap: 2px;
     padding: 2px;
-    background: var(--mf-well);
+    background: var(--mf-ground-3);
     border: 1px solid var(--mf-rule);
     border-radius: var(--mf-r-sm);
   }
@@ -403,14 +367,15 @@
     color: var(--mf-ink-2);
     background: none;
     border: 0;
-    border-radius: var(--mf-r-sm);
+    border-radius: 4px;
     cursor: pointer;
     transition: background-color var(--mf-dur-1) linear, color var(--mf-dur-1) linear;
   }
-  .mfs-bank__key:hover { color: var(--mf-ink); background: var(--mf-ground-2); }
+  .mfs-bank__key:hover { color: var(--mf-ink); }
   .mfs-bank__key[aria-pressed="true"] {
-    background: var(--mf-ground-3);
-    color: var(--mf-ink);
+    background: var(--mf-ground-2);
+    color: var(--mf-ink-strong);
+    box-shadow: var(--mf-shadow-xs);
   }
 
   /* ── saved segments ───────────────────────────────────────────────────── */
@@ -459,7 +424,7 @@
   }
   .mfs-seg__waiting { display: grid; gap: var(--mf-2); }
 
-  /* ── a menu of ways out ───────────────────────────────────────────────── */
+  /* ── a menu of export options ─────────────────────────────────────────── */
   .mfs-menu { width: min(20rem, calc(100vw - var(--mf-6))); padding: var(--mf-2); }
   .mfs-menu__note {
     padding: var(--mf-2) var(--mf-3) var(--mf-3);
@@ -496,9 +461,9 @@
     color: var(--mf-ink-3);
   }
 
-  /* ── a channel still arriving ─────────────────────────────────────────────
-     Blank paper feeding through the machine. Present in the document from the
-     first frame; nothing here is hidden waiting on an animation. */
+  /* ── a screen still loading ───────────────────────────────────────────────
+     Grey placeholder shapes in the layout of the screen to come. Present in
+     the document from the first frame; nothing is hidden behind an animation. */
   .mfs-wait-screen {
     max-width: var(--mf-shell-max);
     margin: 0 auto;
@@ -525,8 +490,8 @@
     padding: var(--mf-5);
   }
 
-  /* The paper creeps forward while a reading is being taken. It is decoration
-     on a state that is already fully drawn, so it is safe to switch off. */
+  /* The placeholders fade softly while the data loads. It is decoration on a
+     state that is already fully drawn, so it is safe to switch off. */
   @media (prefers-reduced-motion: no-preference) {
     .mfs-wait-screen .mf-wait {
       animation: mfs-feed var(--mf-dur-4) var(--mf-ease-out) infinite alternate;
@@ -540,7 +505,7 @@
     to { opacity: 0.55; }
   }
 
-  /* ── a screen that stopped writing ────────────────────────────────────── */
+  /* ── a screen that failed ─────────────────────────────────────────────── */
   .mfs-boundary {
     display: flex;
     align-items: center;
@@ -555,34 +520,34 @@
     background: var(--mf-ground-2);
     border: 1px solid var(--mf-rule);
     border-radius: var(--mf-r-md);
-    box-shadow: inset 0 1px 0 var(--mf-lip);
+    box-shadow: var(--mf-shadow-md);
   }
 
-  /* ── the notice slip ──────────────────────────────────────────────────────
-     Sonner's own surface variables are re-pointed at the record's materials so
-     the slip is made of the same paper as everything else. */
+  /* ── toasts ───────────────────────────────────────────────────────────────
+     Sonner's own surface variables are pointed at the tokens, so a toast is a
+     white panel like everything else. */
   [data-sonner-toaster] {
-    --normal-bg: var(--mf-ground-3);
+    --normal-bg: var(--mf-ground-2);
     --normal-text: var(--mf-ink);
-    --normal-border: var(--mf-rule-strong);
-    --success-bg: var(--mf-ground-3);
+    --normal-border: var(--mf-rule);
+    --success-bg: var(--mf-ground-2);
     --success-text: var(--mf-success);
-    --success-border: var(--mf-rule-strong);
-    --error-bg: var(--mf-ground-3);
+    --success-border: var(--mf-rule);
+    --error-bg: var(--mf-ground-2);
     --error-text: var(--mf-danger);
-    --error-border: var(--mf-rule-strong);
+    --error-border: var(--mf-rule);
     font-family: var(--mf-font-ui);
   }
   .mfs-slip {
     border-radius: var(--mf-r-md) !important;
-    box-shadow: var(--mf-shadow-lg), inset 0 1px 0 var(--mf-lip) !important;
+    box-shadow: var(--mf-shadow-lg) !important;
   }
   .mfs-slip__title { font-size: var(--mf-t-sm); font-weight: 500; }
   .mfs-slip__body { font-size: var(--mf-t-xs); color: var(--mf-ink-3); }
   .mfs-slip__act {
     font-size: var(--mf-t-xs) !important;
-    color: var(--mf-ground) !important;
-    background: var(--mf-accent) !important;
+    color: var(--mf-ground-2) !important;
+    background: var(--mf-ink-strong) !important;
     border-radius: var(--mf-r-sm) !important;
   }
   .mfs-slip__close {
@@ -591,15 +556,10 @@
     border-color: var(--mf-rule-strong) !important;
   }
 
-  /* ── the top rail, narrower than the controls it carries ──────────────────
-     Under 1080px the rail becomes a drawer and the topbar gains the toggle, so
-     the bar is given a second line to lay its controls on instead of pushing
-     the page sideways. The station never scrolls horizontally.
-
-     The Channels key is chrome now, riding in that bar with the rest of the
-     station's controls, so the strip of blank paper this file used to reserve at
-     the foot of every screen (clearance for a key that floated over the record)
-     went with it. */
+  /* ── the top bar, narrower than the controls it carries ───────────────────
+     Under 1080px the left navigation becomes a drawer and the top bar gains
+     the Menu button, so the bar is given a second line for its controls
+     instead of pushing the page sideways. The page never scrolls sideways. */
   @media (max-width: 1080px) {
     .mf-topbar {
       height: auto;
@@ -619,6 +579,11 @@
 
   @media (max-width: 560px) {
     .mfs-key { max-width: 11rem; }
+    /* On a phone the audience switch takes its own full-width row, and the
+       buttons share the row below it with tighter gaps. */
+    .mf-topbar__right { gap: var(--mf-2); }
+    .mf-topbar__right > .mf-audience { width: 100%; }
+    .mf-topbar__right > .mf-audience .mf-audience__key { flex: 1; justify-content: center; }
     .mfs-build__row {
       grid-template-columns: minmax(0, 1fr);
       gap: var(--mf-1);

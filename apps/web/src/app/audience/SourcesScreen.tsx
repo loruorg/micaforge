@@ -29,7 +29,6 @@ import {
   errorDetail,
   n,
   percentOf100,
-  ratio,
   secs,
   useAudienceQuery,
   useEnvelope,
@@ -133,7 +132,7 @@ export function SourcesScreen() {
     () => [
       {
         key: "visitors",
-        label: machines ? "Clients" : "Visitors",
+        label: machines ? "Crawlers" : "Visitors",
         value: count(totals.visitors),
         note: `${rows.length} channel${rows.length === 1 ? "" : "s"}`,
       },
@@ -243,9 +242,9 @@ export function SourcesScreen() {
       key: "label",
       head: labelHead,
       width: "36%",
-      /* Drawn against the leading row of this sheet: at a typical share of a few
-         per cent, ink drawn against the whole site is the same stub on every
-         row. The share column still carries the share of the whole. */
+      /* Drawn against the leading row of this table: at a typical share of a
+         few per cent, a bar drawn against the whole site is the same stub on
+         every row. The share column still carries the share of the whole. */
       share: againstLeader(rows, (r) => n(r, "share")),
       render: (r) => (
         <span className="mfa-name" title={r.label ?? r.key}>
@@ -255,7 +254,7 @@ export function SourcesScreen() {
     },
     {
       key: "visitors",
-      head: machines ? "Clients" : "Visitors",
+      head: machines ? "Crawlers" : "Visitors",
       numeric: true,
       render: (r) => count(n(r, "visitors")),
     },
@@ -284,7 +283,7 @@ export function SourcesScreen() {
     },
     {
       key: "visitors",
-      head: machines ? "Clients" : "Visitors",
+      head: machines ? "Crawlers" : "Visitors",
       numeric: true,
       render: (r) => count(n(r, "visitors")),
     },
@@ -314,10 +313,10 @@ export function SourcesScreen() {
   );
 
   return (
-    /* Which pen these sheets are written in: the ink behind a row is the trace
-       of the audience being read, never the machine pen on a human table. */
+    /* The share bar behind a row takes the colour of the audience on screen:
+       blue for people, orange for AI crawlers. */
     <div className="mfa-screen" data-trace={machines ? "agent" : "human"}>
-      <Panel ruled feed>
+      <Panel>
         <PanelHead
           title="Sources"
           note="Where the traffic came from, bucketed into channels. Answer engines are one of those channels, listed beside search rather than buried in referrals."
@@ -326,7 +325,7 @@ export function SourcesScreen() {
 
         {channelsQ.isError ? (
           <ErrorState
-            title="Channels did not come back"
+            title="Could not load channels"
             detail={errorDetail(channelsQ.error)}
             onRetry={() => void channelsQ.refetch()}
           />
@@ -340,9 +339,9 @@ export function SourcesScreen() {
 
         {machines ? (
           <Caveat>
-            A crawler arrives without a referrer, so the machine trace has almost nothing to
-            attribute: most of it lands in Direct. Acquisition is a question about readers;
-            switch to Readers to ask it, or read Agent traffic for what the machines did.
+            A crawler arrives without a referrer, so AI crawler traffic has almost nothing to
+            attribute: most of it lands in Direct. Switch to People to see where visitors came
+            from, or open AI crawlers to see what the crawlers did.
           </Caveat>
         ) : null}
 
@@ -355,8 +354,8 @@ export function SourcesScreen() {
             onRowClick={(r) => setChannel((c) => (c === r.key ? null : r.key))}
             empty={
               <Empty
-                title="No arrivals were recorded in this interval"
-                body="A channel appears the moment the first hit is attributed to it. Widen the interval, or clear a clip."
+                title="No visits in this period"
+                body="A channel appears when the first visit is attributed to it. Choose a longer period, or clear a filter."
               />
             }
           />
@@ -365,12 +364,12 @@ export function SourcesScreen() {
         {rows.length ? (
           <div className="mfa-foot">
             <span>
-              Click a channel to read the senders inside it.
-              {channel ? ` Reading ${channelLabel(channel)}.` : ""}
+              Click a channel to see its sources below.
+              {channel ? ` Showing ${channelLabel(channel)}.` : ""}
             </span>
             {channel ? (
               <button type="button" className="mfa-crumbs__step" onClick={() => setChannel(null)}>
-                Read all channels
+                Show all channels
               </button>
             ) : null}
           </div>
@@ -381,12 +380,12 @@ export function SourcesScreen() {
       <Panel>
         <PanelHead
           title="What each channel is worth"
-          note="Conversion rate and time on site per channel, each on its own shared scale. The upright rule on every track is the site's own average, so a channel above it is pulling its weight."
+          note="Conversion rate and time on site per channel. The vertical mark on each bar is the site average, so a bar that passes it does better than average."
         />
 
         {channelsQ.isError ? (
           <ErrorState
-            title="The comparison did not come back"
+            title="Could not load the comparison"
             detail={errorDetail(channelsQ.error)}
             onRetry={() => void channelsQ.refetch()}
           />
@@ -395,7 +394,7 @@ export function SourcesScreen() {
         ) : worth.rows.length === 0 ? (
           <Empty
             title="Nothing to compare yet"
-            body="Two channels with recorded sessions are enough to fill this. It stays empty rather than compare one channel with itself."
+            body="This fills in when channels have recorded sessions in this period."
           />
         ) : (
           <>
@@ -465,17 +464,17 @@ export function SourcesScreen() {
       {/* ── sources ──────────────────────────────────────────────────────── */}
       <Panel>
         <PanelHead
-          title={channel ? `Named senders in ${channelLabel(channel)}` : "Named senders"}
+          title={channel ? `Sources in ${channelLabel(channel)}` : "Top sources"}
           note={
             channel
-              ? "The named senders inside the channel you selected above."
-              : "The named senders behind every channel. Select a channel above to narrow this."
+              ? "The named sources inside the channel you selected above."
+              : "The named sources behind every channel. Select a channel above to narrow this list."
           }
           actions={<ExportKey report={`sources:source:${channel ?? "all"}`} env={sourceEnv} />}
         />
         {sourcesQ.isError ? (
           <ErrorState
-            title="Sources did not come back"
+            title="Could not load sources"
             detail={errorDetail(sourcesQ.error)}
             onRetry={() => void sourcesQ.refetch()}
           />
@@ -492,8 +491,8 @@ export function SourcesScreen() {
               <Empty
                 title={
                   channel
-                    ? `Nothing was attributed to ${channelLabel(channel)} in this interval`
-                    : "No named sources in this interval"
+                    ? `No sources in ${channelLabel(channel)} for this period`
+                    : "No named sources in this period"
                 }
                 body="A source appears here once a referrer or a utm_source can be resolved to a name. Direct traffic carries neither, by definition."
               />
@@ -502,7 +501,7 @@ export function SourcesScreen() {
         )}
         {(sourcesQ.data?.rows.length ?? 0) > 0 ? (
           <div className="mfa-foot">
-            <span>Click a source to clip the whole record to it.</span>
+            <span>Click a source to filter every screen by it.</span>
             <span className="mf-data">{compact(sourcesQ.data?.total ?? 0)} rows</span>
           </div>
         ) : null}
@@ -512,9 +511,9 @@ export function SourcesScreen() {
       <Panel>
         <PanelHead
           title="Campaigns"
-          note="The UTM parameters on the links people followed. Switch the pivot to read the same traffic by a different tag."
+          note="The UTM parameters on the links people followed. Choose a parameter to group the same traffic by a different tag."
           actions={
-            <div className="mf-caliper__jaws" role="group" aria-label="Campaign pivot">
+            <div className="mf-caliper__jaws" role="group" aria-label="UTM parameter">
               {PIVOTS.map((p) => (
                 <button
                   key={p.id}
@@ -531,7 +530,7 @@ export function SourcesScreen() {
         />
         {campaignsQ.isError ? (
           <ErrorState
-            title="Campaigns did not come back"
+            title="Could not load campaigns"
             detail={errorDetail(campaignsQ.error)}
             onRetry={() => void campaignsQ.refetch()}
           />
@@ -544,7 +543,7 @@ export function SourcesScreen() {
             onRowClick={(r) => addFilter({ dimension: pivot, op: "is", value: r.key } as Filter)}
             empty={
               <Empty
-                title={`Nothing carried ${pivot} in this interval`}
+                title={`No visits with ${pivot} in this period`}
                 body={`Tag a link with ?${pivot}=… and the arrivals from it are grouped here.`}
               />
             }
@@ -552,7 +551,7 @@ export function SourcesScreen() {
         )}
         {(campaignsQ.data?.rows.length ?? 0) > 0 ? (
           <div className="mfa-foot">
-            <span>Click a row to clip the whole record to that tag.</span>
+            <span>Click a row to filter every screen by that tag.</span>
             <span className="mf-data">{compact(campaignsQ.data?.total ?? 0)} rows</span>
           </div>
         ) : null}

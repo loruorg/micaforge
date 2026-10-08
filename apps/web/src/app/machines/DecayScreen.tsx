@@ -1,14 +1,14 @@
 /**
- * Content decay, at /app/:site/decay
+ * Content decay, at /app/:site/content-decay
  *
- * Pages whose readers are draining away while the machines keep reading them.
- * Reached from the Citation Gap, because it is the question that report raises
- * and cannot answer on its own.
+ * Pages that are losing visitors while AI crawlers keep fetching them. Reached
+ * from the Citation gap, because it is the question that report raises and
+ * cannot answer on its own.
  *
- * Every row carries the same mirrored figure as the big record, drawn at the
- * scale of a row: the machine pen stepping up from the rule, the reader pen
- * written down from it. Each pen is scaled to its own maximum, because at 34 pixels
- * tall a shared scale would pin one of them flat and record nothing.
+ * Every row carries the same mirrored chart as the Citation gap, drawn at the
+ * size of a row: crawler fetches stepping up from the centre line, visitors
+ * drawn down from it. Each series is scaled to its own maximum, because at 40
+ * pixels tall a shared scale would press one of them flat and show nothing.
  */
 import { useMemo } from "react";
 import { useNavigate, useParams } from "react-router";
@@ -35,9 +35,9 @@ interface DecayRow {
   agent_trace?: number[];
 }
 
-/* ── the row trace ──────────────────────────────────────────────────────── */
+/* ── the row chart ──────────────────────────────────────────────────────── */
 
-/** A crawler fetches in discrete jumps, so its pen steps. */
+/** A crawler fetches in discrete jumps, so its line steps. */
 function steppedPath(pts: [number, number][]): string {
   if (!pts.length) return "";
   let d = `M${pts[0][0]},${pts[0][1]}`;
@@ -48,7 +48,7 @@ function steppedPath(pts: [number, number][]): string {
   return d;
 }
 
-/** A reader arrives continuously, so their pen is written. */
+/** Visitors arrive continuously, so their line is smooth. */
 function writtenPath(pts: [number, number][]): string {
   if (!pts.length) return "";
   if (pts.length === 1) return `M${pts[0][0]},${pts[0][1]}`;
@@ -75,7 +75,7 @@ function RowTrace({
 }: {
   machines: number[];
   readers: number[];
-  /** Full scale for each pen, taken across every row so the column compares. */
+  /** Scale for each series, taken across every row so the column compares. */
   machineFull: number;
   readerFull: number;
   label: string;
@@ -106,9 +106,9 @@ function RowTrace({
       role="img"
       aria-label={label}
     >
-      {/* The centre rule is the zero both pens are measured from. It has to be
-          legible or the mirror means nothing, so it is drawn at full strength
-          with a fiducial tick at each end. */}
+      {/* The centre line is the zero both series are measured from. It has to
+          be clear or the mirror means nothing, so it is drawn at full strength
+          with a short tick at each end. */}
       <line
         x1={0}
         x2={TRACE_W}
@@ -120,11 +120,8 @@ function RowTrace({
       />
       <line x1={0} x2={0} y1={mid - 3} y2={mid + 3} stroke="var(--mf-rule-strong)" strokeWidth={1} shapeRendering="crispEdges" />
       <line x1={TRACE_W} x2={TRACE_W} y1={mid - 3} y2={mid + 3} stroke="var(--mf-rule-strong)" strokeWidth={1} shapeRendering="crispEdges" />
-      {/* the ridge of displaced soot, the same one-sided shadow as the drum */}
-      <path d={up} fill="none" stroke="var(--mf-well)" strokeWidth={2.2} transform="translate(0,1)" opacity={0.85} />
-      <path d={down} fill="none" stroke="var(--mf-well)" strokeWidth={2.2} transform="translate(0,1)" opacity={0.85} />
-      <path d={up} fill="none" stroke="var(--mf-ai)" strokeWidth={1.4} strokeLinecap="butt" />
-      <path d={down} fill="none" stroke="var(--mf-people)" strokeWidth={1.4} strokeLinecap="butt" />
+      <path d={up} fill="none" stroke="var(--mf-ai)" strokeWidth={1.6} strokeLinecap="butt" strokeLinejoin="round" />
+      <path d={down} fill="none" stroke="var(--mf-people)" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -134,7 +131,7 @@ function RowTrace({
 function Change({ now, before, tone }: { now: number; before: number; tone: "reader" | "machine" }) {
   const d = delta(now, before);
   if (d == null) {
-    return <span className="mf-dim">no earlier reading</span>;
+    return <span className="mf-dim">no earlier data</span>;
   }
   const sign = d > 0 ? "+" : d < 0 ? "-" : "";
   const value = `${sign}${Math.abs(d * 100) < 0.5 ? "0" : Math.round(Math.abs(d) * 100)}%`;
@@ -148,7 +145,7 @@ function Change({ now, before, tone }: { now: number; before: number; tone: "rea
   );
 }
 
-/* ── the sheet ──────────────────────────────────────────────────────────── */
+/* ── the table ──────────────────────────────────────────────────────────── */
 
 function useDecay(bench: MachineEnv) {
   return useQuery({
@@ -164,10 +161,10 @@ function DecaySheet({ bench, q }: { bench: MachineEnv; q: ReturnType<typeof useD
   const navigate = useNavigate();
   const { site } = useParams();
 
-  /* One full-scale value per pen for the whole sheet, so a heavy page draws a
-     tall trace and a quiet one draws a short trace. Scaling each row to itself
-     would make every row look equally busy, which is the opposite of the
-     finding this screen exists to show. */
+  /* One scale per series for the whole table, so a busy page draws a tall
+     line and a quiet one draws a short line. Scaling each row to itself would
+     make every row look equally busy, which is the opposite of the finding
+     this screen exists to show. */
   const scale = useMemo(() => {
     let machine = 0;
     let reader = 0;
@@ -195,7 +192,7 @@ function DecaySheet({ bench, q }: { bench: MachineEnv; q: ReturnType<typeof useD
               ? r.agent_now
               : sort.by === "shift"
                 ? (delta(r.agent_now, r.agent_before) ?? 0)
-                : // readers lost, as a count rather than a rate
+                : // visitors lost, as a count rather than a rate
                   Math.max(0, r.human_before - r.human_now),
       sort.dir,
     );
@@ -220,14 +217,14 @@ function DecaySheet({ bench, q }: { bench: MachineEnv; q: ReturnType<typeof useD
     },
     {
       key: "trace",
-      head: "Both pens",
+      head: "Trend",
       render: (r) => (
         <RowTrace
           machines={r.agent_trace?.length ? r.agent_trace : [r.agent_before, r.agent_now]}
           readers={r.human_trace?.length ? r.human_trace : [r.human_before, r.human_now]}
           machineFull={scale.machine}
           readerFull={scale.reader}
-          label={`${r.path}: machine fetches ${num(r.agent_before)} to ${num(r.agent_now)}, readers ${num(
+          label={`${r.path}: crawler fetches ${num(r.agent_before)} to ${num(r.agent_now)}, visitors ${num(
             r.human_before,
           )} to ${num(r.human_now)}`}
         />
@@ -235,13 +232,13 @@ function DecaySheet({ bench, q }: { bench: MachineEnv; q: ReturnType<typeof useD
     },
     {
       key: "readers",
-      head: sort.head("readers", "Readers now"),
+      head: sort.head("readers", "Visitors now"),
       numeric: true,
       render: (r) => <span className="mf-data">{num(r.human_now)}</span>,
     },
     {
       key: "lost",
-      head: sort.head("lost", "Reader change"),
+      head: sort.head("lost", "Visitor change"),
       numeric: true,
       render: (r) => <Change now={r.human_now} before={r.human_before} tone="reader" />,
     },
@@ -259,7 +256,7 @@ function DecaySheet({ bench, q }: { bench: MachineEnv; q: ReturnType<typeof useD
     },
     {
       key: "back",
-      head: "Returned",
+      head: "AI visits",
       numeric: true,
       render: (r) =>
         r.answer_arrivals == null ? (
@@ -273,18 +270,18 @@ function DecaySheet({ bench, q }: { bench: MachineEnv; q: ReturnType<typeof useD
   return (
     <Panel>
       <PanelHead
-        title="Losing readers, still being read"
-        note="A page can keep every machine reader it ever had and quietly lose every human one. These are the pages doing that, ranked by the readers each lost. Both pens share one scale down the column, so the traces compare row to row; selecting a row reads the whole Citation Gap through that page."
+        title="Losing visitors, still crawled"
+        note="A page can keep every AI crawler it ever had and quietly lose its human visitors. These are the pages doing that, ranked by visitors lost. Each series uses one scale for the whole column, so the rows compare. Select a row to open the Citation gap filtered to that page."
       />
       <div className="mf-wedge__body">
         <p className="mf-rowtrace__legend">
           <span>
             <span className="mf-rowtrace__pen" data-pen="stepped" aria-hidden="true" />
-            Machine fetches, written up from the rule
+            AI crawler fetches, drawn up from the line
           </span>
           <span>
             <span className="mf-rowtrace__pen" aria-hidden="true" />
-            Readers, written down from it
+            Visitors, drawn down from it
           </span>
         </p>
       </div>
@@ -294,8 +291,8 @@ function DecaySheet({ bench, q }: { bench: MachineEnv; q: ReturnType<typeof useD
         isEmpty={(d) => !d?.length}
         empty={
           <Empty
-            title="No page is losing its readers"
-            body="Decay compares each page against the previous period of the same length. Nothing in the register lost human traffic while the machines held or increased theirs. That is a result, not a missing reading."
+            title="No page is losing visitors"
+            body="Decay compares each page with the previous period of the same length. No known page lost human visitors while AI crawlers held or increased their fetches. That is a result, not missing data."
           />
         }
       >
@@ -333,10 +330,12 @@ function DecayTotals({ q }: { q: ReturnType<typeof useDecay> }) {
       <Reading
         query={q}
         waiting={<Waiting rows={2} />}
-        isEmpty={(d) => !d?.length}
+        /* An empty list still has totals: they are all zero, and saying so is
+           clearer than a second empty state above the table's own. */
+        isEmpty={(d) => !d}
         empty={
           <Empty
-            title="Nothing to total yet"
+            title="No totals yet"
             body="These figures are the sum of the pages listed below, so they fill in as soon as one page shows decay."
           />
         }
@@ -347,15 +346,15 @@ function DecayTotals({ q }: { q: ReturnType<typeof useDecay> }) {
               { key: "pages", label: "Pages decaying", value: num(totals.pages) },
               {
                 key: "lost",
-                label: "Readers lost",
+                label: "Visitors lost",
                 value: num(totals.lost),
-                note: totals.before ? `${pct(totals.lost / totals.before)} of their readers` : undefined,
+                note: totals.before ? `${pct(totals.lost / totals.before)} of their visitors` : undefined,
               },
               {
                 key: "fetches",
                 label: "Fetches on those pages",
                 value: num(totals.fetches),
-                /* Marked inverse deliberately: on this screen a rise in machine
+                /* Marked inverse deliberately: on this screen a rise in crawler
                    fetches is the shape being reported, not a win. */
                 delta: delta(totals.fetches, totals.fetchesBefore),
                 inverse: true,
@@ -363,9 +362,9 @@ function DecayTotals({ q }: { q: ReturnType<typeof useDecay> }) {
               },
               {
                 key: "returned",
-                label: "Returned as readers",
+                label: "Visits from AI answers",
                 value: num(totals.returned),
-                note: "answer-engine arrivals",
+                note: "people sent back",
               },
             ]}
           />

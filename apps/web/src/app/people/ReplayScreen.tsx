@@ -2,8 +2,8 @@
  * PEOPLE: recorded sessions.
  *
  * A replay is the heaviest, most sensitive thing this product stores, so the
- * list treats it that way: every row carries what it costs on disk and a key
- * that really deletes it, and the panel says plainly when recordings expire.
+ * list treats it that way: every row carries what it costs on disk and a
+ * button that really deletes it, and the panel says plainly when recordings expire.
  */
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router";
@@ -139,7 +139,7 @@ export function ReplayScreen() {
     },
     {
       key: "hand",
-      head: "Written by",
+      head: "Type",
       width: "15ch",
       render: (r) => <Hand session={r} />,
     },
@@ -175,7 +175,7 @@ export function ReplayScreen() {
 
   return (
     <div className="mf-p-stack">
-      <Panel ruled feed>
+      <Panel>
         <PanelHead
           title="Replay"
           note={
@@ -214,7 +214,7 @@ export function ReplayScreen() {
         title="Erase this recording?"
         lead={<>The recording below is deleted from this site&rsquo;s replay store. This cannot be undone.</>}
         lines={eraseLines}
-        note="The session itself stays on the record. Only the replay is removed."
+        note="The session itself stays in your data. Only the replay is removed."
         confirmLabel="Erase the recording"
         busy={erase.isPending}
         error={erase.isError ? apiMessage(erase.error) : null}

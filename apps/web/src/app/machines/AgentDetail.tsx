@@ -1,12 +1,12 @@
 /**
- * One channel pulled off the record for inspection, and the bench the four
- * machine screens share.
+ * The detail panel for one AI crawler, and the parts the four AI traffic
+ * screens share.
  *
- * WHY THE BENCH LIVES HERE. This area ships a fixed file list, so the pieces
- * every wedge screen needs (the envelope, the query key, the control bar, the
- * async states, the sort head) live in the leaf of the import graph rather than
- * in a seventh file. AgentDetail is that leaf: it imports no sibling, so every
- * other screen can import from it with no cycle.
+ * WHY THE SHARED PARTS LIVE HERE. This area ships a fixed file list, so the
+ * pieces every AI traffic screen needs (the envelope, the query key, the
+ * control bar, the async states, the sort head) live in the leaf of the import
+ * graph rather than in a seventh file. AgentDetail is that leaf: it imports no
+ * sibling, so every other screen can import from it with no cycle.
  */
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -70,9 +70,9 @@ export interface MachineEnv {
 }
 
 /**
- * The wedge screens do not carry an audience switch (they ARE the machines),
- * so the audience is stated per endpoint instead of read from the store, and
- * the reader's own audience choice on the other screens is left alone.
+ * The AI traffic screens do not carry an audience switch (they are only about
+ * AI crawlers), so the audience is stated per endpoint instead of read from the
+ * store, and the user's own audience choice on the other screens is left alone.
  */
 export function useMachineEnv(audience: Audience = "agent"): MachineEnv {
   const state = useAppState();
@@ -117,7 +117,7 @@ export function useMachineEnv(audience: Audience = "agent"): MachineEnv {
 export function errorText(e: unknown): string {
   if (e instanceof ApiError) {
     if (e.code === "network") {
-      return `The dashboard could not reach the Micaforge server at ${publicOrigin()}. Check that it is running and reachable, then take the reading again.`;
+      return `The dashboard could not reach the Micaforge server at ${publicOrigin()}. Check that it is running and reachable, then try again.`;
     }
     if (e.status === 403 || e.status === 401) {
       return `${e.message} Sign in again, or ask an owner for access to this site.`;
@@ -127,10 +127,10 @@ export function errorText(e: unknown): string {
     }
     return e.message;
   }
-  return e instanceof Error ? e.message : "The reading came back in a shape the dashboard does not understand.";
+  return e instanceof Error ? e.message : "The server sent data the dashboard does not understand.";
 }
 
-/** Blank paper feeding through. A drawn waiting state, never invisible content. */
+/** A skeleton of grey bars. A drawn loading state, never invisible content. */
 export function Waiting({ rows = 4, plot = false }: { rows?: number; plot?: boolean }) {
   return (
     <div
@@ -138,7 +138,7 @@ export function Waiting({ rows = 4, plot = false }: { rows?: number; plot?: bool
       aria-busy="true"
       aria-live="polite"
     >
-      <span className="mf-sr">Reading the record…</span>
+      <span className="mf-sr">Loading…</span>
       {Array.from({ length: rows }).map((_, i) => (
         <span key={i} className="mf-wait" style={{ width: `${34 + ((i * 23) % 56)}%` }} aria-hidden="true" />
       ))}
@@ -167,7 +167,7 @@ export function Reading<T>({
   if (query.isError) {
     return (
       <ErrorState
-        title="That reading did not come back"
+        title="Could not load this data"
         detail={errorText(query.error)}
         onRetry={() => void query.refetch()}
       />
@@ -178,9 +178,9 @@ export function Reading<T>({
   return <>{children(data)}</>;
 }
 
-/* ══ the bench ══════════════════════════════════════════════════════════════ */
+/* ══ the control bar ════════════════════════════════════════════════════════ */
 
-/** A filter written onto the bench, with the key that takes it off again. */
+/** An active filter, with the button that removes it. */
 function FilterMark({ filter, index, onDrop }: { filter: Filter; index: number; onDrop: (i: number) => void }) {
   const value = Array.isArray(filter.value) ? filter.value.join(", ") : String(filter.value);
   const op =
@@ -210,9 +210,9 @@ function FilterMark({ filter, index, onDrop }: { filter: Filter; index: number; 
 }
 
 /**
- * The control bar. The screen names itself on the same ruled line as the
- * instruments that read it, deliberately not a title stacked over a subtitle
- * stacked over a toolbar.
+ * The control bar: the screen title on the left and the range on the right, on
+ * one line with one rule under both. Deliberately not a title stacked over a
+ * subtitle stacked over a toolbar.
  */
 export function Bench({
   title,
@@ -234,7 +234,7 @@ export function Bench({
       </div>
       {filters.length > 0 && (
         <div className="mf-wedge-bar__marks">
-          <span className="mf-wedge-bar__marks-label">Reading only</span>
+          <span className="mf-wedge-bar__marks-label">Filtered to</span>
           {filters.map((f, i) => (
             <FilterMark key={`${f.dimension}-${f.op}-${i}`} filter={f} index={i} onDrop={dropFilter} />
           ))}
@@ -345,9 +345,9 @@ export function VerificationCaveat({ children }: { children?: ReactNode }) {
       <span>
         {children ?? (
           <>
-            A user-agent string is a claim, not proof. Micaforge marks an agent{" "}
-            <b>verified</b> only when the source address matched the ranges its operator
-            publishes. Anything else reads as <b>unverified</b> and is never counted as a
+            A user-agent string is a claim, not proof. Micaforge marks a crawler{" "}
+            <b>verified</b> only when its IP address matched the ranges its operator
+            publishes. Anything else shows as <b>unverified</b> and is never counted as a
             violation.
           </>
         )}
@@ -356,7 +356,7 @@ export function VerificationCaveat({ children }: { children?: ReactNode }) {
   );
 }
 
-/* ══ the specimen strip ═════════════════════════════════════════════════════ */
+/* ══ the crawler detail panel ═══════════════════════════════════════════════ */
 
 export interface AgentIdentity {
   agent_id: string;
@@ -408,8 +408,8 @@ export interface AgentBreakdownRow {
 }
 
 /**
- * The detail sheet. It answers three questions in order: who claims to be this,
- * whether that claim was checked, and what it actually did.
+ * The detail panel. It answers three questions in order: who claims to be
+ * this, whether that claim was checked, and what it actually did.
  */
 export function AgentDetail({
   agent,
@@ -540,7 +540,7 @@ export function AgentDetail({
 
   return (
     <>
-      <button type="button" className="mf-strip__scrim" aria-label="Close this agent" onClick={onClose} />
+      <button type="button" className="mf-strip__scrim" aria-label="Close crawler details" onClick={onClose} />
       <aside
         ref={stripRef}
         className="mf-strip"
@@ -571,16 +571,16 @@ export function AgentDetail({
         <section className="mf-strip__section">
           <h3 className="mf-strip__h">Identity</h3>
           <dl className="mf-kv">
-            <dt>Catalog slug</dt>
+            <dt>Catalog ID</dt>
             <dd className="mf-data">{agent.agent_id}</dd>
             <dt>Verification</dt>
             <dd>
               <VerifiedMark state={agent.verified} />{" "}
               {agent.verified === "verified"
-                ? "Verified against published address ranges"
+                ? "Verified against the operator's published IP ranges"
                 : agent.verified === "failed"
-                  ? "Claimed this name from an address the operator does not publish"
-                  : "No published ranges to check against"}
+                  ? "Claimed this name from an IP address the operator does not publish"
+                  : "No published IP ranges to check against"}
             </dd>
             <dt>Your robots.txt</dt>
             <dd>{robotsWord(robots)}</dd>
@@ -591,8 +591,8 @@ export function AgentDetail({
                 <dt>Declared</dt>
                 <dd>
                   {entry.respects_robots
-                    ? "The operator states this agent obeys robots.txt"
-                    : "The operator makes no robots.txt commitment for this agent"}
+                    ? "The operator states this crawler obeys robots.txt"
+                    : "The operator makes no robots.txt commitment for this crawler"}
                 </dd>
               </>
             ) : null}
@@ -627,8 +627,8 @@ export function AgentDetail({
             isEmpty={(d) => !d?.buckets?.length || !d?.series?.length}
             empty={
               <Empty
-                title="No crawl recorded in this interval"
-                body="Widen the interval, or this agent has not fetched anything since it was first seen."
+                title="Nothing to chart"
+                body="No series came back for this crawler in this period. The totals above still count every fetch."
               />
             }
           >
@@ -659,7 +659,7 @@ export function AgentDetail({
               query={paths}
               waiting={<Waiting rows={5} />}
               isEmpty={(d) => !d?.length}
-              empty={<Empty title="No paths recorded" body="Nothing this agent fetched fell inside the interval." />}
+              empty={<Empty title="No paths" body="This crawler fetched nothing in this period." />}
             >
               {(d) => <Sheet rows={d} columns={pathColumns} getKey={(r) => r.key} />}
             </Reading>
@@ -675,8 +675,8 @@ export function AgentDetail({
               isEmpty={(d) => !d?.length}
               empty={
                 <Empty
-                  title="No status codes recorded"
-                  body="Status is written by the server-side ingest path; a browser-only install cannot see it."
+                  title="No status codes"
+                  body="Status codes come from the server-side ingest path. The browser script alone cannot see them."
                 />
               }
             >
@@ -694,7 +694,7 @@ export function AgentDetail({
                 onClose();
               }}
             >
-              Read the whole screen through {agentName(agent.label, agent.agent_id)}
+              Filter the screen to {agentName(agent.label, agent.agent_id)}
             </Button>
           </section>
         ) : null}

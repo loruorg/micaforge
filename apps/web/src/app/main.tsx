@@ -45,9 +45,8 @@ interface BoundaryState {
 
 /**
  * A blank white page is the one failure this product will not ship. If a screen
- * throws, the station says so in its own voice, names what it can, and offers
- * the two things that actually recover it: read the channel again, or go back
- * to a channel that works.
+ * throws, the dashboard says so plainly, names what it can, and offers the two
+ * things that actually recover it: reload, or go back to the site list.
  */
 export class AppErrorBoundary extends Component<{ children: ReactNode }, BoundaryState> {
   state: BoundaryState = { error: null };
@@ -69,17 +68,17 @@ export class AppErrorBoundary extends Component<{ children: ReactNode }, Boundar
       <div className="mfs-boundary">
         <div className="mfs-boundary__sheet">
           <ErrorState
-            title="This channel stopped writing"
+            title="This screen stopped working"
             detail={
               `The dashboard hit an error it could not recover from on its own${
                 error.message ? `: ${error.message}` : "."
               } ` +
-              `The full trace is in the browser console, and the server this dashboard reads from is ${publicOrigin()}.`
+              `The full error is in the browser console. This dashboard reads from ${publicOrigin()}.`
             }
           />
           <div className="mfs-rack__foot mfs-rack__foot--centre">
             {/* No "render it again" here: this boundary only catches a failure
-                in the station itself, and re-rendering the thing that just
+                in the dashboard frame itself, and re-rendering the thing that just
                 threw is the one recovery that reliably does nothing. */}
             <Button
               tone="primary"

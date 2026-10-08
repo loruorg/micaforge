@@ -1,15 +1,14 @@
 /* ============================================================================
    Audience: pages, sources, locations, devices.
 
-   These four screens read the record from the reader's side. Everything here
-   is written in the station's existing vocabulary and reuses the .mf-* bench
-   wherever it fits; the .mfa-* names below exist only for the parts the bench
-   does not already have (the tab bank, the filter trail, the device bench, the
-   channel comparison and the map).
+   These four screens reuse the shared .mf-* components wherever they fit;
+   the .mfa-* names below exist only for the parts the shared set does not
+   already have (the tabs, the filter trail, the device grid, the channel
+   comparison and the map).
 
-   Two rules govern the file, the same two that govern the bench:
-     1. Depth is the scratch ridge, never a bloom. Nothing here glows, lifts or
-        scales; state changes by tone and fill.
+   Two rules govern the file:
+     1. Nothing glows, lifts or scales on hover; state changes by tone and
+        fill, on white panels with hairline edges.
      2. Parallel things sit on one grid. A long browser name or a long channel
         label can never shove its neighbour's figure out of line, because every
         row that must align has a reserved slot rather than a content-sized one.
@@ -26,10 +25,10 @@
     align-content: start;
   }
 
-  /* A grid item's automatic minimum is its own min-content width, and a sheet
+  /* A grid item's automatic minimum is its own min-content width, and a table
      of eight measured columns has a wide one. Left alone, that minimum holds
      the panel open and takes the page sideways with it. Released here, the
-     panel fits the screen and the sheet scrolls inside its own container,
+     panel fits the screen and the table scrolls inside its own container,
      which is the only place in this product allowed to scroll horizontally. */
   .mfa-screen > * { min-width: 0; }
 
@@ -50,22 +49,21 @@
   .mf-panel__head:has(.mfa-bar) { flex-wrap: wrap; }
   .mf-panel__head:has(.mfa-bar) .mf-panel__actions { flex: 1 1 auto; min-width: 0; }
   /* The bar wraps, so a control that cannot shrink takes a line of its own
-     rather than pushing the panel sideways. The caliper is the one that cannot
-     shrink; how it folds when even a whole line is too narrow is settled for
+     rather than pushing the panel sideways. The range picker is the one that
+     cannot shrink; how it folds when even a whole line is too narrow is settled for
      every screen at once in styles/app/caliper.css, so this file no longer
      wraps its stops and no interval is ever hidden behind a hidden scrollbar. */
   .mfa-bar .mf-caliper { max-width: 100%; }
   .mfa-bar .mf-audience { flex-wrap: wrap; }
 
-  /* The ink behind a sheet row is the trace of the audience the screen is
-     reading. The base rule draws it in the machine pen's shellac, which is
-     right on the wedge screens and wrong on a table of human traffic. */
+  /* The share bar behind a table row takes the colour of the audience on
+     screen: people blue, AI orange. Set here explicitly so the screen never
+     depends on the shared default. */
   .mfa-screen[data-trace="human"] .mf-sheet__ink { background: var(--mf-people-fill); }
   .mfa-screen[data-trace="agent"] .mf-sheet__ink { background: var(--mf-ai-fill); }
 
   /* ── the filter trail ───────────────────────────────────────────────────
-     Not metadata in a tinted pill: each clip is a live control that removes
-     the filter it names, so it is drawn as a small square-cornered key. */
+     Each chip is a live control that removes the filter it names. */
   .mfa-trail {
     display: flex;
     align-items: center;
@@ -81,9 +79,8 @@
     gap: var(--mf-2);
     padding: 3px var(--mf-2) 3px var(--mf-3);
     background: var(--mf-ground-3);
-    border: 1px solid var(--mf-rule-strong);
+    border: 1px solid var(--mf-rule);
     border-radius: var(--mf-r-sm);
-    box-shadow: inset 0 1px 0 var(--mf-lip);
     font-size: var(--mf-t-xs);
     min-width: 0;
   }
@@ -111,9 +108,9 @@
   }
   .mfa-clip__drop:hover { color: var(--mf-danger); }
 
-  /* ── the tab bank ───────────────────────────────────────────────────────
-     A row of channel keys with the live one marked by the same pen bar the
-     rail uses. The bar is present at rest and does not grow, wipe or travel. */
+  /* ── tabs ───────────────────────────────────────────────────────────────
+     The active tab is marked by a 2px underline in the strongest ink. The bar
+     is present at rest and does not grow, wipe or travel. */
   .mfa-tabs {
     display: flex;
     align-items: stretch;
@@ -138,7 +135,7 @@
     transition: color var(--mf-dur-1) linear;
   }
   .mfa-tabs__key:hover { color: var(--mf-ink-2); }
-  .mfa-tabs__key[aria-pressed="true"] { color: var(--mf-ink); }
+  .mfa-tabs__key[aria-pressed="true"] { color: var(--mf-ink-strong); font-weight: 500; }
   .mfa-tabs__key[aria-pressed="true"]::after {
     content: "";
     position: absolute;
@@ -146,10 +143,12 @@
     right: 0;
     bottom: -1px;
     height: 2px;
-    background: var(--mf-accent);
+    border-radius: 1px;
+    background: var(--mf-ink-strong);
   }
 
-  /* Two ruled strips meeting would draw the rule twice; the lower one yields. */
+  /* Two bordered strips meeting would draw the hairline twice; the lower one
+     yields. */
   .mf-readout + .mfa-tabs,
   .mf-readout + .mfa-trail,
   .mf-readout + .mfa-caveat,
@@ -171,11 +170,11 @@
     font-size: var(--mf-t-sm);
     color: var(--mf-ink-3);
   }
-  .mfa-caveat svg { flex: none; margin-top: 2px; color: var(--mf-accent); }
+  .mfa-caveat svg { flex: none; margin-top: 2px; color: var(--mf-ink-3); }
   .mfa-caveat p { max-width: var(--mf-measure); }
 
-  /* Prose inside a sheet (a country, a browser, a channel) is UI text. The
-     data face is reserved for paths, counts, versions and timestamps. */
+  /* Prose inside a table (a country, a browser, a channel) is UI text. The
+     mono face is reserved for paths, counts, versions and timestamps. */
   .mfa-name { font-family: var(--mf-font-ui); }
   .mfa-sub {
     font-family: var(--mf-font-ui);
@@ -195,10 +194,10 @@
     color: var(--mf-ink-3);
   }
 
-  /* ── the device bench ───────────────────────────────────────────────────
-     One panel divided into channel cells by ruling, the way a recorder's
-     bench divides its inputs. Explicitly not six bordered cards on a grid:
-     there is one surface here, ruled, and the cells share its edges. */
+  /* ── the device grid ────────────────────────────────────────────────────
+     One panel divided into cells by hairlines. Explicitly not six bordered
+     cards on a grid: there is one surface here and the cells share its
+     edges. */
   .mfa-bench {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -249,11 +248,11 @@
     .mfa-bench__cell { min-height: 0; }
   }
 
-  /* ── the channel comparison bench ───────────────────────────────────────
+  /* ── the channel comparison ─────────────────────────────────────────────
      Two measures per channel on one shared scale each, so the bars are
-     comparable down the column, with the site's own average drawn across
-     every track as a fiducial rule. Every figure is printed as well as
-     drawn: the bar is the shape, the number is the fact. */
+     comparable down the column, with the site's own average marked on every
+     track. Every figure is printed as well as drawn: the bar is the shape,
+     the number is the fact. */
   .mfa-compare { border-top: 1px solid var(--mf-rule); }
 
   .mfa-compare__row {
@@ -302,29 +301,33 @@
   .mfa-gauge__track {
     position: relative;
     display: block;
-    height: var(--mf-3);
-    background: var(--mf-well);
-    border: 1px solid var(--mf-rule);
-    border-radius: var(--mf-r-sm);
+    height: var(--mf-2);
+    background: var(--mf-ground-3);
+    border-radius: var(--mf-r-pill);
     overflow: hidden;
   }
   .mfa-gauge__fill {
     position: absolute;
     inset: 0 auto 0 0;
-    background: var(--mf-s4);
+    background: var(--mf-s3);
+    border-radius: var(--mf-r-pill);
   }
-  .mfa-gauge__fill[data-lead="true"] { background: var(--mf-accent); }
-  /* the fiducial: where the site as a whole sits on this measure */
+  /* The best channel on this measure: a darker step of the same blue, never
+     the orange, which on this product means AI traffic. */
+  .mfa-gauge__fill[data-lead="true"] { background: var(--mf-s1); }
+  /* where the site as a whole sits on this measure */
   .mfa-gauge__mark {
     position: absolute;
     top: 0;
     bottom: 0;
-    width: 1px;
-    background: var(--mf-ink-2);
+    width: 2px;
+    margin-left: -1px;
+    background: var(--mf-ink-strong);
   }
   .mfa-gauge__val {
     font-family: var(--mf-font-data);
     font-size: var(--mf-t-sm);
+    font-variant-numeric: tabular-nums;
     color: var(--mf-ink);
     text-align: right;
     white-space: nowrap;
@@ -351,9 +354,10 @@
   }
   .mfa-legend__rule {
     display: inline-block;
-    width: 1px;
+    width: 2px;
     height: var(--mf-3);
-    background: var(--mf-ink-2);
+    border-radius: 1px;
+    background: var(--mf-ink-strong);
   }
 
   @media (max-width: 860px) {
@@ -374,18 +378,18 @@
     }
   }
 
-  /* ── locations: the map bench ─────────────────────────────────────────── */
+  /* ── locations: the map and its table ─────────────────────────────────── */
   .mfa-geo {
     display: grid;
     grid-template-columns: minmax(0, 1.5fr) minmax(19rem, 1fr);
     border-top: 1px solid var(--mf-rule);
   }
-  /* The plate and the sheet are one bench, so they end together: the ranked
-     sheet runs inside its own height rather than leaving a long empty field
-     of ground beside the map. Its column heads hold their place while it
-     scrolls, and the breadcrumb sits outside the scroll entirely. The divider
-     belongs to the sheet, not to the plate, so it runs the full height of
-     whichever column is taller. */
+  /* The map and the table are one report, so they end together: the ranked
+     table runs inside its own height rather than leaving a long empty field
+     beside the map. Its column heads hold their place while it scrolls, and
+     the breadcrumb sits outside the scroll entirely. The divider belongs to
+     the table, not to the map, so it runs the full height of whichever
+     column is taller. */
   .mfa-geo__plate {
     min-width: 0;
     padding: var(--mf-4) var(--mf-5) var(--mf-3);
@@ -407,28 +411,27 @@
     .mfa-geo { grid-template-columns: minmax(0, 1fr); }
     .mfa-geo__plate { border-bottom: 1px solid var(--mf-rule); }
     .mfa-geo__list { border-left: 0; }
-    /* Stacked, the sheet has the whole width and the page is the only thing
+    /* Stacked, the table has the whole width and the page is the only thing
        that scrolls. A second scrollport inside it would just be a trap. */
     .mfa-geo__list .mf-sheet-wrap { max-height: none; overflow-y: visible; }
     .mfa-geo__list .mf-sheet th { position: static; }
   }
 
   .mfa-map { min-width: 0; }
-  /* The plate proper. The peak slip is positioned against THIS box, so its
-     percentage coordinates land on the map and not on the readout below it. */
+  /* The map proper. The peak label is positioned against THIS box, so its
+     percentage coordinates land on the map and not on the summary below it. */
   .mfa-map__frame { position: relative; container-type: inline-size; }
   .mfa-map__svg { display: block; width: 100%; height: auto; }
 
   /* Tone only: a country never lifts, scales or blooms under the pointer, and
      the change is immediate. A transition here would animate the shading in
-     from the no-reading grey on first paint, which means a screenshot, a
-     backgrounded tab or a throttled frame can catch the plate mid-fade and
-     show a blank world. The plate is correct on the first frame it draws. */
+     from the no-data grey on first paint, which means a screenshot, a
+     backgrounded tab or a throttled frame can catch the map mid-fade and
+     show a blank world. The map is correct on the first frame it draws. */
   .mfa-map__land { cursor: pointer; }
   .mfa-map__land[data-flat="true"] { cursor: default; }
 
-  /* The reading, written under the plate the way a station's readout sits
-     under its drum, never floating over the paper as a tooltip. */
+  /* The summary sits under the map, never floating over it as a tooltip. */
   .mfa-map__readout {
     display: flex;
     flex-wrap: wrap;
@@ -446,6 +449,7 @@
     font-family: var(--mf-font-data);
     font-size: var(--mf-t-md);
     font-weight: 500;
+    font-variant-numeric: tabular-nums;
     color: var(--mf-ink);
   }
   .mfa-map__unit { font-size: var(--mf-t-sm); color: var(--mf-ink-3); }
@@ -473,11 +477,11 @@
     display: block;
     width: 100%;
     height: var(--mf-2);
-    border: 1px solid var(--mf-rule);
+    border-radius: 2px;
   }
 
-  /* The peak: the station marks its strongest reading on the plate itself,
-     with a registration crosshair and the place written beside it. */
+  /* The peak: the top country is marked on the map with a small crosshair
+     and its name written beside it. */
   .mfa-map__peak {
     position: absolute;
     margin-top: calc(var(--mf-2) * -1);
@@ -489,16 +493,15 @@
     border: 1px solid var(--mf-rule-strong);
     border-radius: var(--mf-r-sm);
     box-shadow: var(--mf-shadow-xs);
-    font-family: var(--mf-font-data);
+    font-family: var(--mf-font-ui);
     font-size: var(--mf-t-2xs);
-    letter-spacing: 0.09em;
-    text-transform: uppercase;
+    font-weight: 500;
     color: var(--mf-ink);
   }
   .mfa-map__peak[data-align="start"] { transform: translate(0, -100%); }
   .mfa-map__peak[data-align="end"] { transform: translate(-100%, -100%); }
-  /* Near the top edge the slip flips below the crosshair, so the plate's own
-     boundary can never shave the caps off it. */
+  /* Near the top edge the label flips below the crosshair, so the map's own
+     boundary can never cut it. */
   .mfa-map__peak[data-below] {
     margin-top: var(--mf-2);
     transform: translate(-50%, 0);
@@ -506,9 +509,9 @@
   .mfa-map__peak[data-below][data-align="start"] { transform: translate(0, 0); }
   .mfa-map__peak[data-below][data-align="end"] { transform: translate(-100%, 0); }
 
-  /* Below this the plate is smaller than the slip, and a slip wider than the
-     map it annotates would hang off the paper. The crosshair still marks the
-     peak and the readout under the plate still names it, so nothing is lost. */
+  /* Below this width the label would hang off the map. The crosshair still
+     marks the peak and the summary under the map still names it, so nothing
+     is lost. */
   @container (max-width: 520px) {
     .mfa-map__peak { display: none; }
   }
@@ -536,13 +539,13 @@
   .mfa-crumbs__sep { color: var(--mf-ink-3); transform: rotate(-90deg); flex: none; }
   .mfa-crumbs .mf-btn { margin-left: auto; }
 
-  /* Linked to the plate: pointing at a name in the sheet marks the country,
+  /* Linked to the map: pointing at a name in the table marks the country,
      and pointing at the country marks the name. Tone only, both ways. */
-  .mfa-name[data-on="true"] { color: var(--mf-accent); }
+  .mfa-name[data-on="true"] { color: var(--mf-blue-ink); }
 
   @media (max-width: 700px) {
-    /* An odd last channel would otherwise sit in one column of two and draw
-       its rule half way across the strip. It takes the whole row instead. */
+    /* An odd last metric would otherwise sit in one column of two and draw
+       its hairline half way across the strip. It takes the whole row instead. */
     .mfa-screen .mf-readout__chan:last-child:nth-child(odd) { grid-column: 1 / -1; }
 
     /* Below this width the masthead stacks, and a column flex container sizes
