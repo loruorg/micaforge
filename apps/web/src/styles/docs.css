@@ -1,23 +1,17 @@
 /* ============================================================================
-   READ MODE: the manual, the log and the argument.
+   READ MODE: the docs, the changelog and the blog.
 
-   The article column is the record's own paper: a pin-fed sheet, ruled by the
-   instrument that wrote it. Everything around it is the bench the sheet is read
-   on. Comprehension first: one measure, one ink, one scale of headings, and a
-   depth scale down the right edge so the shape of a page is legible before a
-   word of it is.
-
-   Every value here is a token. Nothing glows; edges are the surface's own
-   colour and the burr of displaced soot beside a scratch.
+   Comprehension first: one measure, one ink, one scale of headings, a section
+   index on the left and the page's own outline on the right. The article sits
+   on a white panel on the light page. Every value here is a token.
    ========================================================================= */
 
 .doc-shell {
   --doc-index: 244px;
   --doc-rail: 196px;
   --doc-max: 1420px;
-  /* The sheet's own left margin: the perforation column, plus room for the
-     registration ticks that sit beside each section heading. */
-  --doc-gutter: calc(var(--mf-feed-gutter) + var(--mf-8) + var(--mf-6));
+  /* The article's left margin. */
+  --doc-gutter: var(--mf-10);
 
   display: flex;
   flex-direction: column;
@@ -31,7 +25,9 @@
   position: sticky;
   top: 0;
   z-index: 30;
-  background: var(--mf-ground);
+  background: rgba(255, 255, 255, 0.86);
+  -webkit-backdrop-filter: saturate(1.6) blur(12px);
+          backdrop-filter: saturate(1.6) blur(12px);
   border-bottom: 1px solid var(--mf-rule);
 }
 
@@ -92,10 +88,20 @@
 .doc-bar__short { display: none; }
 
 .doc-bar__right { margin-left: auto; display: flex; align-items: center; gap: var(--mf-3); }
+.doc-bar__out {
+  padding: 6px 12px;
+  font-size: var(--mf-t-sm);
+  font-weight: 500;
+  color: var(--mf-ink-2);
+  text-decoration: none;
+  border-radius: var(--mf-r-sm);
+  transition: color var(--mf-dur-1) linear, background-color var(--mf-dur-1) linear;
+}
+.doc-bar__out:hover { color: var(--mf-ink-strong); background: var(--mf-ground-3); }
 
-/* The pen advancing across the sheet as the reader descends. Purely a position
-   readout: it carries no content, and where scroll-linked animation is not
-   supported it simply rests at zero. */
+/* Reading progress along the bar's lower edge. A position readout only: it
+   carries no content, and where scroll-linked animation is not supported it
+   rests at zero. */
 .doc-bar__pen {
   position: absolute;
   left: 0;
@@ -119,10 +125,6 @@
   from { transform: scaleX(0); }
   to { transform: scaleX(1); }
 }
-
-/* ── medium switch ───────────────────────────────────────────────────────── */
-
-.doc-medium { display: inline-flex; }
 
 /* ── the body grid ───────────────────────────────────────────────────────── */
 
@@ -294,18 +296,6 @@
   scroll-margin-top: calc(var(--mf-header-h) + var(--mf-6));
 }
 
-/* The registration tick: the fiducial an instrument panel uses to say where a
-   scale begins. It is the same mark the icon set carries, so a section opening
-   in the manual and a glyph in the product are drawn by one hand. */
-.doc-prose h2::before {
-  content: "";
-  position: absolute;
-  left: calc(var(--mf-6) * -1);
-  top: 0.62em;
-  width: 5px;
-  height: 5px;
-  background: var(--mf-accent);
-}
 
 .doc-prose h3 {
   margin-top: var(--mf-8);
@@ -862,9 +852,7 @@
 
   .doc-sheet {
     padding: var(--mf-6) var(--mf-5) var(--mf-6);
-    padding-left: calc(var(--mf-feed-gutter) + var(--mf-5));
   }
-  .doc-prose h2::before { display: none; }
   .doc-open__title { font-size: var(--mf-t-2xl); }
   .doc-register__row { grid-template-columns: minmax(0, 1fr); }
   .doc-log__entry,
@@ -878,9 +866,6 @@
   .doc-bar__inner { gap: var(--mf-4); padding: 0 var(--mf-4); }
   .doc-bar__nav { gap: var(--mf-4); }
   .doc-bar__brand { font-size: var(--mf-t-base); }
-  /* The medium switch keeps its two record icons and drops the words. */
-  .doc-medium .mf-medium__opt span { display: none; }
-  .doc-medium .mf-medium__opt { padding: 6px var(--mf-3); }
 }
 
 @media (max-width: 640px) {
@@ -892,7 +877,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  /* The pen readout is motion tied to scrolling; a reader who asked for less of
-     it gets none, and loses nothing, because it carries no content. */
+  /* The progress readout is motion tied to scrolling; a reader who asked for
+     less of it gets none, and loses nothing, because it carries no content. */
   .doc-bar__pen { display: none; }
 }

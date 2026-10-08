@@ -32,11 +32,11 @@ const pages = register.reduce((n, s) => n + s.docs.length, 0);
 >
   <div class="doc-open">
     <header class="doc-open__head">
-      <h1 class="doc-open__title">The manual</h1>
+      <h1 class="doc-open__title">Documentation</h1>
       <p class="doc-open__lead">
-        {pages} pages: installing the tracker, everything it reports, how machine traffic
-        is named and counted, and how to run the whole stack on one machine. Where a
-        capability is not built yet, the page says so instead of describing it.
+        {pages} pages: installing the tracker, everything it reports, how AI crawlers and AI
+        referrals are counted, and how to self-host. Where a capability is not built yet, the
+        page says so instead of describing it.
       </p>
     </header>
 
@@ -45,8 +45,8 @@ const pages = register.reduce((n, s) => n + s.docs.length, 0);
         <code class="language-html" set:text={snippet} />
       </CodeBlock>
       <p class="doc-open__snippet-note">
-        That is the browser half of the install. The machine half is a server log, because
-        no crawler will ever run the line above.
+        That line counts people. AI crawlers never run it, so they are read from your server
+        log or your edge middleware instead.
       </p>
     </div>
 

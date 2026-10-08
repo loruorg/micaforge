@@ -32,12 +32,12 @@ export const DOC_GROUPS: DocGroup[] = [
   },
   {
     key: "agents",
-    label: "Machines",
-    gloss: "The audience a script tag cannot see.",
+    label: "AI traffic",
+    gloss: "AI crawlers and AI referrals: the traffic a script tag cannot see.",
   },
   {
     key: "dashboard",
-    label: "Reading the record",
+    label: "The dashboard",
     gloss: "Each screen, and the question it answers.",
   },
   {
