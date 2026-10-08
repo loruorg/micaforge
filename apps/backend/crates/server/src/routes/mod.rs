@@ -142,6 +142,8 @@ mod tests {
             retention_days: 0,
             replay_retention_days: 30,
             disable_registration: false,
+            max_sites_per_org: 0,
+            max_orgs_per_user: 0,
             self_hosted: true,
             smtp_url: None,
             cloudflare_email_token: None,

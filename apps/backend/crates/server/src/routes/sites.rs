@@ -397,6 +397,19 @@ async fn create_site(
         return Err(Error::Conflict(format!("{domain} is already being tracked")).into());
     }
 
+    // The per-organisation cap a shared install sets (`MICAFORGE_MAX_SITES_PER_ORG`).
+    // Checked after the domain, so a duplicate still gets the clearer answer.
+    let cap = st.cfg.max_sites_per_org;
+    if cap > 0
+        && sites::list_for_org(&st.pg, org.id).await?.len() >= cap as usize
+        && !crate::routes::admin::is_instance_admin(&st, &auth.user).await?
+    {
+        return Err(Error::Forbidden(format!(
+            "this organisation already has {cap} sites, the most this install allows"
+        ))
+        .into());
+    }
+
     let site = sites::create(&st.pg, new_id(), org.id, &domain, &name, &timezone).await?;
     Ok(ok(site_json(&site, Some(ADMIN))))
 }

@@ -57,6 +57,15 @@ pub struct Config {
     /// When true, only an existing admin can create accounts. The normal setting
     /// for a personal self-hosted install once the owner has signed up.
     pub disable_registration: bool,
+    /// Most sites one organisation may hold. `0` means no limit, the normal
+    /// setting for a self-hosted install. A shared install that lets anybody
+    /// sign up sets it, so one account cannot point unbounded traffic at it.
+    /// Instance admins are not limited.
+    pub max_sites_per_org: u32,
+    /// Most organisations one account may own. `0` means no limit. Paired with
+    /// [`Config::max_sites_per_org`], because a site limit alone is undone by
+    /// creating another organisation.
+    pub max_orgs_per_user: u32,
     /// True for a self-hosted install. Gates nothing (there is no feature gate,
     /// per `PRODUCT.md`); it selects the admin surface and guarantees no
     /// outbound call is made at runtime.
@@ -151,6 +160,8 @@ impl Config {
             retention_days: number("RETENTION_DAYS", 0)?,
             replay_retention_days: number("REPLAY_RETENTION_DAYS", 30)?,
             disable_registration: flag("DISABLE_REGISTRATION", false)?,
+            max_sites_per_org: number("MAX_SITES_PER_ORG", 0)?,
+            max_orgs_per_user: number("MAX_ORGS_PER_USER", 0)?,
             self_hosted: flag("SELF_HOSTED", true)?,
             smtp_url: optional("SMTP_URL"),
             cloudflare_email_token,

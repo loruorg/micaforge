@@ -361,6 +361,25 @@ async fn create_org(
 ) -> ApiResult<Json<Value>> {
     auth.require_session()?;
     let name = clean_name(&body.name, "name")?;
+
+    // The per-account cap a shared install sets (`MICAFORGE_MAX_ORGS_PER_USER`).
+    let cap = st.cfg.max_orgs_per_user;
+    if cap > 0 {
+        let owned = orgs::list_for_user(&st.pg, auth.user.id)
+            .await?
+            .into_iter()
+            .filter(|o| o.owner_id == auth.user.id)
+            .count();
+        if owned >= cap as usize
+            && !crate::routes::admin::is_instance_admin(&st, &auth.user).await?
+        {
+            return Err(Error::Forbidden(format!(
+                "this account already owns {cap} organisations, the most this install allows"
+            ))
+            .into());
+        }
+    }
+
     let slug = unique_slug(&st.pg, body.slug.as_deref().unwrap_or(&name)).await?;
 
     let org = orgs::create(&st.pg, new_id(), &name, &slug, auth.user.id).await?;

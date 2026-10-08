@@ -89,6 +89,10 @@ becomes its owner; everyone after it joins by invitation, unless you set
 a six-digit code sent to its address, and an invitation is what lets a new address be sent
 one while registration is closed.
 
+An install that lets anybody sign up can bound what one account brings with
+`MICAFORGE_MAX_SITES_PER_ORG` and `MICAFORGE_MAX_ORGS_PER_USER`. Both default to `0`, which
+means no limit, and neither applies to an instance admin.
+
 `MICAFORGE_WRITER_BUFFER_MB` is how much each event table may hold in memory while
 ClickHouse is away, for a restart or an upgrade. The server keeps retrying and loses nothing
 until the buffer is full; then it drops the oldest rows and logs how many. Six tables, so the
