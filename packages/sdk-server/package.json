@@ -80,7 +80,7 @@
     "prepublishOnly": "npm run build"
   },
   "devDependencies": {
-    "@types/node": "^24.13.3",
+    "@types/node": "^26.6.4",
     "typescript": "^6.0.3",
     "vitest": "^3.2.4"
   },
