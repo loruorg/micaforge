@@ -1624,7 +1624,7 @@ dependencies = [
  "chrono-tz",
  "hex",
  "hmac",
- "rand 0.9.5",
+ "rand 0.10.2",
  "redis",
  "serde",
  "serde_json",
