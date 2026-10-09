@@ -56,7 +56,9 @@ use micaforge_jobs::{refresh_agent_ranges, JobCtx, Worker};
 use micaforge_mail::Mailer;
 use micaforge_server::state::AppState;
 use micaforge_store::models::catalog;
+use micaforge_store::McpCallRow;
 use micaforge_store::{ch::Ch, kv::Kv, pg, EventWriter, WriterCfg};
+use micaforge_store::{LinkClickRow, TableWriter};
 
 /// How long in-flight requests are given after the listener stops accepting.
 ///
@@ -90,6 +92,8 @@ const RANGE_MAX_AGE: Duration = Duration::from_secs(6 * 60 * 60);
 const USAGE: &str = "\
 usage: micaforge-server                        run the server (the container's default)
        micaforge-server sign-in-code <email>   print a sign-in code for an address
+       micaforge-server chat-setup discord     register the /micaforge Discord command
+       micaforge-server chat-setup telegram    point the Telegram bot's webhook at this server
 
 sign-in-code is for an install with no mail transport, where a sign-in email is
 never sent. Run it inside the container, where the configuration already is:
@@ -99,7 +103,10 @@ never sent. Run it inside the container, where the configuration already is:
 It prints a code only for an address that may sign in: one with an account, any
 address while the install has no account, any address while registration is
 open, and an address an invitation is waiting for. The code works once and
-expires in ten minutes, and it replaces any code the address was sent before.";
+expires in ten minutes, and it replaces any code the address was sent before.
+
+chat-setup calls the platform once with the app credentials in the environment
+(MICAFORGE_DISCORD_* or MICAFORGE_TELEGRAM_*); run it again after changing them.";
 
 #[tokio::main]
 async fn main() {
@@ -112,6 +119,7 @@ async fn main() {
     {
         [] => run().await,
         ["sign-in-code", email] => sign_in_code(email).await,
+        ["chat-setup", platform] => chat_setup(platform).await,
         ["-h" | "--help" | "help"] => {
             println!("{USAGE}");
             return;
@@ -179,6 +187,42 @@ async fn sign_in_code(email: &str) -> Result<()> {
     }
 }
 
+/// `micaforge-server chat-setup discord|telegram`: the one-time call each
+/// platform needs before it can reach this server.
+///
+/// Reads the configuration and nothing else: no store, no listener. The same
+/// calls are behind the instance admin's buttons in the dashboard; this is for
+/// an operator who would rather type one command next to the `.env` they just
+/// edited.
+async fn chat_setup(platform: &str) -> Result<()> {
+    let _ = dotenvy::dotenv();
+    let cfg = Config::from_env()?;
+    let http = micaforge_jobs::fetch::client()?;
+    match platform {
+        "discord" => {
+            micaforge_server::routes::chat::register_discord(&cfg, &http).await?;
+            println!(
+                "registered the /micaforge command for Discord application {}",
+                cfg.chat
+                    .discord
+                    .as_ref()
+                    .map(|d| d.application_id.as_str())
+                    .unwrap_or("")
+            );
+            Ok(())
+        }
+        "telegram" => {
+            let url = micaforge_server::routes::chat::set_telegram_webhook(&cfg, &http).await?;
+            println!("the Telegram bot now sends updates to {url}");
+            Ok(())
+        }
+        other => Err(Error::validation(
+            "platform",
+            format!("`{other}` is not a platform to set up; use discord or telegram"),
+        )),
+    }
+}
+
 async fn run() -> Result<()> {
     // A `.env` beside the binary is a development convenience. In a container
     // every value comes from the environment and this finds nothing, which is
@@ -204,6 +248,10 @@ async fn run() -> Result<()> {
              and API over https"
         );
     }
+
+    // A GitHub App key that cannot sign is a typo to report now, by name,
+    // rather than at the first install.
+    micaforge_server::routes::github::check_key(&cfg)?;
 
     // 3. Postgres, and the schema this binary carries.
     let pg = pg::connect(&cfg.database_url).await?;
@@ -278,6 +326,14 @@ async fn run() -> Result<()> {
         "event writer started"
     );
     let writer = EventWriter::spawn(ch.clone(), writer_cfg);
+    // Short-link clicks have a lane of their own, with the same budget, so a
+    // redirect never waits on ClickHouse either.
+    let link_clicks: TableWriter<LinkClickRow> =
+        TableWriter::spawn(ch.clone(), "link_clicks", writer_cfg);
+    // MCP server calls too: a batch from an MCP server is taken and answered
+    // without waiting on ClickHouse.
+    let mcp_calls: TableWriter<McpCallRow> =
+        TableWriter::spawn(ch.clone(), "mcp_calls", writer_cfg);
 
     // 7b. Agent verification ranges, loaded from the rows the refresh job wrote.
     // Reading Postgres rather than the operators' endpoints keeps boot offline:
@@ -311,6 +367,8 @@ async fn run() -> Result<()> {
         ranges: Arc::clone(&ranges),
         mailer,
         http,
+        link_clicks: link_clicks.clone(),
+        mcp_calls: mcp_calls.clone(),
     };
 
     let ranges_task = tokio::spawn(watch_ranges(pg, kv, Arc::clone(&ranges)));
@@ -409,10 +467,24 @@ async fn run() -> Result<()> {
     // retrying until its own deadline. The worker stops claiming and waits for
     // the jobs in hand. They are independent (no job writes through the event
     // writer), so they drain side by side.
-    let (lost, worker_stopped) = tokio::join!(
+    let (lost, worker_stopped, clicks_lost, mcp_lost) = tokio::join!(
         writer.shutdown(WRITER_DRAIN),
         worker.shutdown(micaforge_jobs::worker::DRAIN_TIMEOUT),
+        link_clicks.shutdown(WRITER_DRAIN),
+        mcp_calls.shutdown(WRITER_DRAIN),
     );
+    if clicks_lost > 0 {
+        tracing::error!(
+            rows = clicks_lost,
+            "the short-link click lane could not write every buffered row before its deadline"
+        );
+    }
+    if mcp_lost > 0 {
+        tracing::error!(
+            rows = mcp_lost,
+            "the MCP call lane could not write every buffered row before its deadline"
+        );
+    }
 
     if lost == 0 {
         tracing::info!("event writer drained");

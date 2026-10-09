@@ -1,0 +1,77 @@
+---
+title: "From PostHog"
+description: "Importing PostHog events from an export file or straight from PostHog's API, and what maps onto what."
+group: "migrating"
+order: 5
+updated: 2026-10-08
+---
+
+PostHog records events, and so does Micaforge, so the import is a close fit: page views
+become page views, your own events become custom events with their properties, and
+PostHog's own bookkeeping events are left behind.
+
+## Two ways in
+
+### An export file
+
+In PostHog, export the events you want: the event list's export, or a SQL query over
+`events` that selects `uuid`, `event`, `timestamp`, `distinct_id` and `properties`, as CSV
+or JSON. A batch export with one event per line works as well. Upload the file on the
+site's **Imports** settings screen with **PostHog** as the source.
+
+### PostHog's API
+
+Choose **PostHog's API** instead of a file, and give:
+
+- **PostHog address**: `https://us.posthog.com`, `https://eu.posthog.com`, or the address of
+  your own PostHog. Empty means the US cloud.
+- **Project id**: the number in `/project/12345` in PostHog's address bar.
+- **Personal API key**: it starts with `phx_` and needs the **Query Read** permission.
+  The project token (`phc_`) only sends events and cannot read them, so it is refused.
+- **Days**: the first and last day to import, in UTC.
+
+The import reads the days through PostHog's query API, a page of 5,000 events at a time,
+ordered by time so a retry resumes where it stopped.
+
+**Where the key goes.** The key is sealed on the Micaforge server the moment the form is
+sent (XChaCha20-Poly1305, under a key derived from `MICAFORGE_SECRET_KEY_BASE`, bound to
+that one import), and is never shown again, never logged, and never in the job queue. The
+import is the only thing that opens it, and it is deleted when the import finishes or is
+given up. This is the one outbound call an import makes, and it happens only because you
+typed the key; a file import calls nobody.
+
+## What maps
+
+| PostHog | Micaforge |
+| --- | --- |
+| `$pageview` | A pageview. |
+| `$web_vitals` | A `web_vitals` event with LCP, CLS, INP and FCP. |
+| Any event you named | A custom event with the same name. |
+| Properties without a `$` | `props`, filterable as `props.<key>`. |
+| `$pathname`, `$current_url`, `$host` | The page. |
+| `$referrer` | The referrer, re-resolved into channel and source, so AI answer engines appear. |
+| `utm_*`, `gclid`, `fbclid`, `msclkid` | Campaign columns. |
+| `$browser`, `$os`, `$device_type`, versions, screen and viewport | Client columns. |
+| `$geoip_country_code`, `$geoip_subdivision_1_name`, `$geoip_city_name` | Country, region and city. |
+| `$session_id` | The session. |
+| `$prev_pageview_duration`, `$prev_pageview_max_scroll_percentage` | Engagement time and scroll depth. |
+
+## What is skipped
+
+- **PostHog's own events.** `$autocapture`, `$pageleave`, `$identify`, `$set`,
+  `$feature_flag_called` and every other `$` event except the two above. Micaforge has no
+  event that means the same, and importing them as custom events would bury yours.
+- **People.** `distinct_id` is very often an email address or your own user id. It is
+  replaced, before it is even staged, by a keyed digest that only tells one person from
+  another inside this import. Person properties, `$set` payloads, the autocapture element
+  chain, the IP address and the user agent are dropped. An imported row is never an
+  identified row; call [`identify()`](/docs/tracking/identify) from now on if you want
+  profiles.
+- **Session recordings, feature flag and experiment results.** Neither is an event.
+
+## After the import
+
+Import only the days before you installed the Micaforge tag; an import does not
+de-duplicate against live data. Then check a week the two tools share: page views should
+agree closely. Where they differ, it is usually bots, which PostHog filters and Micaforge
+names and counts on their own.

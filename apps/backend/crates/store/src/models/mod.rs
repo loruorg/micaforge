@@ -26,19 +26,38 @@
 //! `SELECT *`, so adding a column to a table cannot silently change what a query
 //! returns.
 
+pub mod ai;
 pub mod alerts;
+pub mod annotations;
+pub mod audit;
 pub mod auth;
+pub mod billing;
 pub mod catalog;
+pub mod chat;
 pub mod dashboards;
+pub mod error_states;
+pub mod feedback;
+pub mod flag_rules;
 pub mod flags;
 pub mod funnels;
+pub mod github;
 pub mod goals;
 pub mod imports;
+pub mod investigations;
 pub mod jobs;
 pub mod keys;
+pub mod links;
+pub mod log_drains;
+pub mod oauth;
+pub mod oauth_identities;
 pub mod orgs;
+pub mod revenue;
+pub mod search_console;
 pub mod segments;
+pub mod site_ops;
 pub mod sites;
+pub mod status_pages;
+pub mod uptime;
 pub mod users;
 
 use micaforge_core::Error;

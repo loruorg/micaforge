@@ -45,7 +45,12 @@ const SITE_TABS: Tab[] = [
   { to: "/reports", label: "Reports" },
   { to: "/imports", label: "Imports" },
   { to: "/share", label: "Sharing" },
+  { to: "/guards", label: "Ingest guards" },
   { to: "/danger", label: "Danger zone" },
+  { to: "/chat", label: "Chat apps" },
+  { to: "/ai", label: "AI insights" },
+  { to: "/log-drains", label: "Log drains" },
+  { to: "/github", label: "GitHub" },
 ];
 
 const ACCOUNT_TABS: Tab[] = [
@@ -53,6 +58,9 @@ const ACCOUNT_TABS: Tab[] = [
   { to: "/organisation", label: "Organisation" },
   { to: "/teams", label: "Teams and access" },
   { to: "/keys", label: "API keys" },
+  { to: "/connected-apps", label: "Connected apps" },
+  { to: "/audit", label: "Audit log" },
+  { to: "/billing", label: "Billing" },
 ];
 
 export function SettingsLayout({

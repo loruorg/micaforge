@@ -24,7 +24,7 @@
  *
  * @packageDocumentation
  */
-import { createHmac } from "node:crypto";
+import { createHmac, randomBytes } from "node:crypto";
 
 import { classify } from "./agents.js";
 import { readRequest, splitUrl } from "./request.js";
@@ -33,6 +33,9 @@ import type {
   EdgePayload,
   HitExtras,
   Logger,
+  McpCall,
+  McpMethod,
+  McpPayload,
   MicaforgeOptions,
   QueuedEvent,
   RequestLike,
@@ -40,12 +43,24 @@ import type {
   Timestampish,
   WireAgentEvent,
   WireEvent,
+  WireMcpCall,
 } from "./types.js";
 
 export * from "./types.js";
 export { classify, isAgent, mirrorTokens } from "./agents.js";
 export type { AgentGuess } from "./agents.js";
 export { clientIp, header, isConditional, readRequest, requestHost, splitUrl, userAgent } from "./request.js";
+export { createFlagsClient } from "./flags.js";
+export type { FlagsClient, FlagsClientConfig, FlagUser } from "./flags.js";
+export { compileRuleset, evaluateFlag, evaluateFlags, flagBucket } from "./flag-eval.js";
+export type {
+  CompiledRuleset,
+  FlagDecision,
+  FlagInput,
+  FlagReason,
+  FlagRule,
+  FlagRuleset,
+} from "./flag-eval.js";
 
 /** Written to `sdk_version` on every human row, so a bad release can be found later. */
 export const VERSION = "0.1.0";
@@ -55,6 +70,15 @@ export const EDGE_PATH = "/api/log/edge";
 
 /** The signature header. CONTRACT.md 3.3. */
 export const SIGNATURE_HEADER = "x-micaforge-signature";
+
+/** Where MCP server calls go: signed like an edge batch, written to `mcp_calls`. */
+export const MCP_PATH = "/api/log/mcp";
+
+/** The methods an MCP call row can be. Anything else is not sent. */
+export const MCP_METHODS: readonly McpMethod[] = ["tools/call", "resources/read", "prompts/get"];
+
+/** Largest opted-in arguments document sent, serialised. The server keeps no more. */
+export const MAX_MCP_ARGUMENTS = 4 * 1024;
 
 const DEFAULT_FLUSH_INTERVAL = 200;
 const DEFAULT_MAX_BATCH = 50;
@@ -241,6 +265,107 @@ export function toWireAgentEvent(hit: AgentHit): WireAgentEvent {
   }, AGENT_REQUIRED);
 }
 
+/**
+ * A keyed digest of an MCP session id: 32 hex characters.
+ *
+ * Keyed with a random secret drawn once per process and never sent anywhere, so the
+ * digest groups one session's calls together and nothing, Micaforge included, can turn
+ * it back into the id. That matters because on the Streamable HTTP transport the session
+ * id is what lets a client speak in an open session. A process restart draws a new key,
+ * which is harmless: a session does not survive the restart either.
+ */
+export function hashSessionId(id: string): string {
+  sessionKey ??= randomBytes(32);
+  return createHmac("sha256", sessionKey).update(String(id), "utf8").digest("hex").slice(0, 32);
+}
+
+let sessionKey: Buffer | undefined;
+
+/** UTF-8 byte length without allocating, for the sizes the SDK reports. */
+export function utf8Length(text: string): number {
+  let bytes = 0;
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    if (code < 0x80) bytes += 1;
+    else if (code < 0x800) bytes += 2;
+    else if (code >= 0xd800 && code <= 0xdbff && i + 1 < text.length) {
+      // A surrogate pair is one four-byte character.
+      bytes += 4;
+      i++;
+    } else bytes += 3;
+  }
+  return bytes;
+}
+
+/** JSON text of anything, or `undefined` for a value JSON cannot hold (a cycle, a BigInt). */
+export function jsonText(value: unknown): string | undefined {
+  try {
+    return value === undefined ? undefined : JSON.stringify(value);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * An {@link McpCall} as a row for `mcp_calls`, or `null` for a method no report reads.
+ *
+ * The session id is replaced by {@link hashSessionId} here, before the row is queued, so
+ * the raw id never sits in a buffer, a log line or a request body. A resource URI loses
+ * its query string and fragment, which is where a one-off value would be. Arguments are
+ * sent only when the caller passed them, and as a note instead when they are larger
+ * than the server would keep.
+ */
+export function toWireMcpCall(call: McpCall, sdkVersion = VERSION): WireMcpCall | null {
+  if (!call || !MCP_METHODS.includes(call.method)) return null;
+  const errorCode =
+    typeof call.errorCode == "number" && Number.isInteger(call.errorCode) ? call.errorCode : undefined;
+  const status = call.status ?? (call.errorType || errorCode ? "error" : "ok");
+  const name =
+    call.method === "resources/read" && typeof call.name == "string"
+      ? call.name.replace(/[?#][\s\S]*$/, "")
+      : call.name;
+  const whole = (n: number | undefined) =>
+    typeof n == "number" && Number.isFinite(n) ? Math.max(0, Math.round(n)) : undefined;
+
+  let args: unknown;
+  if (call.arguments !== undefined) {
+    const text = jsonText(call.arguments);
+    if (text !== undefined) {
+      args =
+        utf8Length(text) > MAX_MCP_ARGUMENTS
+          ? { _dropped: "arguments exceeded the size limit" }
+          : call.arguments;
+    }
+  }
+
+  return compact<WireMcpCall>(
+    {
+      timestamp: isoTime(call.timestamp),
+      method: call.method,
+      name: name ? String(name).slice(0, 200) : undefined,
+      server_name: call.serverName,
+      server_version: call.serverVersion,
+      client_name: call.clientName,
+      client_version: call.clientVersion,
+      protocol_version: call.protocolVersion,
+      transport: call.transport,
+      session_hash: call.sessionId ? hashSessionId(call.sessionId) : undefined,
+      duration_ms: whole(call.durationMs) ?? 0,
+      status,
+      error_type: call.errorType,
+      error_code: errorCode,
+      arg_bytes: whole(call.argBytes),
+      result_bytes: whole(call.resultBytes),
+      arguments: args,
+      sdk_version: `sdk-server/${sdkVersion}`,
+    },
+    MCP_REQUIRED,
+  );
+}
+
+/** Columns of an MCP row that are always sent. */
+const MCP_REQUIRED = ["timestamp", "method", "duration_ms", "status", "sdk_version"] as const;
+
 /* ------------------------------------------------------------- the middleware types */
 
 /** A `node:http` response, structurally. Not imported, so nothing is pulled in. */
@@ -309,6 +434,8 @@ export interface MiddlewareOptions {
 export class Micaforge {
   readonly siteId: number;
   readonly endpoint: string;
+  /** Where {@link Micaforge.recordMcpCall} rows are sent. */
+  readonly mcpEndpoint: string;
 
   private readonly ingestKey: string;
   private readonly flushInterval: number;
@@ -323,6 +450,7 @@ export class Micaforge {
 
   private events: WireEvent[] = [];
   private agents: WireAgentEvent[] = [];
+  private mcp: WireMcpCall[] = [];
   private timer: ReturnType<typeof setTimeout> | null = null;
   private inflight = new Set<Promise<void>>();
   private closed = false;
@@ -344,6 +472,7 @@ export class Micaforge {
     // package most needs to work on.
     this.doFetch = options.fetch ?? globalThis.fetch?.bind(globalThis);
     this.endpoint = normaliseHost(options.host) + EDGE_PATH;
+    this.mcpEndpoint = normaliseHost(options.host) + MCP_PATH;
 
     // Misconfiguration is reported once, at construction, and then the client stays
     // quiet and disabled. The alternative, one warning per event, buries a real error
@@ -493,11 +622,31 @@ export class Micaforge {
     }
   }
 
+  /**
+   * Record one request an MCP server answered.
+   *
+   * `instrumentMcpServer` calls this for the official SDK; call it yourself from any
+   * other MCP server. The call joins the same queue and flush window as every hit and
+   * goes to `POST /api/log/mcp`, signed with the same key. A method other than
+   * `tools/call`, `resources/read` and `prompts/get` is not recorded.
+   */
+  recordMcpCall(call: McpCall): void {
+    try {
+      if (!this.enabled || this.closed) return;
+      const row = toWireMcpCall(call);
+      if (!row) return;
+      this.mcp.push(row);
+      this.afterEnqueue();
+    } catch (error) {
+      this.log.error("recordMcpCall failed", error);
+    }
+  }
+
   /* ------------------------------------------------------------- lifecycle */
 
   /** How many hits are waiting to be sent. Useful in a test, and in a health probe. */
   get queued(): number {
-    return this.events.length + this.agents.length;
+    return this.events.length + this.agents.length + this.mcp.length;
   }
 
   /**
@@ -511,9 +660,12 @@ export class Micaforge {
       this.clearTimer();
       const events = this.events;
       const agents = this.agents;
+      const mcp = this.mcp;
       this.events = [];
       this.agents = [];
+      this.mcp = [];
       if (events.length || agents.length) this.startSend(events, agents);
+      if (mcp.length) this.startMcpSend(mcp);
       // Copy first: a settling promise removes itself from the set while we wait.
       await Promise.all([...this.inflight]);
     } catch (error) {
@@ -686,8 +838,18 @@ export class Micaforge {
     const payload: EdgePayload = { site_id: this.siteId };
     if (events.length) payload.events = events;
     if (agents.length) payload.agent_events = agents;
+    this.hold(this.send(this.endpoint, JSON.stringify(payload), events.length + agents.length, "hit"));
+  }
 
-    const promise = this.send(payload).finally(() => {
+  /** MCP calls go in a request of their own, to the endpoint that writes `mcp_calls`. */
+  private startMcpSend(calls: WireMcpCall[]): void {
+    const payload: McpPayload = { site_id: this.siteId, mcp_calls: calls };
+    this.hold(this.send(this.mcpEndpoint, JSON.stringify(payload), calls.length, "MCP call"));
+  }
+
+  /** Keep a send in the in-flight set until it settles, so `flush()` can wait for it. */
+  private hold(sending: Promise<void>): void {
+    const promise = sending.finally(() => {
       this.inflight.delete(promise);
     });
     this.inflight.add(promise);
@@ -700,18 +862,17 @@ export class Micaforge {
    * collector will not accept, and sending it again only repeats the mistake. A
    * timeout, a network fault, a `429` and any `5xx` are all worth a second try.
    */
-  private async send(payload: EdgePayload): Promise<void> {
-    // Serialise once. The signature covers these exact bytes, so the body sent and the
-    // body signed can never drift apart.
-    const body = JSON.stringify(payload);
-    const count = (payload.events?.length ?? 0) + (payload.agent_events?.length ?? 0);
+  private async send(url: string, body: string, count: number, noun: string): Promise<void> {
+    // `body` was serialised once, by the caller. The signature covers these exact bytes,
+    // so the body sent and the body signed can never drift apart.
+    const what = `${count} ${noun}(s)`;
 
     for (let attempt = 0; attempt <= this.retries; attempt++) {
       const controller = new AbortController();
       const abort = setTimeout(() => controller.abort(), this.timeout);
       (abort as { unref?: () => void }).unref?.();
       try {
-        const response = await this.doFetch(this.endpoint, {
+        const response = await this.doFetch(url, {
           method: "POST",
           headers: {
             "content-type": "application/json",
@@ -723,24 +884,24 @@ export class Micaforge {
           keepalive: false,
         });
         if (response.ok) {
-          this.log.debug?.(`sent ${count} hit(s)`);
+          this.log.debug?.(`sent ${what}`);
           return;
         }
         const retryable = response.status === 429 || response.status >= 500;
         if (!retryable) {
           this.log.error(
-            `collector rejected ${count} hit(s) with ${response.status}; dropped`,
+            `collector rejected ${what} with ${response.status}; dropped`,
             await safeText(response),
           );
           return;
         }
         if (attempt === this.retries) {
-          this.log.warn(`collector returned ${response.status}; dropped ${count} hit(s)`);
+          this.log.warn(`collector returned ${response.status}; dropped ${what}`);
           return;
         }
       } catch (error) {
         if (attempt === this.retries) {
-          this.log.warn(`could not reach ${this.endpoint}; dropped ${count} hit(s)`, error);
+          this.log.warn(`could not reach ${url}; dropped ${what}`, error);
           return;
         }
       } finally {

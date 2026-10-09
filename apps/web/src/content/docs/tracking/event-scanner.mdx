@@ -1,0 +1,118 @@
+---
+title: "Event scanner"
+description: "micaforge-scan lists every analytics event in your code, checks names and properties, compares them with your site and types track()."
+group: "tracking"
+order: 16
+updated: 2026-10-09
+---
+
+`@micaforge/scan` reads your codebase and lists every event it sends: the name, the
+properties with their types, and every file and line that sends it. It checks the names
+against the rules the server applies, looks for personal data in properties, and, given an
+API key, compares the list with what your site really received.
+
+```bash
+npx @micaforge/scan
+```
+
+It reads the code and never runs it.
+
+## What it finds
+
+- `track("name", props)` from `@micaforge/sdk` and its React, Vue, Svelte and Next entries,
+  including an aliased or namespace import, `getTracker()?.track(…)` and `init(…).track(…)`;
+- the script tag's global: `window.micaforge.track("name")` and the queue form
+  `micaforge("event", "name", props)`;
+- `useMicaforge().track(…)` and `useTrackEvent()`. `useMicaforge` is matched by its name, so
+  the Nuxt composable is found even with Nuxt's automatic imports;
+- the server SDK: `micaforge.track({ name, props })`, `pageview(req, { name })` and
+  `batch([{ type: "event", name }])`;
+- `<TrackClick event>`, Vue's `v-mf` and Svelte's `use:trackClick`;
+- [click tags](/docs/tracking/click-tags): `data-track` with its `data-track-*` properties,
+  static or bound, in JSX, Vue, Svelte, Astro and HTML.
+
+It reads `.js`, `.jsx`, `.ts`, `.tsx`, `.mjs`, `.cjs`, `.vue`, `.svelte`, `.astro` and
+`.html` files, respects `.gitignore`, and always skips dependencies and build output.
+
+A name is read when the code says it: a string, a constant, a member of a constant object
+(`EVENTS.SIGNUP`), either side of a `?:`, or a constant exported by another file of the
+project. Anything else is listed as a **computed name** with its source text. When it has
+fixed parts, such as `` `step_${n}` ``, the scanner keeps them as the pattern `step_*`.
+
+## The checks
+
+| Check | Severity |
+|---|---|
+| An empty name: stored with no name and listed by no report. An empty `data-track` sends nothing. | error |
+| A name over 200 bytes: the server cuts it, so it is stored under a different name. | error |
+| Spaces at the start or end of a name, or a control character: the server trims it. | warning |
+| Two names that are one event: `signup` and `Sign_Up`, or `checkout_started` and `checkout_strated`. A numbered series such as `step_1` and `step_2` is left alone. | warning |
+| An email address or a credential written into a property. | error |
+| A property key such as `email`, `phone`, `name` or `token`, or a value read from `user.email`. | warning |
+| A `revenue` property that is not a number, or a `currency` that is not three letters. | warning |
+| A computed name, which cannot be checked. | info |
+
+## Compare with your site
+
+Create an API key with the `stats:read` scope under **Settings, API keys**, then:
+
+```bash
+export MICAFORGE_API_KEY=mfg_…
+npx @micaforge/scan --site 1 --host https://analytics.example.com --range 30d
+```
+
+The scanner reads `GET /api/stats/events`, the same list the Events screen shows, and
+reports two lists:
+
+- **In the code, never received.** The event is not deployed yet, sits behind a flag, or the
+  call never runs.
+- **Received, not in the code.** Old clients still send an event you renamed or removed, or
+  another codebase sends it.
+
+A computed name with a pattern accounts for every received name it matches. The key travels
+only in the `Authorization` header and is never printed.
+
+## A typed track()
+
+```bash
+npx @micaforge/scan --types src/analytics/events.ts
+```
+
+The SDK's `track()` accepts any name and any properties. The generated file wraps it with
+the events your code already sends, so a misspelled event, a missing property or a property
+of the wrong type stops compiling:
+
+```ts
+import { track } from "./analytics/events";
+
+track("checkout_started", { plan: "pro" });
+```
+
+Run it again after you add or change an event.
+
+## In CI
+
+```yaml
+- run: npx @micaforge/scan --ci --strict --markdown --output tracking-plan.md
+```
+
+`--ci` exits with 1 when there are errors, and `--strict` makes warnings fail too. The
+Markdown report is a tracking plan you can keep in the repository or post on a pull
+request.
+
+| Option | |
+|---|---|
+| `--format table`, `json` or `markdown` | Default: a table in a terminal, JSON otherwise. |
+| `--output <file>` | Write the report to a file. |
+| `--types <file>` | Write the typed `track()`. |
+| `--include <glob>`, `--exclude <glob>` | Narrow the files. Repeatable. |
+| `--no-gitignore` | Read ignored files too. |
+| `--site`, `--api-key`, `--host`, `--range` | Compare with a site. `MICAFORGE_SITE_ID`, `MICAFORGE_API_KEY` and `MICAFORGE_HOST` work too. |
+
+## Limits
+
+- A tracker passed to a function as a parameter, or kept in a store, is not followed.
+- A constant is followed across files for relative imports, not through path aliases such
+  as `@/events`.
+- Names are matched by file, not by scope: a local function that shadows the SDK's
+  `track` in a nested scope is read as the SDK's.

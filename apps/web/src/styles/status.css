@@ -1,0 +1,349 @@
+/* ============================================================================
+   A public status page (/status/<slug>).
+
+   Read by a site's customers, not by Micaforge users, often on a phone, often
+   while something is broken. So the page is one narrow column, light only,
+   in the product's own tokens, and every state is said in words and shapes as
+   well as tones:
+
+     - the overall banner carries a shape and a sentence;
+     - each system's state is a shape and a word;
+     - each day's bar has its own HEIGHT for its group (full: all up, shorter:
+       some failures, short: mostly down, a low grey stub: no data), so the
+       ninety-day row reads in greyscale.
+
+   The page owner's accent colour arrives as data in two custom properties set
+   on the frame: `--mf-status-accent` for the top rule, and `--mf-status-link`
+   for link text, which the island only sets when the accent reads on white.
+   Without them both fall back to ink. The accent never marks a state.
+
+   global.css (tokens, the font, the base rules) is already on the page through
+   the Base layout; this sheet adds only the page's own classes, namespaced
+   `mf-status-`. Unlayered, so it wins over the base layer without a fight.
+   ========================================================================= */
+
+.mf-status-frame {
+  --mf-status-accent: var(--mf-ink-strong);
+  --mf-status-link: var(--mf-ink);
+  min-height: 100dvh;
+  background: var(--mf-ground);
+  border-top: 4px solid var(--mf-status-accent);
+}
+
+.mf-status {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mf-8);
+  max-width: 760px;
+  margin: 0 auto;
+  padding: var(--mf-10) var(--mf-4) var(--mf-12);
+}
+
+.mf-status-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.mf-status-quiet { font-size: var(--mf-t-sm); color: var(--mf-ink-3); }
+
+/* ── head ────────────────────────────────────────────────────────────────── */
+
+.mf-status-head { display: flex; flex-direction: column; align-items: flex-start; gap: var(--mf-3); }
+.mf-status-head__logo {
+  display: block;
+  width: auto;
+  max-width: 200px;
+  height: 40px;
+  object-fit: contain;
+}
+.mf-status-head__title {
+  font-size: var(--mf-t-xl);
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  color: var(--mf-ink-strong);
+}
+.mf-status-head__desc { max-width: 60ch; font-size: var(--mf-t-base); color: var(--mf-ink-2); }
+
+/* ── the overall banner ──────────────────────────────────────────────────── */
+
+.mf-status-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--mf-4);
+  padding: var(--mf-5);
+  background: var(--mf-ground-2);
+  border: 1px solid var(--mf-rule);
+  border-left-width: 4px;
+  border-radius: var(--mf-r-md);
+  box-shadow: var(--mf-shadow-xs);
+  color: var(--mf-ink-3);
+}
+.mf-status-banner[data-overall="operational"] { color: var(--mf-success); border-left-color: var(--mf-success); background: var(--mf-success-wash); }
+.mf-status-banner[data-overall="degraded"] { color: var(--mf-danger); border-left-color: var(--mf-danger); background: var(--mf-danger-wash); }
+.mf-status-banner[data-overall="outage"] { color: var(--mf-danger-deep); border-left-color: var(--mf-danger-deep); background: var(--mf-danger-wash); }
+.mf-status-banner[data-overall="maintenance"] { color: var(--mf-ink-2); border-left-color: var(--mf-ink-2); background: var(--mf-ground-3); }
+.mf-status-banner[data-overall="unknown"] { color: var(--mf-ink-3); border-left-color: var(--mf-rule-strong); }
+
+.mf-status-banner__word {
+  font-size: var(--mf-t-lg);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: var(--mf-ink-strong);
+}
+.mf-status-banner__when { margin-top: 2px; font-size: var(--mf-t-xs); color: var(--mf-ink-2); }
+
+/* ── sections ────────────────────────────────────────────────────────────── */
+
+.mf-status-section { display: flex; flex-direction: column; gap: var(--mf-3); }
+.mf-status-section__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--mf-2) var(--mf-4);
+}
+.mf-status-section__title {
+  font-size: var(--mf-t-md);
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--mf-ink-strong);
+}
+
+/* ── an incident or a maintenance notice ─────────────────────────────────── */
+
+.mf-status-notice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mf-2);
+  padding: var(--mf-4) var(--mf-5);
+  background: var(--mf-ground-2);
+  border: 1px solid var(--mf-rule);
+  border-radius: var(--mf-r-md);
+  box-shadow: var(--mf-shadow-xs);
+}
+.mf-status-notice__title { font-size: var(--mf-t-base); font-weight: 600; line-height: 1.3; color: var(--mf-ink-strong); }
+.mf-status-notice__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mf-1) var(--mf-3);
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+}
+.mf-status-notice__status { font-weight: 600; color: var(--mf-ink); }
+
+.mf-status-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mf-3);
+  margin: var(--mf-2) 0 0 4px;
+  padding: 0 0 0 var(--mf-4);
+  list-style: none;
+  border-left: 2px solid var(--mf-rule);
+}
+.mf-status-timeline__item { position: relative; }
+.mf-status-timeline__item::before {
+  content: "";
+  position: absolute;
+  top: 5px;
+  left: calc(-1 * var(--mf-4) - 6px);
+  width: 10px;
+  height: 10px;
+  background: var(--mf-ground-2);
+  border: 2px solid var(--mf-rule-strong);
+  border-radius: 50%;
+}
+.mf-status-timeline__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--mf-1) var(--mf-3);
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+}
+.mf-status-timeline__head strong { font-weight: 600; color: var(--mf-ink); }
+.mf-status-timeline__body {
+  margin-top: 2px;
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink-2);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+/* ── systems and their ninety days ───────────────────────────────────────── */
+
+.mf-status-systems {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background: var(--mf-ground-2);
+  border: 1px solid var(--mf-rule);
+  border-radius: var(--mf-r-md);
+  box-shadow: var(--mf-shadow-xs);
+}
+.mf-status-system {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mf-2);
+  padding: var(--mf-4) var(--mf-5);
+}
+.mf-status-system + .mf-status-system { border-top: 1px solid var(--mf-rule); }
+.mf-status-system__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mf-1) var(--mf-3);
+}
+.mf-status-system__name { font-size: var(--mf-t-base); font-weight: 500; color: var(--mf-ink); overflow-wrap: anywhere; }
+.mf-status-system__uptime { font-size: var(--mf-t-xs); color: var(--mf-ink-3); }
+.mf-status-figure {
+  font-family: var(--mf-font-data);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-weight: 500;
+  color: var(--mf-ink);
+}
+
+.mf-status-state {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mf-2);
+  font-size: var(--mf-t-sm);
+  font-weight: 500;
+  white-space: nowrap;
+  color: var(--mf-ink-3);
+}
+.mf-status-state[data-state="up"] { color: var(--mf-success); }
+.mf-status-state[data-state="down"] { color: var(--mf-danger); }
+
+.mf-status-days { display: flex; flex-direction: column; gap: var(--mf-1); min-width: 0; }
+.mf-status-days__bars {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  align-items: end;
+  gap: 1px;
+  height: 34px;
+  min-width: 0;
+  border-radius: 2px;
+  cursor: default;
+}
+.mf-status-days__read {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--mf-3);
+  min-height: 18px;
+  font-size: var(--mf-t-xs);
+  line-height: 18px;
+  color: var(--mf-ink-3);
+}
+
+/* One bar per day. Height first, tone second. */
+.mf-status-day { display: block; min-width: 0; border-radius: 1px; }
+.mf-status-day[data-level="up"] { height: 100%; background: var(--mf-success); }
+.mf-status-day[data-level="some"] { height: 64%; background: var(--mf-danger); }
+.mf-status-day[data-level="most"] { height: 36%; background: var(--mf-danger-deep); }
+.mf-status-day[data-level="none"] { height: 16%; background: var(--mf-rule-strong); }
+.mf-status-day[data-active="true"] { box-shadow: 0 0 0 1px var(--mf-ground-2), 0 0 0 2px var(--mf-ink-strong); }
+
+/* The bar row is written in from the left once when the page draws. Nothing
+   waits on it; under reduced motion it never runs. */
+@media (prefers-reduced-motion: no-preference) {
+  .mf-status-days__bars { animation: mf-pen-write var(--mf-dur-4) var(--mf-ease-out) both; }
+}
+
+/* The key: each group drawn as its own bar, at its own height. */
+.mf-status-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mf-1) var(--mf-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+}
+.mf-status-legend li { display: inline-flex; align-items: flex-end; gap: var(--mf-2); }
+.mf-status-legend__bar { display: inline-block; width: 6px; align-self: flex-end; margin-bottom: 3px; }
+.mf-status-legend__bar[data-level="up"] { height: 14px; }
+.mf-status-legend__bar[data-level="some"] { height: 9px; }
+.mf-status-legend__bar[data-level="most"] { height: 5px; }
+.mf-status-legend__bar[data-level="none"] { height: 3px; }
+
+/* ── footer and links ────────────────────────────────────────────────────── */
+
+.mf-status-foot {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--mf-2);
+  padding-top: var(--mf-5);
+  border-top: 1px solid var(--mf-rule);
+}
+.mf-status-link {
+  font-size: var(--mf-t-sm);
+  font-weight: 500;
+  color: var(--mf-status-link);
+  text-decoration: underline;
+  text-decoration-color: var(--mf-status-accent);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
+/* ── waiting, gone, failed ───────────────────────────────────────────────── */
+
+.mf-status-wait { display: flex; flex-direction: column; gap: var(--mf-5); }
+.mf-status-wait__bar { display: block; background: var(--mf-ground-3); border-radius: var(--mf-r-sm); }
+
+.mf-status-gone {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--mf-3);
+  padding-top: var(--mf-8);
+}
+.mf-status-gone__title {
+  max-width: 28ch;
+  font-size: var(--mf-t-xl);
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  color: var(--mf-ink-strong);
+}
+.mf-status-gone__body { max-width: 60ch; font-size: var(--mf-t-base); color: var(--mf-ink-2); }
+
+.mf-status-button {
+  margin-top: var(--mf-2);
+  padding: 0 var(--mf-5);
+  height: 40px;
+  font: inherit;
+  font-size: var(--mf-t-sm);
+  font-weight: 500;
+  color: var(--mf-ground-2);
+  background: var(--mf-ink-strong);
+  border: 1px solid var(--mf-ink-strong);
+  border-radius: var(--mf-r-sm);
+  box-shadow: var(--mf-shadow-xs);
+  cursor: pointer;
+  transition: background-color var(--mf-dur-1) linear;
+}
+.mf-status-button:hover { background: var(--mf-ink); }
+
+/* ── phone width ─────────────────────────────────────────────────────────── */
+
+@media (max-width: 520px) {
+  .mf-status { gap: var(--mf-6); padding-top: var(--mf-6); }
+  .mf-status-head__title,
+  .mf-status-gone__title { font-size: var(--mf-t-lg); }
+  .mf-status-banner { padding: var(--mf-4); gap: var(--mf-3); }
+  .mf-status-notice,
+  .mf-status-system { padding: var(--mf-4); }
+  .mf-status-days__bars { height: 28px; }
+}

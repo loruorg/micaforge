@@ -26,3 +26,7 @@ backups/
 # Agent worktrees and local design-decision pages
 .claude/worktrees/
 .impeccable/questions/
+
+# Swift Package Manager (the Swift SDK builds from the root Package.swift)
+.build/
+.swiftpm/

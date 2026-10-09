@@ -1,0 +1,245 @@
+---
+title: "Revenue"
+description: "Payments from Stripe or Paddle, matched to the visit that led to them, and the checkout reference that makes the match exact."
+group: "tracking"
+order: 12
+updated: 2026-10-08
+---
+
+Revenue answers which channels, campaigns and pages bring paying customers. Stripe or Paddle
+sends Micaforge a webhook for each payment, and Micaforge matches the payment to the visit
+that led to it.
+
+Nothing is fetched from Stripe or Paddle. Micaforge only receives webhooks, and it holds no
+API key for either provider.
+
+## Connecting a provider
+
+Connect a provider on the Revenue screen, under Growth. A site has at most one integration
+per provider, and managing integrations needs the admin role.
+
+Each integration has its own webhook address, which the dashboard shows:
+
+```text
+https://analytics.example.com/api/revenue/webhooks/stripe/<integration id>
+https://analytics.example.com/api/revenue/webhooks/paddle/<integration id>
+```
+
+You give the provider that address, and you give Micaforge the provider's signing secret.
+The secret is sealed at rest with XChaCha20-Poly1305, keyed from
+`MICAFORGE_SECRET_KEY_BASE`, and it is never shown again. Rotating that key makes the sealed
+secret unreadable, so paste the secret again after a rotation. See
+[configuration](/docs/self-hosting/configuration).
+
+The steps for each provider:
+
+- [Stripe](/docs/tracking/revenue-stripe)
+- [Paddle](/docs/tracking/revenue-paddle)
+
+## What is recorded
+
+Every payment is one row in the ClickHouse table `revenue`. A row is a sale, a subscription
+payment or a refund. A refund is negative revenue.
+
+- **Amounts are in minor units** (cents), with the ISO 4217 currency. Currencies are never
+  added together: a site that sells in USD and EUR gets two totals, not one.
+- **The customer** is the provider's customer id, such as `cus_…` or `ctm_…`. Without
+  one, it is a keyed hash of the customer's email, written `email:<hash>`. The email itself
+  is never stored.
+- **The attribution** is copied from the visit the payment is matched to: the channel, the
+  source, the referrer host, the UTM source, medium and campaign, the country, the device
+  type, the browser and the first page. The row also stores how the match was made.
+
+## Attribution
+
+Micaforge tries three things, in this order, and stops at the first that works:
+
+1. **The checkout reference**, `mf_ref`. You pass it to the provider when the checkout
+   starts, and it comes back in the webhook. This is the exact method. See below.
+2. **The customer's email**, Stripe only. It is matched against ids sent with
+   [`identify()`](/docs/tracking/identify) that are that email address, ignoring case. The
+   payment takes the attribution of that id's first visit in the last 90 days.
+3. **None.** The payment is still counted, as unattributed.
+
+| Method | Where the match came from |
+| --- | --- |
+| `session`, `visitor` | The checkout reference, which names a visit's session and its visitor. |
+| `email` | The customer's email, through `identify()`. |
+| `none` | No match. The payment counts, with no attribution. |
+
+### Where the provider carries the reference
+
+**From Stripe**, Micaforge reads it from `client_reference_id` on the Checkout Session,
+from `metadata.mf_ref` on the Checkout Session, from `subscription_data.metadata.mf_ref`,
+or from the reference it remembered for the customer at an earlier checkout. The last one is
+why a subscription payment is credited to the visit that started the subscription.
+
+**From Paddle**, Micaforge reads it from `custom_data.mf_ref`.
+
+## The checkout reference
+
+The reference is a token that names the current visit: its session and its visitor hash.
+It is encrypted, it holds no personal data, and Stripe or Paddle cannot read it.
+
+Get it from the visitor's browser, not from your server: it names the visit that browser is
+on.
+
+```http
+GET /api/revenue/ref?s=1
+```
+
+`s` is the numeric site id. The request needs no cookie and no key, and it is allowed from
+any origin. The answer has the standard envelope:
+
+```json
+{ "data": { "ref": "mfr_…" }, "meta": { "sampled": false } }
+```
+
+### With the npm package
+
+```ts
+import { init, checkoutRef } from "@micaforge/sdk";
+
+init({ site: 1, host: "https://analytics.example.com" });
+
+const ref = await checkoutRef(); // "mfr_…", or null
+```
+
+`checkoutRef()` uses the site and host of the running tracker. It returns `null` when the
+tracker is not initialised or the request fails.
+
+### With the script tag
+
+The script tag has no function for it. A plain `fetch` does the same job:
+
+```js
+async function checkoutRef() {
+  try {
+    const res = await fetch("https://analytics.example.com/api/revenue/ref?s=1");
+    if (!res.ok) return null;
+    const { data } = await res.json();
+    return data.ref;
+  } catch {
+    return null;
+  }
+}
+```
+
+A `null` reference is not an error. Start the checkout without it: the payment is still
+counted, and Micaforge falls back to the next method.
+
+### Stripe Checkout, in Node
+
+Your server creates the Checkout Session, so the browser sends the reference to your
+server first. The browser part:
+
+```ts
+import { checkoutRef } from "@micaforge/sdk";
+
+document.querySelector("#buy")?.addEventListener("click", async () => {
+  const ref = await checkoutRef();
+  const res = await fetch("/checkout", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ref }),
+  });
+  const { url } = await res.json();
+  window.location.assign(url);
+});
+```
+
+The server part, with Express and the official `stripe` package:
+
+```ts
+import express from "express";
+import Stripe from "stripe";
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+const app = express();
+app.use(express.json());
+
+app.post("/checkout", async (req, res) => {
+  const raw = req.body?.ref;
+  const ref = typeof raw === "string" && raw.startsWith("mfr_") ? raw : undefined;
+
+  const session = await stripe.checkout.sessions.create({
+    mode: "subscription",
+    line_items: [{ price: process.env.STRIPE_PRICE_ID!, quantity: 1 }],
+    success_url: "https://example.com/welcome",
+    cancel_url: "https://example.com/pricing",
+    client_reference_id: ref,
+    subscription_data: ref ? { metadata: { mf_ref: ref } } : undefined,
+  });
+
+  res.json({ url: session.url });
+});
+
+app.listen(3000);
+```
+
+For a one-off payment, use `mode: "payment"` and leave out `subscription_data`:
+`client_reference_id` is enough.
+
+### Paddle.js
+
+Paddle.js opens the checkout in the browser, so the reference goes straight into
+`customData`:
+
+```html
+<button id="buy">Buy</button>
+
+<script src="https://cdn.paddle.com/paddle/v2/paddle.js"></script>
+<script>
+  Paddle.Initialize({ token: "live_…" });
+
+  async function checkoutRef() {
+    try {
+      const res = await fetch("https://analytics.example.com/api/revenue/ref?s=1");
+      if (!res.ok) return null;
+      const { data } = await res.json();
+      return data.ref;
+    } catch {
+      return null;
+    }
+  }
+
+  document.querySelector("#buy").addEventListener("click", async () => {
+    const ref = await checkoutRef();
+    Paddle.Checkout.open({
+      items: [{ priceId: "pri_…", quantity: 1 }],
+      customData: ref ? { mf_ref: ref } : undefined,
+    });
+  });
+</script>
+```
+
+With the npm package, use its `checkoutRef()` in place of the `fetch`.
+
+## Without the checkout reference
+
+For Stripe, the email fallback can still match a payment. It works only if you send the
+email address itself as the id in `identify()`. The [identify page](/docs/tracking/identify)
+advises an opaque id instead, because an email address in `identified_id` is personal data
+in your event store. The checkout reference needs neither, so prefer it.
+
+Paddle notifications carry no customer email, so the email fallback never applies to
+Paddle.
+
+## Reading it
+
+The Revenue screen reads these endpoints. They take the
+[query envelope](/docs/api/stats-api) plus an optional `currency`:
+
+```http
+GET /api/revenue/overview?site=1&range=30d
+GET /api/revenue/timeseries?site=1&range=30d&currency=USD
+GET /api/revenue/breakdown?site=1&range=30d&dimension=channel
+GET /api/revenue/customers?site=1&limit=50
+GET /api/revenue/payments?site=1&limit=50
+```
+
+`dimension` is one of `channel`, `source`, `referrer_host`, `utm_source`, `utm_medium`,
+`utm_campaign`, `country`, `device_type`, `browser`, `entry_path` or `attribution`.
+
+An agent can read the same data through the [MCP server](/docs/api/mcp-server), with
+`get_revenue_overview` and `get_revenue_breakdown`.

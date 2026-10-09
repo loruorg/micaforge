@@ -3,7 +3,7 @@ title: "Cookieless identification"
 description: "How a visitor is counted without a cookie, and what that costs you."
 group: "privacy"
 order: 2
-updated: 2026-08-22
+updated: 2026-10-08
 ---
 
 A visitor is a hash:
@@ -48,6 +48,17 @@ The absence is not a limitation that was worked around. It is the design.
 Call [`identify()`](/docs/tracking/identify) with your own id. That is the deliberate
 exception, for a signed-in product where you already know who the reader is, and it makes
 those rows personal data. Send an opaque id.
+
+The call also links that day's visitor hash to your id, so the person's profile shows what
+they did earlier that day, before they signed in. That link exists only because your own
+call carried both values. Micaforge never links two hashes to each other, and a day with
+no `identify()` call stays anonymous.
+
+## Sampling uses no identifier either
+
+`data-sample` decides in the browser whether a visitor is in today's sample, from today's
+date and the browser's own user agent. The decision is the same on every page of the day
+and is drawn again tomorrow, and the inputs never leave the page: only the rate is sent.
 
 ## Is this fingerprinting?
 

@@ -71,7 +71,7 @@ export type ErrorFacetKey = "browser" | "os" | "pathname" | "release";
 
 export interface ErrorsResponse {
   rows: ErrorGroup[];
-  totals?: { groups: number; occurrences: number; visitors?: number };
+  totals?: { groups: number; occurrences: number; visitors?: number; unhandled?: number };
   facets?: Partial<Record<ErrorFacetKey, ErrorFacet[]>>;
 }
 
@@ -260,7 +260,7 @@ export function ErrorsScreen() {
 
   const occurrences = data.totals?.occurrences ?? rows.reduce((s, r) => s + (r.count || 0), 0);
   const groups = data.totals?.groups ?? rows.length;
-  const unhandled = rows.filter((r) => r.handled === false).length;
+  const unhandled = data.totals?.unhandled ?? rows.filter((r) => r.handled === false).length;
   /* Without site-wide totals the strip can only count what it has loaded, and
      it says so rather than passing a page off as the whole. */
   const derived = data.totals?.groups == null;
@@ -440,7 +440,7 @@ export function ErrorsScreen() {
                 ) : (
                   <Empty
                     title="No errors in this period"
-                    body="Errors arrive on the tracker's error event. If you have never seen one here, make sure error capture is turned on in the snippet."
+                    body="Error capture is off until the script tag carries data-errors. With it on, every uncaught error and unhandled promise rejection on your pages appears here."
                   />
                 )
               }

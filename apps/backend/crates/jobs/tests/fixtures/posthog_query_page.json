@@ -1,0 +1,23 @@
+{
+  "columns": ["uuid", "event", "timestamp", "distinct_id", "person_id", "properties"],
+  "types": ["UUID", "String", "DateTime64(6, 'UTC')", "String", "UUID", "String"],
+  "results": [
+    [
+      "018f2a10-0000-7000-8000-000000000031",
+      "$pageview",
+      "2026-09-05T07:00:00.000000Z",
+      "user-9",
+      "0190-person-9",
+      "{\"$pathname\":\"/docs\",\"$browser\":\"Chrome\",\"$session_id\":\"s-31\"}"
+    ],
+    [
+      "018f2a10-0000-7000-8000-000000000032",
+      "checkout",
+      "2026-09-05T07:00:00.000000Z",
+      "user-9",
+      "0190-person-9",
+      "{\"$pathname\":\"/checkout\",\"total\":49}"
+    ]
+  ],
+  "hasMore": false
+}

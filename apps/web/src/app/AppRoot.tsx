@@ -12,7 +12,7 @@
  * nobody is looking at.
  */
 import type { ReactNode } from "react";
-import { useEffect, useId, useState } from "react";
+import { Suspense, lazy, useEffect, useId, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import * as RPopover from "@radix-ui/react-popover";
@@ -26,6 +26,12 @@ import { ExportMenu } from "../components/react/ExportMenu";
 import { IconChevron, IconClock, IconSettings } from "../components/react/icons";
 import { COMPARE_WORDS, rangeWords, useAppState } from "./state";
 import { useAuth, useSite } from "./providers";
+
+/**
+ * The feedback dialog is fetched the first time someone opens it. Most
+ * sessions never do, so its code stays out of the first download.
+ */
+const FeedbackDialog = lazy(() => import("./feedback/FeedbackDialog"));
 
 /* ── the tab's own attention ─────────────────────────────────────────────── */
 
@@ -172,8 +178,15 @@ function IntervalKey() {
 
 /* ── the signed-in user ──────────────────────────────────────────────────── */
 
-/** The account button: the user's account, the instance, and sign out. */
-function AccountKey() {
+/**
+ * The account button: the user's account, the instance, feedback, and sign out.
+ *
+ * Feedback is offered from this menu because the menu is the one control
+ * present on every screen of the dashboard. The dialog itself is mounted by
+ * the caller, beside the popover rather than inside it, so closing the menu
+ * does not close the dialog.
+ */
+function AccountKey({ onFeedback }: { onFeedback: () => void }) {
   const { user, isSignedOut, signOut } = useAuth();
   const [open, setOpen] = useState(false);
 
@@ -220,6 +233,17 @@ function AccountKey() {
             <span className="mfs-menu__item-name">This instance</span>
             <span className="mfs-menu__item-note">Storage, jobs and users on this server.</span>
           </Link>
+          <button
+            type="button"
+            className="mfs-menu__item"
+            onClick={() => {
+              setOpen(false);
+              onFeedback();
+            }}
+          >
+            <span className="mfs-menu__item-name">Send feedback</span>
+            <span className="mfs-menu__item-note">Report a bug or a problem, or ask for a feature.</span>
+          </button>
           <button
             type="button"
             className="mfs-menu__item"
@@ -284,8 +308,19 @@ const NO_AUDIENCE = new Set(["agents", "citation-gap", "policy", "content-decay"
  */
 const NO_RANGE = new Set(["realtime"]);
 
-/** Setup is not a report. None of the report controls belong on it. */
-const NOT_A_READING = new Set(["settings", "onboarding"]);
+/**
+ * Setup is not a report. None of the report controls belong on it. Neither
+ * does Insights: an investigation carries its own window ("7 days against the
+ * previous 7"), so a date range or a filter there would change nothing.
+ */
+const NOT_A_READING = new Set(["settings", "onboarding", "insights"]);
+
+/**
+ * Ask AI keeps the date range, the audience and the filters, because a
+ * question is asked about exactly that reading. It has no table to export, so
+ * an export button there would only ever export the dashboard's totals.
+ */
+const NO_EXPORT = new Set(["ask"]);
 
 /** The screen a path is on: `/app/<site>/<screen>/…`, or "" for the dashboard. */
 export function channelOf(pathname: string): string {
@@ -324,6 +359,10 @@ function StationControls({ hasSite, pathname }: { hasSite: boolean; pathname: st
   const { audience, setAudience } = useAppState();
   const channel = channelOf(pathname);
   const reading = hasSite && !NOT_A_READING.has(channel);
+  const [feedback, setFeedback] = useState(false);
+  /* Mounted from the first open on, so closing it keeps its code and lets
+     the dialog finish closing rather than vanishing mid-step. */
+  const [feedbackUsed, setFeedbackUsed] = useState(false);
 
   return (
     <>
@@ -334,10 +373,20 @@ function StationControls({ hasSite, pathname }: { hasSite: boolean; pathname: st
           )}
           {OWN_CALIPER.has(channel) || NO_RANGE.has(channel) ? null : <IntervalKey />}
           <FilterBar />
-          {OWN_EXPORT.has(channel) ? null : <ExportMenu report={reportFor(channel)} />}
+          {OWN_EXPORT.has(channel) || NO_EXPORT.has(channel) ? null : <ExportMenu report={reportFor(channel)} />}
         </>
       ) : null}
-      <AccountKey />
+      <AccountKey
+        onFeedback={() => {
+          setFeedbackUsed(true);
+          setFeedback(true);
+        }}
+      />
+      {feedbackUsed ? (
+        <Suspense fallback={null}>
+          <FeedbackDialog open={feedback} onOpenChange={setFeedback} />
+        </Suspense>
+      ) : null}
     </>
   );
 }

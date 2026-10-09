@@ -24,7 +24,8 @@ decision is made against facts.
 - **No persistent identifier.** The visitor hash rotates daily on a salt kept for at most
   48 hours. See [cookieless identification](/docs/privacy/cookieless-identification).
 - **No data leaves your install.** On a self-hosted deployment the build makes no outbound
-  call at runtime, including for geolocation.
+  call at runtime, including for geolocation, unless you turn on one of the optional paths
+  listed under [processors and transfers](#processors-and-transfers).
 - **No third party.** There is no ad network, no data broker and no enrichment service in
   the path, because there is no path out.
 
@@ -57,12 +58,15 @@ micaforge.optOut();   // survives reloads, until optIn()
 Out of the box, the intent is that no row identifies a person. Three things can change that,
 and all three are yours:
 
-1. **`identify()`.** An id you attach makes those rows personal data. Send an opaque id, and
-   say so in your privacy notice.
+1. **`identify()` and `setTraits()`.** An id you attach makes those rows personal data, and
+   so do the traits you send with it; an email address in a trait is stored on the profile,
+   with its history. The call also links that day's anonymous activity to the id. Send an
+   opaque id, send only the traits you need, and say so in your privacy notice.
 2. **Properties.** They are stored verbatim. An email address in a property is personal data
    in your store.
-3. **URLs.** A path can carry a name or a token. `data-exclude` drops paths before anything
-   is sent.
+3. **URLs.** A path can carry a name or a token. `data-exclude` drops paths, and
+   `data-mask` and `data-strip-query` replace identifiers and drop parameters, before
+   anything is sent.
 
 ## Data subject requests
 
@@ -70,9 +74,11 @@ and all three are yours:
 after 48 hours, because the salt it needs no longer exists. That is a real answer, and it is
 a consequence of the design rather than a refusal.
 
-**With `identify()`**, `identified_id` is a filter dimension, so the rows for one id can be
-found and deleted. The event store is append-only by design, so deletion is an operational
-task rather than a button in the interface today.
+**With `identify()`**, the person can be found by their id, or by a trait such as an email
+address, on the Visitors screen. **Erase this visitor** on their profile (or
+`DELETE /api/stats/visitors/:id`, which needs the `admin` role) deletes their identified
+events, their trait history, their error reports and recordings, and the anonymous activity
+of every daily hash an `identify()` call linked to them. It cannot be undone.
 
 ## Processors and transfers
 
@@ -80,8 +86,21 @@ A self-hosted install has no processor: you run it. There is no transfer, becaus
 leaves the machine.
 
 If you send mail (sign-in codes, invitations and reports) through an SMTP relay or through
-Cloudflare Email Sending, that provider is a processor for those emails. It is the only
-outbound path in the product, and it is off by default.
+Cloudflare Email Sending, that provider is a processor for those emails.
+
+Three more outbound paths exist, and each is off until you configure it:
+
+- **An AI model.** With `MICAFORGE_LLM_BASE_URL` set to a hosted API, its provider receives
+  each question, the site's domain and name, the aggregate query results the model asks for,
+  and the earlier messages of the conversation. Visitor ids and identified ids are never sent. Point it at a model
+  you run yourself and nothing leaves your network. See
+  [Ask AI](/docs/dashboard/ask-ai#what-is-sent-to-the-provider).
+- **Chat apps.** With Slack, Discord or Telegram configured, that platform receives the
+  answers, the daily numbers and the investigations posted to the channels a member linked.
+  See [integrations](/docs/integrations/slack).
+- **Webhooks** for alerts and for feedback go to the addresses you enter.
+
+Mail, a model and the chat apps are each off by default.
 
 ## Retention
 

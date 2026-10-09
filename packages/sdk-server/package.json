@@ -1,7 +1,7 @@
 {
   "name": "@micaforge/sdk-server",
   "version": "0.1.0",
-  "description": "Micaforge server-side SDK — ship agent hits and server-rendered pageviews to Micaforge from Node, Workers, Deno, Bun or an access log",
+  "description": "Micaforge server-side SDK — ship agent hits, server-rendered pageviews and MCP server calls to Micaforge from Node, Workers, Deno, Bun or an access log",
   "license": "MIT",
   "type": "module",
   "sideEffects": false,
@@ -23,6 +23,8 @@
     "fastify",
     "hono",
     "nextjs",
+    "mcp",
+    "model-context-protocol",
     "micaforge"
   ],
   "exports": {
@@ -45,6 +47,14 @@
     "./next": {
       "types": "./dist/next.d.ts",
       "default": "./dist/next.js"
+    },
+    "./flags": {
+      "types": "./dist/flags.d.ts",
+      "default": "./dist/flags.js"
+    },
+    "./mcp": {
+      "types": "./dist/mcp.d.ts",
+      "default": "./dist/mcp.js"
     },
     "./package.json": "./package.json"
   },

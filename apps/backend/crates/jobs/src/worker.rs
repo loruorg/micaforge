@@ -573,6 +573,14 @@ async fn dispatch(ctx: &JobCtx, kind: Kind, payload: &Json) -> Result<()> {
         Kind::RunImport => crate::run_import::run(ctx, decode(kind, payload)?).await,
         Kind::DetectDecay => crate::detect_decay::run(ctx, decode(kind, payload)?).await,
         Kind::CrawlPageMeta => crate::crawl_page_meta::run(ctx, decode(kind, payload)?).await,
+        Kind::Investigate => crate::investigate::run(ctx, decode(kind, payload)?).await,
+        Kind::InsightDigest => crate::insight_digest::run(ctx, decode(kind, payload)?).await,
+        Kind::RunUptimeChecks => crate::uptime::run(ctx, decode(kind, payload)?).await,
+        Kind::NotifyBlockedTraffic => {
+            crate::notify_blocked_traffic::run(ctx, decode(kind, payload)?).await
+        }
+        Kind::MeterUsage => crate::meter_usage::run(ctx, decode(kind, payload)?).await,
+        Kind::SyncSearchConsole => crate::search_console::run(ctx, decode(kind, payload)?).await,
     }
 }
 

@@ -18,6 +18,10 @@
 //!   catcher and the security headers.
 //! - [`client_ip`]: which address a request is attributed to, and why.
 //! - [`routes`]: one module per area of `docs/CONTRACT.md` §3.3.
+//! - [`audit`]: the one-line way every mutating handler records itself in the
+//!   audit log.
+//! - [`ingest_guard`]: the per-site address allow and deny lists every ingest
+//!   path checks before it stores a hit.
 //!
 //! # Why this is a library as well as a binary
 //!
@@ -28,9 +32,11 @@
 
 #![forbid(unsafe_code)]
 
+pub mod audit;
 pub mod client_ip;
 pub mod error;
 pub mod extract;
+pub mod ingest_guard;
 pub mod middleware;
 pub mod response;
 pub mod routes;

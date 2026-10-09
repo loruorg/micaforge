@@ -332,6 +332,146 @@ process.on("SIGTERM", () => void micaforge.shutdown().then(() => process.exit(0)
 
 ---
 
+## Feature flags, decided on your server
+
+`createFlagsClient` fetches the site's ruleset once (`GET /api/flags/ruleset`), keeps it
+in memory, refreshes it every 30 seconds in the background, and decides every flag
+locally. A request never waits on Micaforge. The decision is the same function the
+Micaforge server runs for browsers (the two TypeScript copies and the Rust one are held
+together by one file of shared test vectors), so a page rendered here and the browser
+that reads it afterwards agree on every visitor.
+
+The API key needs the `manage:read` scope. It travels only in the `Authorization`
+header, never in a URL, a log line or an error.
+
+```ts
+import { createFlagsClient } from "@micaforge/sdk-server/flags";
+
+const flags = createFlagsClient({
+  host: "https://analytics.example.com",
+  apiKey: process.env.MICAFORGE_API_KEY!,
+  site: 3,
+  environment: "production",
+  onError: (err) => console.warn(err),
+});
+await flags.ready(); // the first load attempt; never rejects
+
+app.get("/", (req, res) => {
+  const user = { visitor: req.session.id, identity: req.user?.id, context: { plan: req.user?.plan } };
+  if (flags.isEnabled("new-nav", user)) renderNewNav();
+  const hero = flags.variant("hero", user, "a");
+});
+
+process.on("SIGTERM", () => void flags.close()); // stops the timers and sends the counts
+```
+
+Before the first ruleset arrives, and for a key the ruleset does not have, `isEnabled`
+answers the fallback you pass (`false` by default). A failed refresh keeps the last good
+ruleset. Both timers are `unref()`ed, so the client never keeps a process alive.
+
+Each decision is counted, and each (flag, subject) pair once more as an exposure; the
+counts go in batches of at most 200 to `POST /api/flags/events` every ten seconds (no key
+needed there), and the flag's screen draws them per variant. `stats: false` turns this
+off.
+
+---
+
+## MCP server analytics
+
+If you run a Model Context Protocol server, wrap it once and every `tools/call`,
+`resources/read` and `prompts/get` it answers is recorded: which tool, which client
+(Claude, Cursor, an IDE plugin, by the `clientInfo` it sent in `initialize`), the
+negotiated protocol revision, the transport, how long the handler ran, and how it ended.
+The **MCP servers** screen draws calls over time, the error rate, p50 and p95 latency,
+the busiest tools with their error rates, the clients, and the slowest and failing calls.
+
+```ts
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { Micaforge } from "@micaforge/sdk-server";
+import { instrumentMcpServer } from "@micaforge/sdk-server/mcp";
+import { z } from "zod";
+
+const micaforge = new Micaforge({
+  host: process.env.MICAFORGE_HOST!,
+  siteId: Number(process.env.MICAFORGE_SITE_ID),
+  ingestKey: process.env.MICAFORGE_INGEST_KEY!,
+});
+
+const server = instrumentMcpServer(new McpServer({ name: "docs", version: "1.2.0" }), {
+  client: micaforge,
+});
+server.tool("search", { query: z.string() }, async ({ query }) => ({ content: [/* … */] }));
+
+process.on("SIGTERM", () => void micaforge.shutdown().then(() => process.exit(0)));
+```
+
+It works with the high-level `McpServer` and the low-level `Server`, before or after you
+register tools and before or after `connect()`. The MCP SDK is not imported: the server
+is read structurally, so `@modelcontextprotocol/sdk` stays a dependency of yours, at the
+version you choose.
+
+How a call ends is one of three things, kept apart because they have different owners:
+
+| Status | Means |
+|---|---|
+| `ok` | The handler answered. |
+| `error` | The handler threw, or the server answered with a JSON-RPC error. The error's class and its JSON-RPC code are kept; the message is not. |
+| `tool_error` | A tool answered with `isError: true`, the result MCP defines for a failure the model should read. |
+
+**What is never sent.** Argument values, results and error messages stay on your server.
+Only the sizes of the arguments and the result travel. The MCP session id is replaced by a
+keyed digest before the call is queued (the key is random per process and never leaves
+it), because on the Streamable HTTP transport the session id is what lets a client speak
+in an open session. A resource URI loses its query string and fragment.
+
+**Arguments, if you want them.** `captureArguments: true` stores the arguments after a
+built-in redaction (secret-looking and contact-looking keys, and email-looking strings,
+become `"[redacted]"`). Pass a function to redact them yourself; what it returns is
+stored. At most 4 KB of JSON is kept per call. They are shown to nobody but the site's
+admins and are never handed to the AI analyst.
+
+```ts
+instrumentMcpServer(server, {
+  client: micaforge,
+  captureArguments: (args, call) => (call.name === "search" ? { query: args.query } : undefined),
+});
+```
+
+Any other MCP server records its own calls:
+
+```ts
+micaforge.recordMcpCall({
+  method: "tools/call",
+  name: "search",
+  durationMs: 41,
+  status: "error",
+  errorType: "McpError",
+  errorCode: -32602,
+  clientName: "cursor-vscode",
+  clientVersion: "1.4.0",
+  transport: "streamable-http",
+  sessionId, // hashed before it is queued
+  serverName: "docs",
+});
+```
+
+Calls share the client's queue, flush window and retries, and go to `POST /api/log/mcp`,
+signed exactly like an edge batch.
+
+| Option | Default | |
+|---|---|---|
+| `client` | none | A `Micaforge` you already have. Its `flush()` and `shutdown()` are yours. |
+| `host`, `siteId`, `ingestKey` | none | Instead of `client`: one is built for you. |
+| `serverName`, `serverVersion` | `serverInfo` | Override what the server was built with. |
+| `transport` | from the transport's class | `stdio`, `streamable-http`, `sse`, or your own label. |
+| `captureArguments` | `false` | `true` for the built-in redaction, or your own function. |
+| `logger` | `console` | `null` silences the wrapper's own warnings. |
+
+On stdio, one process is one session, so its calls share one session digest. A stateless
+HTTP server (a new server per request) has no session at all, and none is invented.
+
+---
+
 ## The log shipper
 
 ```

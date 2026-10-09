@@ -3,7 +3,7 @@ title: "Proxying the script"
 description: "Serving /mf.js and the ingest endpoint from your own domain."
 group: "tracking"
 order: 11
-updated: 2026-08-22
+updated: 2026-10-08
 ---
 
 Content blockers work from lists of hostnames. Serve the tracker and its endpoint from
@@ -17,6 +17,10 @@ Two things have to be proxied, and the second is the one people forget.
 
 Proxying only the script gets you a tracker that loads and then reports to a hostname the
 blocker already has on its list.
+
+The tracker's plugins (web vitals, error capture, frustration signals, form submissions,
+the 404 marker, click tags) are served under the second path, at `/api/track/p/<name>.js`,
+so the `/api/track*` rule below forwards them too. No third rule is needed.
 
 ## Caddy
 

@@ -1,0 +1,132 @@
+---
+title: "Annotations"
+description: "Notes on a site's charts: a moment or a range, a colour and a category, from the dashboard, the API or an agent."
+group: "dashboard"
+order: 11
+updated: 2026-10-08
+---
+
+An annotation is a note pinned to a time on a site's traffic chart: "pricing page launched",
+"outage 14:00 to 15:30", "newsletter sent". Months later, it is the answer to "what happened here?"
+that nobody remembers.
+
+Annotations belong to the site. Everyone who can read the site sees them; anyone with the
+`member` role can write, edit and delete them.
+
+## Your annotations and the automatic notes
+
+The chart already writes a few notes of its own, read off the data: the steepest rise, the
+steepest fall, a peak that runs off the scale. Those are computed each time the chart draws,
+they are never stored, and they cannot say anything the data does not.
+
+Annotations are the other kind. A person, a script or an agent wrote them, they are stored,
+and they carry what the data cannot know: why. The chart draws the two differently, so they
+never read as the same kind of claim: an annotation is a dashed line with a flag, an
+automatic note is a dot with a dotted leader.
+
+## Adding one
+
+Annotations are drawn on the main chart of the **Dashboard** screen. Two ways to add one:
+
+- **Click the chart** at the moment you want to note. The form opens with that time filled
+  in.
+- **Choose Add annotation** above the chart and enter the time yourself.
+
+Then write the note, up to 280 characters, and set the rest if you need it:
+
+| Field | Values |
+| --- | --- |
+| Start | The moment, or the start of a range. |
+| End | Optional. Set it for something that lasted: an outage, a campaign, a migration. Leave it empty for a moment. |
+| Colour | `neutral` (the default), `green` or `red`. |
+| Category | Optional, up to 40 characters: `release`, `campaign`, `incident`, or your own word. |
+
+Green and red are for what you would call good or bad news. There is no blue and no orange:
+in this product blue always means people and orange always means AI, and a note may not
+borrow either.
+
+An annotation is placed on the point of the chart that holds its time, so the same note
+lands on the right day at a 90-day range and on the right hour at 24 hours. The chart shows
+every annotation that overlaps its window, not only the ones that start inside it, so a
+three-day outage that began before the window opened is still on the chart.
+
+## Editing and deleting
+
+The chart's margin has room for a few notes, and none at phone width. The list under the
+chart always has all of them: every annotation in the period, in full, with its category and
+who wrote it. **Edit** and **Delete** are on each row. Clearing the end turns a range back
+into a moment.
+
+The controls are shown to everyone who can read the site. When your role does not allow a
+change, the server refuses it and the reason is shown beside the control.
+
+## The API
+
+```http
+GET    /api/annotations?site=1&range=30d   those overlapping the window, oldest first
+POST   /api/annotations?site=1             create one
+PATCH  /api/annotations/:id                change any field; "ends_at": null clears the end
+DELETE /api/annotations/:id                delete one
+```
+
+`GET` takes the window of the [query envelope](/docs/api/stats-api): a `range`, or `start` and
+`end`. Writing needs the `member` role, or an [API key](/docs/api/authentication) with
+`manage:write`.
+
+A deploy script is the most useful writer: one call per release, and the chart shows when each
+version shipped.
+
+```sh
+curl -X POST "https://analytics.example.com/api/annotations?site=1" \
+  -H "Authorization: Bearer mfg_…" \
+  -H "Content-Type: application/json" \
+  -d '{"starts_at":"2026-10-06T09:00:00Z","text":"Released 2.4.0","category":"release"}'
+```
+
+A range, in red:
+
+```sh
+curl -X POST "https://analytics.example.com/api/annotations?site=1" \
+  -H "Authorization: Bearer mfg_…" \
+  -H "Content-Type: application/json" \
+  -d '{"starts_at":"2026-10-07T14:00:00Z","ends_at":"2026-10-07T15:30:00Z","text":"Docs site down","color":"red","category":"incident"}'
+```
+
+The response is the stored annotation:
+
+```json
+{
+  "data": {
+    "id": "…",
+    "site": 1,
+    "starts_at": "2026-10-07T14:00:00Z",
+    "ends_at": "2026-10-07T15:30:00Z",
+    "text": "Docs site down",
+    "color": "red",
+    "category": "incident",
+    "source": "api",
+    "url": null,
+    "author": { "user_id": "…", "name": "…" },
+    "created_at": "…",
+    "updated_at": "…"
+  }
+}
+```
+
+`source` says where it was written: `dashboard`, `api`, `mcp`, or `github` for a deploy,
+release or push the [GitHub App](/docs/integrations/github) recorded. `url` is the release
+or commit on GitHub for those, and `null` for the rest. `author` is `null` when no account can
+be named, for example once the account that wrote it is deleted; the annotation stays.
+
+## From an agent
+
+The [MCP server](/docs/api/mcp-server#the-tools) has three tools for annotations:
+
+| Tool | Does | Needs |
+| --- | --- | --- |
+| `list_annotations` | The annotations in a window. | `stats:read` |
+| `create_annotation` | Writes one: `site`, `starts_at`, optional `ends_at`, `text`, optional `color` and `category`. | `manage:write` |
+| `delete_annotation` | Deletes one, by `id`. | `manage:write` |
+
+The [AI analyst](/docs/dashboard/ask-ai) reads annotations too, with `list_annotations`, so an
+answer about a change can point at the release you noted on that day.

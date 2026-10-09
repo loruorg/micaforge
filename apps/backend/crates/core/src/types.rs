@@ -92,6 +92,13 @@ pub enum EventKind {
     WebVitals,
     /// An engagement heartbeat carrying time and scroll depth.
     Engagement,
+    /// `identify()` or `setTraits()`: ties today's visitor digest to the site's
+    /// own id, and carries the traits as `props`. The trait history and the
+    /// anonymous-visitor links of a profile are read off these rows.
+    Identify,
+    /// A rage click, a dead click or an abandoned form (`event_name`), from the
+    /// tracker's frustration plugin.
+    Frustration,
 }
 
 impl EventKind {
@@ -106,6 +113,8 @@ impl EventKind {
             EventKind::Error => "error",
             EventKind::WebVitals => "web_vitals",
             EventKind::Engagement => "engagement",
+            EventKind::Identify => "identify",
+            EventKind::Frustration => "frustration",
         }
     }
 
@@ -122,6 +131,8 @@ impl EventKind {
             "error" => Ok(EventKind::Error),
             "web_vitals" => Ok(EventKind::WebVitals),
             "engagement" => Ok(EventKind::Engagement),
+            "identify" => Ok(EventKind::Identify),
+            "frustration" => Ok(EventKind::Frustration),
             other => Err(Error::validation(
                 "kind",
                 format!("unknown event kind `{other}`"),
@@ -1776,6 +1787,9 @@ mod tests {
             EventKind::Engagement
         );
         assert!(EventKind::parse("pageviews").is_err());
+        for kind in [EventKind::Identify, EventKind::Frustration] {
+            assert_eq!(EventKind::parse(kind.as_str()).unwrap(), kind);
+        }
 
         assert_eq!(Channel::default(), Channel::Direct);
         assert_eq!(Channel::AnswerEngine.as_str(), "answer_engine");

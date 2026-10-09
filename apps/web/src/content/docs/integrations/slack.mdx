@@ -1,0 +1,214 @@
+---
+title: "Slack"
+description: "Ask about a site from Slack, get new investigations in a channel, and create the Slack app."
+group: "integrations"
+order: 1
+updated: 2026-10-08
+---
+
+The Slack app answers questions about a site inside Slack, and posts to a channel when the
+numbers move. One Slack app serves the whole install: the operator creates it once, and each
+site then links the channels it wants.
+
+It is off until its two variables are set. With them unset, nothing is sent to Slack, and
+nothing Slack sends is acted on.
+
+## What it does
+
+- **Answers questions.** A question in Slack goes to the [AI analyst](/docs/dashboard/ask-ai),
+  which runs the dashboard's own queries against the linked site. A mention or a direct
+  message is answered in a thread; a `/micaforge` command is answered in the channel.
+- **Reports today.** `stats` replies with today's visitors, pageviews, AI crawler fetches and
+  AI-answer visits, straight from the store, with no model involved.
+- **Posts what changed.** Every new [investigation](/docs/dashboard/insights) on the site is
+  posted to each linked channel, and each update to it goes into the same thread.
+- **Takes feedback.** `feedback` files a report with the people who run this install. See
+  [feedback](/docs/api/feedback).
+
+## Commands
+
+| Command | Does |
+| --- | --- |
+| `/micaforge ask <question>` | Asks the AI analyst about the linked site. |
+| `/micaforge <question>` | The same: a bare question is an `ask`. |
+| `/micaforge stats` | Today's visitors, pageviews, AI crawler fetches and AI-answer visits. |
+| `/micaforge link <code>` | Links this channel to a site, with a code from the dashboard. |
+| `/micaforge unlink` | Removes this channel's link. |
+| `/micaforge feedback <text>` | Sends feedback to the instance admins. |
+| `/micaforge help` | Lists the commands. |
+
+Two more ways to ask, both answered in a thread:
+
+- **Mention the app** in a channel it is a member of:
+  `@Micaforge which sources sent the most visitors this week?`
+- **Send it a direct message.** A direct message with the app is a channel like any other,
+  so link it with a code first, and you can ask about a site without posting in public.
+
+The commands are the same on [Discord](/docs/integrations/discord) and
+[Telegram](/docs/integrations/telegram); only the syntax differs.
+
+## Before you start
+
+- **The install must be reachable from the internet over HTTPS**, because Slack calls it.
+  A laptop on `MICAFORGE_DOMAIN=:80` cannot receive Slack's requests.
+- **`MICAFORGE_PUBLIC_URL` must be the public address.** The two URLs you paste into Slack
+  are built from it, and Site setup → Chat apps shows them ready to copy.
+- **Questions need the AI analyst.** Without `MICAFORGE_LLM_BASE_URL` and
+  `MICAFORGE_LLM_MODEL`, the app still links channels, reports `stats` and posts
+  investigations, but it cannot answer a question. See
+  [configuring a model](/docs/dashboard/ask-ai#configuring-a-model).
+
+## Create the Slack app
+
+1. Open [api.slack.com/apps](https://api.slack.com/apps), choose **Create New App**, then
+   **From scratch**. Give it a name (the examples here use Micaforge) and pick your
+   workspace.
+2. Under **Basic Information → App Credentials**, copy the **Signing Secret**. It goes in
+   `MICAFORGE_SLACK_SIGNING_SECRET`. It is not the Client Secret and not the Verification
+   Token.
+3. Under **OAuth & Permissions → Scopes → Bot Token Scopes**, add these four:
+
+   | Scope | Why |
+   | --- | --- |
+   | `commands` | The `/micaforge` slash command. |
+   | `chat:write` | Answers, `stats` replies and investigations. |
+   | `app_mentions:read` | Messages that mention the app, and only those. |
+   | `im:history` | Direct messages sent to the app, and only those. |
+
+4. On the same page, choose **Install to Workspace** and allow it. Copy the **Bot User OAuth
+   Token**, which starts with `xoxb-`. It goes in `MICAFORGE_SLACK_BOT_TOKEN`.
+5. Set both variables and restart the server, so it is ready to answer Slack's checks in the
+   next two steps:
+
+   ```sh
+   MICAFORGE_SLACK_SIGNING_SECRET=…
+   MICAFORGE_SLACK_BOT_TOKEN=xoxb-…
+   ```
+
+   ```sh
+   docker compose up -d micaforge
+   ```
+
+6. Under **Slash Commands**, choose **Create New Command**:
+
+   | Field | Value |
+   | --- | --- |
+   | Command | `/micaforge` |
+   | Request URL | `https://analytics.example.com/api/chat/slack/commands` |
+   | Short Description | Ask about your analytics |
+   | Usage Hint | `ask <question> · stats · link <code> · help` |
+
+7. Under **Event Subscriptions**, turn **Enable Events** on and set the **Request URL** to
+   `https://analytics.example.com/api/chat/slack/events`. Slack sends a one-time challenge to
+   the URL and shows it as verified when the server answers. Under **Subscribe to bot
+   events**, add `app_mention` and `message.im`, then **Save Changes**.
+8. Under **App Home → Show Tabs**, turn on **Allow users to send Slash commands and messages
+   from the messages tab**. Without it nobody can send the app a direct message.
+9. Slack asks you to reinstall the app after you change scopes or events. Do it. If the bot
+   token it shows has changed, update `MICAFORGE_SLACK_BOT_TOKEN` and restart.
+
+Replace `analytics.example.com` with your own address in both URLs.
+
+## Link a channel
+
+A channel answers about one site once it is linked to it, and about one site at a time:
+linking it again with a code from another site moves it. Linking needs a code from the
+dashboard, so only someone with at least the `member` role on the site can do it.
+
+1. In Slack, add the app to the channel: `/invite @Micaforge`. It must be a member to post
+   investigations there.
+2. In Micaforge, open the site, then **Site setup → Chat apps**, and choose **Generate a
+   link code**. The code is 8 characters long, lives 15 minutes, and works once. The screen
+   shows the exact command to type.
+3. In the channel, type the command:
+
+   ```text
+   /micaforge link K7Q2M9XP
+   ```
+
+The app confirms in the channel, and the link appears in Site setup → Chat apps with who
+made it. To remove it, type `/micaforge unlink` in the channel, or remove it on that screen.
+
+**Anyone who can post in a linked channel can ask about that site and read the answers.**
+Slack users are not Micaforge accounts, so the channel's membership is the access rule. Link
+only channels whose members may see the site's numbers.
+
+## How requests are verified
+
+Every request Slack sends carries `X-Slack-Request-Timestamp` and `X-Slack-Signature`. The
+server rebuilds the signature from the raw body and the signing secret, and refuses the
+request with `401` when it does not match:
+
+```text
+base      = "v0:" + X-Slack-Request-Timestamp + ":" + raw request body
+signature = "v0=" + hex( HMAC-SHA256( signing secret, base ) )
+```
+
+The timestamp is part of what is signed, and a timestamp more than five minutes from the
+server's clock is refused, so a captured request cannot be sent again later. A refused
+request does nothing: no command runs and nothing is posted.
+
+## Answers arrive after the acknowledgement
+
+Slack waits three seconds for a reply to a command or an event. An answer takes longer than
+that, because the model calls one query after another. So the server acknowledges at once,
+runs the question in the background, and posts the answer when it is ready: in the
+mention's thread, or, for a `/micaforge` command, in the channel through the command's
+response address. Slack never sees a timeout, so it has no reason to send the request again,
+and an event Slack sends twice is answered once.
+
+## Investigations in Slack
+
+When an investigation opens on a site, each channel linked to that site gets a message with
+what changed and by how much. Updates to the same investigation follow in that message's
+thread, so one change is one thread. See [insights](/docs/dashboard/insights).
+
+## Slack as an alert channel
+
+Traffic alerts do not use the Slack app. They post to a Slack incoming webhook, which is
+simpler and needs no variables on the server:
+
+1. In your Slack app (or a new one), open **Incoming Webhooks**, turn them on, and choose
+   **Add New Webhook to Workspace**. Pick the channel.
+2. Copy the URL, which starts with `https://hooks.slack.com/services/`.
+3. In Micaforge, open **Site setup → Alerts**, set the alert's channel to **Slack**, and
+   paste the URL.
+
+## What leaves the server
+
+- **To the model provider:** the question, the site's domain and name, the aggregate query
+  results the model asked for (visitors per source, fetches per page and the like), and the
+  answer it writes.
+  Visitor ids and identified ids are never sent to the model.
+- **To Slack:** answers, `stats` replies, confirmations, and the investigation messages for
+  linked channels.
+- **From Slack:** the text of `/micaforge` commands, of messages that mention the app, and of
+  direct messages to the app. The four scopes above give the app nothing else: it cannot
+  read the other messages in a channel.
+
+## Troubleshooting
+
+**Slack says `/micaforge failed with the error "dispatch_failed"`.** Slack could not reach
+the request URL. Check that the address is public, that it is HTTPS with a valid
+certificate, and that the URL ends in `/api/chat/slack/commands`.
+
+**The Events request URL does not verify.** The server is not answering for Slack yet. Check
+that both variables are set and that the server was restarted after you set them. Site
+setup → Chat apps says whether Slack is configured.
+
+**Every request is refused with `401`.** The signing secret is wrong (the Client Secret and
+the Verification Token look similar and are not it), or the server's clock is more than five
+minutes off. Check NTP on the host.
+
+**Commands work, but investigations never reach the channel.** The app is not a member of
+that channel. Run `/invite @Micaforge` in it.
+
+**The app says AI is off on this server.** Set the `MICAFORGE_LLM_*` variables. See
+[configuring a model](/docs/dashboard/ask-ai#configuring-a-model).
+
+**The app says the daily limit is reached.** The organisation has asked
+`MICAFORGE_LLM_DAILY_LIMIT` questions today, counted across the dashboard, MCP, chat and
+investigations. It resets at midnight UTC.
+
+**The server will not start and names `MICAFORGE_SLACK_BOT_TOKEN` or
+`MICAFORGE_SLACK_SIGNING_SECRET`.** Only one of the two is set. Set both, or neither.

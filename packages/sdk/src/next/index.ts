@@ -80,6 +80,6 @@ export function useNextPageviews(
   }, [pathname, search]);
 }
 
-export { init, getTracker, track, pageview, identify, setProps, optIn, optOut, flush } from "../index.js";
+export { init, getTracker, track, pageview, identify, setTraits, setProps, optIn, optOut, flush } from "../index.js";
 export type { InitConfig } from "../index.js";
 export type { Props, TrackerApi } from "../types.js";

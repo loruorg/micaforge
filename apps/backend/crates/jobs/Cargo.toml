@@ -22,6 +22,9 @@ micaforge-mail = { workspace = true }
 # product exists for, and a second implementation of it living in the worker
 # would eventually disagree with the one behind the endpoint.
 micaforge-query = { workspace = true }
+# `investigate` asks the AI analyst to explain a change it found, with the same
+# tools and the same bounds the dashboard's "Ask AI" has.
+micaforge-ai = { workspace = true }
 
 # The queue lives in Postgres and `micaforge_store::models::jobs` owns almost all
 # of it. This crate reaches for `sqlx` directly in exactly two places, both in
@@ -60,5 +63,11 @@ csv = { workspace = true }
 
 tracing = { workspace = true }
 
+# A Telegram alert channel's bot token is stored sealed, as base64 text inside
+# the channels document.
+base64 = { workspace = true }
+
 [dev-dependencies]
 tokio = { workspace = true }
+# A local stand-in for Google's endpoints in the Search Console tests.
+axum = { workspace = true }

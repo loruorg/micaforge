@@ -75,14 +75,20 @@
 		}
 	}
 
-	@micaforge path /api/* /mf.js /mf.min.js
+	# /.well-known/oauth-* is the MCP server's OAuth discovery (RFC 9728 and
+	# RFC 8414), which clients look for at the root of the origin. /l/* is the
+	# short-link redirect (docs: /docs/dashboard/short-links), answered by the
+	# server, which needs the visitor address for the click counts in the same
+	# way the ingest path does.
+	@micaforge path /api/* /mf.js /mf.min.js /.well-known/oauth-* /l/*
 	handle @micaforge {
 		reverse_proxy micaforge:8080 {
 			header_up X-Real-IP {client_ip}
 
 			# The server bounds its own requests (5s for collection, 30s for
-			# the API). This is the outer limit, for a slow upload or export,
-			# and short enough to clean up after a client that vanished.
+			# the API, 115s for a question to the AI analyst). This is the
+			# outer limit, for a slow upload or export, and short enough to
+			# clean up after a client that vanished.
 			transport http {
 				read_timeout 120s
 			}
@@ -146,6 +152,19 @@
 		file_server
 	}
 
+	# A public status page is one static document that reads its slug from
+	# the address and fetches the page from /api/status/{slug}. It is not
+	# framed: the address itself is what a reader trusts.
+	handle /status/* {
+		header {
+			X-Frame-Options DENY
+			Content-Security-Policy "frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'none'"
+			Cache-Control "no-cache"
+		}
+		try_files {path} {path}/index.html /status/index.html
+		file_server
+	}
+
 	handle {
 		header ?Cache-Control "no-cache"
 		try_files {path} {path}/index.html {path}.html
@@ -162,7 +181,7 @@
 	}
 
 	handle_errors {
-		@api path /api/* /mf.js /mf.min.js
+		@api path /api/* /mf.js /mf.min.js /l/*
 		handle @api {
 			header Content-Type application/json
 			respond `{"error":{"code":"upstream_unavailable","message":"the Micaforge server could not be reached; check docker compose logs micaforge"}}` {err.status_code}

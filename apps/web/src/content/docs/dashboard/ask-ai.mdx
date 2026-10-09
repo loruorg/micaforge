@@ -1,0 +1,163 @@
+---
+title: "Ask AI"
+description: "Questions about a site, answered by a model that runs the dashboard's own queries, with every query shown."
+group: "dashboard"
+order: 9
+updated: 2026-10-09
+---
+
+Ask AI answers a question about the site you are on, in words, from the same queries the
+dashboard runs. Under every answer is the list of queries it was built from, so an answer
+can be checked rather than believed.
+
+It is off until the server is configured with a model. With nothing configured, nothing
+leaves the server, and the screen says that AI is off and which variables turn it on.
+
+## Asking
+
+Open **Ask AI** in the left navigation. The screen offers a few suggested questions to start
+from; pick one, or type your own, up to 2,000 characters.
+
+The answer arrives in steps. Each query appears as the model runs it, with the tool it
+called, and the written answer follows when the model has what it needs. A follow-up
+question continues the same conversation, and the model sees the earlier questions and
+answers in it.
+
+Questions that work well name a metric, a window or a comparison:
+
+```text
+Which sources sent more visitors this week than last week?
+Which pages do AI crawlers fetch most, and do any of them get visits from AI answers?
+Did the signup goal convert better from search or from AI answers this month?
+```
+
+## The queries behind an answer
+
+Every answer has a disclosure, **The queries behind this answer**. Open it and each tool call
+the model made is listed with:
+
+- the tool and the arguments the model gave it
+- the equivalent stats request, such as
+  `GET /api/stats/breakdown?site=3&range=7d&dimension=source`
+- the ClickHouse SQL each read ran, with its parameters in order (each `?` is one)
+- how many rows came back and how long it took
+- the error, when a call failed
+
+The request is the same one the [stats API](/docs/api/stats-api) answers. Copy it into `curl`
+with [an API key](/docs/api/authentication) and you get the same rows the model read. When an
+answer and its rows disagree, the rows are the record.
+
+## What the model can call
+
+The model can only run these tools. Each one is a read, answered by the same query functions
+as the dashboard.
+
+| Tool | Answers |
+| --- | --- |
+| `get_overview` | Visitors, sessions, pageviews, bounce rate and duration, with their change. |
+| `get_timeseries` | One metric in buckets over the window. |
+| `get_breakdown` | Ranked rows for any filter dimension. |
+| `get_pages` | Pages with entries, exits, scroll depth and time on page. |
+| `get_sources` | Channels, sources and campaigns. The `answer_engine` channel is AI answers. |
+| `get_agent_traffic` | AI crawler totals, and a breakdown by agent, operator, purpose or page. |
+| `get_citation_gap` | Per page, AI crawler fetches against visits from AI answers. See [the Citation Gap](/docs/agents/the-citation-gap). |
+| `get_goals` | Conversions, rate and revenue per goal. |
+| `get_funnel` | Step counts and drop-off for one funnel. |
+| `get_retention` | The cohort grid. |
+| `list_annotations` | The [annotations](/docs/dashboard/annotations) in the window, so a change can be matched to a release or a campaign you noted. |
+| `get_search_queries` | Google Search terms, pages or totals from [Google Search Console](/docs/integrations/google-search-console), when the site has connected a property. |
+| `get_mcp_servers` | Your [MCP servers](/docs/tracking/mcp-server-analytics): calls, error rate, latency, the busiest tools, the clients and the latest failed calls. Your page filters do not apply to it, and it says so. |
+
+The same tools serve the MCP `ask` tool, the [chat apps](/docs/integrations/slack) and the
+explanations on [investigations](/docs/dashboard/insights).
+
+## What it can reach
+
+**This site only.** Every query runs against the site you asked on. The model cannot reach
+another site.
+
+**Your filters.** The range, the filters and the audience set on the dashboard go with the
+question. Every query the model runs keeps your filters: the model can add filters of its own
+to narrow the view, and can never remove yours to widen it. It starts from your window, and
+may ask for another one to make a comparison. Filter the dashboard to one channel and ask, and
+the answer is about that channel.
+
+**Your role.** The queries run as you. A model cannot read what your account cannot.
+
+**No person.** `visitor_id` and `identified_id` are refused as a dimension and as a filter in
+every tool. A breakdown by visitor is a list of people, and those rows would go to the model.
+
+**Reads only.** No tool writes. The analyst cannot change a goal, a setting or a record.
+
+## Conversations
+
+Conversations are stored per user and per site. Yours are listed on the screen, newest
+first; other members of the organisation cannot see them, and you cannot see theirs. Open
+one to read it again, with its queries, or delete it.
+
+A failed answer is kept in the conversation with its error, so a timeout or a refusal from
+the provider is visible rather than silent.
+
+## The daily limit
+
+`MICAFORGE_LLM_DAILY_LIMIT` caps the questions one organisation can ask per UTC day. The
+count is shared by Ask AI, the MCP `ask` tool, the chat apps and the investigation
+explanations. `0`, the default, means no limit.
+
+When the limit is reached, the screen says so, and the API answers `429 rate_limited` with
+`Retry-After`. The count starts again at midnight UTC.
+
+## Configuring a model
+
+Any endpoint that speaks the OpenAI `chat/completions` format with tool calling will do: a
+hosted API, or a local server on your own network. The server sends its requests to
+`{MICAFORGE_LLM_BASE_URL}/chat/completions`.
+
+```sh
+MICAFORGE_LLM_BASE_URL=https://api.openai.com/v1   # or a local server: http://ollama:11434/v1
+MICAFORGE_LLM_MODEL=                               # the model name the endpoint expects
+MICAFORGE_LLM_API_KEY=                             # optional; a local server usually needs none
+MICAFORGE_LLM_TIMEOUT_SECS=45                      # per model call, 5 to 120
+MICAFORGE_LLM_DAILY_LIMIT=0                        # questions per organisation per UTC day
+```
+
+The base URL and the model turn it on together. The model must support tool calling: a model
+that cannot call tools cannot run a query, so it has nothing to answer from. Every variable
+is described in [configuration](/docs/self-hosting/configuration#ai-analyst-off-by-default).
+
+## What is sent to the provider
+
+- the question, and the earlier questions and answers in the same conversation
+- the site's domain, name and timezone, today's date, and the window, audience and filters you
+  were looking at
+- the descriptions of the tools
+- the rows each tool returns: aggregate numbers such as visitors per source or fetches
+  per page, at most 50 rows per call
+
+Visitor ids and identified ids are never sent to the model, because no tool can read them. No
+tool returns a single event, a setting or a key.
+
+What the provider does with what it receives is set by its terms, not by Micaforge. If no
+data may leave your network, point `MICAFORGE_LLM_BASE_URL` at a model you run yourself.
+
+## The API
+
+The screen uses these routes. They take a session, so a program uses the MCP `ask` tool
+instead. See [MCP server](/docs/api/mcp-server).
+
+```http
+GET    /api/ai/status                  configured, model, daily_limit
+POST   /api/ai/ask                     a question, with the site and the dashboard's filters
+GET    /api/ai/conversations?site=1    your conversations on that site, newest first
+GET    /api/ai/conversations/:id       one, with its messages and their queries
+DELETE /api/ai/conversations/:id       delete one
+```
+
+`POST /api/ai/ask` takes `site`, `question`, an optional `conversation_id` to continue one,
+and the window, `filters` and `audience` of the [query envelope](/docs/api/stats-api). With
+`Accept: text/event-stream` it answers as a stream of events: `conversation` first, then a
+`tool_start` and a `tool_end` for each query, then `answer` with the stored message, or
+`error` when it failed. Without that header it answers once, with the finished message.
+
+With no model configured it answers `503` with the code `ai_not_configured`, and the message
+names the variables to set.

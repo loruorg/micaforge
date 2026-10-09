@@ -1,0 +1,18 @@
+---
+import { Micaforge } from "@micaforge/sdk-server";
+
+const micaforge = new Micaforge({ host: "https://analytics.example.com", siteId: 1, ingestKey: import.meta.env.MICAFORGE_INGEST_KEY });
+micaforge.track({ name: "astro_ssr_render", props: { page: "home" } });
+const items = [{ event: "astro_item", label: "Item" }];
+---
+
+<html lang="en">
+  <body>
+    <button data-track="astro_cta" data-track-plan="free">Go</button>
+    {items.map((i) => <a data-track={i.event}>{i.label}</a>)}
+    <script>
+      import { track } from "@micaforge/sdk";
+      document.querySelector("#start")?.addEventListener("click", () => track("astro_client_click"));
+    </script>
+  </body>
+</html>

@@ -7,13 +7,83 @@
 //! it is logged and never returned: `Error::Database` is the variant the HTTP
 //! layer replaces with a fixed sentence.
 
+use std::cell::RefCell;
+use std::future::Future;
+
 use chrono::{DateTime, Utc};
 use clickhouse::Row;
 use micaforge_core::{Error, Result};
 use micaforge_store::Ch;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use serde_json::Value as Json;
 
 use crate::sql::{bind_all, placeholder_count, Param};
+
+// ---------------------------------------------------------------------------
+// Recording what ran
+// ---------------------------------------------------------------------------
+
+/// One statement a report sent to ClickHouse, as the reader of an answer sees it.
+///
+/// The AI analyst shows, under every answer, the queries that produced it.
+/// The SQL is this crate's own text with `?` where each bound value goes and
+/// the values beside it in order, which is exactly what the driver sent: no
+/// re-rendering, no inlined values, nothing a reader could mistake for a
+/// different query.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RecordedQuery {
+    /// The report that ran it, a fixed name chosen in this crate.
+    pub report: String,
+    /// The statement, with `?` placeholders.
+    pub sql: String,
+    /// The bound values, in placeholder order.
+    pub params: Vec<Json>,
+}
+
+tokio::task_local! {
+    /// The statements run inside the current [`recording`] scope.
+    static RECORDER: RefCell<Vec<RecordedQuery>>;
+}
+
+/// Run `fut` and collect every statement it sent through [`fetch_all`].
+///
+/// Task-local rather than a parameter, because the recorder is wanted by one
+/// caller (the analyst's tool runner) and threading it through the signature
+/// of every report would make forty functions carry an argument for one. A
+/// report run outside a scope records nothing and pays one failed lookup.
+pub async fn recording<F: Future>(fut: F) -> (F::Output, Vec<RecordedQuery>) {
+    RECORDER
+        .scope(RefCell::new(Vec::new()), async move {
+            let out = fut.await;
+            let recorded = RECORDER.with(|cell| cell.take());
+            (out, recorded)
+        })
+        .await
+}
+
+/// Note one statement in the active scope, if there is one.
+fn record(report: &str, sql: &str, params: &[Param]) {
+    let _ = RECORDER.try_with(|cell| {
+        cell.borrow_mut().push(RecordedQuery {
+            report: report.to_string(),
+            sql: sql.trim().to_string(),
+            params: params.iter().map(param_json).collect(),
+        });
+    });
+}
+
+/// A bound value as JSON, for display.
+fn param_json(param: &Param) -> Json {
+    match param {
+        Param::Str(v) => Json::from(v.as_str()),
+        Param::U64(v) => Json::from(*v),
+        Param::I64(v) => Json::from(*v),
+        Param::F64(v) => serde_json::Number::from_f64(*v)
+            .map(Json::Number)
+            .unwrap_or(Json::Null),
+        Param::U16(v) => Json::from(*v),
+    }
+}
 
 /// Run a statement and collect every row.
 ///
@@ -45,6 +115,7 @@ where
         )));
     }
 
+    record(report, sql, params);
     let query = bind_all(ch.client().query(sql), params);
     match query.fetch_all::<T>().await {
         Ok(rows) => {
@@ -143,4 +214,35 @@ pub fn round2(v: f64) -> f64 {
         return 0.0;
     }
     (v * 100.0).round() / 100.0
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn a_scope_collects_what_ran_and_nothing_leaks_out_of_it() {
+        let ((), recorded) = recording(async {
+            record(
+                "overview",
+                "  SELECT 1 WHERE site_id = ?  ",
+                &[Param::U16(3)],
+            );
+            record(
+                "pages",
+                "SELECT ?",
+                &[Param::Str("/docs".into()), Param::F64(0.5)],
+            );
+        })
+        .await;
+        assert_eq!(recorded.len(), 2);
+        assert_eq!(recorded[0].sql, "SELECT 1 WHERE site_id = ?");
+        assert_eq!(recorded[0].params, vec![Json::from(3)]);
+        assert_eq!(recorded[1].params[0], Json::from("/docs"));
+
+        // Outside a scope, recording is a no-op rather than a panic.
+        record("overview", "SELECT 1", &[]);
+        let ((), empty) = recording(async {}).await;
+        assert!(empty.is_empty());
+    }
 }

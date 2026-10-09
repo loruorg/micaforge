@@ -1,7 +1,14 @@
 //! Getting a fired alert or a finished report out of the process.
 //!
-//! Three destinations, all optional, all best-effort: email through
-//! [`micaforge_mail::Mailer`], a JSON webhook, and a Slack incoming webhook.
+//! Five destinations, all optional, all best-effort: email through
+//! [`micaforge_mail::Mailer`], a JSON webhook, a Slack incoming webhook, a
+//! Discord webhook, and a Telegram chat through a bot.
+//!
+//! **A Telegram bot token is a credential, so it is sealed.** The settings
+//! screen sends the token once; the server seals it with XChaCha20-Poly1305
+//! under a key derived for this purpose, bound to the chat id, and stores only
+//! the sealed form ([`seal_telegram_token`]). The worker opens it at the moment
+//! it sends ([`open_telegram_token`]).
 //!
 //! **Best-effort is a decision, not a shrug.** An alert that reached the
 //! operator's inbox and failed to reach their Slack has done its job, and
@@ -17,12 +24,66 @@
 //! Every post goes through [`crate::outbound::post_json`], which guards the URL,
 //! every redirect hop and every resolved address, and never reads the reply.
 
-use micaforge_core::Result;
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use base64::Engine as _;
+use micaforge_core::{crypto, Config, Error, Result};
 use micaforge_mail::AlertPayload;
 use serde_json::{json, Value as Json};
 
 use crate::outbound;
 use crate::JobCtx;
+
+/// The key purpose a Telegram alert token is sealed under.
+const TELEGRAM_SEAL_PURPOSE: &str = "alert-telegram";
+
+/// A Telegram chat an alert goes to, with the bot that posts it.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct TelegramTarget {
+    /// The chat, as Telegram numbers it (`-100…` for a group).
+    pub chat_id: String,
+    /// The bot token, sealed, as stored.
+    pub bot_token_sealed: Option<String>,
+    /// The bot token in the clear, only on a document the API has not yet
+    /// sealed. Never stored: the server seals it before the write.
+    pub bot_token: Option<String>,
+}
+
+/// Seal a Telegram bot token for storage in a channels document.
+///
+/// Bound to the chat id as associated data, so a sealed token copied onto a
+/// different chat does not open.
+pub fn seal_telegram_token(cfg: &Config, chat_id: &str, token: &str) -> Result<String> {
+    let sealed = crypto::seal(
+        &cfg.derive_key(TELEGRAM_SEAL_PURPOSE),
+        chat_id.as_bytes(),
+        token.as_bytes(),
+    )?;
+    Ok(URL_SAFE_NO_PAD.encode(sealed))
+}
+
+/// Open a token sealed by [`seal_telegram_token`].
+pub fn open_telegram_token(cfg: &Config, chat_id: &str, sealed: &str) -> Result<String> {
+    let bytes = URL_SAFE_NO_PAD
+        .decode(sealed)
+        .map_err(|_| Error::internal("a sealed telegram token is not valid base64"))?;
+    let plain = crypto::open(
+        &cfg.derive_key(TELEGRAM_SEAL_PURPOSE),
+        chat_id.as_bytes(),
+        &bytes,
+    )?;
+    String::from_utf8(plain).map_err(|_| Error::internal("a sealed telegram token is not text"))
+}
+
+impl TelegramTarget {
+    /// The bot token, opened when it is sealed.
+    pub fn token(&self, cfg: &Config) -> Result<String> {
+        match (&self.bot_token_sealed, &self.bot_token) {
+            (Some(sealed), _) => open_telegram_token(cfg, &self.chat_id, sealed),
+            (None, Some(plain)) => Ok(plain.clone()),
+            (None, None) => Err(Error::validation("channels.telegram", "needs a bot token")),
+        }
+    }
+}
 
 /// Longest a notification post may take.
 ///
@@ -43,6 +104,10 @@ pub struct Channels {
     pub webhook: Option<String>,
     /// A Slack incoming-webhook URL.
     pub slack: Option<String>,
+    /// A Discord webhook URL.
+    pub discord: Option<String>,
+    /// A Telegram chat, with the bot that posts to it.
+    pub telegram: Option<TelegramTarget>,
 }
 
 impl Channels {
@@ -79,6 +144,8 @@ impl Channels {
                 }
                 channels.webhook = map.get("webhook").and_then(url_of);
                 channels.slack = map.get("slack").and_then(url_of);
+                channels.discord = map.get("discord").and_then(url_of);
+                channels.telegram = map.get("telegram").and_then(telegram_of);
             }
             _ => {}
         }
@@ -96,12 +163,18 @@ impl Channels {
         self.emails.dedup();
         self.webhook = self.webhook.or(other.webhook);
         self.slack = self.slack.or(other.slack);
+        self.discord = self.discord.or(other.discord);
+        self.telegram = self.telegram.or(other.telegram);
         self
     }
 
     /// True when there is nowhere at all to send.
     pub fn is_empty(&self) -> bool {
-        self.emails.is_empty() && self.webhook.is_none() && self.slack.is_none()
+        self.emails.is_empty()
+            && self.webhook.is_none()
+            && self.slack.is_none()
+            && self.discord.is_none()
+            && self.telegram.is_none()
     }
 }
 
@@ -116,6 +189,31 @@ fn strings(value: &Json) -> Vec<String> {
             .collect(),
         _ => Vec::new(),
     }
+}
+
+/// A `telegram` entry: `{ chat_id, bot_token | bot_token_sealed }`.
+///
+/// The chat id arrives as a number or a string; both are kept as text, which
+/// is what the Bot API accepts.
+fn telegram_of(value: &Json) -> Option<TelegramTarget> {
+    let map = value.as_object()?;
+    let chat_id = match map.get("chat_id")? {
+        Json::String(s) if !s.trim().is_empty() => s.trim().to_string(),
+        Json::Number(n) => n.to_string(),
+        _ => return None,
+    };
+    let text = |key: &str| {
+        map.get(key)
+            .and_then(Json::as_str)
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_string)
+    };
+    Some(TelegramTarget {
+        chat_id,
+        bot_token_sealed: text("bot_token_sealed"),
+        bot_token: text("bot_token"),
+    })
 }
 
 /// A non-empty string value, as a URL.
@@ -172,6 +270,29 @@ pub async fn deliver_alert(
         match post_slack(ctx, url, &text).await {
             Ok(()) => delivered += 1,
             Err(e) => tracing::warn!(error = %e, "alert slack message failed"),
+        }
+    }
+
+    let plain = format!("{}\n{}\n{}", payload.headline, payload.detail, payload.link);
+    if let Some(url) = &channels.discord {
+        match crate::chat::discord_webhook(&ctx.http, url, &plain).await {
+            Ok(()) => delivered += 1,
+            Err(e) => tracing::warn!(error = %e, "alert discord message failed"),
+        }
+    }
+
+    if let Some(target) = &channels.telegram {
+        let sent = match target.token(&ctx.cfg) {
+            Ok(token) => {
+                crate::chat::telegram_send(&ctx.http, &token, &target.chat_id, &plain, None)
+                    .await
+                    .map(|_| ())
+            }
+            Err(e) => Err(e),
+        };
+        match sent {
+            Ok(()) => delivered += 1,
+            Err(e) => tracing::warn!(error = %e, "alert telegram message failed"),
         }
     }
 
@@ -259,6 +380,85 @@ mod tests {
             doubled.emails,
             vec!["cto@example.com".to_string(), "ops@example.com".to_string()]
         );
+    }
+
+    #[test]
+    fn discord_and_telegram_are_channels_of_their_own() {
+        let doc = Channels::from_json(&json!({
+            "discord": "https://discord.com/api/webhooks/1/abc",
+            "telegram": { "chat_id": -1001234, "bot_token_sealed": "c2VhbGVk" }
+        }));
+        assert!(!doc.is_empty());
+        assert_eq!(
+            doc.discord.as_deref(),
+            Some("https://discord.com/api/webhooks/1/abc")
+        );
+        let telegram = doc.telegram.unwrap();
+        assert_eq!(telegram.chat_id, "-1001234");
+        assert_eq!(telegram.bot_token_sealed.as_deref(), Some("c2VhbGVk"));
+
+        // A telegram entry without a chat is not a channel.
+        assert!(Channels::from_json(&json!({ "telegram": { "bot_token": "1:a" } })).is_empty());
+    }
+
+    #[test]
+    fn a_sealed_telegram_token_opens_only_for_its_own_chat() {
+        let cfg = test_config();
+        let sealed = seal_telegram_token(&cfg, "-100", "123:secret").unwrap();
+        assert!(!sealed.contains("secret"));
+        assert_eq!(
+            open_telegram_token(&cfg, "-100", &sealed).unwrap(),
+            "123:secret"
+        );
+        assert!(open_telegram_token(&cfg, "-200", &sealed).is_err());
+
+        let target = TelegramTarget {
+            chat_id: "-100".into(),
+            bot_token_sealed: Some(sealed),
+            bot_token: None,
+        };
+        assert_eq!(target.token(&cfg).unwrap(), "123:secret");
+    }
+
+    fn test_config() -> Config {
+        Config {
+            bind_addr: "127.0.0.1:0".into(),
+            database_url: "postgres://localhost/micaforge".into(),
+            clickhouse_url: "http://localhost:8123".into(),
+            clickhouse_db: "micaforge".into(),
+            clickhouse_user: "default".into(),
+            clickhouse_password: String::new(),
+            redis_url: "redis://127.0.0.1:6379".into(),
+            public_url: "https://mf.example.com".into(),
+            dashboard_url: "https://app.example.com".into(),
+            secret_key_base: "x".repeat(48),
+            geoip_city_path: None,
+            geoip_asn_path: None,
+            retention_days: 0,
+            replay_retention_days: 30,
+            disable_registration: false,
+            max_sites_per_org: 0,
+            max_orgs_per_user: 0,
+            self_hosted: true,
+            smtp_url: None,
+            cloudflare_email_token: None,
+            cloudflare_account_id: None,
+            mail_from: "Micaforge <noreply@localhost>".into(),
+            log_format: "text".into(),
+            worker_concurrency: 2,
+            llm: None,
+            chat: Default::default(),
+            feedback_channel: Default::default(),
+            region: "default".into(),
+            links_host: None,
+            google_oauth: None,
+            github_oauth: None,
+            billing_enabled: false,
+            billing_plans: Vec::new(),
+            stripe: None,
+            search_console: None,
+            github_app: None,
+        }
     }
 
     #[test]

@@ -38,7 +38,8 @@ const canonical = new URL(Astro.url.pathname, Astro.site ?? "https://micaforge.c
     <slot name="head" />
     <!--
       micaforge.com is measured by Micaforge itself (site 4), on the public pages of the
-      production hostname only: not the dashboard, not a share page, not a preview build.
+      production hostname only: not the dashboard, not a share page, not a customer's status
+      page, not a preview build.
     -->
     <script is:inline>
       (function () {
@@ -46,6 +47,7 @@ const canonical = new URL(Astro.url.pathname, Astro.site ?? "https://micaforge.c
         var p = location.pathname;
         if (h !== "micaforge.com" && h !== "www.micaforge.com") return;
         if (p.indexOf("/app") === 0 || p.indexOf("/share") === 0) return;
+        if (p.indexOf("/status/") === 0) return;
         var s = document.createElement("script");
         s.defer = true;
         s.src = "https://api.micaforge.com/mf.js";

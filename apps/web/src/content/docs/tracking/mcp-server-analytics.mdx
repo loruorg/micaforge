@@ -1,0 +1,139 @@
+---
+title: "MCP server analytics"
+description: "Calls, clients, latency and errors of the MCP servers you run, measured inside the server, with no argument values or messages sent."
+group: "tracking"
+order: 15
+updated: 2026-10-09
+---
+
+If you run a Model Context Protocol server, the **MCP servers** screen shows what it does:
+calls over time, the error rate, the median and 95th percentile handler time, the busiest
+tools with their error rates, the clients that call it (Claude, Cursor, VS Code and the
+rest, by the name each client sends when it connects), and the slowest and failing calls.
+
+The measuring happens inside your server, because nothing else can see it: a call arrives
+over stdio or a long-lived HTTP stream, and only the handler knows how long it ran and how
+it ended.
+
+## Set it up
+
+You need the host, the numeric site id and the site's **ingest key** from **Settings,
+Tracking**. The ingest key is a server-side secret: read it from the environment.
+
+```bash
+npm install @micaforge/sdk-server
+```
+
+```ts
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { Micaforge } from "@micaforge/sdk-server";
+import { instrumentMcpServer } from "@micaforge/sdk-server/mcp";
+
+const micaforge = new Micaforge({
+  host: "https://analytics.example.com",
+  siteId: 1,
+  ingestKey: process.env.MICAFORGE_INGEST_KEY!,
+});
+
+const server = instrumentMcpServer(new McpServer({ name: "docs", version: "1.2.0" }), {
+  client: micaforge,
+});
+
+// Register tools as usual, before or after the line above.
+
+process.on("SIGTERM", () => void micaforge.shutdown().then(() => process.exit(0)));
+```
+
+It works with the official SDK's `McpServer` and its low-level `Server`, on stdio,
+Streamable HTTP and SSE. The SDK is not imported by `@micaforge/sdk-server`; your server is
+read structurally, so you keep the MCP SDK at the version you choose. A server that builds
+a new `McpServer` per session wraps each one.
+
+Calls are queued and sent in batches, like every other hit the server SDK sends, to
+`POST /api/log/mcp`, signed with the ingest key exactly as
+[server logs](/docs/agents/shipping-server-logs) are. A call never waits on Micaforge, and a
+failure to send never reaches your handler.
+
+## What is recorded
+
+| Field | From |
+|---|---|
+| Method | `tools/call`, `resources/read` or `prompts/get`. Nothing else is recorded. |
+| Name | The tool or prompt name, or the resource URI without its query string and fragment. |
+| Client | `clientInfo.name` and `clientInfo.version` from the client's `initialize`. |
+| Protocol | The protocol revision the session negotiated. |
+| Transport | `stdio`, `streamable-http`, `sse`, read from the transport. |
+| Session | A keyed digest of the session id. The key is random per process and never leaves it. |
+| Duration | How long the handler ran, in milliseconds. |
+| Status | `ok`; `error`, when the handler threw or answered with a JSON-RPC error; `tool_error`, when a tool answered with `isError: true`. |
+| Error | The error's class (such as `McpError`) and its JSON-RPC code (such as `-32602`). |
+| Sizes | The size in bytes of the arguments and of the result. |
+| Server | `serverInfo.name` and `serverInfo.version`, so one site can hold several servers. |
+
+**Never recorded:** argument values, results and error messages. A message is free text
+that a model or a user wrote into; the class and the code say what kind of failure it was.
+A raw session id is never stored either: on the Streamable HTTP transport it is what lets a
+client speak in an open session.
+
+### Arguments, on purpose
+
+When the arguments are what you need to see, opt in:
+
+```ts
+instrumentMcpServer(server, {
+  client: micaforge,
+  // true: keep the arguments after the built-in redaction
+  // a function: your own redaction; what it returns is stored
+  captureArguments: (args, call) => (call.name === "search" ? { query: args.query } : undefined),
+});
+```
+
+The built-in redaction replaces the value of any key that looks like a secret or a contact
+(`password`, `token`, `apiKey`, `authorization`, `cookie`, `session`, `email`, `phone`) and
+any string that looks like an email address with `"[redacted]"`. At most 4 KB of JSON is
+kept per call. Stored arguments are never shown in the calls table and never handed to the
+[AI analyst](/docs/dashboard/ask-ai).
+
+## Any other MCP server
+
+A server not built on the official SDK records its own calls:
+
+```ts
+const started = performance.now();
+let status = "ok";
+let errorType, errorCode;
+try {
+  const result = await handle(request);
+  if (result.isError) status = "tool_error";
+  return result;
+} catch (error) {
+  status = "error";
+  errorType = error.name;
+  errorCode = error.code;
+  throw error;
+} finally {
+  micaforge.recordMcpCall({
+    method: request.method,
+    name: request.params.name,
+    durationMs: performance.now() - started,
+    status,
+    errorType,
+    errorCode,
+    clientName: session.clientInfo?.name,
+    sessionId: session.id, // replaced by a digest before it is queued
+  });
+}
+```
+
+## Reading it
+
+The screen is under **Health, MCP servers**. Choose a server when there are several, and
+narrow to tools, resources or prompts. The error rate counts failed calls and tool errors
+together; the readout and each tool's row give the two apart.
+
+The same numbers are in the [stats API](/docs/api/stats-api) under `/api/stats/mcp/*`, in
+the [MCP server](/docs/api/mcp-server) as `get_mcp_server_stats` and `list_mcp_calls`, and
+in [Ask AI](/docs/dashboard/ask-ai) as `get_mcp_servers`. They need `stats:read`.
+
+Calls follow the site's [retention](/docs/privacy/data-retention) like every other event,
+and the site's data reset removes them.

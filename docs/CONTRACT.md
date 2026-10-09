@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS events (
   session_id          String,
   visitor_id          String,                 -- daily-rotating salted hash
   identified_id       String DEFAULT '',      -- from identify(), opt-in
-  kind                LowCardinality(String) DEFAULT 'pageview', -- pageview|custom|outbound|file_download|form|error|web_vitals|engagement
+  kind                LowCardinality(String) DEFAULT 'pageview', -- pageview|custom|outbound|file_download|form|error|web_vitals|engagement|identify|frustration
   event_name          String DEFAULT '',
   hostname            String,
   pathname            String,
@@ -93,11 +93,20 @@ CREATE TABLE IF NOT EXISTS events (
   fcp                 Nullable(Float32),
   ttfb                Nullable(Float32),
   import_id           Nullable(UUID),
-  sdk_version         LowCardinality(String) DEFAULT ''
+  sdk_version         LowCardinality(String) DEFAULT '',
+  sample_rate         UInt8 DEFAULT 100        -- the tracker's data-sample rate; 100 = everyone
 ) ENGINE = MergeTree
 PARTITION BY toYYYYMM(timestamp)
 ORDER BY (site_id, timestamp, session_id);
 ```
+
+`identify` rows are written by `identify()` and `setTraits()`: `identified_id` is the
+site's id, `visitor_id` that day's hash, `props` the traits sent with the call. They are
+what a profile's trait history, its linked visitor hashes and its search read
+(`/api/stats/profiles`). A `revenue` trait never becomes the `revenue` column.
+`frustration` rows come from the frustration plugin: `event_name` is `rage_click`,
+`dead_click` or `form_abandon`; `props` holds `selector` (and `clicks`), or `form` and
+`field` (the last field's name, never a value).
 
 ### 1.2 `agent_events` — the wedge
 
@@ -154,6 +163,8 @@ rrweb-compatible, `ZSTD(3)` codec on `data`, `TTL timestamp + INTERVAL 30 DAY` (
 
 `(site_id, timestamp, session_id, visitor_id, name, message, stack, filename, lineno,
 colno, pathname, browser, os, release, handled UInt8, fingerprint String)`.
+`release` is the site's own release (`data-release`, or a `release` property), empty when
+it sent none; it is never the tracker's version.
 
 ### 1.7 `page_index` — content register
 
@@ -172,6 +183,34 @@ Staging for GA4 / Plausible / Umami imports; the importer normalises into `event
 
 Every table respects `MICAFORGE_RETENTION_DAYS` (default `0` = forever) applied as a TTL
 at init.
+
+### 1.10 `uptime_checks`, `link_clicks`, `revenue` — monitoring and growth
+
+- `uptime_checks` `(site_id, timestamp, monitor_id UUID, region, ok UInt8, status_code UInt16
+  (0 = no response), latency_ms UInt32, error String, ssl_days_left Nullable(Int32))`,
+  `ORDER BY (site_id, monitor_id, timestamp)`. One row per check.
+- `link_clicks` `(site_id (0 = organisation link), timestamp, link_id UUID, org_id UUID,
+  referrer, referrer_host, country FixedString(2), region, device_type, browser, os,
+  is_bot UInt8, bot_name, target)`, `ORDER BY (link_id, timestamp)`. `target` is `web` |
+  `ios` | `android` | `deep_link` | `preview` | `expired`. No address is stored.
+- `revenue` `(site_id, timestamp, provider, event_id, transaction_id, type, amount Int64,
+  currency, customer, session_id, visitor_id, attribution, channel, source, referrer_host,
+  utm_source, utm_medium, utm_campaign, country, device_type, browser, entry_path)`,
+  `ORDER BY (site_id, timestamp, event_id)`. `amount` is minor units, negative for a refund;
+  `type` is `sale` | `subscription` | `refund`; `attribution` is `session` | `visitor` |
+  `email` | `none`; `customer` is the provider's id or `email:<keyed hash>`, never an email.
+
+### 1.11 `mcp_calls` — MCP server analytics
+
+`(site_id, timestamp, server_name, server_version, method, name, client_name,
+client_version, protocol_version, transport, session_hash, duration_ms UInt32, status,
+error_type, error_code Int32, arg_bytes UInt32, result_bytes UInt32, arguments String,
+sdk_version)`, `ORDER BY (site_id, timestamp, method)`. One row per `tools/call`,
+`resources/read` or `prompts/get` an MCP server answered, measured in that server by
+`@micaforge/sdk-server` and sent to `POST /api/log/mcp` (signed like `/api/log/edge`).
+`status` is `ok` | `error` | `tool_error`; `session_hash` is a digest keyed per process in
+the SDK, never the session id; `arguments` is empty unless the owner opted in, at most
+4 KB. No error message and no result is ever stored.
 
 ---
 
@@ -199,11 +238,25 @@ Enums are `TEXT` + `CHECK`. Every secret at rest sealed with XChaCha20-Poly1305.
 | `experiments` | `id`, `site_id`, `key`, `hypothesis`, `variants` jsonb, `goal_id`, `status`, `started_at`, `ended_at` |
 | `alerts` | `id`, `site_id`, `kind` (`spike`\|`drop`\|`goal`\|`error`\|`agent_surge`\|`citation_gap`), `config` jsonb, `channels` jsonb, `last_fired_at` |
 | `reports` | `id`, `site_id`, `cadence` (`daily`\|`weekly`\|`monthly`), `recipients` jsonb, `channels` jsonb, `next_run_at` |
-| `imports` | `id`, `site_id`, `source`, `status`, `progress`, `error`, `created_at` |
+| `imports` | `id`, `site_id`, `source` (`ga4`\|`plausible`\|`umami`\|`posthog`\|`simple_analytics`), `status`, `progress`, `error`, `created_at`, `credentials_sealed` bytea (an API import's key, sealed; NULL once done or given up) |
+| `error_states` | `site_id`, `fingerprint`, `status` (`resolved`\|`ignored`), `updated_by`, `resolved_at`; no row = open |
+| `log_drains` | `id`, `site_id`, `provider` (`vercel`), `secret_sealed`, `verify_token`, `created_by`, `created_at`, `last_received_at` |
 | `agent_catalog` | `slug` pk, `display_name`, `operator`, `purpose`, `ua_patterns` jsonb, `ip_ranges` jsonb, `rdns_suffixes` jsonb, `docs_url`, `respects_robots` bool, `updated_at` |
 | `site_policy` | `site_id`, `robots_txt` text, `llms_txt` text, `fetched_at`, `parsed` jsonb |
 | `jobs` | `id`, `kind`, `payload` jsonb, `run_at`, `attempts`, `locked_by`, `locked_at` (heartbeat of the running lane), `status`; unique `(kind)` where `status IN ('pending','running')` and `payload` has `repeat_secs` |
 | `sessions_auth` | `id`, `user_id`, `token_hash`, `user_agent`, `ip_hash`, `expires_at` |
+| `uptime_monitors` | `id`, `site_id`, `name`, `url`, `method`, `interval_secs` (60-3600), `timeout_ms`, `status_min`, `status_max`, `keyword`, `json_path`, `json_expected`, `ssl_check`, `ssl_expiry_days`, `failure_threshold`, `channels` jsonb, `enabled`, `state` (`unknown`\|`up`\|`down`), `consecutive_failures`, `last_checked_at`, `next_check_at`, `lease_until` |
+| `uptime_incidents` | `id`, `monitor_id`, `site_id`, `started_at`, `resolved_at`, `cause`, `failed_checks`; at most one open per monitor |
+| `status_pages` | `id`, `site_id`, `slug` unique, `title`, `description`, `logo_url`, `accent_color`, `footer_label`, `footer_url`, `published` |
+| `status_page_monitors` | `page_id`, `monitor_id`, `position`, `display_name` |
+| `status_incidents` | `id`, `page_id`, `kind` (`incident`\|`maintenance`), `title`, `status`, `impact`, `uptime_incident_id`, `automatic`, `monitor_ids` jsonb, `scheduled_start`, `scheduled_end`, `resolved_at` |
+| `status_incident_updates` | `id`, `incident_id`, `status`, `body`, `automatic`, `created_at` |
+| `link_folders` | `id`, `org_id`, `name` (unique per organisation) |
+| `links` | `id`, `org_id`, `site_id` nullable, `folder_id`, `slug` unique on the install, `target_url`, `utm` jsonb, `title`, `description`, `image_url`, `ios_url`, `android_url`, `deep_link`, `expires_at`, `created_by` |
+| `revenue_integrations` | `id`, `site_id`, `provider` (`stripe`\|`paddle`), `secret_sealed` (nullable until pasted), `enabled`, `last_event_at`; unique `(site_id, provider)` |
+| `revenue_events_seen` | `integration_id`, `event_id`, `received_at` — webhook idempotency |
+| `revenue_customer_refs` | `integration_id`, `customer_id`, `checkout_ref` |
+| `revenue_refund_totals` | `integration_id`, `object_id`, `recorded_minor` |
 
 Two `sites.settings` keys are written by the server only and are never accepted from a
 settings `PATCH`: `ingest_key_sealed` (the sealed ingest key) and `public_slug` (the
@@ -263,8 +316,13 @@ POST /api/track                 browser SDK payload (§4)
 POST /api/track/batch           array form, for the server SDKs
 GET  /api/track/pixel.gif       no-JS fallback, query-string encoded
 POST /api/log/edge              server-side hit (agent + human), HMAC-signed with the site ingest key
+POST /api/log/vercel/:drain     a Vercel log drain delivery, x-vercel-signature = hex HMAC-SHA1 of
+                                the raw body with the drain secret; agents and bots only
+POST /api/log/mcp               MCP server calls (§1.11), signed like /api/log/edge; no CORS,
+                                1 MB, 500 calls, 202 { accepted, rejected }
 GET  /mf.js                     the tracker, immutable-cached, ETagged
 GET  /mf.min.js                 alias
+GET  /api/track/p/:name.js      a tracker plugin: vitals | errors | frustration | forms | track404 | tags
 ```
 
 Rows from the three unauthenticated routes are stamped with the server's receive time; a
@@ -294,11 +352,21 @@ GET /api/stats/funnel/:id        step counts, drop-off, per-step sessions
 GET /api/stats/journeys          Sankey nodes+links, depth configurable
 GET /api/stats/retention         cohort grid
 GET /api/stats/events            custom event names, counts, property breakdowns
-GET /api/stats/errors            grouped by fingerprint, with sparkline
+GET /api/stats/errors            grouped by fingerprint, with sparkline, totals and facets;
+                                 ?release= narrows, ?fingerprint= returns one group in full
+POST /api/stats/errors/:fp/status { status: open|resolved|ignored }, member
+GET /api/stats/frustration       rage clicks, dead clicks, abandoned forms by page/element/form
+GET /api/stats/sampling          whether the window's pageviews came from a data-sample tracker
+GET /api/stats/mcp/{overview,timeseries,tools,clients,calls}
+                                 MCP server calls; ?server= ?method= ?client=, calls takes
+                                 ?view=slowest|failing; filters and audience do not apply
+GET /api/stats/profiles          ?q= searches identified ids and traits
+GET /api/stats/profiles/:id      traits, trait history, linked visitor hashes, anonymous sessions
 GET /api/stats/sessions          session list + detail
 GET /api/stats/visitors          visitor list, traits, session count
 GET /api/stats/export.csv        any of the above as CSV
 GET /api/stats/export.pdf        rendered report
+GET /api/export/raw              ZIP of raw events, errors, web vitals (csv|json), scope export:read
 ```
 
 **Agent + Citation Gap (the wedge)**
@@ -322,6 +390,28 @@ GET  /api/content/decay          pages whose human traffic fell while agent traf
 `/api/reports/*` `/api/keys/*` `/api/imports/*` `/api/share/*` `/api/admin/*`
 plus `GET /api/health/live`, `GET /api/health/ready`, `GET /api/health`, `GET /api/config`,
 and `POST /api/mcp` (MCP server, tools mirror the read endpoints).
+
+**Monitoring and growth**
+```
+/api/uptime/monitors[/{id}]          CRUD (member writes); /{id}/test, /{id}/series, /{id}/checks
+POST /api/uptime/test?site=          one check of an unsaved monitor, recorded nowhere
+GET  /api/uptime/summary|incidents   per site
+/api/status-pages[/{id}]             CRUD (admin writes); /{id}/incidents (member posts)
+/api/status-incidents/{id}[/updates] edit, delete, post a timeline update (member)
+GET  /api/status/{slug}              no auth: a published page, monitors without URLs
+/api/links[/{id}], /api/link-folders ?site= or ?org=; /{id}/qr.svg, /{id}/stats, /api/links/config
+GET  /l/{slug}                       no auth: the redirect (also /{slug} on MICAFORGE_LINKS_HOST)
+/api/revenue/integrations[/{id}]     admin; the signing secret is write-only
+POST /api/revenue/webhooks/stripe|paddle/{integration id}   signed by the provider
+GET  /api/revenue/ref?s=             no auth, CORS *: { ref: "mfr_…" } checkout reference
+GET  /api/revenue/overview|timeseries|breakdown|customers|payments   standard envelope + currency
+```
+Uptime checks run in the `run_uptime_checks` job (every minute; due monitors only, one check
+in flight per monitor, at most `MICAFORGE_WORKER_CONCURRENCY` at once; no monitor, no outbound
+request). Stripe signatures are `Stripe-Signature: t=,v1=` over `"<t>.<body>"`, Paddle's
+`Paddle-Signature: ts=;h1=` over `"<ts>:<body>"`, both HMAC-SHA256 with a 300 s tolerance; each
+event id is recorded once. Redirects are `302` with `Cache-Control: no-store`; link-preview bots
+get an Open Graph page, an expired link a `410` page.
 
 **Health.** `GET /api/health/live` is liveness: `200` whenever the process can answer, no
 store is touched, and it is not rate limited. Container healthchecks and liveness probes
@@ -349,8 +439,8 @@ in parallel, with a hard exit at 40 s; the compose `stop_grace_period` must be a
 Errors: `{ "error": { "code": "snake_case", "message": "human sentence", "field": "…" } }`
 with the matching HTTP status.
 
-Time budgets: 5 s for the collection routes (`/api/track*`, `/api/log/edge`, `/mf.js`,
-`/api/flags/evaluate`), 30 s for everything else, none for the import upload. A request
+Time budgets: 5 s for the collection routes (`/api/track*`, `/api/log/edge`, `/api/log/mcp`,
+`/mf.js`, `/api/flags/evaluate`), 30 s for everything else, none for the import upload. A request
 past its budget is answered `503` with code `timeout` and `Retry-After`, except that the
 two browser routes, `POST /api/track` and the pixel, still answer as if the hit had been
 taken (`204`, or the pixel). `/api/track/batch` and `/api/log/edge` are server routes and
@@ -420,7 +510,7 @@ A share never reaches sessions, visitors, replays, errors, exports or any manage
 
 `Authorization: Bearer mfg_…`. A key belongs to one organisation (`api_keys.org_id`),
 optionally one site (`api_keys.site_id`), and holds `scopes` from `stats:read`,
-`manage:read`, `manage:write`, `ingest:write` (default `["stats:read"]`). It resolves
+`manage:read`, `manage:write`, `ingest:write`, `export:read` (default `["stats:read"]`). It resolves
 against the organisation owner's memberships but never carries the owner's authority:
 
 - **Containment.** A site outside the key's organisation, any site but its own when
@@ -431,9 +521,12 @@ against the organisation owner's memberships but never carries the owner's autho
   an `admin` or `owner` action: creating, editing or deleting a site, reading or rotating
   its ingest key, managing share links, erasing visitors or recordings.
 - **Scope by method.** `GET` under `/api/stats`, `/api/agents`, `/api/citation-gap`,
-  `/api/policy`, `/api/content`, `/api/replay`, and `POST /api/mcp`, need `stats:read`.
-  `GET` under the management prefixes needs `manage:read`. Every other method needs
-  `manage:write`. A missing scope is `403`.
+  `/api/policy`, `/api/content`, `/api/replay`, `/api/revenue`, and `POST /api/mcp`, need
+  `stats:read`. `GET` under the management prefixes (including `/api/uptime`,
+  `/api/status-pages`, `/api/status-incidents`, `/api/links`, `/api/link-folders`) needs
+  `manage:read`. `GET /api/export/*` needs `export:read` (never implied by `stats:read`);
+  any other method there is refused. `GET /api/audit*` needs `audit:read`. Every other
+  method needs `manage:write`. A missing scope is `403`.
 - **Refused outright** (`403`, whatever the scopes): `/api/auth/*`, `/api/keys*`,
   `/api/admin/*`, `/api/invitations/*`, `POST /api/orgs`, `DELETE /api/orgs/:id`,
   `/api/orgs/:id/owner`, `/api/orgs/:id/members*`, `/api/orgs/:id/invitations*`,
@@ -512,7 +605,8 @@ against the organisation owner's memberships but never carries the owner's autho
   "p": { "plan": "pro" }, // props
   "id": "u_123",          // identify()
   "v": "1.0.0",           // sdk version
-  "e": { "lcp": 1180 }    // web vitals, when present
+  "e": { "lcp": 1180 },   // web vitals, when present
+  "sr": 25                // data-sample rate, only from a sampled visitor
 }
 ```
 
@@ -527,6 +621,21 @@ request header.
 respects `do-not-track` when `data-respect-dnt` is set; `data-*` attribute configuration;
 auto-capture of outbound links, downloads, form submits and 404s behind flags; never
 throws into the host page; queues before init.
+
+`data-sample` (decided in the browser per visitor and day, never stored), `data-mask` and
+`data-strip-query` are applied in the core, before anything is sent. Every other optional
+capability is a plugin (`/api/track/p/<name>.js`, each with its own gzip budget) that the
+core appends only when its attribute asks: `vitals` (default on), `errors`, `frustration`,
+`forms`, `track404`, `tags`. A plugin sends through the core's internal `x(kind, event)`,
+so it passes the same opt-out, sample, exclude and mask gates as a pageview.
+
+**Native apps** (`packages/sdk-swift`) send this same payload, in arrays, to
+`POST /api/track/batch`. A screen is a `pageview` whose `u` is
+`https://<site domain><path>`, because the hostname check applies to every hit and an app
+has no page address; the screen's name rides in `title`, the page-title key the batch
+route already reads from SDKs. No other key is added. The request's user agent is a fixed
+browser-shaped string naming the platform (`Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like
+Mac OS X) Micaforge-Swift/0.1.0`), never the app's name.
 
 ---
 
@@ -562,6 +671,7 @@ React island at `/app` (`client:only`, React Router in library mode, `/app/*` re
 /app/:site/retention
 /app/:site/performance
 /app/:site/errors
+/app/:site/frustration
 /app/:site/sessions       /app/:site/sessions/:id
 /app/:site/visitors       /app/:site/visitors/:id
 /app/:site/replay         /app/:site/replay/:id
@@ -569,10 +679,17 @@ React island at `/app` (`client:only`, React Router in library mode, `/app/*` re
 /app/:site/experiments
 /app/:site/dashboards     /app/:site/dashboards/:id
 /app/:site/query                         the custom query console
-/app/:site/settings/*                    tracking, goals, alerts, reports, imports, share, danger
+/app/:site/uptime                        uptime monitors, checks, incidents
+/app/:site/status-pages                  public status pages and their incidents
+/app/:site/links                         short links, folders, QR codes, clicks
+/app/:site/revenue                       Stripe and Paddle revenue
+/app/:site/search                        Google Search Console: search terms, pages, countries, devices
+/app/:site/mcp                           MCP servers: calls, tools, clients, latency, errors
+/app/:site/settings/*                    tracking, goals, alerts, reports, imports, share, danger, log-drains, guards, chat, ai, github
 /app/settings/*                          account, organization, teams, billing, api keys
 /app/admin/*                             self-host admin
 /share/:slug                             public dashboard (no auth)
+/status/:slug                            public status page (no auth, a standalone island)
 ```
 
 ---
@@ -611,3 +728,221 @@ beneath. Light mode is the same record transcribed onto chart paper.
 4. Every number rendered in a demo or empty state is visibly labelled as such.
 5. Every chart encodes its series by shape or label as well as by colour.
 6. All motion behind `prefers-reduced-motion`; no content's existence depends on motion.
+
+---
+
+## 8. AI analyst, insights, chat apps, feedback, annotations, MCP OAuth
+
+Every feature here is **off** until its variables are set (`MICAFORGE_LLM_*`,
+`MICAFORGE_SLACK_*`, `MICAFORGE_DISCORD_*`, `MICAFORGE_TELEGRAM_*`,
+`MICAFORGE_FEEDBACK_*`); each group is all or nothing and the boot names a missing half.
+With nothing set, no outbound call is made. Full variable list:
+`docs/self-hosting/configuration`.
+
+### 8.1 Postgres (migrations 0030–0035)
+
+| table | key columns |
+|---|---|
+| `ai_conversations` | `id`, `site_id`, `user_id`, `title`, `created_at`, `updated_at` |
+| `ai_messages` | `id`, `conversation_id`, `role` (`user`\|`assistant`), `content`, `tool_calls` jsonb, `error`, `created_at` |
+| `investigations` | `id`, `site_id`, `signal_key`, `title`, `status` (`open`\|`monitoring`\|`resolved`), `severity`, `metric`, `dimension`, `dimension_value`, `direction`, `current_value`, `baseline_value`, `change_pct`, `window_label`, `findings`, `evidence`, `explanation`, `explanation_status` (`ready`\|`not_configured`\|`failed`), `calm_checks`, `created_at`, `updated_at`, `next_check_at`, `resolved_at`; unique `(site_id, signal_key)` where status is `open` or `monitoring` |
+| `investigation_events` | `id`, `investigation_id`, `kind` (`opened`\|`checked`\|`explained`\|`status`\|`posted`), `summary`, `data`, `created_at` |
+| `insight_subscriptions` | `site_id`, `user_id`, `weekly_digest` |
+| `chat_links` | `id`, `org_id`, `site_id`, `platform` (`slack`\|`discord`\|`telegram`), `workspace_id`, `channel_id`, `label`, `created_by`; unique `(platform, workspace_id, channel_id)` |
+| `chat_investigation_posts` | `investigation_id`, `link_id`, `thread_ref` |
+| `feedback` | `id`, `kind` (`bug`\|`problem`\|`feature`\|`other`), `title`, `body`, `status` (`new`\|`triaged`\|`planned`\|`done`\|`wont_fix`), `severity`, `source` (`dashboard`\|`mcp`\|`api`\|`chat`), `reporter_user_id`, `reporter_email`, `reporter_name`, `client_name`, `api_key_id`, `oauth_grant_id`, `chat_reporter`, `org_id`, `site_id`, `page_url`, `app_version`, `user_agent`, `created_at`, `updated_at`, `github_issue_url`, `github_issue_number`, `github_issue_repo` (§9) |
+| `annotations` | `id`, `site_id`, `starts_at`, `ends_at`, `text`, `color` (`neutral`\|`green`\|`red`), `category`, `source` (`dashboard`\|`api`\|`mcp`\|`github`), `url` (https, GitHub notes only), `author_id`, `created_at`, `updated_at` |
+| `oauth_clients` | `id`, `client_id`, `client_name`, `redirect_uris`, `token_endpoint_auth_method`, `client_secret_hash`, `client_uri`, `created_at` |
+| `oauth_grants` | `id`, `client_id`, `user_id`, `org_id`, `scopes`, `resource`, `access_prefix`, `access_hash`, `access_expires_at`, `refresh_hash`, `refresh_expires_at`, `previous_refresh_hash`, `created_at`, `last_used_at`, `revoked_at` |
+
+A Telegram alert channel's bot token is sealed (`alerts.channels.telegram.bot_token_sealed`,
+XChaCha20-Poly1305, bound to the chat id). OAuth tokens and client secrets are stored as
+SHA-256 digests; authorization codes and chat link codes live in Valkey only.
+
+### 8.2 HTTP
+
+```
+GET  /api/ai/status                     POST /api/ai/ask (JSON, or SSE with Accept: text/event-stream)
+GET  /api/ai/conversations?site=        GET|DELETE /api/ai/conversations/:id
+GET  /api/investigations?site=&status=  GET|PATCH /api/investigations/:id
+POST /api/investigations/scan?site=     GET|PUT /api/insights/subscription?site=
+GET  /api/chat/status                   GET /api/chat/links?site=   DELETE /api/chat/links/:id
+POST /api/chat/link-codes?site=
+POST /api/chat/slack/commands           POST /api/chat/slack/events
+POST /api/chat/discord/interactions     POST /api/chat/telegram/webhook
+POST /api/admin/chat/discord/commands   POST /api/admin/chat/telegram/webhook
+POST /api/feedback                      GET /api/feedback/mine
+GET  /api/admin/feedback                PATCH /api/admin/feedback/:id
+GET|POST /api/annotations?site=         PATCH|DELETE /api/annotations/:id
+GET  /.well-known/oauth-protected-resource[/api/mcp]
+GET  /.well-known/oauth-authorization-server
+POST /api/oauth/register                GET /api/oauth/authorize
+POST /api/oauth/token                   POST /api/oauth/revoke
+GET|POST /api/oauth/consent             GET /api/oauth/grants   DELETE /api/oauth/grants/:id
+```
+
+- **AI.** No model configured: `503`, code `ai_not_configured`. Daily allowance per
+  organisation (`MICAFORGE_LLM_DAILY_LIMIT`) exceeded: `429`. Every answer stores its tool
+  calls with the equivalent stats request and the exact SQL each read ran. The model's tools
+  are bounded to one authorised site and keep the caller's filters; `visitor_id` and
+  `identified_id` are refused. `/api/ai/ask` and `/api/mcp` have a 115 s budget.
+- **API keys.** `/api/feedback*` needs `stats:read`; `/api/annotations` needs `stats:read`
+  to read and `manage:write` to write. `/api/ai/*`, `/api/investigations*`, `/api/insights/*`,
+  `/api/chat/*` and `/api/oauth/*` refuse keys.
+- **Chat webhooks** answer `404` when their app is not configured and `401` on a failed
+  signature (Slack v0 HMAC-SHA256 with a 300 s window; Discord Ed25519 over
+  timestamp + body; Telegram secret-token header). They acknowledge at once and answer
+  on a background task.
+- **OAuth.** PKCE S256 only; exact redirect matching (a loopback `http` address may change
+  its port); the `resource` must be `{MICAFORGE_PUBLIC_URL}/api/mcp`; access tokens `mfo_…`
+  live 1 hour and work only on `/api/mcp`; refresh tokens `mfr_…` live 30 days and rotate,
+  and a replayed refresh token revokes its grant; codes live 10 minutes and work once.
+  Scopes `stats:read` (always) and `manage:write`; a token never acts above `member`.
+
+### 8.3 MCP
+
+Protocol revisions `2025-06-18`, `2025-03-26`, `2024-11-05`, negotiated; `initialize`
+answers with `Mcp-Session-Id`. A `401` carries `WWW-Authenticate: Bearer
+resource_metadata="…/.well-known/oauth-protected-resource/api/mcp"`. Tools added: `ask`,
+`submit_feedback`, `list_my_feedback`, `create_annotation`, `list_annotations`,
+`delete_annotation`, `create_goal` (writes need `manage:write`). Another area adds tools in
+`routes/mcp_<area>.rs` with one line in each of `extension_tools` and `call_extension`.
+The site-scoped reads `get_mcp_server_stats` and `list_mcp_calls` (`routes/mcp_servers.rs`)
+read `mcp_calls` (§1.11) through the same functions as `GET /api/stats/mcp/*`.
+
+### 8.4 Jobs
+
+`investigate` (every 6 h, or one site on demand) and `insight_digest` (hourly; sends on
+Monday from 08:00 in the site's timezone to subscribers who still hold a role on the site).
+
+---
+
+## 9. Google Search Console, and MCP writes for flags and links
+
+Off until `MICAFORGE_SEARCH_CONSOLE_CLIENT_ID` and `_SECRET` are set (both or neither). A
+client of its own, separate from the Google sign-in client: Search Console's scope
+(`webmasters.readonly`) is one Google reviews. With it unset, no site connects and nothing
+is sent to Google.
+
+### 9.1 Stores
+
+- Postgres `search_console_connections` (migration 0055): `site_id` pk, `connected_by`,
+  `refresh_token_sealed` (XChaCha20-Poly1305, purpose `search-console-token`, AAD bound to
+  the site; NULL once Google refuses it), `property`, `status` (`pending`\|`active`\|`revoked`),
+  `backfill_until`, `backfilled_from`, `synced_through` (Google's days, Pacific time),
+  `lease_until`, `last_sync_started_at`, `last_sync_finished_at`, `last_error`,
+  `last_error_at`, `rows_synced`.
+- ClickHouse `search_console` `(site_id, property, grain, date Date, query, page, hostname,
+  pathname, country (alpha-2), device, clicks UInt32, impressions UInt32, position Float64,
+  synced_at)`, `ReplacingMergeTree(synced_at)`, `ORDER BY (site_id, property, grain, date,
+  query, page, country, device)`, `PARTITION BY toYYYYMM(date)`. `grain` is `total` (by date),
+  `query` (date, query, page, country, device), `page`, `country` or `device`; each report
+  reads the grain Google counts it at. Reads keep only the newest `synced_at` per
+  `(grain, date)`.
+
+### 9.2 HTTP
+
+```
+GET    /api/search-console?site=             viewer: { configured, redirect_uri, can_manage, connection }
+POST   /api/search-console/connect?site=     admin, session: { url } (503 search_console_not_configured when off)
+GET    /api/search-console/callback          Google's redirect: signed expiring state + PKCE S256, session must be the admin who started
+GET    /api/search-console/properties?site=  admin, session: [{ site_url, permission, kind }]
+PUT    /api/search-console/property?site=    admin, session: { property }, must be readable; starts a sync
+POST   /api/search-console/sync?site=        member, session: 4 per hour per site
+DELETE /api/search-console?site=             admin, session: revokes at Google (best effort), deletes the row
+GET    /api/stats/search/overview|timeseries|queries|pages|countries|devices   envelope; stats:read
+```
+
+`/api/search-console*` refuses API keys. The list reads take `q`, `path`, `country`,
+`device`, `sort` (`clicks`\|`impressions`\|`ctr`\|`position`); `pages` adds Micaforge's own
+`visitors`, `pageviews` and `from_google` for the same path.
+
+### 9.3 Job
+
+`sync_search_console`: daily (first run 105 min after boot), one site on "Sync now" or as a
+backfill follow-up. Per run: the last three days again, anything new, and up to 62 days of
+the sixteen-month backfill, in 7-day chunks; `searchAnalytics.query` paged by 25 000 rows up
+to 50 000 per grain and window, `type: web`, `dataState: all`. `invalid_grant` marks the
+connection `revoked`.
+
+### 9.4 MCP
+
+Writes (`manage:write` and `member`, audited with the MCP client in the actor label):
+`create_flag`, `update_flag`, `set_flag_enabled`, `delete_flag`, `create_link`, `update_link`,
+`delete_link`; the deletes need `confirm: true`. Reads: `list_flags`, `get_search_overview`,
+`get_search_queries`, `get_search_breakdown`. AI analyst tool: `get_search_queries`. Audit
+actions: `search_console.connected|property_chosen|disconnected`, `link.created|updated|deleted`
+(the link routes record them too).
+
+## 10. GitHub App
+
+Off until all six `MICAFORGE_GITHUB_APP_*` variables are set (`ID`, `SLUG`, `PRIVATE_KEY`,
+`WEBHOOK_SECRET`, `CLIENT_ID`, `CLIENT_SECRET`); part of the group stops the boot, and a
+private key that is not an RSA PEM stops it too. Separate from the sign-in OAuth app
+(`MICAFORGE_GITHUB_CLIENT_*`). No GitHub credential is stored in Postgres: app JWTs (RS256,
+`iat` now − 60 s, `exp` now + 9 min, `iss` the App ID) are signed per call, and installation
+tokens are cached in Valkey sealed (XChaCha20-Poly1305, bound to the installation id) until
+five minutes before they expire.
+
+### 10.1 Postgres (migrations 0050–0052)
+
+| table | key columns |
+|---|---|
+| `github_installations` | `id`, `org_id`, `installation_id` (GitHub's), `account_login`, `account_type`, `repository_selection`, `suspended_at`, `installed_by`, `created_at`, `updated_at`; unique `(org_id, installation_id)` |
+| `github_repo_links` | `id`, `site_id` unique, `installation_ref`, `repo_id`, `repo_full_name`, `default_branch`, `html_url`, `annotate_deploys` (default true), `annotate_releases` (true), `annotate_pushes` (false), `environments` jsonb (default `["production"]`, empty = all), `agent_issues` (false), `created_by`, `created_at`, `updated_at` |
+| `github_deliveries` | `delivery_id` pk (`X-GitHub-Delivery`), `event`, `action`, `installation_id`, `repo_id`, `repo_full_name`, `outcome` (`processing`\|`recorded`\|`ignored`\|`failed`), `detail`, `received_at`; kept 30 days |
+| `github_events` | `id`, `site_id`, `kind` (`deploy`\|`release`\|`push`), `external_id` (deployment id, release id, head commit), `repo_full_name`, `git_ref`, `sha`, `title`, `environment`, `actor`, `url`, `commits` jsonb (≤ 20, logins only), `occurred_at`, `annotation_id`, `delivery_id`, `created_at`; unique `(site_id, kind, external_id)` |
+
+`annotations.source` gains `github` and `annotations` gains `url` (0051, which drops the
+unnamed 0034 source CHECK by looking it up and re-adds it as `annotations_source_check`).
+`feedback` gains `github_issue_url`, `github_issue_number`, `github_issue_repo` (0052).
+
+### 10.2 HTTP
+
+```
+GET    /api/github/status?site=              viewer: configured, app, webhook_url, callback_url,
+                                             can_install, can_link, installations (admins), link
+POST   /api/github/install?site=             org admin, session: { url, expires_in } (signed state)
+GET    /api/github/callback                  GitHub's return: redirects to
+                                             /app/:site/settings/github?github=installed|requested
+                                             or ?github_error=state|signed_out|denied|forbidden|not_yours|github|disabled
+DELETE /api/github/installations/:id         org admin, session: { removed, uninstalled_on_github }
+GET    /api/github/repos?site=&installation= site admin: { repositories: [{id, full_name, private,
+                                             default_branch, html_url}], truncated }
+PUT    /api/github/link?site=                site admin: { installation, repo: "owner/name",
+                                             deploys?, releases?, pushes?, environments?, agent_issues? }
+PATCH  /api/github/link?site=                site admin: the options above
+DELETE /api/github/link?site=                site admin
+GET    /api/github/events?site=&limit=       viewer: recorded deploys, releases, pushes, newest first
+GET    /api/github/deliveries?site=&limit=   site admin: deliveries for the linked repository
+POST   /api/github/feedback/:id/issue        { site? }: { url, number, repo, created }
+POST   /api/github/webhook                   GitHub only; X-Hub-Signature-256 (HMAC-SHA256 of the raw
+                                             body, constant-time); 4 MiB body limit
+```
+
+- **Install.** The state is `base64url(json).base64url(hmac)` with organisation, person, site,
+  nonce and a 15-minute expiry; the nonce works once (Valkey). The callback needs the same
+  person signed in and still an organisation admin, exchanges GitHub's OAuth code for the
+  person's token, and records the installation only when `GET /user/installations` lists it
+  for them; then it reads the installation with the app JWT and mints a token.
+- **Webhook.** `401` on a bad signature (nothing stored), `404` when not configured. A delivery
+  id already `recorded` or `ignored` is answered `{ received, duplicate: true }`; a `failed`
+  one may be claimed again. Recorded: `push` to the default branch, `release` `published`,
+  `deployment_status` `success` in an environment the link names, `installation`
+  `deleted`/`suspend`/`unsuspend`/`created`/`new_permissions_accepted`,
+  `installation_repositories` `removed`. Each event is recorded once per site, with its
+  annotation in the same transaction.
+- **Issues.** A session needs to read the report (`feedback::may_read`) and hold `admin` on the
+  target site. A key or OAuth grant needs `manage:write`, to have sent the report, `member` on
+  the site, and the link's `agent_issues`. The issue holds the report text in a fence and
+  non-personal facts only. Idempotent.
+- **API keys** are refused on every `/api/github/*` route (no policy entry). Audit actions:
+  `github.app_installed`, `github.app_uninstalled`, `github.app_suspended`,
+  `github.app_unsuspended`, `github.repo_linked`, `github.repo_changed`,
+  `github.repo_unlinked`, `github.issue_created`.
+
+### 10.3 MCP and the AI analyst
+
+MCP tools `list_deploys` (site-scoped read: `site`, a window, `kinds`, `limit`) and
+`create_github_issue_from_feedback` (`feedback`, optional `site`; the rule above). The AI
+analyst's tool `list_deploys` reads the same rows for the conversation's site and window.

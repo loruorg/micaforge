@@ -4,6 +4,8 @@
  *
  *   dist/mf.js      the tracker, IIFE, minified. This is what GET /mf.js serves
  *   dist/mf.min.js  the alias GET /mf.min.js serves
+ *   dist/p/*.js     the plugins the tracker loads on demand, served at
+ *                   GET /api/track/p/<name>.js
  *   dist/index.js   the programmatic SDK (ESM)
  *   dist/vue.js  dist/svelte.js
  *   dist/react.js  dist/next.js   built apart so they can carry "use client"
@@ -50,6 +52,23 @@ const tracker = await build({
 writeFileSync(join(dist, "mf.js"), tracker.outputFiles[0].text.replace('"use strict";', ""));
 copyFileSync(join(dist, "mf.js"), join(dist, "mf.min.js"));
 
+// 1b. The plugins. One IIFE each, because the tracker appends one <script> per
+//     feature the site turned on and each must run on its own. Their names are
+//     the closed set the server serves; `size.mjs` holds each to a budget.
+const PLUGINS = ["vitals", "errors", "frustration", "forms", "track404", "tags"];
+mkdirSync(join(dist, "p"), { recursive: true });
+for (const name of PLUGINS) {
+  const out = await build({
+    ...common,
+    entryPoints: [`src/plugins/${name}.ts`],
+    format: "iife",
+    minify: true,
+    write: false,
+    banner: { js: `/*! Micaforge ${pkg.version} ${name} MIT */` },
+  });
+  writeFileSync(join(dist, "p", `${name}.js`), out.outputFiles[0].text.replace('"use strict";', ""));
+}
+
 // 2. The framework-free SDK.
 await build({
   ...common,
@@ -84,3 +103,8 @@ for (const f of ["mf.js", "index.js", "react.js", "next.js", "vue.js", "svelte.j
   console.log(`  ${f.padEnd(12)} ${kb(raw).padStart(9)} raw   ${kb(gz).padStart(9)} gzipped`);
 }
 console.log("  (the ESM entries share their code through dist/chunks/)");
+for (const name of PLUGINS) {
+  const f = join(dist, "p", `${name}.js`);
+  const gz = gzipSync(readFileSync(f), { level: 9 }).length;
+  console.log(`  p/${(name + ".js").padEnd(16)} ${kb(statSync(f).size).padStart(9)} raw   ${kb(gz).padStart(9)} gzipped`);
+}

@@ -9,6 +9,7 @@
  */
 import { createTracker, G, VERSION } from "./core.js";
 import { createFlags } from "./flags.js";
+import { requestCheckoutRef } from "./checkout.js";
 import type {
   FlagsClient,
   FlagsConfig,
@@ -20,8 +21,11 @@ import type {
 
 export * from "./types.js";
 export {
+  bucket,
   createTracker,
   globToRegExp,
+  inSample,
+  maskUrl,
   hasDownloadExtension,
   isExcluded,
   isOutboundUrl,
@@ -30,6 +34,21 @@ export {
   VERSION,
 } from "./core.js";
 export { createFlags, hashBucket } from "./flags.js";
+export { compileRuleset, evaluateFlag, evaluateFlags, flagBucket } from "./flag-eval.js";
+export type {
+  CompiledRuleset,
+  FlagCondition,
+  FlagConditionGroup,
+  FlagConditions,
+  FlagDecision,
+  FlagDependency,
+  FlagEnvironment,
+  FlagInput,
+  FlagReason,
+  FlagRule,
+  FlagRuleset,
+  FlagVariant,
+} from "./flag-eval.js";
 
 interface Registry {
   i?: TrackerApi;
@@ -97,6 +116,13 @@ export const pageview = (overrides?: PageviewOverrides): void => call("pageview"
 /** Attach a stable id (and optional traits) to following events. */
 export const identify = (id: string | null, traits?: Props): void => call("identify", [id, traits]);
 
+/**
+ * Record traits on the profile (`{ plan: "pro" }`) without changing the id or the
+ * default properties. Each change is kept with its time, so the profile shows
+ * the history rather than only the latest value.
+ */
+export const setTraits = (traits: Props): void => call("setTraits", [traits]);
+
 /** Merge default properties into every following event. */
 export const setProps = (props: Props): void => call("setProps", [props]);
 
@@ -140,3 +166,23 @@ export function flags(config?: Partial<FlagsConfig>): FlagsClient {
 }
 
 export { VERSION as version };
+
+export { requestCheckoutRef } from "./checkout.js";
+export type { CheckoutRefConfig } from "./checkout.js";
+
+/**
+ * This visit's checkout reference, for Stripe or Paddle: `mfr_…`, or `null`.
+ *
+ * Uses the site and host the tracker was started with. Pass the result to your checkout
+ * as Stripe `client_reference_id` (or `metadata.mf_ref`) or Paddle `customData.mf_ref`.
+ * See `requestCheckoutRef` in `./checkout.ts`.
+ */
+export async function checkoutRef(): Promise<string | null> {
+  getTracker();
+  const r = registry();
+  const w: any = G.window;
+  return requestCheckoutRef({
+    site: r.site || "",
+    host: r.host || (w && w.location ? w.location.origin : ""),
+  });
+}

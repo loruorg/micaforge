@@ -62,14 +62,22 @@ use micaforge_store::{ch::Ch, kv::Kv, pg::PgPool};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as Json;
 
+pub mod chat;
 pub mod check_alerts;
 pub mod crawl_page_meta;
 pub mod crawl_site_policy;
 pub mod detect_decay;
 pub mod fetch;
+pub mod import_api;
+pub mod import_json;
+pub mod import_record;
 pub mod index_sitemap;
+pub mod insight_digest;
+pub mod investigate;
+pub mod meter_usage;
 pub mod metrics;
 pub mod notify;
+pub mod notify_blocked_traffic;
 pub mod outbound;
 pub mod pages;
 pub mod prune_retention;
@@ -79,6 +87,10 @@ pub mod run_import;
 pub mod schedule;
 pub mod send_report;
 pub mod worker;
+
+pub mod uptime;
+
+pub mod search_console;
 
 pub use detect_decay::{decay_cache_key, DecayReport, DecayRow};
 pub use schedule::{enqueue_at, enqueue_now, schedule_recurring, RECURRING};
@@ -156,6 +168,20 @@ pub enum Kind {
     DetectDecay,
     /// Fill in title, word count and last-modified. See [`crawl_page_meta`].
     CrawlPageMeta,
+    /// Detect significant changes and keep investigations up to date. See
+    /// [`investigate`].
+    Investigate,
+    /// Send Monday's digest of investigations. See [`insight_digest`].
+    InsightDigest,
+    /// Check every uptime monitor that is due. See [`uptime`].
+    RunUptimeChecks,
+    /// Mail site admins about a day of blocked traffic. See [`notify_blocked_traffic`].
+    NotifyBlockedTraffic,
+    /// Measure each organisation's monthly usage. See [`meter_usage`].
+    MeterUsage,
+    /// Bring connected sites' Google Search Console data in. See
+    /// [`search_console`].
+    SyncSearchConsole,
 }
 
 impl Kind {
@@ -171,6 +197,12 @@ impl Kind {
         Kind::RunImport,
         Kind::DetectDecay,
         Kind::CrawlPageMeta,
+        Kind::Investigate,
+        Kind::InsightDigest,
+        Kind::RunUptimeChecks,
+        Kind::NotifyBlockedTraffic,
+        Kind::MeterUsage,
+        Kind::SyncSearchConsole,
     ];
 
     /// The `jobs.kind` value.
@@ -186,6 +218,12 @@ impl Kind {
             Kind::RunImport => "run_import",
             Kind::DetectDecay => "detect_decay",
             Kind::CrawlPageMeta => "crawl_page_meta",
+            Kind::Investigate => "investigate",
+            Kind::InsightDigest => "insight_digest",
+            Kind::RunUptimeChecks => "run_uptime_checks",
+            Kind::NotifyBlockedTraffic => "notify_blocked_traffic",
+            Kind::MeterUsage => "meter_usage",
+            Kind::SyncSearchConsole => "sync_search_console",
         }
     }
 
@@ -218,6 +256,19 @@ impl Kind {
             Kind::RunImport => Duration::from_secs(2 * 60 * 60),
             Kind::DetectDecay => Duration::from_secs(15 * 60),
             Kind::CrawlPageMeta => Duration::from_secs(20 * 60),
+            // A scan reads two weeks per site, and each new investigation may
+            // be explained by the model, which is bounded at two minutes.
+            Kind::Investigate => Duration::from_secs(45 * 60),
+            Kind::InsightDigest => Duration::from_secs(15 * 60),
+            // The sweep stops claiming after `uptime::SWEEP_BUDGET` (150 s)
+            // and the slowest check is thirty seconds, so four minutes is a
+            // hung store, not a busy minute.
+            Kind::RunUptimeChecks => Duration::from_secs(4 * 60),
+            Kind::NotifyBlockedTraffic => Duration::from_secs(10 * 60),
+            Kind::MeterUsage => Duration::from_secs(15 * 60),
+            // One run is bounded by its plan (62 days of a site) and holds
+            // each site for 25 minutes at most; see `search_console`.
+            Kind::SyncSearchConsole => Duration::from_secs(30 * 60),
         }
     }
 

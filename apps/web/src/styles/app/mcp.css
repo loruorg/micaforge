@@ -1,0 +1,98 @@
+/* ============================================================================
+   MCP servers: the calls an MCP server answered.
+
+   The health area's grammar: a column of panels, the two charts side by side
+   when there is room for both, mono only for what is literally code (a tool
+   name, a client name nobody has a product name for, an error class).
+
+   Colour: the calls are AI traffic, so the chart line is orange; errors are
+   danger and dashed, latency is neutral ink. In the tables a status carries a
+   word and a drawn mark, and its tone is the third cue, never the only one.
+   ========================================================================= */
+
+.mf-mcp {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mf-6);
+  min-width: 0;
+  container: mf-mcp / inline-size;
+}
+
+/* The server choice and the kind of call, above the figures they narrow. */
+.mf-mcp-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mf-3) var(--mf-4);
+}
+.mf-mcp-server {
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink-2);
+}
+
+.mf-mcp-charts {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--mf-6);
+}
+@container mf-mcp (min-width: 920px) {
+  .mf-mcp-charts { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
+}
+
+.mf-mcp-code {
+  font-family: var(--mf-font-data);
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink);
+  overflow-wrap: anywhere;
+}
+.mf-mcp-dim { color: var(--mf-ink-3); }
+
+.mf-mcp-name {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--mf-2);
+  min-width: 0;
+}
+.mf-mcp-tag {
+  flex: none;
+  padding: 0 var(--mf-2);
+  font-size: var(--mf-t-xs);
+  line-height: 1.6;
+  color: var(--mf-ink-2);
+  background: var(--mf-ground-3);
+  border: 1px solid var(--mf-rule);
+  border-radius: 999px;
+}
+
+.mf-mcp-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mf-2);
+  white-space: nowrap;
+  color: var(--mf-ink-2);
+}
+.mf-mcp-status[data-status="ok"] svg { color: var(--mf-success); }
+.mf-mcp-status[data-status="error"] svg { color: var(--mf-danger); }
+.mf-mcp-status[data-status="tool_error"] svg { color: var(--mf-ink-3); }
+
+.mf-mcp .mf-data[data-tone="warn"] { color: var(--mf-danger-deep); }
+
+/* The empty state: the install, with this site's numbers in it. */
+.mf-mcp-setup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mf-4);
+  padding: 0 var(--mf-5) var(--mf-5);
+}
+.mf-mcp-setup .mf-copy__value { white-space: pre; overflow-x: auto; }
+.mf-mcp-setup__note {
+  margin: 0;
+  max-width: var(--mf-measure);
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink-2);
+}
+.mf-mcp-setup__note code {
+  font-family: var(--mf-font-data);
+  font-size: var(--mf-t-xs);
+}

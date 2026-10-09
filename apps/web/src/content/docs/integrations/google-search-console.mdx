@@ -1,0 +1,125 @@
+---
+title: "Google Search Console"
+description: "See what people searched on Google before they arrived: search terms, pages, countries and devices, with clicks, impressions and position."
+group: "integrations"
+order: 4
+updated: 2026-10-09
+---
+
+Micaforge counts the people who arrive from Google. Google Search Console knows the other
+half: what they typed, how often the site showed up in the results, and where it ranked.
+Connect a Search Console property to a site and the **Search** screen (under Growth) shows
+both, side by side.
+
+It is off until the operator configures it. With it off, no site can connect and Micaforge
+sends nothing to Google.
+
+## What the Search screen shows
+
+- **Google Search totals**: clicks, impressions, click-through rate and average position,
+  each with its change against the period before, and a daily chart of any one of them.
+  These are Google's own totals for the property, the same figures Search Console shows.
+- **What people searched**: the search terms, with clicks, impressions, click-through rate
+  and position. Sort by impressions to find terms the site shows up for but rarely gets the
+  click.
+- **Pages that showed up**: Google's figures per page, and beside them Micaforge's own count
+  for the same page over the same days: visitors, and visitors who came from Google Search.
+- **Where searchers were** and **what searchers used**: countries and devices.
+
+Three things to know when reading it:
+
+- **The search terms add up to less than the totals.** Google leaves rare search terms out
+  of every answer grouped by term, to protect the people who searched. The totals, pages,
+  countries and devices are each read the way Google counts them, so they are not reduced.
+- **Days are Google's days**, in Pacific time, and Google publishes each day a day or two
+  late. The last three days are provisional: Google may still revise them, and Micaforge
+  reads them again every day.
+- **Average position is weighted by impressions**, as Google computes it. 1 is the top of
+  the results; a lower number is better.
+
+## Connect a site
+
+A site admin does this, once per site.
+
+1. Open the site's **Search** screen and choose **Settings**, then **Connect Google Search
+   Console**.
+2. Google asks you to choose an account and to allow Micaforge to **view Search Console data
+   for your verified sites**. That is the only access asked for: read-only, and nothing about
+   you. Leave the box ticked.
+3. Back in Micaforge, choose the **property** this site reads. Both kinds work: a domain
+   property (`sc-domain:example.com`, every address on the domain) and a URL-prefix property
+   (`https://example.com/`). Only properties the Google account can read are listed.
+
+The first sync starts at once and reads the last 30 days, so the usual views fill in within a
+few minutes. Older data follows in the background, back to sixteen months, the oldest Google
+keeps. After that, Micaforge syncs once a day. **Sync now** starts one straight away, up to
+four times an hour per site.
+
+Anyone who can view the site can read the Search screen. Members can press **Sync now**.
+Connecting, choosing the property and disconnecting need a site admin.
+
+### If the connection stops
+
+Google stops accepting a connection when the person revokes Micaforge's access in their
+Google account, when the account loses access to the property, or after months unused. The
+Search screen then says so, and the figures stop at the last sync. A site admin connects
+again from **Settings**; the data already synced stays.
+
+### Disconnect
+
+**Settings**, then **Disconnect Search Console**. Micaforge asks Google to revoke its access
+and deletes the stored grant. The data already synced stays in the reports, and reappears if
+the same property is connected again.
+
+## What Micaforge stores
+
+- **The Google grant**: a refresh token, encrypted at rest (XChaCha20-Poly1305, with a key
+  derived from `MICAFORGE_SECRET_KEY_BASE` and bound to the site, so it is useless in any
+  other row). Access tokens are made from it for each sync and never stored. It is not a
+  sign-in: it is never used to identify a person, and no profile is asked for.
+- **The search data**: per day, search term, page, country and device, the clicks,
+  impressions and position Google reports, in ClickHouse beside the site's events. Search
+  Console data is aggregated by Google and holds no visitor. It follows the install's
+  [retention](/docs/privacy/data-retention) setting like every other table.
+
+## Set it up on your own install
+
+The operator creates one Google OAuth client for the whole install.
+
+1. In the [Google Cloud console](https://console.cloud.google.com/), choose or create a
+   project and turn on the **Google Search Console API** under APIs and services.
+2. Configure the **OAuth consent screen**. Add the scope
+   `https://www.googleapis.com/auth/webmasters.readonly`. While the app is in testing, only
+   the test users you list can connect; Google reviews apps that ask for this scope before
+   anybody else can.
+3. Create an **OAuth client ID** of type **Web application**, with this authorised redirect
+   address (your `MICAFORGE_PUBLIC_URL`, then the path):
+
+   ```text
+   https://analytics.example.com/api/search-console/callback
+   ```
+
+   The Search screen's **Settings** tab shows the exact address for your install.
+4. Set the two variables and restart:
+
+   ```sh
+   MICAFORGE_SEARCH_CONSOLE_CLIENT_ID=1234-abc.apps.googleusercontent.com
+   MICAFORGE_SEARCH_CONSOLE_CLIENT_SECRET=GOCSPX-…
+   ```
+
+Set both or neither; one alone stops the server at boot with the missing one named.
+
+This is a separate client from [Google sign-in](/docs/self-hosting/google-and-github-sign-in).
+Sign-in uses only scopes Google does not review; Search Console's scope puts the consent
+screen it is added to through Google's review. Two clients keep sign-in working while that
+review runs, and let an install offer one without the other. If you prefer one client, paste
+it into both pairs and register both redirect addresses on it.
+
+## From the API and from an agent
+
+The same figures are in the [stats API](/docs/api/stats-api) under `/api/stats/search/*`
+(an API key needs `stats:read`), and in the [MCP server](/docs/api/mcp-server) as
+`get_search_overview`, `get_search_queries` and `get_search_breakdown`. The
+[AI analyst](/docs/dashboard/ask-ai) reads them too, so "which search terms bring people to
+the pricing page?" is a question it can answer. Connecting a property is a person's act and
+is not open to API keys or agents.

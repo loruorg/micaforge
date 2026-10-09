@@ -1,0 +1,162 @@
+---
+title: "Vercel log drains"
+description: "Record AI crawler traffic on a Vercel site from Vercel's own request log, with no change to the site."
+group: "agents"
+order: 7
+updated: 2026-10-08
+---
+
+A site on Vercel has no access log for the log shipper to follow, and a static site has no
+server for a middleware either. Vercel still answered every crawler request, and it can
+send its request log to an address you choose. A log drain is that address: Vercel posts
+its logs to Micaforge, and Micaforge records the AI crawler requests in them.
+
+Nothing changes in the site's code. Log drains need a Vercel Pro or Enterprise plan.
+
+## 1. Create the drain in Micaforge
+
+Open the site's settings, then **Log drains**, then **Create the drain**. Micaforge shows
+two values:
+
+- **The drain URL**, `https://<your Micaforge host>/api/log/vercel/<drain id>`. This is
+  where Vercel sends the logs. It is not a secret.
+- **The signature secret**, which starts with `mfd_`. Vercel signs every delivery with it,
+  and Micaforge refuses a delivery whose signature does not verify.
+
+The secret is shown once. Micaforge stores it sealed and never sends it back, so copy it
+before you close the panel. If you lose it, rotate it (see below) and paste the new one
+into Vercel.
+
+You need the `admin` role on the site. An API key cannot create a drain or read its secret.
+
+## 2. Create the drain in Vercel
+
+In Vercel, open **Team Settings**, then **Drains**, then **Add Drain**, and fill in the
+form like this:
+
+| Field | Value |
+| --- | --- |
+| Data type | Logs. |
+| Projects | The project that serves this site. |
+| Sources | Every source that answers a request: `static`, `lambda`, `edge`, `external`, `redirect` and `firewall`. The `build` source adds nothing. |
+| Environments | Production. Preview addresses are not one of the site's domains, so their requests are counted as rejected and not recorded. |
+| Sampling | None, so that every request is sent. A sampled drain records only the sampled share of the crawler traffic. |
+| Destination | Custom endpoint. |
+| Endpoint URL | The drain URL from step 1. |
+| Format | JSON or NDJSON. Micaforge reads both, and tells them apart by the content. |
+| Signature verification secret | Replace the secret Vercel generated with the secret from step 1. |
+
+Vercel tests the endpoint when you create the drain. The test delivery is signed with
+the secret you entered, so it passes as soon as the secret is right.
+
+### If Vercel asks you to verify the URL
+
+Some Vercel flows, including the older log drain integration and the Terraform provider,
+first check that you own the endpoint. They ask the endpoint to send back a token in an
+`x-vercel-verify` response header. If Vercel shows you such a token, paste it into the
+drain's **Ownership token** field in Micaforge and save. Micaforge then answers the
+check, and adds the header to every later answer for that drain.
+
+Leave the field empty if Vercel does not ask. Keep the signature secret set in Vercel in
+either case: Micaforge records nothing from a delivery that is not signed.
+
+## 3. Check that it works
+
+The drain shows **Last delivery** with a time as soon as a signed delivery arrives. The
+time is updated at most once a minute. AI crawler requests then appear on the AI crawlers
+screen, like the requests from the log shipper.
+
+If the drain still shows **No delivery received yet**:
+
+- A `401` in Vercel's drain status means that the signature did not verify. Paste the
+  secret into Vercel again, or rotate it and paste the new one.
+- No delivery at all means that Vercel sends nothing for the sources and environments you
+  selected. Check them against the table above.
+
+## What is recorded
+
+Each log entry that describes a request goes through the same rules as the log shipper:
+
+- **A named AI crawler** (GPTBot, ClaudeBot, PerplexityBot and the rest of the catalog) is
+  recorded as an agent request, with the operator, the purpose, the address check against
+  the operator's published ranges, and your `robots.txt` and `llms.txt` decisions.
+- **Another automated client** that the catalog cannot name is kept as a bot request, with
+  the reasons it was classed as one.
+- **A person is skipped.** The tracker on your pages already counts people, with a session
+  and a referrer that a log line does not have. Counting them again from the log would
+  count every reader twice.
+
+From each request Micaforge takes the time, the method, the host, the path and query, the
+status, the response size, the user agent and the client address. The address is checked
+against published ranges, hashed with a salt that rotates daily, and dropped. Vercel can
+hide client addresses for the whole team (**Security & Privacy**, **IP Address
+Visibility**). Crawler requests are still recorded then, but none of them can be verified.
+
+## Limits and rules
+
+- **GET and HEAD only.** A crawl is a read. Other methods are skipped, which is also the
+  log shipper's default.
+- **Entries without a request are skipped.** Build output and the lines your functions
+  print have no request section.
+- **Background revalidations are skipped.** Vercel reports them with status `-1`. They are
+  Vercel refreshing its own cache, not a request from a client.
+- **One request is counted once.** A function that prints several lines produces several
+  log entries for one request. Micaforge counts the request once, by Vercel's request id.
+- **Repeats are not counted.** A delivery that arrives twice within ten minutes is answered
+  and not recorded again.
+- **Size.** Vercel sends batches of up to 1 MB. Micaforge accepts up to 2 MB per delivery,
+  and up to 8 MB after decompression when the delivery is gzip-compressed.
+- **Rate.** Up to 600 deliveries a minute per drain. A delivery over the limit is answered
+  `429`.
+- **Count.** Up to 10 drains per site.
+
+## Rotating and deleting
+
+**Rotate the secret** issues a new secret and shows it once. The old secret stops working
+immediately, so Vercel's deliveries are refused until you paste the new secret into the
+drain in Vercel. Nothing already recorded changes.
+
+**Delete this drain** stops accepting deliveries to its URL immediately. The crawler
+requests already recorded stay. Delete the drain in Vercel as well, or Vercel reports every
+delivery as failed.
+
+Both actions ask you to type the drain's short name to confirm.
+
+## The API
+
+The settings screen uses these routes. All of them need the `admin` role on the site.
+
+```
+GET    /api/sites/:site/log-drains                  every drain of the site, without secrets
+POST   /api/sites/:site/log-drains                  { provider?: "vercel", verify_token? } → drain + secret
+POST   /api/sites/:site/log-drains/:drain/rotate    → drain + new secret
+PATCH  /api/sites/:site/log-drains/:drain           { verify_token: string | null }
+DELETE /api/sites/:site/log-drains/:drain
+```
+
+A drain is `{ id, provider, url, verify_token, created_by, created_at, last_received_at }`.
+The create and rotate answers add `secret` and `signature_header`. No other answer
+contains the secret.
+
+The intake is `POST /api/log/vercel/:drain`. The `x-vercel-signature` header must hold the
+hex HMAC-SHA1 of the raw body, keyed with the drain's secret. An unknown drain and a wrong
+signature get the same `401`. A signed delivery gets `200` with the counts:
+
+```json
+{
+  "data": {
+    "duplicate": false,
+    "entries": 120,
+    "agents": 14,
+    "bots": 3,
+    "people": 96,
+    "rejected": 0,
+    "skipped": 7,
+    "repeats": 0
+  }
+}
+```
+
+`rejected` counts requests to a host that is not one of the site's domains, or to an
+excluded path. `skipped` counts entries that were not a usable request. `repeats` counts
+requests already recorded from an earlier entry.

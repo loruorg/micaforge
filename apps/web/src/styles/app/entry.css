@@ -606,3 +606,19 @@
 .mf-entry__card .mf-form__foot .mf-btn--primary { width: 100%; min-height: 40px; font-size: var(--mf-t-base); }
 .mf-entry__card .mf-form__foot .mf-btn--quiet { justify-content: center; }
 .mf-entry__card .mf-input--code { max-width: none; text-align: center; }
+
+/* ── another way in: the provider buttons under the code form ─────────────
+   A ruled "or" divides them from the code form, so they read as a second
+   door and not as a step of the first. Each button is a plain link: the
+   browser goes to the provider and back, with no script in between. */
+.mf-oauth { display: grid; gap: var(--mf-2); }
+.mf-oauth__or {
+  display: flex;
+  align-items: center;
+  gap: var(--mf-3);
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+}
+.mf-oauth__or::before,
+.mf-oauth__or::after { content: ""; flex: 1; border-top: 1px solid var(--mf-rule); }
+.mf-oauth .mf-btn { width: 100%; min-height: 40px; justify-content: center; font-size: var(--mf-t-base); }

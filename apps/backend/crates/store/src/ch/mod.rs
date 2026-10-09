@@ -9,14 +9,24 @@
 //! is validated against `[A-Za-z0-9_]` before it is used, because it arrives
 //! from an environment variable and an environment variable is still an input.
 
+mod flag_rows;
 mod rows;
 mod schema;
 
+pub use flag_rows::FlagEventRow;
 pub use rows::{
     country_code, country_str, decimal64_4, from_decimal64_4, AgentEventRow, BotEventRow, ErrorRow,
     EventRow, ImportRawRow, PageIndexRow, ReplayRow,
 };
 pub use schema::{TableDef, SESSIONS_VIEW, TABLES};
+
+mod monitoring_growth;
+pub use monitoring_growth::{insert_rows, LinkClickRow, RevenueRow, UptimeCheckRow};
+
+mod search_console_rows;
+pub use search_console_rows::SearchConsoleRow;
+mod mcp_rows;
+pub use mcp_rows::McpCallRow;
 
 use micaforge_core::{Error, Result};
 

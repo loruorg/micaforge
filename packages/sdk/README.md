@@ -71,14 +71,18 @@ micaforge.track("signup", { plan: "pro" });
 micaforge.pageview(); // send one by hand
 micaforge.pageview({ url: "https://example.com/virtual/step-2" });
 micaforge.identify("u_123", { plan: "pro" }); // attach an id to later events
+micaforge.setTraits({ plan: "team" }); // record traits on the profile only
 micaforge.setProps({ theme: "dark" }); // merged into every later event
 micaforge.optOut(); // stop, on this browser, until optIn()
 micaforge.optIn();
 micaforge.isOptedOut(); // -> boolean
 micaforge.flush(); // report engagement time and vitals now
+await micaforge.checkoutRef(); // this visit's "mfr_…" reference for a Stripe or Paddle checkout
 ```
 
-`identify()` does not send an event of its own. The id rides along with the next one.
+`identify()` and `setTraits()` send one small `identify` event when the id or the traits
+change, so the server can keep the trait history and link today's visitor hash to the id.
+A repeat of the same call sends nothing, and `identify(null)` sends nothing.
 
 ---
 
@@ -96,15 +100,32 @@ value: `data-forms` on its own means the same as `data-forms="true"`.
 | `data-spa` | `true` | Follow client-side navigation: patches `pushState` and `replaceState`, listens for `popstate` and `hashchange`. Repeat URLs are never sent twice. |
 | `data-outbound` | `true` | Report a click on a link that leaves your site. Subdomains of your own site are not outbound. |
 | `data-downloads` | `true` | Report a click on a file link. A comma list sets the extensions: `data-downloads="pdf,zip,dmg"`. One extension on its own needs a leading dot, as in `data-downloads=".dmg"`, so that `data-downloads="off"` stays unambiguous. |
-| `data-forms` | `false` | Report a form submit. The form's `id` or `name` is sent, and nothing else. Field values never leave the page. |
-| `data-404` | `false` | Report a not-found page. See [404 pages](#404-pages). |
+| `data-forms` | `false` | Report a form submit. The form's `id` or `name` is sent, and nothing else. Field values never leave the page. Loads the `forms` plugin. |
+| `data-404` | `false` | Report a not-found page. See [404 pages](#404-pages). Loads the `track404` plugin. |
 | `data-hash` | `false` | Treat the URL hash as part of the page identity, for hash routers. |
 | `data-exclude` | none | Comma-separated glob paths that are never reported: `data-exclude="/admin/**, /preview/*"`. `*` matches one segment, `**` matches any depth, `?` matches one character. |
 | `data-respect-dnt` | `false` | Send nothing when `navigator.doNotTrack` is `"1"`. |
-| `data-vitals` | `true` | Collect LCP, CLS, INP, FCP and TTFB, and report them once per page. |
+| `data-vitals` | `true` | Collect LCP, CLS, INP, FCP and TTFB, and report them once per page. Loads the `vitals` plugin. |
 | `data-scroll` | `true` | Track the deepest scroll position reached on each page. |
 | `data-engagement` | `true` | Track how long each page was actually visible. |
 | `data-debug` | `false` | Log every payload to the console, and report from `localhost` and `file://` too. |
+| `data-sample` | everyone | Keep this percent of visitors (`0`-`100`), drawn in the browser per visitor and day from the date and the user agent. Nothing is stored; the rate is sent as `sr`. |
+| `data-mask` | none | Comma-separated path globs reported as the glob itself: `data-mask="/users/*"` sends `/users/*`, never the id. Applies to the page and the referrer. |
+| `data-strip-query` | off | On its own, drop the whole query string. With a list, drop those parameters: `data-strip-query="token,email"`. |
+| `data-errors` | `false` | Capture uncaught errors and unhandled rejections. Loads the `errors` plugin. |
+| `data-release` | none | Your release name, sent with every captured error. |
+| `data-frustration` | `false` | Report rage clicks, dead clicks and abandoned forms (form id and the last field's name only). Loads the `frustration` plugin. |
+| `data-tags` | `false` | Send a custom event for every click on an element with `data-track="name"`, with its `data-track-*` attributes as properties. Loads the `tags` plugin. |
+
+### Plugins
+
+The core (`/mf.js`) stays under 3 KB. Every optional capability is a plugin, a second
+small file the core appends to the page only when its attribute asks for it, served from
+`/api/track/p/<name>.js` on the ingest host: `vitals` (on by default), `errors`,
+`frustration`, `forms`, `track404` and `tags`. A plugin sends through the core, so it
+passes the same opt-out, sample, exclude and mask rules as a pageview, and a browser that
+would send nothing loads none of them. Each plugin has its own gzip budget in
+`scripts/size.mjs`.
 
 A tracker with everything on:
 
@@ -301,14 +322,18 @@ an RSS item, or a `<noscript>` block. The keys are the ones in the table below.
 
 The flag client answers synchronously and deterministically, so a flag holds the same
 value on the first render as on the tenth. Before the network answers, and if it never
-answers, the value comes from the bootstrap payload your server rendered into the page,
-or from a local rule bucketed by `hash(visitor + ":" + key)`.
+answers, the value comes from a ruleset you hand it (`rules`), the bootstrap payload your
+server rendered into the page, or a local fallback rule. Local decisions run the same
+evaluator as the Micaforge server, with the server's own bucketing hash, so a fallback
+rule that mirrors a flag's settings gives each visitor the server's answer.
 
 ```ts
 import { flags } from "@micaforge/sdk";
 
 const f = flags({
   visitor: currentUser.id, // any stable string; without one, bucketing is stable for this page load only
+  environment: "production", // flags can override their settings per environment
+  context: { plan: currentUser.plan, country: "PT" }, // what conditions and target groups test
   bootstrap: window.__FLAGS__, // optional, rendered by your server
   fallback: {
     "new-nav": { rolloutPct: 50 },
@@ -323,10 +348,22 @@ await f.load(); // refresh from the server; never rejects
 f.onChange((all) => rerender(all));
 ```
 
-The client reads `GET /api/flags/evaluate?site=<id>&visitor=<subject>` and accepts
-`{ "data": { "flags": {...} } }`, `{ "data": {...} }` or a bare map. Each entry may be
-`true`, a variant string, or `{ enabled, variant, payload }`. Nothing is cached to disk:
-the cache lives in memory for `ttlMs` (60s by default).
+The client reads `GET /api/flags/evaluate?site=<id>&visitor=<subject>` (plus `identity`,
+`environment` and `context` when set) and accepts `{ "data": { "flags": {...} } }`,
+`{ "data": {...} }` or a bare map. Each entry may be `true`, a variant string, or
+`{ enabled, variant, payload }`. Nothing is cached to disk: the cache lives in memory for
+`ttlMs` (60s by default).
+
+**Stats.** The client counts each evaluated set and the first read of each flag on a
+page (an exposure) and sends the counts in one `text/plain` beacon to
+`POST /api/flags/events` ten seconds after the first one, and when the page is hidden. The
+flag's screen in the dashboard draws them per variant over time. `stats: false` turns
+this off; `f.flushStats()` sends now.
+
+**The evaluator on its own.** `evaluateFlag(ruleset, key, { subject, context,
+environment })`, `evaluateFlags` and `flagBucket` are exported for code that has a ruleset
+(from `GET /api/flags/ruleset`) and wants decisions without a client, such as an edge
+function.
 
 ---
 
@@ -353,7 +390,7 @@ your page. The full shape is `docs/CONTRACT.md` section 4.
 | Key | Meaning |
 | --- | --- |
 | `s` | site id |
-| `t` | kind: `pageview`, `custom`, `outbound`, `file_download`, `form`, `error`, `web_vitals`, `engagement` |
+| `t` | kind: `pageview`, `custom`, `outbound`, `file_download`, `form`, `error`, `web_vitals`, `engagement`, `identify`, `frustration` |
 | `n` | event name, for custom events and auto-captured ones |
 | `u` | the page URL |
 | `r` | `document.referrer` |
@@ -367,6 +404,7 @@ your page. The full shape is `docs/CONTRACT.md` section 4.
 | `id` | the id from `identify()` |
 | `v` | SDK version |
 | `e` | web vitals, once per page |
+| `sr` | the `data-sample` rate, only from a sampled visitor |
 
 Empty, zero and absent fields are left out rather than sent.
 
@@ -381,15 +419,17 @@ the raw IP on an event row.
 
 ```sh
 npm run build      # esbuild -> dist, then declarations, then the size gate
-npm run size       # gzipped size of dist/mf.js, fails over 3072 bytes
+npm run size       # gzipped size of dist/mf.js (fails over 3072 bytes) and of each plugin
 npm run typecheck
 npm test           # vitest
 ```
 
 `src/core.ts` is the engine that both the script tag and the npm package use.
 `src/tracker/index.ts` is the script-tag layer that reads the `data-*` attributes and
-publishes the global. The tests stub the browser globals by hand rather than using jsdom,
-so the tracker cannot quietly start depending on a global it has not declared.
+publishes the global. `src/plugins/*` are the plugins. The core's tests stub the browser
+globals by hand rather than using jsdom, so the tracker cannot quietly start depending on
+a global it has not declared; the plugin tests run in jsdom, because reading the DOM is
+their whole job.
 
 The size budget is real. If a change pushes `dist/mf.js` over 3072 bytes gzipped, the
 build fails, and the fix is to make the tracker smaller rather than to raise the number.

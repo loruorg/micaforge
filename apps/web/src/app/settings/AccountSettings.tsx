@@ -38,6 +38,7 @@ import {
   TextInput,
   errText,
 } from "./SettingsLayout";
+import { SignInMethods } from "./SignInMethods";
 
 interface Me {
   id: string;
@@ -331,6 +332,8 @@ export function AccountSettings() {
           }
         </QueryState>
       </Panel>
+
+      <SignInMethods email={me.data?.email} />
 
       <Panel>
         <PanelHead

@@ -209,6 +209,11 @@ pub struct EventRow {
     pub import_id: Option<Uuid>,
     /// Version of the tracker that sent the hit.
     pub sdk_version: String,
+    /// The percentage of visitors the site's tracker keeps (`data-sample`),
+    /// 1-100. A report over rows below 100 is a sample and says so; the rate is
+    /// on the row rather than on the site because a site can change it, and a
+    /// window that spans the change holds rows at both rates.
+    pub sample_rate: u8,
 }
 
 impl Default for EventRow {
@@ -281,6 +286,8 @@ impl Default for EventRow {
             ttfb: None,
             import_id: None,
             sdk_version: String::new(),
+            // Everyone: only a hit that says otherwise is a sample.
+            sample_rate: 100,
         }
     }
 }
@@ -618,7 +625,8 @@ mod tests {
         // the check that a rename in Rust cannot quietly rename a column.
         assert_eq!(EventRow::COLUMN_NAMES[0], "site_id");
         assert_eq!(EventRow::COLUMN_NAMES[1], "timestamp");
-        assert_eq!(EventRow::COLUMN_NAMES.len(), 60);
+        assert_eq!(EventRow::COLUMN_NAMES.len(), 61);
+        assert_eq!(EventRow::COLUMN_NAMES[60], "sample_rate");
         assert_eq!(AgentEventRow::COLUMN_NAMES.len(), 22);
         assert_eq!(BotEventRow::COLUMN_NAMES.len(), 21);
         // `type` is a Rust keyword, so the field is renamed for serde and the

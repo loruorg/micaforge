@@ -11,6 +11,11 @@
  * `identified_id` beside the daily hash). Those rows are shown as anonymous and
  * do not open a profile: the profile reads and erases by the named id, so a
  * link to it from a hash would open an empty page.
+ *
+ * The search finds a person by their id or by anything in their traits, an
+ * email address say (`GET /api/stats/profiles?q=`), across the site's whole
+ * retained history rather than the selected period: someone looking for a
+ * customer does not know which week they last visited.
  */
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router";
@@ -38,6 +43,18 @@ import {
   useEnvelope,
 } from "./SessionsScreen";
 import "../../styles/app/people.css";
+import "../../styles/app/profiles.css";
+
+/** One search result from `GET /api/stats/profiles?q=`. */
+interface ProfileHit {
+  identified_id: string;
+  traits: Record<string, unknown>;
+  last_seen: string;
+  visitors: number;
+}
+
+/** The fewest characters the server searches for. */
+const MIN_SEARCH = 2;
 
 export interface VisitorRow {
   identified_id: string;
@@ -73,8 +90,8 @@ export function IdentifyEmpty({ searched }: { searched?: string }) {
   if (searched) {
     return (
       <Empty
-        title="No named visitor matches that"
-        body={<>No visitor in this period has an id containing “{searched}”. Clear the search to see every named visitor.</>}
+        title="Nobody matches that"
+        body={<>No person your site identified has an id or a trait containing “{searched}”. Clear the search to see every visitor.</>}
       />
     );
   }
@@ -106,23 +123,68 @@ export function VisitorsScreen() {
   }, [range, audience, filterKey, findApplied]);
 
   const env = useEnvelope({ limit: PEOPLE_PAGE_SIZE, page });
-  const envelope: Envelope = {
-    ...env,
-    filters: [
-      ...((env.filters as Filter[]) ?? []),
-      ...(findApplied ? [{ dimension: "identified_id", op: "contains", value: findApplied } as Filter] : []),
-    ],
-  };
+  const envelope: Envelope = { ...env, filters: (env.filters as Filter[]) ?? [] };
+  const searching = findApplied.length >= MIN_SEARCH;
 
   const q = useQuery({
     queryKey: statsKey("visitors", siteId, range, audience, envelope.filters, page),
     queryFn: () => api.get<unknown>("/api/stats/visitors", envelope),
-    enabled: siteId != null,
+    enabled: siteId != null && !searching,
     placeholderData: keepPreviousData,
+  });
+
+  const found = useQuery({
+    queryKey: ["stats", "profiles", siteId, findApplied],
+    queryFn: () =>
+      api
+        .get<{ rows: ProfileHit[] }>("/api/stats/profiles", {
+          site: siteId as number,
+          range: "all",
+          q: findApplied,
+        })
+        .then((r) => r.data?.rows ?? []),
+    enabled: siteId != null && searching,
   });
 
   const rows = useMemo(() => asRows<VisitorRow>(q.data?.data, "visitors"), [q.data]);
   const total = totalOf(q.data?.data);
+
+  const hitColumns: Column<ProfileHit>[] = [
+    {
+      key: "id",
+      head: "Person",
+      render: (r) => (
+        <Link
+          className="mf-data"
+          to={`${base}/visitors/${encodeURIComponent(r.identified_id)}`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {r.identified_id}
+        </Link>
+      ),
+    },
+    {
+      key: "traits",
+      head: "Traits",
+      render: (r) => {
+        const s = traitSummary(r.traits);
+        return <span className="mf-p-dim">{s || "—"}</span>;
+      },
+    },
+    {
+      key: "last",
+      head: "Last identified",
+      width: "16ch",
+      render: (r) => <span title={stampAt(r.last_seen, timezone)}>{ago(toMs(r.last_seen))}</span>,
+    },
+    {
+      key: "days",
+      head: "Days linked",
+      numeric: true,
+      width: "11ch",
+      render: (r) => <span className="mf-data">{num(r.visitors)}</span>,
+    },
+  ];
 
   const columns: Column<VisitorRow>[] = [
     {
@@ -213,8 +275,8 @@ export function VisitorsScreen() {
                 <input
                   type="search"
                   value={find}
-                  placeholder="Id contains…"
-                  aria-label="Find a visitor by the id your site passed to identify()"
+                  placeholder="Email, id or trait…"
+                  aria-label="Find a person by the id or any trait your site passed to identify() or setTraits(), such as an email address"
                   onChange={(e) => setFind(e.target.value)}
                   onBlur={() => setFindApplied(find.trim())}
                 />
@@ -234,7 +296,24 @@ export function VisitorsScreen() {
           }
         />
 
-        {q.isError ? (
+        {findApplied && !searching ? (
+          <p className="mf-pr-hint">Type at least {MIN_SEARCH} characters to search.</p>
+        ) : null}
+
+        {searching ? (
+          found.isError ? (
+            <ErrorState detail={apiMessage(found.error)} onRetry={() => found.refetch()} />
+          ) : (
+            <Sheet
+              rows={found.data ?? []}
+              columns={hitColumns}
+              loading={found.isPending}
+              getKey={(r) => r.identified_id}
+              onRowClick={(r) => navigate(`${base}/visitors/${encodeURIComponent(r.identified_id)}`)}
+              empty={<IdentifyEmpty searched={findApplied} />}
+            />
+          )
+        ) : q.isError ? (
           <ErrorState detail={apiMessage(q.error)} onRetry={() => q.refetch()} />
         ) : (
           <>

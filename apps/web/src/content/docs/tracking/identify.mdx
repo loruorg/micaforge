@@ -1,9 +1,9 @@
 ---
-title: "identify()"
-description: "Attaching your own id to events, and the privacy trade you make when you do."
+title: "identify() and setTraits()"
+description: "Attaching your own id to events, recording traits and their history, and the privacy trade you make when you do."
 group: "tracking"
 order: 3
-updated: 2026-08-22
+updated: 2026-10-08
 ---
 
 Micaforge is cookieless by default. A visitor is a daily-rotating salted hash and nothing
@@ -19,7 +19,8 @@ micaforge.identify("u_123", { plan: "pro" });
 ```
 
 The id is written to `identified_id` on every event sent afterwards. A second argument is
-merged into the default properties, exactly as `setProps` would.
+merged into the default properties, exactly as `setProps` would, and recorded as the
+person's traits.
 
 Clear it on sign-out:
 
@@ -27,11 +28,42 @@ Clear it on sign-out:
 micaforge.identify(null);
 ```
 
+## setTraits()
+
+Record traits without changing the id or the default properties:
+
+```js
+micaforge.setTraits({ plan: "team", seats: 12 });
+```
+
+Use it when something about the person changes mid-session: an upgrade, a role change. The
+traits are recorded on the profile and nowhere else; they are not added to every event.
+
+## What identify() sends
+
+Each `identify()` or `setTraits()` call that changes something sends one small `identify`
+event carrying the id and the traits passed with that call. A repeat of the same call (a
+router effect that runs on every navigation) sends nothing. `identify(null)` sends nothing.
+
+That event is what the server builds the profile from:
+
+- **Trait history.** Every call that changed a trait is kept with the time it arrived, so a
+  profile shows when the plan changed, not only what it is now. The current traits are
+  the calls folded in order, the later value winning.
+- **Linked visitors.** The call carries that day's visitor hash, and the server links the
+  two. The profile then shows the sessions recorded under that hash earlier the same day,
+  before the call: what the person did before they signed in. Only what your own
+  `identify()` call ties together is linked. Micaforge never links two hashes by guessing,
+  and a hash from a day with no `identify()` call stays anonymous.
+- **Search.** On the Visitors screen, the search box finds a person by their id or by any
+  trait, an email address for example.
+
 ## What changes when you use it
 
 - Events from the same account join up across days and devices, which the visitor hash
   cannot do.
-- The visitor screens can show a profile: sessions, first seen, last seen, traits.
+- The visitor screens can show a profile: sessions, first seen, last seen, traits, their
+  history, and the anonymous sessions linked to the id.
 - `identified_id` becomes a filter dimension like any other.
 
 ## What it costs
@@ -44,8 +76,14 @@ none, and this is the one call that changes that, so it is worth being deliberat
   on its own.
 - **Say so.** An identified analytics stream belongs in your privacy notice. See
   [GDPR](/docs/privacy/gdpr) for what the rest of the system does and does not store.
+- **Traits are personal data too.** An email address in a trait is stored on the profile
+  and is what makes the email search work. If you do not need to find people by email,
+  do not send it.
 - **Retention still applies.** Identified rows expire with everything else under your
   [retention setting](/docs/privacy/data-retention).
+- **Erasure reaches everything linked.** Erasing a person by their id on the visitor screen
+  deletes their identified events, their trait history, and the anonymous activity of every
+  daily hash an `identify()` call linked to them.
 
 ## From the server
 
@@ -66,4 +104,5 @@ micaforge.track({
 
 It is not a login, not a cross-site identifier and not a way to un-hash a visitor. Events
 sent before the call keep the visitor hash they had; identifying does not go back and
-relabel history.
+relabel history. The profile links those earlier sessions to the id by reading the
+`identify` event, and only for the day hash that event carried.

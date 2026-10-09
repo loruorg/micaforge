@@ -116,6 +116,50 @@ pub const RECURRING: &[Recurring] = &[
         every: Duration::from_secs(7 * 24 * 60 * 60),
         first_after: Duration::from_secs(55 * 60),
     },
+    // Investigations every six hours: a week-over-week change does not move
+    // faster than that, and each scan may spend the model's allowance.
+    Recurring {
+        kind: Kind::Investigate,
+        every: Duration::from_secs(6 * 60 * 60),
+        first_after: Duration::from_secs(65 * 60),
+    },
+    // Hourly, so Monday 08:00 arrives on time in every site's own zone.
+    Recurring {
+        kind: Kind::InsightDigest,
+        every: Duration::from_secs(60 * 60),
+        first_after: Duration::from_secs(75 * 60),
+    },
+    // Every minute: the shortest interval a monitor may ask for. The sweep is
+    // one Postgres `EXISTS` on an install with no monitor, and only monitors
+    // that are due are checked, so the cadence costs nothing when idle.
+    Recurring {
+        kind: Kind::RunUptimeChecks,
+        every: Duration::from_secs(60),
+        first_after: Duration::from_secs(45),
+    },
+    // Yesterday's blocked counts are complete once the UTC day has turned, so
+    // a daily sweep at any hour reads a whole day.
+    Recurring {
+        kind: Kind::NotifyBlockedTraffic,
+        every: Duration::from_secs(24 * 60 * 60),
+        first_after: Duration::from_secs(85 * 60),
+    },
+    // Hourly: a usage email an hour late is still the same month's news, and
+    // the meter is two counts per organisation.
+    Recurring {
+        kind: Kind::MeterUsage,
+        every: Duration::from_secs(60 * 60),
+        first_after: Duration::from_secs(20 * 60),
+    },
+    // Daily: Google publishes a day's Search Console data a day or two late
+    // and revises the last three, which each run fetches again. Nothing is
+    // fetched for a site that has not connected Search Console, and nothing
+    // at all when it is not configured.
+    Recurring {
+        kind: Kind::SyncSearchConsole,
+        every: Duration::from_secs(24 * 60 * 60),
+        first_after: Duration::from_secs(105 * 60),
+    },
 ];
 
 /// Seed the recurring jobs, idempotently.

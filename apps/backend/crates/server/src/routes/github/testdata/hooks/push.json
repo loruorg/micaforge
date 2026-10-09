@@ -1,0 +1,66 @@
+{
+  "ref": "refs/heads/main",
+  "before": "9049f1265b7d61be4a8904a9a27120d2064dab3b",
+  "after": "0d1a26e67d8f5eaf1f6ba5c57fc3c7d91ac0fd1c",
+  "created": false,
+  "deleted": false,
+  "forced": false,
+  "base_ref": null,
+  "compare": "https://github.com/acme/site/compare/9049f1265b7d...0d1a26e67d8f",
+  "commits": [
+    {
+      "id": "6113728f27ae82c7b1a177c8d03f9e96e0adf246",
+      "tree_id": "4b825dc642cb6eb9a060e54bf8d69288fbee4904",
+      "distinct": true,
+      "message": "Move the pricing table above the fold\n\nThe table was below three screens of copy.",
+      "timestamp": "2026-10-06T09:58:01+02:00",
+      "url": "https://github.com/acme/site/commit/6113728f27ae82c7b1a177c8d03f9e96e0adf246",
+      "author": { "name": "Ada Example", "email": "ada@example.com", "username": "ada-example" },
+      "committer": { "name": "Ada Example", "email": "ada@example.com", "username": "ada-example" },
+      "added": [],
+      "removed": [],
+      "modified": ["src/pages/pricing.astro"]
+    },
+    {
+      "id": "0d1a26e67d8f5eaf1f6ba5c57fc3c7d91ac0fd1c",
+      "tree_id": "5b825dc642cb6eb9a060e54bf8d69288fbee4904",
+      "distinct": true,
+      "message": "Ship the new pricing page",
+      "timestamp": "2026-10-06T10:00:12+02:00",
+      "url": "https://github.com/acme/site/commit/0d1a26e67d8f5eaf1f6ba5c57fc3c7d91ac0fd1c",
+      "author": { "name": "Ada Example", "email": "ada@example.com", "username": "ada-example" },
+      "committer": { "name": "GitHub", "email": "noreply@github.com", "username": "web-flow" },
+      "added": [],
+      "removed": [],
+      "modified": ["src/pages/pricing.astro"]
+    }
+  ],
+  "head_commit": {
+    "id": "0d1a26e67d8f5eaf1f6ba5c57fc3c7d91ac0fd1c",
+    "tree_id": "5b825dc642cb6eb9a060e54bf8d69288fbee4904",
+    "distinct": true,
+    "message": "Ship the new pricing page",
+    "timestamp": "2026-10-06T10:00:12+02:00",
+    "url": "https://github.com/acme/site/commit/0d1a26e67d8f5eaf1f6ba5c57fc3c7d91ac0fd1c",
+    "author": { "name": "Ada Example", "email": "ada@example.com", "username": "ada-example" },
+    "committer": { "name": "GitHub", "email": "noreply@github.com", "username": "web-flow" },
+    "added": [],
+    "removed": [],
+    "modified": ["src/pages/pricing.astro"]
+  },
+  "repository": {
+    "id": 700123,
+    "node_id": "R_kgDOAAqwmw",
+    "name": "site",
+    "full_name": "acme/site",
+    "private": true,
+    "owner": { "login": "acme", "id": 9001, "type": "Organization" },
+    "html_url": "https://github.com/acme/site",
+    "default_branch": "main",
+    "pushed_at": 1791273612,
+    "created_at": 1700000000
+  },
+  "pusher": { "name": "ada-example", "email": "ada@example.com" },
+  "sender": { "login": "ada-example", "id": 4242, "type": "User" },
+  "installation": { "id": 42, "node_id": "MDIzOkludGVncmF0aW9uSW5zdGFsbGF0aW9uNDI=" }
+}

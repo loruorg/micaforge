@@ -97,6 +97,17 @@ pub const INGEST_BUDGET: Duration = Duration::from_secs(5);
 /// the import upload, which streams gigabytes and has no budget at all.
 pub const API_BUDGET: Duration = Duration::from_secs(30);
 
+/// The budget for a question to the AI analyst, from the dashboard or through
+/// the MCP `ask` tool.
+///
+/// A question is several model calls with reads between them, and a model
+/// call alone may take most of a minute, so the ordinary thirty seconds would
+/// cut off answers that are working as designed. The analyst holds its own
+/// deadline inside this one ([`crate::routes::ai::ASK_DEADLINE`]), so a slow
+/// question ends with an answer that says so rather than with this `503`, and
+/// both sit under the 120-second read timeout the shipped proxy allows.
+pub const AI_BUDGET: Duration = Duration::from_secs(115);
+
 /// How long the limiter waits for Valkey before it lets the request through.
 ///
 /// A healthy round trip is well under a millisecond. Anything slower than this
@@ -127,7 +138,11 @@ pub fn is_collection_path(path: &str) -> bool {
             | "/mf.js"
             | "/mf.min.js"
             | "/api/flags/evaluate"
-    )
+            | "/api/flags/events"
+            | crate::routes::model_context::INTAKE_PATH
+    ) || crate::routes::log_drain::is_drain_path(path)
+        // The tracker's plugins: static files the page asks for, like `/mf.js`.
+        || path.starts_with("/api/track/p/")
 }
 
 /// A warning written at most once per interval.
@@ -378,7 +393,9 @@ async fn bounded(budget: Duration, req: Request, next: Next) -> Response<Body> {
                 budget_ms = budget.as_millis() as u64,
                 "a request ran past its time budget and was stopped"
             );
-            crate::routes::ingest::timed_out(&path).unwrap_or_else(|| timed_out(budget))
+            crate::routes::ingest::timed_out(&path)
+                .or_else(|| crate::routes::log_drain::timed_out(&path))
+                .unwrap_or_else(|| timed_out(budget))
         }
     }
 }
@@ -387,6 +404,14 @@ async fn bounded(budget: Duration, req: Request, next: Next) -> Response<Body> {
 pub fn budget_for(method: &Method, path: &str) -> Option<Duration> {
     // The upload streams a GA4 export to a scratch file at the client's pace.
     if method == Method::POST && path == "/api/imports" {
+        return None;
+    }
+    if method == Method::POST && (path == "/api/ai/ask" || path == "/api/mcp") {
+        return Some(AI_BUDGET);
+    }
+    // The raw export streams an archive at the client's pace, and its first
+    // chunk is an ordered read over the whole window (`routes::raw_export`).
+    if method == Method::GET && path == "/api/export/raw" {
         return None;
     }
     if is_collection_path(path) {
@@ -513,8 +538,14 @@ pub fn cors(cfg: &Config) -> CorsLayer {
             HeaderName::from_static("x-request-id"),
             HeaderName::from_static("x-micaforge-signature"),
             HeaderName::from_static("x-micaforge-timestamp"),
+            HeaderName::from_static("mcp-session-id"),
+            HeaderName::from_static("mcp-protocol-version"),
         ])
-        .expose_headers([HeaderName::from_static("x-request-id")])
+        .expose_headers([
+            HeaderName::from_static("x-request-id"),
+            HeaderName::from_static("mcp-session-id"),
+            HeaderName::from_static("www-authenticate"),
+        ])
         .max_age(PREFLIGHT_MAX_AGE)
 }
 
@@ -592,10 +623,26 @@ mod tests {
             Some(API_BUDGET)
         );
         assert_eq!(budget_for(&Method::GET, "/api/imports"), Some(API_BUDGET));
+        assert_eq!(budget_for(&Method::POST, "/api/ai/ask"), Some(AI_BUDGET));
+        assert_eq!(budget_for(&Method::POST, "/api/mcp"), Some(AI_BUDGET));
+        assert_eq!(
+            budget_for(&Method::GET, "/api/ai/conversations"),
+            Some(API_BUDGET)
+        );
         assert_eq!(
             budget_for(&Method::POST, "/api/imports"),
             None,
             "an upload runs at the client's pace"
+        );
+        assert_eq!(
+            budget_for(&Method::GET, "/api/export/raw"),
+            None,
+            "a raw export streams at the client's pace"
+        );
+        assert_eq!(
+            budget_for(&Method::GET, "/api/track/p/vitals.js"),
+            Some(INGEST_BUDGET),
+            "a tracker plugin is a collection asset"
         );
         const { assert!(LIMITER_BUDGET.as_millis() <= 500) };
         const {

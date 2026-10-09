@@ -1,0 +1,217 @@
+---
+title: "Telegram"
+description: "Ask about a site from a Telegram chat, get new investigations there, and create the bot with BotFather."
+group: "integrations"
+order: 3
+updated: 2026-10-08
+---
+
+The Telegram bot answers questions about a site in a chat, and posts to that chat when the
+numbers move. One bot serves the whole install: the operator creates it once, and each site
+then links the chats it wants.
+
+It is off until its two variables are set. With them unset, nothing is sent to Telegram, and
+nothing Telegram sends is acted on.
+
+## What it does
+
+- **Answers questions.** A question goes to the [AI analyst](/docs/dashboard/ask-ai), which
+  runs the dashboard's own queries against the linked site and answers in the chat.
+- **Reports today.** `/stats` replies with today's visitors, pageviews, AI crawler fetches
+  and AI-answer visits, straight from the store, with no model involved.
+- **Posts what changed.** Every new [investigation](/docs/dashboard/insights) on the site is
+  posted to each linked chat, and each update to it is a reply to that first message.
+- **Takes feedback.** `/feedback` files a report with the people who run this install. See
+  [feedback](/docs/api/feedback).
+
+## Commands
+
+| Command | Does |
+| --- | --- |
+| `/ask <question>` | Asks the AI analyst about the linked site. |
+| a plain message | The same, in a linked chat: a bare question is an `ask`. |
+| `/stats` | Today's visitors, pageviews, AI crawler fetches and AI-answer visits. |
+| `/link <code>` | Links this chat to a site, with a code from the dashboard. |
+| `/unlink` | Removes this chat's link. |
+| `/feedback <text>` | Sends feedback to the instance admins. |
+| `/help` | Lists the commands. |
+
+In a group with more than one bot, add the bot's username to the command so the right bot
+takes it: `/ask@your_micaforge_bot which pages grew this week?`
+
+The commands are the same on [Slack](/docs/integrations/slack) and
+[Discord](/docs/integrations/discord); only the syntax differs.
+
+## Before you start
+
+- **The install must be reachable from the internet over HTTPS**, because Telegram calls it.
+  Telegram delivers webhooks only over HTTPS and only to ports 443, 80, 88 and 8443, so the
+  shipped Caddy on 443 works and a laptop on `MICAFORGE_DOMAIN=:80` does not.
+- **`MICAFORGE_PUBLIC_URL` must be the public address.** The webhook URL the server gives
+  Telegram is built from it.
+- **Questions need the AI analyst.** Without `MICAFORGE_LLM_BASE_URL` and
+  `MICAFORGE_LLM_MODEL`, the bot still links chats, reports `/stats` and posts
+  investigations, but it cannot answer a question. See
+  [configuring a model](/docs/dashboard/ask-ai#configuring-a-model).
+
+## Create the bot
+
+1. In Telegram, open a chat with [@BotFather](https://t.me/BotFather) and send `/newbot`.
+   Give the bot a name, then a username that ends in `bot`. BotFather replies with a token
+   such as `123456789:AA…`. It goes in `MICAFORGE_TELEGRAM_BOT_TOKEN`.
+2. Choose a webhook secret. Telegram will send it back with every update, and it is the
+   whole proof that an update came from Telegram, so make it long and random. It must be 1
+   to 256 characters of `A-Z`, `a-z`, `0-9`, `_` and `-`, and hex fits:
+
+   ```sh
+   openssl rand -hex 32
+   ```
+
+   It goes in `MICAFORGE_TELEGRAM_WEBHOOK_SECRET`.
+3. Set both variables and restart the server:
+
+   ```sh
+   MICAFORGE_TELEGRAM_BOT_TOKEN=123456789:AA…
+   MICAFORGE_TELEGRAM_WEBHOOK_SECRET=…
+   ```
+
+   ```sh
+   docker compose up -d micaforge
+   ```
+
+4. Tell Telegram where to send updates. Run this on the host:
+
+   ```sh
+   docker compose exec micaforge micaforge-server chat-setup telegram
+   ```
+
+   The same action is open to an instance admin's session as
+   `POST /api/admin/chat/telegram/webhook`. Both call Telegram's `setWebhook` with
+   `https://analytics.example.com/api/chat/telegram/webhook` and the secret, then
+   `setMyCommands`, so the six commands appear in Telegram's command menu.
+
+Run step 4 again whenever you change the secret or the public address. Until you do,
+Telegram keeps sending the old secret, or to the old address, and every update is refused.
+
+### Plain messages in groups
+
+In a group, Telegram delivers only commands to a bot by default. This is Telegram's privacy
+mode. `/ask` works either way. For plain messages to be answered in a group, send
+`/setprivacy` to BotFather, pick the bot and choose **Disable**, then remove the bot from the
+group and add it again so the change applies. In a private chat with the bot, plain messages
+always arrive. In a group that is not linked to a site, the bot answers commands only and stays
+silent on plain messages, so it does not reply "not linked" to every message in the group.
+
+## Link a chat
+
+A chat answers about one site once it is linked to it, and about one site at a time:
+linking it again with a code from another site moves it. Linking needs a code from the
+dashboard, so only someone with at least the `member` role on the site can do it.
+
+1. Add the bot to the group, or open a private chat with it.
+2. In Micaforge, open the site, then **Site setup → Chat apps**, and choose **Generate a
+   link code**. The code is 8 characters long, lives 15 minutes, and works once. The screen
+   shows the exact command to type.
+3. In the chat, send the command:
+
+   ```text
+   /link K7Q2M9XP
+   ```
+
+The bot confirms in the chat, and the link appears in Site setup → Chat apps with who made
+it. To remove it, send `/unlink` in the chat, or remove it on that screen.
+
+**Anyone who can post in a linked chat can ask about that site and read the answers.**
+Telegram users are not Micaforge accounts, so the chat's membership is the access rule. Link
+only chats whose members may see the site's numbers.
+
+## How requests are verified
+
+Telegram does not sign updates. It sends the secret you gave `setWebhook` in the
+`X-Telegram-Bot-Api-Secret-Token` header of every update, and the server refuses any request
+whose header is not exactly `MICAFORGE_TELEGRAM_WEBHOOK_SECRET`, with `401`. A refused
+request does nothing: no command runs and nothing is posted.
+
+Because the header is the whole check, treat the secret like a password: random, long, and
+in `.env` only.
+
+## Answers arrive after the acknowledgement
+
+The server answers each update at once with `200`, so Telegram does not deliver it again,
+then runs the question in the background and sends the answer to the chat when it is ready.
+
+## Investigations in Telegram
+
+When an investigation opens on a site, each chat linked to that site gets a message with what
+changed and by how much. Updates to the same investigation follow as replies to that
+message, so one change stays in one place. See [insights](/docs/dashboard/insights).
+
+## Telegram as an alert channel
+
+Traffic alerts can go to a Telegram chat. An alert takes its own bot token and chat id, so it
+can use this bot or a separate one, and it works with no `MICAFORGE_TELEGRAM_*` variables set.
+
+1. Add the bot to the group or channel that should receive alerts. In a channel, make it an
+   administrator so it can post.
+2. Find the chat id. A group's or channel's id is a negative number, such as
+   `-1001234567890`. One way: send a message in the group, then open
+   `https://api.telegram.org/bot<token>/getUpdates` and read `chat.id`. Telegram answers
+   that call only for a bot with no webhook set, so for a bot that already serves the chat
+   app, read the id before you run `chat-setup telegram`, or use a second bot for alerts.
+3. In Micaforge, open **Site setup → Alerts**, set the alert's channel to **Telegram**, and
+   enter the bot token and the chat id.
+
+The bot token is sealed at rest, with the same encryption as the install's other stored
+secrets, and it is never shown again. Through the API, the channel is one more key in the
+alert's `channels` document:
+
+```json
+{ "telegram": { "bot_token": "123456789:AA…", "chat_id": "-1001234567890" } }
+```
+
+A read returns `"telegram": { "chat_id": "…", "bot_token_sealed": "…" }`. Send that object
+back unchanged on a `PATCH` to keep the token, or send a new `bot_token` to replace it.
+
+The instance bot can also receive new feedback for the whole install. See
+[the feedback channel](/docs/self-hosting/configuration#feedback-channel-off-by-default).
+
+## What leaves the server
+
+- **To the model provider:** the question, the site's domain and name, the aggregate query
+  results the model asked for (visitors per source, fetches per page and the like), and the
+  answer it writes.
+  Visitor ids and identified ids are never sent to the model.
+- **To Telegram:** answers, `/stats` replies, confirmations, and the investigation messages
+  for linked chats.
+- **From Telegram:** the updates Telegram delivers to the bot: commands, and plain messages
+  where the bot can see them (a private chat always, a group only with privacy mode off).
+
+## Troubleshooting
+
+Start with Telegram's own view of the webhook:
+
+```sh
+curl https://api.telegram.org/bot<token>/getWebhookInfo
+```
+
+It shows the URL Telegram is calling, how many updates are waiting, and the last error.
+
+**`url` is empty.** `chat-setup telegram` has not run, or it failed. Run it and read what it
+prints.
+
+**The last error is `401 Unauthorized`.** The secret Telegram sends is not the one the
+server has. Run `chat-setup telegram` again after any change to
+`MICAFORGE_TELEGRAM_WEBHOOK_SECRET`.
+
+**The last error is about the connection or the certificate.** The address is not reachable
+from the internet over HTTPS on a port Telegram accepts.
+
+**Commands are answered in a group, plain messages are not.** Privacy mode is on. See
+[plain messages in groups](#plain-messages-in-groups).
+
+**The bot says AI is off on this server.** Set the `MICAFORGE_LLM_*` variables. See
+[configuring a model](/docs/dashboard/ask-ai#configuring-a-model).
+
+**The server will not start and names a `MICAFORGE_TELEGRAM_*` variable.** Either only one
+of the two is set, or the secret has a character outside `A-Z`, `a-z`, `0-9`, `_` and `-`,
+or is longer than 256 characters. Set both, or neither.

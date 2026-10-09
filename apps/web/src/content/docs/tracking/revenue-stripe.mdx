@@ -1,0 +1,101 @@
+---
+title: "Revenue from Stripe"
+description: "The webhook endpoint to create in Stripe, the three events Micaforge reads, and what each one records."
+group: "tracking"
+order: 13
+updated: 2026-10-08
+---
+
+This page connects a Stripe account to [revenue](/docs/tracking/revenue). It needs the admin
+role on the site in Micaforge, and access to Developers in Stripe.
+
+## Setup
+
+1. In Micaforge, open the Revenue screen, under Growth, and add a Stripe integration. Copy
+   the webhook address it shows:
+
+   ```text
+   https://analytics.example.com/api/revenue/webhooks/stripe/<integration id>
+   ```
+
+2. In the Stripe Dashboard, open Developers, then Webhooks, and add an endpoint for that
+   address.
+3. Select these three events: `checkout.session.completed`, `invoice.paid` and
+   `charge.refunded`. Micaforge reads no others.
+4. Save the endpoint. Copy its signing secret, which starts with `whsec_`, and paste it into
+   the integration in Micaforge.
+5. Pass the [checkout reference](/docs/tracking/revenue#the-checkout-reference) when your
+   server creates a Checkout Session.
+
+Micaforge seals the secret and never shows it again. To change it, paste the new one into
+the same integration.
+
+Until the secret is pasted, Micaforge answers each delivery with `503`, so Stripe retries it;
+the retries that arrive after you paste the secret are recorded. While the integration is
+turned off in the dashboard, deliveries are answered `200` and nothing is recorded.
+
+Stripe keeps test mode and live mode apart, and each has its own endpoints and signing
+secrets. A site has one Stripe integration, with one secret, so connect the mode whose
+payments you want counted.
+
+## What each event records
+
+| Event | What Micaforge records |
+| --- | --- |
+| `checkout.session.completed` | With mode `payment` and payment status `paid`: a sale of `amount_total`. With mode `subscription`: no revenue, but the customer's checkout reference is remembered. |
+| `invoice.paid` | A subscription payment of `amount_paid`. Only invoices that belong to a subscription count. |
+| `charge.refunded` | The newly refunded amount, as negative revenue. |
+
+Subscriptions are recorded through `invoice.paid`, once per paid invoice, the first one
+included. That is why `checkout.session.completed` records no revenue for them. The
+reference remembered at checkout attributes every later invoice of that customer.
+
+A partial refund records only the difference from what was already recorded for that
+charge. A second partial refund on the same charge adds only its own part.
+
+What is not counted:
+
+- A one-off invoice from Stripe Invoicing, which belongs to no subscription.
+- A Checkout Session that completes with a payment status other than `paid`.
+
+## Attribution
+
+Micaforge reads the checkout reference from `client_reference_id` or `metadata.mf_ref` on
+the Checkout Session, from `subscription_data.metadata.mf_ref`, or from the reference it
+remembered for the customer. The Node sample on the
+[revenue page](/docs/tracking/revenue#stripe-checkout-in-node) sets both
+`client_reference_id` and `subscription_data.metadata`.
+
+Without a reference, the customer's email is matched against ids sent with
+[`identify()`](/docs/tracking/identify). The customer is the Stripe customer id (`cus_…`);
+without one, a keyed hash of the email. The email itself is never stored.
+
+## Signature verification
+
+Every request must carry Stripe's signature header:
+
+```text
+Stripe-Signature: t=<unix seconds>,v1=<hex>
+```
+
+`v1` is the HMAC-SHA256 of `<t>.<raw body>`, keyed with the signing secret. The header can
+carry several `v1` values, and one that matches is enough. A request without a valid
+signature is refused.
+
+A request whose `t` is more than 300 seconds from the server's clock is refused with `400`.
+Keep the server's clock in sync.
+
+Each event id is processed once. Stripe retries a delivery it thinks failed, and a
+redelivered event is answered `200` and records nothing, so a retry never counts a payment
+twice.
+
+## Checking it works
+
+After the first event arrives, the integration's last event time is set. The API returns it
+as `last_event_at`:
+
+```http
+GET /api/revenue/integrations?site=1
+```
+
+Stripe also lists every delivery to the endpoint, with the status Micaforge answered.

@@ -1,0 +1,81 @@
+---
+title: "Ingest guards"
+description: "Allow and deny lists of IP ranges, extra hostnames, blocked counts and a daily email."
+group: "dashboard"
+order: 10
+updated: 2026-10-09
+---
+
+Ingest guards decide which requests a site records. Use them to keep your office, a load
+tester or a scraper out of the numbers, or to record only traffic from a known network. Open
+them at **Site setup → Ingest guards**. Changing them needs the **admin** role on the site.
+
+## The rules
+
+1. An address on the **deny list** is never recorded. The deny list always wins.
+2. When the **allow list** has entries, only addresses inside it are recorded. When it is
+   empty, every address that is not denied is recorded.
+3. A hit that names a **hostname** which is not the site's domain, one of its subdomains, or
+   one of its extra hostnames is not recorded.
+
+The same check runs on every way in: the tracker, batches, the pixel, server-side events
+and agent visits sent from server logs. One function decides, so no route can disagree with
+another.
+
+A blocked request is answered **as if it was accepted**. The tracker sees no error, a
+visitor's page never breaks, and a scraper learns nothing from the answer. The only trace is
+the count below.
+
+## Addresses and ranges
+
+Each list holds up to 200 entries. An entry is a single address or a CIDR range, IPv4 or
+IPv6, with an optional note of up to 120 characters:
+
+```text
+203.0.113.7
+203.0.113.0/24
+2001:db8::/32
+```
+
+An IPv4 address that arrives in its IPv6 form (`::ffff:203.0.113.7`) is matched as the IPv4
+address. A range is stored in its normal form, so `203.0.113.9/24` is saved as
+`203.0.113.0/24`. The same range twice is refused.
+
+The address is the one the server sees after its proxy rules: put Micaforge behind your
+proxy as [the configuration page](/docs/self-hosting/configuration#who-the-visitor-is) describes, or every hit
+will carry the proxy's address.
+
+## Extra hostnames
+
+Hits are recorded from the site's domain and every subdomain of it. Add up to 32 other
+hostnames that serve the same site, such as a docs domain or a country domain. The primary
+domain is changed in **Site details**.
+
+## Blocked counts and the daily email
+
+The screen counts blocked requests per day and per reason (deny list, not on the allow
+list, unknown hostname) for the last seven days. Counts are kept for nine days and hold no
+address.
+
+Set a threshold to get an email: when at least that many requests were blocked on a day, the
+site's admins get one email the next day with the counts by reason. `0` turns it off.
+
+## From the API
+
+```http
+GET   /api/sites/<site>/ingest-guards
+PATCH /api/sites/<site>/ingest-guards
+```
+
+```json
+{
+  "deny": [{ "cidr": "203.0.113.0/24", "note": "load tester" }],
+  "allow": [],
+  "domains": ["docs.example.com"],
+  "alert_threshold": 500
+}
+```
+
+A `PATCH` changes only the fields it names. A bad entry is refused with a 422 that names the
+list (`allow`, `deny`, `domains` or `alert_threshold`). The answer is the whole setting, with
+the blocked counts. A change applies to new hits within a minute.

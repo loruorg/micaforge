@@ -8,8 +8,8 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { Button, Empty, Panel, PanelHead, Sheet, type Column } from "../../components/react/ui";
-import { IconCheck, IconClose, IconPlus } from "../../components/react/icons";
+import { Button, CopyField, Empty, Panel, PanelHead, Sheet, type Column } from "../../components/react/ui";
+import { IconCheck, IconClose, IconPlus, IconReplay } from "../../components/react/icons";
 import { api } from "../../lib/api";
 import { ago } from "../../lib/format";
 import {
@@ -50,6 +50,10 @@ interface Invite {
   role: Role;
   created_at: string;
   expires_at?: string | null;
+  /** The acceptance link. Returned when an invitation is created or sent again. */
+  link?: string;
+  /** False when this install sends no email, so the link has to be passed on by hand. */
+  emailed?: boolean;
 }
 
 export const ROLE_NAME: Record<Role, string> = {
@@ -134,6 +138,15 @@ export function OrgSettings() {
 
   const cancelInvite = useMutation({
     mutationFn: (id: string) => api.del<null>(`/api/orgs/${orgId}/invitations/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["settings", "invites", orgId] }),
+  });
+
+  // Sending again issues a new link and retires the old one, so the answer is
+  // kept on screen: on an install with no mail, the new link is the only way
+  // the invitation can still reach the person.
+  const resendInvite = useMutation({
+    mutationFn: (id: string) =>
+      api.post<Invite>(`/api/orgs/${orgId}/invitations/${id}/resend`).then((r) => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["settings", "invites", orgId] }),
   });
 
@@ -222,6 +235,15 @@ export function OrgSettings() {
       width: "1%",
       render: (i) => (
         <span className="mf-set-row">
+          <Button
+            size="sm"
+            tone="quiet"
+            icon={<IconReplay size={12} />}
+            disabled={resendInvite.isPending}
+            onClick={() => resendInvite.mutate(i.id)}
+          >
+            Send again
+          </Button>
           <Button
             size="sm"
             tone="quiet"
@@ -387,6 +409,33 @@ export function OrgSettings() {
             />
           )}
         </QueryState>
+        {resendInvite.isPending || resendInvite.isError || resendInvite.isSuccess ? (
+          <Block title="Sending again">
+            {resendInvite.isSuccess && resendInvite.data.emailed === false ? (
+              <>
+                <Note>
+                  This install sends no email, so nothing went to {resendInvite.data.email}. Copy the new
+                  link and pass it on yourself. The old link no longer works.
+                </Note>
+                {resendInvite.data.link ? (
+                  <CopyField label="New invitation link" value={resendInvite.data.link} />
+                ) : null}
+              </>
+            ) : (
+              <div className="mf-set-row">
+                <Result
+                  action={resendInvite}
+                  working="Sending a new invitation…"
+                  done={
+                    resendInvite.data
+                      ? `A new invitation is on its way to ${resendInvite.data.email}. The old link no longer works.`
+                      : "Sent."
+                  }
+                />
+              </div>
+            )}
+          </Block>
+        ) : null}
         <Spec>
           <SpecRow name="Invite someone" htmlFor="inv-email">
             <div className="mf-set-row">

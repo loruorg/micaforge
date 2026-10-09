@@ -1,0 +1,213 @@
+/* ============================================================================
+   WORKSPACE SETTINGS: the audit log, billing, ingest guards and the sign-in
+   methods of an account.
+
+   These screens are built from the settings controls in settings.css; this
+   file adds only what those controls do not draw, under its own `mf-ws-`
+   prefix. The same rules apply: colour, spacing, radius and duration come
+   from var(--mf-*), and hover changes tone and fill, never position.
+   ========================================================================= */
+
+/* ── a row of filters over a table ──────────────────────────────────────── */
+
+.mf-ws-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--mf-4);
+  padding: var(--mf-4) var(--mf-5);
+  border-top: 1px solid var(--mf-rule);
+  border-bottom: 1px solid var(--mf-rule);
+}
+
+/* ── the audit table ────────────────────────────────────────────────────── */
+
+.mf-ws-audit td { vertical-align: top; }
+.mf-ws-audit tr.is-open td { background: var(--mf-ground-3); border-bottom-color: transparent; }
+
+.mf-ws-audit__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mf-2);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--mf-ink);
+  font: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.mf-ws-audit__toggle:hover { color: var(--mf-blue); }
+.mf-ws-audit__toggle:focus-visible { outline: 2px solid var(--mf-accent); outline-offset: 2px; border-radius: var(--mf-r-sm); }
+
+.mf-ws-audit__caret {
+  flex: none;
+  color: var(--mf-ink-3);
+  transform: rotate(-90deg);
+  transition: transform var(--mf-dur-2) ease;
+}
+.mf-ws-audit tr.is-open .mf-ws-audit__caret { transform: rotate(0deg); }
+
+.mf-ws-audit__who,
+.mf-ws-audit__target {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.mf-ws-audit__kind {
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+}
+
+.mf-ws-audit__more td { background: var(--mf-ground-3); padding-top: 0; }
+.mf-ws-audit__detail {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: var(--mf-5);
+  padding: var(--mf-3) 0 var(--mf-2) var(--mf-6);
+}
+@media (max-width: 760px) {
+  .mf-ws-audit__detail { grid-template-columns: minmax(0, 1fr); padding-left: 0; }
+}
+
+/* before and after, field by field */
+.mf-ws-diff { display: flex; flex-direction: column; gap: var(--mf-2); min-width: 0; }
+.mf-ws-diff__head,
+.mf-ws-diff__row {
+  display: grid;
+  grid-template-columns: minmax(7rem, 0.8fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--mf-3);
+}
+.mf-ws-diff__head {
+  font-size: var(--mf-t-xs);
+  font-weight: 500;
+  color: var(--mf-ink-3);
+  padding-bottom: var(--mf-1);
+  border-bottom: 1px solid var(--mf-rule);
+}
+.mf-ws-diff__list { margin: 0; display: flex; flex-direction: column; }
+.mf-ws-diff__row { padding: var(--mf-2) 0; border-bottom: 1px solid var(--mf-rule); }
+.mf-ws-diff__row:last-child { border-bottom: 0; }
+.mf-ws-diff__field,
+.mf-ws-diff__before,
+.mf-ws-diff__after {
+  margin: 0;
+  font-size: var(--mf-t-xs);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.mf-ws-diff__field { color: var(--mf-ink-2); }
+.mf-ws-diff__before { color: var(--mf-ink-3); text-decoration: line-through; text-decoration-color: var(--mf-rule-strong); }
+.mf-ws-diff__after { color: var(--mf-ink); }
+@media (max-width: 520px) {
+  .mf-ws-diff__head { display: none; }
+  .mf-ws-diff__row { grid-template-columns: minmax(0, 1fr); gap: var(--mf-1); }
+}
+
+/* a short list of named facts */
+.mf-ws-facts { margin: 0; display: flex; flex-direction: column; gap: var(--mf-2); min-width: 0; }
+.mf-ws-facts__row { display: flex; flex-direction: column; gap: 2px; }
+.mf-ws-facts__row dt { font-size: var(--mf-t-xs); color: var(--mf-ink-3); }
+.mf-ws-facts__row dd { margin: 0; font-size: var(--mf-t-xs); color: var(--mf-ink-2); overflow-wrap: anywhere; }
+
+.mf-ws-foot-note {
+  margin: 0;
+  padding: 0 var(--mf-5) var(--mf-4);
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+  max-width: 72ch;
+}
+
+/* ── billing ────────────────────────────────────────────────────────────── */
+
+/* The month's usage: the figure, the bar under it, the words under that. */
+.mf-ws-usage { display: flex; flex-direction: column; gap: var(--mf-2); max-width: 620px; }
+.mf-ws-usage__figure {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--mf-1) var(--mf-3);
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink-2);
+}
+.mf-ws-usage__figure strong {
+  font-family: var(--mf-font-display);
+  font-size: var(--mf-t-lg);
+  font-weight: 600;
+  color: var(--mf-ink);
+}
+.mf-ws-usage[data-level="warn"] .mf-set-gauge__fill { background: var(--mf-accent); }
+.mf-ws-usage[data-level="over"] .mf-set-gauge__fill { background: var(--mf-danger); }
+.mf-ws-usage__level { font-size: var(--mf-t-xs); color: var(--mf-ink-2); }
+.mf-ws-usage[data-level="over"] .mf-ws-usage__level { color: var(--mf-danger); }
+
+/* the plans, side by side, wrapping to one column on a phone */
+.mf-ws-plans {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--mf-4);
+}
+.mf-ws-plan {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mf-3);
+  padding: var(--mf-4);
+  border: 1px solid var(--mf-rule);
+  border-radius: var(--mf-r-md);
+  background: var(--mf-ground-2);
+}
+.mf-ws-plan[data-current="true"] { border-color: var(--mf-blue); box-shadow: inset 0 0 0 1px var(--mf-blue); }
+.mf-ws-plan__head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--mf-2); }
+.mf-ws-plan__name { margin: 0; font-size: var(--mf-t-base); font-weight: 600; color: var(--mf-ink); }
+.mf-ws-plan__price { font-size: var(--mf-t-sm); color: var(--mf-ink-2); }
+.mf-ws-plan__current { font-size: var(--mf-t-xs); font-weight: 500; color: var(--mf-blue); }
+.mf-ws-plan__facts { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--mf-1); font-size: var(--mf-t-xs); color: var(--mf-ink-2); }
+.mf-ws-plan__act { margin-top: auto; }
+
+/* ── ingest guards ──────────────────────────────────────────────────────── */
+
+/* one address or range per line: the range, a note, and a remove control */
+.mf-ws-cidrs { display: flex; flex-direction: column; gap: var(--mf-2); }
+.mf-ws-cidr {
+  display: grid;
+  grid-template-columns: minmax(10rem, 1fr) minmax(0, 1.4fr) auto;
+  gap: var(--mf-2);
+  align-items: start;
+}
+@media (max-width: 560px) {
+  .mf-ws-cidr { grid-template-columns: minmax(0, 1fr) auto; }
+  .mf-ws-cidr > :nth-child(2) { grid-column: 1 / -1; grid-row: 2; }
+}
+.mf-ws-cidrs__empty { margin: 0; font-size: var(--mf-t-xs); color: var(--mf-ink-3); }
+
+/* the rules, stated in order */
+.mf-ws-rules {
+  margin: 0;
+  padding-left: var(--mf-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--mf-1);
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink-2);
+  max-width: 72ch;
+}
+
+.mf-ws-blocked td.is-num,
+.mf-ws-blocked th.is-num { font-variant-numeric: tabular-nums; }
+.mf-ws-blocked tfoot td { font-weight: 600; color: var(--mf-ink); border-top: 1px solid var(--mf-rule-strong); border-bottom: 0; }
+
+/* ── sign-in methods ────────────────────────────────────────────────────── */
+
+.mf-ws-methods { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; }
+.mf-ws-method {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mf-2) var(--mf-4);
+  padding: var(--mf-3) 0;
+  border-bottom: 1px solid var(--mf-rule);
+}
+.mf-ws-method:last-child { border-bottom: 0; }
+.mf-ws-method__name { font-size: var(--mf-t-sm); font-weight: 500; color: var(--mf-ink); min-width: 6rem; }
+.mf-ws-method__about { flex: 1 1 14rem; min-width: 0; font-size: var(--mf-t-xs); color: var(--mf-ink-3); overflow-wrap: anywhere; }

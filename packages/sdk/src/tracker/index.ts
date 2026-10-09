@@ -11,7 +11,7 @@ import type { TrackerApi, TrackerConfig } from "../types.js";
 
 /** Every attribute whose name is its config key in kebab-case. */
 const ATTRS =
-  "autoPageview spa outbound downloads forms hash respectDnt vitals scroll engagement debug";
+  "autoPageview spa outbound downloads hash respectDnt scroll engagement debug sample vitals errors frustration forms tags";
 
 const split = (v: string | null): string[] =>
   (v || "")
@@ -31,8 +31,13 @@ export function readScriptConfig(el: any, fallbackOrigin: string): TrackerConfig
     host: at("host") || (el.src || "").replace(/^(\w+:\/\/[^/]*).*/, "$1") || fallbackOrigin,
     track404: at("404"),
     exclude: split(at("exclude")),
+    mask: split(at("mask")),
   };
   for (const k of ATTRS.split(" ")) cfg[k] = at(k.replace(/[A-Z]/g, (c) => "-" + c.toLowerCase()));
+  // `data-strip-query` alone (or "true") drops the whole query string; a list
+  // drops only the parameters it names.
+  const q = at("strip-query");
+  if (q != null) cfg.stripQuery = /^(true)?$/i.test(q) || split(q);
   // `data-downloads` doubles as the extension list when it holds one: "pdf,zip" or ".dmg".
   if (/[,.]/.test(cfg.downloads || ""))
     cfg.downloadExtensions = split(cfg.downloads).map((e) => e.replace(/^\./, "").toLowerCase());

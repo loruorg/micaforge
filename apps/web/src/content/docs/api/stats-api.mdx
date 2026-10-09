@@ -3,7 +3,7 @@ title: "Stats API"
 description: "One query envelope, every read endpoint, and the response shape they all share."
 group: "api"
 order: 2
-updated: 2026-08-22
+updated: 2026-10-09
 ---
 
 Every analytics read takes the same query string and returns the same envelope. Learn it
@@ -84,14 +84,39 @@ GET /api/stats/journeys      nodes and links: ?depth=4&start=/docs
 GET /api/stats/retention     the cohort grid: ?granularity=week
 GET /api/stats/sessions      the session list, and /:id for one session
 GET /api/stats/visitors      visitors, traits and session counts
+GET /api/stats/profiles      people your site identified: ?q= searches ids and traits
+GET /api/stats/profiles/:id  one person: traits, trait history, linked anonymous sessions
+GET /api/stats/frustration   rage clicks, dead clicks and abandoned forms, by page
 ```
 
 **Health**
 
 ```http
 GET /api/stats/performance   LCP, CLS, INP, FCP, TTFB at p50, p75, p95
-GET /api/stats/errors        grouped by fingerprint, with a sparkline
+GET /api/stats/errors        grouped by fingerprint, with a sparkline, totals and facets
+GET /api/stats/errors?fingerprint=…   one group: stack, pages, browsers, series, sessions
+POST /api/stats/errors/:fingerprint/status   {"status": "resolved" | "ignored" | "open"}
+GET /api/stats/sampling      whether the window's pageviews came from a data-sample tracker
 ```
+
+`/api/stats/errors` also takes `?release=` to narrow to one of your releases. The status
+write needs the `member` role, and an API key needs `manage:write` for it.
+
+**MCP servers**
+
+```http
+GET /api/stats/mcp/overview     calls, errors, tool errors, error rate, p50 and p95, sessions, clients, servers
+GET /api/stats/mcp/timeseries   calls, errors and latency per bucket
+GET /api/stats/mcp/tools        per tool, resource and prompt: calls, error rate, latency, sizes
+GET /api/stats/mcp/clients      per MCP client name: calls, share, sessions, error rate
+GET /api/stats/mcp/calls        single calls: ?view=slowest (default) or ?view=failing
+```
+
+These read the calls your own MCP servers measured (see
+[MCP server analytics](/docs/tracking/mcp-server-analytics)). They take the window from the
+envelope and three filters of their own, `server`, `method` (`tools/call`,
+`resources/read`, `prompts/get`) and `client`; `filters` and `audience` describe visits and
+do not apply.
 
 **Machines**
 
@@ -108,8 +133,25 @@ GET /api/policy/violations   fetches of a path the site disallowed
 GET /api/content/decay       human traffic fell, agent traffic held
 ```
 
+**Google Search**, for a site that has connected
+[Google Search Console](/docs/integrations/google-search-console)
+
+```http
+GET /api/stats/search/overview     clicks, impressions, CTR, average position, with ?compare=
+GET /api/stats/search/timeseries   the same four, one point per day
+GET /api/stats/search/queries      search terms: ?q=, ?path=, ?country=, ?device=, ?sort=
+GET /api/stats/search/pages        pages, with Micaforge's own visitors on the same path
+GET /api/stats/search/countries    by country
+GET /api/stats/search/devices      by device
+```
+
+These read the window's days (`range`, or `start` and `end`) and ignore `audience` and
+`filters`: they are Google's figures, not Micaforge's events. `sort` is `clicks`,
+`impressions`, `ctr` or `position`. A site with no property connected answers `404`.
+
 `/api/stats/export.csv` and `/api/stats/export.pdf` take the same envelope and return the
-same data as a file.
+same data as a file. For the rows themselves, see
+[Exporting raw data](/docs/api/exporting-raw-data).
 
 ## Worked examples
 
@@ -148,4 +190,8 @@ curl "https://analytics.example.com/api/citation-gap?site=1&range=30d" \
 - **Absent is not zero.** A metric that cannot be computed comes back absent. Render it as
   absent.
 - **Bulk belongs in the export.** For a full table, use `export.csv` rather than paging a
-  breakdown ten thousand rows at a time.
+  breakdown ten thousand rows at a time, and for every recorded row use the
+  [raw export](/docs/api/exporting-raw-data).
+- **A sample is counted, not scaled.** When a site sets `data-sample`, the figures are what
+  was recorded. `GET /api/stats/sampling` says whether a window holds sampled pageviews and
+  at what rate, so a report built on the API can say so too.

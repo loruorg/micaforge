@@ -107,19 +107,20 @@ async fn list_goals(State(st): State<AppState>, access: SiteAccess) -> ApiResult
     Ok(ok(rows.iter().map(goal_json).collect::<Vec<_>>()))
 }
 
-/// A goal, as the settings screen sends it.
+/// A goal, as the settings screen sends it. Also what the MCP `create_goal`
+/// tool builds, so both front doors validate one shape.
 #[derive(Debug, Deserialize)]
-struct GoalBody {
-    name: String,
+pub(crate) struct GoalBody {
+    pub(crate) name: String,
     /// `path` | `event` | `outbound` | `file` | `revenue`.
-    kind: String,
+    pub(crate) kind: String,
     /// A filter group in the §3.2 wire shape. Absent means "any event of this
     /// kind counts", which is what a bare revenue goal is.
     #[serde(default)]
-    conditions: Option<Value>,
+    pub(crate) conditions: Option<Value>,
     /// What one conversion is worth, in minor units.
     #[serde(default)]
-    value_cents: Option<i64>,
+    pub(crate) value_cents: Option<i64>,
 }
 
 /// `POST /api/goals?site=…`
@@ -189,7 +190,7 @@ async fn delete_goal(
 ///
 /// Returns the pieces the repository takes, so a caller cannot accidentally
 /// store the unvalidated originals.
-fn check_goal(body: &GoalBody) -> Result<(String, &'static str, Value, i64)> {
+pub(crate) fn check_goal(body: &GoalBody) -> Result<(String, &'static str, Value, i64)> {
     let name = clean_name(&body.name, "name")?;
     let kind = micaforge_query::stats::GoalKind::parse(&body.kind)?;
     let conditions = body.conditions.clone().unwrap_or_else(|| json!({}));
@@ -219,7 +220,7 @@ fn check_goal(body: &GoalBody) -> Result<(String, &'static str, Value, i64)> {
 }
 
 /// One goal on the wire.
-fn goal_json(goal: &goals::Goal) -> Value {
+pub(crate) fn goal_json(goal: &goals::Goal) -> Value {
     json!({
         "id": goal.id,
         "site_id": goal.site_id,

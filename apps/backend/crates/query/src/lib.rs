@@ -18,6 +18,7 @@
 //! - [`agents_q`]: the agent-traffic reports.
 //! - [`gap`]: the Citation Gap, the metric this product exists for.
 //! - [`export`]: rows to CSV.
+//! - [`mcp_q`]: MCP server analytics, over the calls an MCP server measured.
 //!
 //! ## Where the metric definitions live
 //!
@@ -57,8 +58,11 @@ pub mod agents_q;
 pub mod exec;
 pub mod export;
 pub mod gap;
+pub mod mcp_q;
 pub mod sql;
 pub mod stats;
+// Google Search Console, read from the table its sync fills.
+pub mod search;
 
 pub use export::to_csv;
 pub use gap::{DecayRow, GapRow, GapSummary, Verdict, VerdictCounts};

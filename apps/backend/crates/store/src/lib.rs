@@ -41,3 +41,8 @@ pub use ch::{
 pub use kv::Kv;
 pub use pg::PgPool;
 pub use writer::{EventWriter, WriterCfg};
+
+pub use ch::{LinkClickRow, RevenueRow, UptimeCheckRow};
+pub use writer::TableWriter;
+
+pub use ch::McpCallRow;

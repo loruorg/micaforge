@@ -1,0 +1,127 @@
+---
+title: "Insights"
+description: "Investigations that open when a number moves, check themselves again, and explain the likely cause."
+group: "dashboard"
+order: 10
+updated: 2026-10-08
+---
+
+Micaforge watches each site for changes and opens an **investigation** when a number moves
+enough to matter: what changed, by how much, against what, and the likely causes. Statistics
+find the change. The model, when one is configured, explains it.
+
+Open **Insights** in the left navigation. The list shows the site's investigations, newest
+update first, and can be narrowed to one status.
+
+## How a change is found
+
+Two tests run over each site.
+
+**Week over week.** The last seven days against the seven before, on five metrics:
+
+| Metric | Means |
+| --- | --- |
+| `visitors` | Visitors, as on the dashboard. |
+| `pageviews` | Pageviews, as on the dashboard. |
+| `bounce_rate` | Bounce rate, as on the dashboard. |
+| `agent_fetches` | Pages AI crawlers fetched. |
+| `answer_arrivals` | Visits from AI answers: the `answer_engine` channel. |
+
+It also looks inside the channels, the sources and the pages for the biggest movers. A
+mover gets an investigation of its own, named for it, such as visitors from one source, so a
+drop that is mostly one source going quiet is reported as that source, not only as a lower
+total.
+
+**Same hour, previous weeks.** The last hour against the same weekday and hour over the
+previous four weeks, using the mean and spread of those hours. This is the test the traffic
+alerts use. Traffic follows a weekly cycle, so Tuesday at 09:00 is compared with earlier
+Tuesdays at 09:00, not with the night before.
+
+Each investigation says which test found it, in its window: `7d vs previous 7d`, or
+`last hour vs same hour, 4 weeks`.
+
+One change is one investigation. While an investigation for a change is open, finding the
+same change again updates it rather than opening a second one.
+
+## What an investigation shows
+
+- **The change:** the metric, and the channel, source or page when it is a mover inside one;
+  the direction; the current value against the baseline; and the change in percent. A change
+  from zero has no percentage, and none is shown.
+- **The severity:** `info`, `warning` or `critical`.
+- **The findings:** the statistical breakdown, each line with its current value, baseline
+  and change.
+- **The evidence:** every query behind the findings, then every query the model ran for the
+  explanation, each with its stats request and its SQL, the same way
+  [Ask AI](/docs/dashboard/ask-ai#the-queries-behind-an-answer) shows them.
+- **The explanation:** the model's reading of the likely causes.
+- **The timeline:** when it opened, each re-check, the explanation, each status change, and
+  each post to a chat channel, oldest first.
+
+## Statuses and re-checks
+
+| Status | Means |
+| --- | --- |
+| `open` | The change was found and is new. |
+| `monitoring` | The change is being re-checked on a schedule. |
+| `resolved` | The change is gone, or someone closed it. |
+
+Each investigation has a next check time. A re-check measures the change again and records
+what it found in the timeline. Re-checks move an investigation from `open` to `monitoring` to
+`resolved`, or back when the change returns. It takes two re-checks in a row that find the
+change gone to resolve it: one quiet re-check is not enough.
+
+Anyone with the `member` role can set the status by hand, for example to resolve a change
+whose cause you already know. Viewers can read investigations and not change them.
+
+## The explanation
+
+With a model configured, a new investigation is handed to the AI analyst with the same tools
+as [Ask AI](/docs/dashboard/ask-ai#what-the-model-can-call), bounded to the site. It looks for
+the likely causes: which pages, sources or crawlers carried the change, and whether an
+[annotation](/docs/dashboard/annotations) you wrote lines up with it. Its queries are added to
+the evidence, after the statistical ones.
+
+Explanations count against the daily limit, the same as questions.
+
+Without a model, investigations still open, update and resolve with the statistical findings,
+and the screen says that the explanation needs AI configured. Nothing is sent to a model.
+When the model call fails, the investigation is kept with its findings and says that the
+explanation failed.
+
+## Scan now
+
+The scan runs every six hours on its own, and re-checks what is due at the same time. To run
+it for one site at once, after a release or a launch post,
+choose **Scan now** on the Insights screen. It needs the `member` role. The scan is queued as
+a background job, and new or updated investigations appear when it finishes.
+
+## The weekly digest
+
+A weekly email with the site's investigations, sent on Monday from 08:00 in the site's own
+timezone. It is off by default, per person and per site:
+turn on **Send me the weekly digest** in **Site setup → AI insights**.
+
+It needs the install to send mail. Without a mail transport the setting says so, and nothing
+is sent. See [mail](/docs/self-hosting/configuration#mail-off-by-default).
+
+## In chat
+
+Every channel linked to the site through [Slack](/docs/integrations/slack),
+[Discord](/docs/integrations/discord) or [Telegram](/docs/integrations/telegram) gets new
+investigations as they open. Updates to the same investigation are posted as replies to its
+first message, so one change stays in one place.
+
+## The API
+
+```http
+GET   /api/investigations?site=1&status=open    open, monitoring, resolved or all (the default)
+GET   /api/investigations/:id                   one, with its timeline, oldest first
+PATCH /api/investigations/:id                   { "status": "resolved" }, member
+POST  /api/investigations/scan?site=1           scan this site now, member
+GET   /api/insights/subscription?site=1         { weekly_digest, mail_enabled }
+PUT   /api/insights/subscription?site=1         { "weekly_digest": true }
+```
+
+The list is ordered by the latest update, newest first. `change_pct` is in percent, so `25`
+is a rise of a quarter, and it is `null` when the baseline was zero.

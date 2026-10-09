@@ -17,6 +17,7 @@
 //! - [`types`]: the shared domain vocabulary (dimensions, metrics, filters).
 //! - [`time`]: range resolution, bucket granularity, comparison periods.
 //! - [`filters`]: parsing the wire filter shape from `docs/CONTRACT.md` §3.2.
+//! - [`flags`]: the feature-flag evaluator every SDK and the server agree on.
 //!
 //! Deliberately **not** here: any `axum` types. The server crate owns the
 //! mapping from [`Error`] to a response, so this crate stays usable from the
@@ -29,6 +30,7 @@ pub mod config;
 pub mod crypto;
 pub mod error;
 pub mod filters;
+pub mod flags;
 pub mod ids;
 pub mod time;
 pub mod types;

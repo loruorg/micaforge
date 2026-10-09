@@ -48,3 +48,13 @@ csv = { workspace = true }
 # One line per slow report, with the report name and the row count. The SQL
 # itself is logged at debug only: it carries bound filter values.
 tracing = { workspace = true }
+
+# A task-local recorder in `exec`, so the AI analyst can hand back the exact SQL
+# each tool ran ("the query behind this answer") without threading a collector
+# through every report's signature.
+tokio = { workspace = true }
+[dev-dependencies]
+# `tests/live_reports.rs`, the env-gated run of the reports against a real
+# ClickHouse: an async runtime to drive it and a URL parser for the address.
+tokio = { workspace = true }
+url = { workspace = true }

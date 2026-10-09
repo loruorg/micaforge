@@ -175,7 +175,7 @@ export function ErrorDetail(props: { fingerprint?: string }) {
   const setStatus = useMutation({
     mutationFn: (next: ErrorStatus) =>
       api.post<{ status: ErrorStatus }>(
-        `/api/stats/errors/${encodeURIComponent(fingerprint)}/status`,
+        `/api/stats/errors/${encodeURIComponent(fingerprint)}/status?site=${encodeURIComponent(String(siteId ?? ""))}`,
         { status: next },
       ),
     onSuccess: () => {

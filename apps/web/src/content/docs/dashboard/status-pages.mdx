@@ -1,0 +1,102 @@
+---
+title: "Status pages"
+description: "A public, read-only page that shows the state of your monitors, the incidents you post and the maintenance you plan."
+group: "dashboard"
+order: 10
+updated: 2026-10-08
+---
+
+A status page shows the state of chosen [uptime monitors](/docs/dashboard/uptime-monitoring)
+to anyone with its address. It is read-only, and reading it needs no account.
+
+```text
+https://analytics.example.com/status/acme
+```
+
+The address is the dashboard origin, then `/status/`, then the page's slug. Manage pages on
+the Status pages screen, under Monitoring.
+
+```http
+GET  /api/status-pages?site=1
+POST /api/status-pages?site=1
+```
+
+Creating, editing or deleting a page needs the admin role on the site, because a page
+publishes data. Posting an incident needs the member role.
+
+## A page
+
+| Field | What it does |
+| --- | --- |
+| Slug | 3 to 64 characters of `a-z`, `0-9` and `-`. Unique on the install. |
+| Title | The heading of the page. |
+| Description | A short text under the title. Optional. |
+| Logo URL | An `https://` address of an image. Optional. |
+| Accent colour | The page's colour, as `#rrggbb`. |
+| Monitors | The monitors the page shows, in order, each with an optional display name. |
+| Footer link | A label and an address for a custom link in the footer. Optional. |
+| Published | Off: the page answers as if it did not exist. On: anyone can read it. |
+
+The page shows the display name of a monitor, or its name when there is no display name.
+The URL a monitor checks is never published.
+
+## What a reader sees
+
+- The overall state: operational, degraded, outage, maintenance or unknown.
+- Each monitor, with its current state and a bar of the last 90 days, one segment per day.
+- Active incidents, each with its timeline of updates.
+- Scheduled maintenance.
+- The incidents of the last 14 days.
+
+## Incidents
+
+Post incidents from the Status pages screen. An incident has a kind, a title, a status, an
+impact, the monitors it affects (none means the whole page), and a timeline of updates.
+
+| Kind | Statuses |
+| --- | --- |
+| `incident` | `investigating`, `identified`, `monitoring`, `resolved` |
+| `maintenance` | `scheduled`, `in_progress`, `completed` |
+
+Impact is `none`, `minor`, `major` or `critical`. Maintenance also has a start and an end
+time for its window.
+
+Each update has a status and a text, and the updates form the timeline a reader sees. An
+update with the status `resolved` or `completed` closes the incident.
+
+```http
+POST /api/status-pages/:id/incidents
+POST /api/status-incidents/:id/updates
+```
+
+### Automatic incidents
+
+You do not have to post an outage by hand. When a monitor that is on a published status
+page opens an incident, each such page gets an incident with the status `investigating`,
+marked as opened by the monitor. When the monitor recovers, an update closes it as
+`resolved`. You can add your own updates to it in between.
+
+## Reading it as JSON
+
+The page itself is one static document. It reads everything it shows from one public
+endpoint, which you can also call:
+
+```sh
+curl https://analytics.example.com/api/status/acme
+```
+
+It needs no key and no account. An unknown slug, and the slug of a page that is not
+published, both answer `404 not_found`.
+
+## Self-hosting
+
+There is nothing to configure. In the compose stack, Caddy serves every path under
+`/status/` from the web image. On Cloudflare Pages, this rule in `_redirects` does the same
+job:
+
+```text
+/status/* /status/ 200
+```
+
+See [configuration](/docs/self-hosting/configuration) for the dashboard address that the
+page addresses are built from.

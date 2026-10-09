@@ -14,7 +14,7 @@ import { glob } from "astro/loaders";
 // zod directly rather than the re-export from `astro:content`, which is deprecated.
 import { z } from "zod";
 
-/** The eight sections of the manual, in reading order. Also the directory names. */
+/** The sections of the manual, in reading order. Also the directory names. */
 export const DOC_GROUP_KEYS = [
   "getting-started",
   "tracking",
@@ -24,6 +24,7 @@ export const DOC_GROUP_KEYS = [
   "self-hosting",
   "migrating",
   "privacy",
+  "integrations",
 ] as const;
 
 const docs = defineCollection({

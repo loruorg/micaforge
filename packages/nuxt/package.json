@@ -1,0 +1,63 @@
+{
+  "name": "@micaforge/nuxt",
+  "version": "0.1.0",
+  "description": "Micaforge for Nuxt: the tracker tag, router pageviews, useMicaforge() and useFlag(), and a server client for Nitro",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "homepage": "https://github.com/loruorg/micaforge/tree/main/packages/nuxt",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/loruorg/micaforge.git",
+    "directory": "packages/nuxt"
+  },
+  "keywords": [
+    "analytics",
+    "cookieless",
+    "nuxt",
+    "nuxt-module",
+    "feature-flags",
+    "micaforge"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/module.d.ts",
+      "default": "./dist/module.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "main": "./dist/module.js",
+  "types": "./dist/module.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@micaforge/devtools": "workspace:*",
+    "@micaforge/sdk": "workspace:*",
+    "@micaforge/sdk-server": "workspace:*",
+    "@nuxt/kit": "^4.6.0"
+  },
+  "devDependencies": {
+    "@nuxt/schema": "^4.6.0",
+    "@types/node": "^24.13.3",
+    "jsdom": "^26.1.0",
+    "typescript": "^6.0.3",
+    "vitest": "^3.2.4",
+    "vue": "^3.5.43"
+  },
+  "engines": {
+    "node": ">=20.19"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

@@ -1,19 +1,35 @@
-//! `POST /api/mcp` — a Model Context Protocol server over the read endpoints.
+//! `POST /api/mcp` — a Model Context Protocol server over the product.
 //!
 //! `PRODUCT.md` lists, among the differentiating surface, "an MCP server so an
 //! agent can query the analytics it is helping to produce". That sentence is the
 //! whole design brief. The agents this product counts on one screen can, through
-//! this endpoint, read the count. Nothing here is a new capability: every tool
-//! is one of the HTTP reads already in `docs/CONTRACT.md` §3.3, answered by the
-//! same query functions, over the same query envelope.
+//! this endpoint, read the count. The read tools are the HTTP reads already in
+//! `docs/CONTRACT.md` §3.3, answered by the same query functions over the same
+//! query envelope; the few write tools (goals, annotations, feedback) and the
+//! `ask` tool call the same functions their HTTP routes call.
 //!
 //! ## The shape
 //!
-//! JSON-RPC 2.0 over a single HTTP POST, protocol revision `2024-11-05`. Three
-//! methods carry the protocol — `initialize`, `tools/list`, `tools/call` — plus
-//! `ping`. Batches are accepted, and a notification (a member with no `id`) is
-//! answered with no response, which is what JSON-RPC requires. Every tool here
-//! is a read, so a notification has nothing to perform either.
+//! JSON-RPC 2.0 over a single HTTP POST (the Streamable HTTP transport without
+//! server-sent streams). The protocol revision is negotiated in `initialize`
+//! from [`SUPPORTED_VERSIONS`]. Three methods carry the protocol —
+//! `initialize`, `tools/list`, `tools/call` — plus `ping`. Batches are
+//! accepted, and a notification (a member with no `id`) is answered with no
+//! response, which is what JSON-RPC requires. `tools/call` is a request in MCP
+//! and never a notification, so a call sent without an `id` is not performed.
+//!
+//! `initialize` answers with an `Mcp-Session-Id` header. The session holds one
+//! thing, the client's own name from `clientInfo`, so a report an agent sends
+//! with `submit_feedback` says which client sent it. A client that never sends
+//! the header back loses only that.
+//!
+//! ## Adding tools
+//!
+//! Tools for another area live in their own file, `routes/mcp_<area>.rs`,
+//! exposing `pub fn tools() -> Vec<Value>` and
+//! `pub async fn call(st, auth, name, args) -> Option<Result<Value>>` (`None`
+//! for a name it does not own). Registering it is one line in
+//! [`extension_tools`] and one in [`call_extension`].
 //!
 //! ## Errors are JSON-RPC objects, not HTTP statuses
 //!
@@ -31,24 +47,28 @@
 //! whether a fixed one does. The stable `snake_case` code always travels, in
 //! `error.data.code`, because that is what a caller can branch on.
 //!
-//! ## Why an API key and not a session
+//! ## A key or an OAuth token, never a session
 //!
 //! The caller here is a program. A session cookie belongs to a browser, and an
 //! agent that has one is an agent running inside somebody's dashboard tab. The
-//! endpoint therefore insists on `Authorization: Bearer mfg_…`, which is a
-//! credential an operator minted deliberately, can name, can scope, and can
-//! revoke without logging anybody out.
+//! endpoint therefore takes one of two credentials a person issued on purpose:
+//! an API key (`Bearer mfg_…`), or an OAuth access token (`Bearer mfo_…`) from
+//! the flow in [`super::oauth`], which a client obtains by itself and a person
+//! approves in the dashboard. Without either, the `401` carries a
+//! `WWW-Authenticate` header naming the protected resource metadata, which is
+//! how an MCP client discovers that flow.
 //!
-//! ## What the key can read
+//! ## What the credential can reach
 //!
-//! Its own grant ([`KeyGrant`]) and nothing more: `stats:read` to reach the
-//! endpoint at all, the sites of its own organisation, and only its own site
-//! when it was minted for one. The key resolves against the organisation's
-//! owner, who may belong to other organisations; those are not the key's.
+//! Its own grant ([`crate::extract::KeyGrant`]) and nothing more: `stats:read`
+//! to reach the endpoint at all, the sites of its own organisation, only its
+//! own site when a key was minted for one, and `manage:write` for the write
+//! tools. A key resolves against the organisation's owner, and an OAuth token
+//! against the person who approved it; neither carries more than its grant.
 
 use axum::body::Bytes;
 use axum::extract::State;
-use axum::http::{header, HeaderMap, StatusCode};
+use axum::http::{header, HeaderMap, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::post;
 use axum::{Json, Router};
@@ -63,11 +83,89 @@ use uuid::Uuid;
 
 use super::agents::{agent_envelope, json_body};
 use crate::error::ApiError;
-use crate::extract::{AuthUser, KeyGrant};
+use crate::extract::{AuthMethod, AuthUser, KeyGrant};
 use crate::state::AppState;
 
-/// The protocol revision this server speaks.
-const PROTOCOL_VERSION: &str = "2024-11-05";
+/// The protocol revisions this server speaks, newest first.
+pub const SUPPORTED_VERSIONS: &[&str] = &["2025-06-18", "2025-03-26", "2024-11-05"];
+
+/// How long an MCP session's client name is remembered.
+const SESSION_TTL: u32 = 24 * 60 * 60;
+
+tokio::task_local! {
+    /// The MCP client's own name, for the call being served.
+    static MCP_CLIENT: Option<String>;
+}
+
+/// The calling MCP client's `clientInfo.name`, when its session is known.
+pub fn client_name() -> Option<String> {
+    MCP_CLIENT.try_with(Clone::clone).ok().flatten()
+}
+
+/// How an audit label names the MCP side of a change: the client's own name
+/// when its session gave one, `MCP` otherwise. `None` outside an MCP call,
+/// so a change made through the HTTP API keeps its plain label.
+pub fn via() -> Option<String> {
+    MCP_CLIENT
+        .try_with(|client| match client {
+            Some(name) => format!("{name} (MCP)"),
+            None => "MCP".to_string(),
+        })
+        .ok()
+}
+
+/// The tools of the other areas, appended after this module's own.
+///
+/// One line per area module. See "Adding tools" in the module notes.
+fn extension_tools() -> Vec<Value> {
+    let mut tools = Vec::new();
+    tools.extend(super::mcp_ai::tools());
+    tools.extend(super::mcp_feedback::tools());
+    tools.extend(super::mcp_annotations::tools());
+    tools.extend(super::mcp_goals::tools());
+    // Site-scoped reads: dispatched from `run_tool` after the site is
+    // authorised, rather than from `call_extension`.
+    tools.extend(super::mcp_monitoring::tools());
+    tools.extend(super::mcp_flags::tools());
+    tools.extend(super::mcp_links::tools());
+    tools.extend(super::mcp_search::tools());
+    tools.extend(super::mcp_github::tools());
+    tools.extend(super::mcp_servers::tools());
+    tools
+}
+
+/// Offer a call to each area module in turn; `None` when none owns the name.
+///
+/// One line per area module. See "Adding tools" in the module notes.
+async fn call_extension(
+    st: &AppState,
+    auth: &AuthUser,
+    name: &str,
+    args: &Value,
+) -> Option<micaforge_core::Result<Value>> {
+    if let Some(done) = super::mcp_ai::call(st, auth, name, args).await {
+        return Some(done);
+    }
+    if let Some(done) = super::mcp_feedback::call(st, auth, name, args).await {
+        return Some(done);
+    }
+    if let Some(done) = super::mcp_annotations::call(st, auth, name, args).await {
+        return Some(done);
+    }
+    if let Some(done) = super::mcp_goals::call(st, auth, name, args).await {
+        return Some(done);
+    }
+    if let Some(done) = super::mcp_flags::call(st, auth, name, args).await {
+        return Some(done);
+    }
+    if let Some(done) = super::mcp_links::call(st, auth, name, args).await {
+        return Some(done);
+    }
+    if let Some(done) = super::mcp_github::call(st, auth, name, args).await {
+        return Some(done);
+    }
+    None
+}
 
 /// Most rows one tool call will return.
 ///
@@ -209,66 +307,161 @@ fn rpc_fail(id: Value, error: &RpcError) -> Value {
 /// be told what was wrong in the dialect it was speaking.
 async fn handle(
     State(st): State<AppState>,
-    auth: AuthUser,
+    auth: std::result::Result<AuthUser, ApiError>,
     headers: HeaderMap,
     body: Bytes,
 ) -> Result<Response, ApiError> {
-    require_api_key(&headers)?;
-    let user = acting_user(&auth);
-    // `AuthUser` only carries a grant for a key, and the header check above
-    // only passes for a key, so this is never `None` in practice. It is
-    // checked rather than assumed: a grantless caller here would be reading
-    // with its owner's whole authority.
-    let Some(grant) = auth.key.as_ref() else {
-        return Err(Error::Unauthorized(
-            "the MCP endpoint takes an API key: `Authorization: Bearer mfg_...`".to_string(),
-        )
-        .into());
+    let auth = match auth {
+        Ok(auth) => auth,
+        Err(e) if e.status() == StatusCode::UNAUTHORIZED => return Ok(challenge(&st)),
+        Err(e) => return Err(e),
     };
+    if require_credential(&headers).is_err() || !is_program(&auth) {
+        return Ok(challenge(&st));
+    }
+    // `AuthUser` carries a grant for a key and for an OAuth token, and the
+    // checks above pass only for those, so this is never `None` in practice.
+    // It is checked rather than assumed: a grantless caller here would be
+    // reading with a person's whole authority.
+    if auth.key.is_none() {
+        return Ok(challenge(&st));
+    }
 
     let Ok(payload) = serde_json::from_slice::<Value>(&body) else {
         let err = RpcError::protocol(PARSE_ERROR, "the request body is not valid JSON");
         return Ok(json_response(rpc_fail(Value::Null, &err)));
     };
 
+    // A session the client was given by `initialize`, and the name it
+    // registered there. Unknown or absent is no session, not an error.
+    let session = headers
+        .get("mcp-session-id")
+        .and_then(|v| v.to_str().ok())
+        .map(str::trim)
+        .filter(|v| !v.is_empty() && v.len() <= 128)
+        .map(str::to_string);
+    let mut client = match session.as_deref() {
+        Some(id) => st
+            .kv
+            .get_json::<String>(&session_key(id))
+            .await
+            .unwrap_or(None),
+        None => None,
+    };
+    let opened = match first_initialize(&payload) {
+        Some(name) => {
+            let id = micaforge_core::crypto::random_token(24);
+            if let Err(e) = st
+                .kv
+                .set_json(&session_key(&id), &name, Some(SESSION_TTL))
+                .await
+            {
+                tracing::warn!(error = %e, "could not store an mcp session");
+            }
+            client = Some(name);
+            Some(id)
+        }
+        None => None,
+    };
+
+    let mut response = MCP_CLIENT.scope(client, answer(&st, &auth, payload)).await;
+    if let Some(id) = opened {
+        if let Ok(value) = HeaderValue::from_str(&id) {
+            response.headers_mut().insert("mcp-session-id", value);
+        }
+    }
+    Ok(response)
+}
+
+/// The Valkey key an MCP session's client name lives under.
+fn session_key(id: &str) -> String {
+    format!("mf:mcp:session:{}", micaforge_core::crypto::token_hash(id))
+}
+
+/// The client name of an `initialize` request in the payload, if there is one.
+fn first_initialize(payload: &Value) -> Option<String> {
+    let items: Vec<&Value> = match payload {
+        Value::Array(items) => items.iter().collect(),
+        one => vec![one],
+    };
+    items
+        .into_iter()
+        .find(|item| item.get("method").and_then(Value::as_str) == Some("initialize"))
+        .map(|item| {
+            item.pointer("/params/clientInfo/name")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|n| !n.is_empty())
+                .unwrap_or("unnamed MCP client")
+                .chars()
+                .take(80)
+                .collect()
+        })
+}
+
+/// The `401` that tells an MCP client where to get a token.
+fn challenge(st: &AppState) -> Response {
+    let mut response = (
+        StatusCode::UNAUTHORIZED,
+        Json(json!({ "error": {
+            "code": "unauthorized",
+            "message": "the MCP endpoint takes an API key (`Authorization: Bearer mfg_...`) or an OAuth access token",
+        }})),
+    )
+        .into_response();
+    if let Ok(value) = HeaderValue::from_str(&super::oauth::www_authenticate(st)) {
+        response
+            .headers_mut()
+            .insert(header::WWW_AUTHENTICATE, value);
+    }
+    response
+}
+
+/// True for a key or an OAuth token, the two credentials a program holds.
+fn is_program(auth: &AuthUser) -> bool {
+    matches!(auth.method, AuthMethod::ApiKey(_) | AuthMethod::OAuth(_))
+}
+
+/// Answer a parsed payload: one request or a batch.
+async fn answer(st: &AppState, auth: &AuthUser, payload: Value) -> Response {
     match payload {
         Value::Array(items) if items.is_empty() => {
             let err = RpcError::protocol(INVALID_REQUEST, "a batch must hold at least one call");
-            Ok(json_response(rpc_fail(Value::Null, &err)))
+            json_response(rpc_fail(Value::Null, &err))
         }
         Value::Array(items) => {
             let mut replies = Vec::with_capacity(items.len());
             for item in &items {
-                if let Some(reply) = dispatch(&st, user, grant, item).await {
+                if let Some(reply) = dispatch(st, auth, item).await {
                     replies.push(reply);
                 }
             }
             // A batch of nothing but notifications gets no body, per JSON-RPC.
             if replies.is_empty() {
-                Ok(accepted())
+                accepted()
             } else {
-                Ok(json_response(Value::Array(replies)))
+                json_response(Value::Array(replies))
             }
         }
-        item @ Value::Object(_) => match dispatch(&st, user, grant, &item).await {
-            Some(reply) => Ok(json_response(reply)),
-            None => Ok(accepted()),
+        item @ Value::Object(_) => match dispatch(st, auth, &item).await {
+            Some(reply) => json_response(reply),
+            None => accepted(),
         },
         _ => {
             let err = RpcError::protocol(
                 INVALID_REQUEST,
                 "a JSON-RPC request is an object, or an array of objects",
             );
-            Ok(json_response(rpc_fail(Value::Null, &err)))
+            json_response(rpc_fail(Value::Null, &err))
         }
     }
 }
 
 /// Answer one member of a batch, or `None` when it was a notification.
-async fn dispatch(st: &AppState, user: Uuid, grant: &KeyGrant, item: &Value) -> Option<Value> {
-    // A member with no `id` is a notification: it is performed, if there is
-    // anything to perform, and never answered. Every tool on this server is a
-    // read, so there is nothing to perform and the whole member is a no-op.
+async fn dispatch(st: &AppState, auth: &AuthUser, item: &Value) -> Option<Value> {
+    // A member with no `id` is a notification: it is never answered, and the
+    // only notifications MCP defines from a client (`initialized`, a
+    // cancellation) need nothing done here, so the whole member is a no-op.
     let id = item.get("id")?.clone();
 
     if item.get("jsonrpc").and_then(Value::as_str) != Some("2.0") {
@@ -288,10 +481,10 @@ async fn dispatch(st: &AppState, user: Uuid, grant: &KeyGrant, item: &Value) -> 
     let params = item.get("params").cloned().unwrap_or(Value::Null);
 
     let outcome = match method {
-        "initialize" => Ok(initialize_result()),
+        "initialize" => Ok(initialize_result(&params)),
         "ping" => Ok(json!({})),
         "tools/list" => Ok(json!({ "tools": tool_definitions() })),
-        "tools/call" => call_tool(st, user, grant, &params).await,
+        "tools/call" => call_tool(st, auth, &params).await,
         other => Err(RpcError::protocol(
             METHOD_NOT_FOUND,
             format!("`{other}` is not a method this server implements"),
@@ -314,11 +507,11 @@ fn accepted() -> Response {
     StatusCode::ACCEPTED.into_response()
 }
 
-/// Insist on an API key rather than a browser session.
+/// Insist on a bearer credential rather than a browser session.
 ///
 /// The `AuthUser` extractor has already established *that* the caller is
 /// authenticated; this establishes *how*. See the module note.
-fn require_api_key(headers: &HeaderMap) -> micaforge_core::Result<()> {
+fn require_credential(headers: &HeaderMap) -> micaforge_core::Result<()> {
     let raw = headers
         .get(header::AUTHORIZATION)
         .and_then(|value| value.to_str().ok())
@@ -328,11 +521,12 @@ fn require_api_key(headers: &HeaderMap) -> micaforge_core::Result<()> {
     let scheme = parts.next().unwrap_or_default();
     let token = parts.next().unwrap_or_default().trim();
 
-    if scheme.eq_ignore_ascii_case("bearer") && token.starts_with("mfg_") {
+    let known = token.starts_with("mfg_") || token.starts_with(super::oauth::ACCESS_PREFIX);
+    if scheme.eq_ignore_ascii_case("bearer") && known {
         Ok(())
     } else {
         Err(Error::Unauthorized(
-            "the MCP endpoint takes an API key: `Authorization: Bearer mfg_...`".to_string(),
+            "the MCP endpoint takes an API key or an OAuth access token".to_string(),
         ))
     }
 }
@@ -342,8 +536,30 @@ fn require_api_key(headers: &HeaderMap) -> micaforge_core::Result<()> {
 /// Isolated in a function on purpose. Everything downstream is scoped to this
 /// identity, so if the extractor ever changes how it names the authenticated
 /// user, exactly one line here changes with it.
-fn acting_user(auth: &AuthUser) -> Uuid {
+pub(crate) fn acting_user(auth: &AuthUser) -> Uuid {
     auth.user.id
+}
+
+/// The grant the credential carries.
+///
+/// Every program credential carries one ([`handle`] refuses any that does
+/// not), so a missing grant here is a fault, refused rather than served.
+pub(crate) fn grant_of(auth: &AuthUser) -> micaforge_core::Result<&KeyGrant> {
+    auth.key
+        .as_ref()
+        .ok_or_else(|| Error::Unauthorized("the MCP endpoint takes a key or a token".to_string()))
+}
+
+/// Refuse a write without `manage:write`.
+pub(crate) fn require_write(auth: &AuthUser) -> micaforge_core::Result<()> {
+    if grant_of(auth)?.has_scope("manage:write") {
+        Ok(())
+    } else {
+        Err(Error::Forbidden(
+            "this tool writes, and this credential does not hold the `manage:write` scope"
+                .to_string(),
+        ))
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -356,9 +572,16 @@ fn acting_user(auth: &AuthUser) -> Uuid {
 /// two ways to be badly wrong about them — mistaking crawler traffic for
 /// readers, and reading a Citation Gap ratio as a performance score — and this
 /// is the only place to say so before the first call is made.
-fn initialize_result() -> Value {
+fn initialize_result(params: &Value) -> Value {
+    // The client's revision when this server speaks it, otherwise the newest
+    // this server does; the client decides whether it can work with that.
+    let asked = params.get("protocolVersion").and_then(Value::as_str);
+    let version = asked
+        .and_then(|v| SUPPORTED_VERSIONS.iter().find(|s| **s == v))
+        .copied()
+        .unwrap_or(SUPPORTED_VERSIONS[0]);
     json!({
-        "protocolVersion": PROTOCOL_VERSION,
+        "protocolVersion": version,
         "capabilities": { "tools": { "listChanged": false } },
         "serverInfo": {
             "name": "micaforge",
@@ -372,7 +595,9 @@ fn initialize_result() -> Value {
     `answer_arrivals` (how many readers came back to it from an answer engine). A high ratio is \
     not success; it means the page is being consumed without returning readers. Every verdict is \
     drawn against thresholds that travel with the answer. Start with `list_sites` to learn the \
-    numeric site ids every other tool needs.",
+    numeric site ids every other tool needs. `ask` answers a question in plain words with the \
+    queries it ran. If something in Micaforge itself is broken, confusing or missing, report it \
+    with `submit_feedback`.",
     })
 }
 
@@ -526,7 +751,7 @@ fn filter_schema() -> Value {
 }
 
 /// Build one tool definition over the shared envelope schema.
-fn envelope_tool(
+pub(super) fn envelope_tool(
     name: &str,
     description: &str,
     extra: &[(&str, Value)],
@@ -556,8 +781,15 @@ fn envelope_tool(
     })
 }
 
-/// The twelve tools, in the order a caller would sensibly meet them.
+/// Every tool: this module's reads, then the other areas'.
 fn tool_definitions() -> Vec<Value> {
+    let mut tools = core_tools();
+    tools.extend(extension_tools());
+    tools
+}
+
+/// The twelve read tools, in the order a caller would sensibly meet them.
+fn core_tools() -> Vec<Value> {
     let metric_enum = json!([
         "visitors",
         "sessions",
@@ -587,7 +819,7 @@ fn tool_definitions() -> Vec<Value> {
         "description": "Which metrics to compute for each row. Defaults to visitors and pageviews.",
     });
 
-    vec![
+    let tools = vec![
         json!({
             "name": "list_sites",
             "description": "List the sites this key can read, with the numeric `site` id every \
@@ -707,7 +939,8 @@ metrics asked for; without one it returns the headline totals. Combine with `fil
             &[("dimension", dimension_schema), ("metrics", metrics_schema)],
             &[],
         ),
-    ]
+    ];
+    tools
 }
 
 // ---------------------------------------------------------------------------
@@ -717,8 +950,7 @@ metrics asked for; without one it returns the headline totals. Combine with `fil
 /// Run one tool and wrap its payload in an MCP tool result.
 async fn call_tool(
     st: &AppState,
-    user: Uuid,
-    grant: &KeyGrant,
+    auth: &AuthUser,
     params: &Value,
 ) -> std::result::Result<Value, RpcError> {
     let Some(name) = params.get("name").and_then(Value::as_str) else {
@@ -733,7 +965,11 @@ async fn call_tool(
         .cloned()
         .unwrap_or_else(|| json!({}));
 
-    match run_tool(st, user, grant, name, &arguments).await {
+    let outcome = match call_extension(st, auth, name, &arguments).await {
+        Some(done) => done,
+        None => run_tool(st, auth, name, &arguments).await,
+    };
+    match outcome {
         Ok(payload) => Ok(json!({
             // Compact rather than pretty: the reader is a context window, and
             // indentation is tokens spent on whitespace.
@@ -751,18 +987,31 @@ async fn call_tool(
 /// implementation of them.
 async fn run_tool(
     st: &AppState,
-    user: Uuid,
-    grant: &KeyGrant,
+    auth: &AuthUser,
     name: &str,
     args: &Value,
 ) -> micaforge_core::Result<Value> {
     if name == "list_sites" {
-        return list_sites(st, user, grant).await;
+        return list_sites(st, acting_user(auth), grant_of(auth)?).await;
     }
 
     // Authorisation happens before the envelope is even built, so an
     // unreachable site cannot be probed through a malformed time range.
-    let site = authorize_site(st, user, grant, site_argument(args)?).await?;
+    let site = authorize_site(st, auth, site_argument(args)?).await?;
+    if let Some(result) =
+        super::mcp_monitoring::call(st, acting_user(auth), &site, name, args).await
+    {
+        return result;
+    }
+    if let Some(result) = super::mcp_search::call(st, &site, name, args).await {
+        return result;
+    }
+    if let Some(result) = super::mcp_github::call_site(st, &site, name, args).await {
+        return result;
+    }
+    if let Some(result) = super::mcp_servers::call(st, acting_user(auth), &site, name, args).await {
+        return result;
+    }
     let env = envelope_from_args(&site, args)?;
 
     match name {
@@ -861,12 +1110,13 @@ async fn list_sites(st: &AppState, user: Uuid, grant: &KeyGrant) -> micaforge_co
 /// Two gates. The key's grant (its organisation, and its site when it has one),
 /// checked here explicitly; then the owner's role on the site through the same
 /// function the REST surface uses, which also applies the grant.
-async fn authorize_site(
+pub(crate) async fn authorize_site(
     st: &AppState,
-    user: Uuid,
-    grant: &KeyGrant,
+    auth: &AuthUser,
     site_id: u16,
 ) -> micaforge_core::Result<Site> {
+    let user = acting_user(auth);
+    let grant = grant_of(auth)?;
     let missing = || Error::not_found(format!("site {site_id}"));
     let site = sites::get_by_site_id(&st.pg, site_id).await?;
 
@@ -888,7 +1138,7 @@ async fn authorize_site(
 ///
 /// Models write `"site": "1"` often enough that refusing it would cost a round
 /// trip to teach a lesson nobody learns.
-fn site_argument(args: &Value) -> micaforge_core::Result<u16> {
+pub(crate) fn site_argument(args: &Value) -> micaforge_core::Result<u16> {
     let raw = args
         .get("site")
         .ok_or_else(|| Error::validation("site", "is required; call `list_sites` first"))?;
@@ -910,7 +1160,10 @@ fn site_argument(args: &Value) -> micaforge_core::Result<u16> {
 /// The same resolution the HTTP envelope extractor performs, over JSON instead
 /// of a query string, so a tool call and a dashboard request asking for `7d`
 /// mean the same seven days.
-fn envelope_from_args(site: &Site, args: &Value) -> micaforge_core::Result<QueryEnvelope> {
+pub(crate) fn envelope_from_args(
+    site: &Site,
+    args: &Value,
+) -> micaforge_core::Result<QueryEnvelope> {
     let tz = match string_argument(args, "tz") {
         Some(raw) => raw
             .parse::<Tz>()
@@ -966,7 +1219,7 @@ fn envelope_from_args(site: &Site, args: &Value) -> micaforge_core::Result<Query
 }
 
 /// A trimmed, non-empty string argument.
-fn string_argument<'a>(args: &'a Value, key: &str) -> Option<&'a str> {
+pub(crate) fn string_argument<'a>(args: &'a Value, key: &str) -> Option<&'a str> {
     args.get(key)
         .and_then(Value::as_str)
         .map(str::trim)
@@ -1027,22 +1280,60 @@ mod tests {
     use super::*;
 
     #[test]
-    fn only_a_bearer_api_key_is_accepted() {
+    fn only_a_bearer_key_or_oauth_token_is_accepted() {
         let mut headers = HeaderMap::new();
-        assert!(require_api_key(&headers).is_err());
+        assert!(require_credential(&headers).is_err());
 
         headers.insert(header::AUTHORIZATION, "Bearer mfg_abc123".parse().unwrap());
-        assert!(require_api_key(&headers).is_ok());
+        assert!(require_credential(&headers).is_ok());
+
+        headers.insert(header::AUTHORIZATION, "Bearer mfo_abc123".parse().unwrap());
+        assert!(require_credential(&headers).is_ok());
 
         // The scheme is case-insensitive; the token prefix is not optional.
         headers.insert(header::AUTHORIZATION, "bearer mfg_abc123".parse().unwrap());
-        assert!(require_api_key(&headers).is_ok());
+        assert!(require_credential(&headers).is_ok());
 
         headers.insert(header::AUTHORIZATION, "Bearer sess_abc123".parse().unwrap());
-        assert!(require_api_key(&headers).is_err());
+        assert!(require_credential(&headers).is_err());
+
+        // A refresh token is not an access token.
+        headers.insert(header::AUTHORIZATION, "Bearer mfr_abc123".parse().unwrap());
+        assert!(require_credential(&headers).is_err());
 
         headers.insert(header::AUTHORIZATION, "Basic bWZnXw==".parse().unwrap());
-        assert!(require_api_key(&headers).is_err());
+        assert!(require_credential(&headers).is_err());
+    }
+
+    #[test]
+    fn the_protocol_revision_is_negotiated() {
+        let chosen = |asked: Value| {
+            initialize_result(&json!({ "protocolVersion": asked }))["protocolVersion"].clone()
+        };
+        assert_eq!(chosen(json!("2024-11-05")), json!("2024-11-05"));
+        assert_eq!(chosen(json!("2025-06-18")), json!("2025-06-18"));
+        // A revision this server does not speak gets its newest.
+        assert_eq!(chosen(json!("1999-01-01")), json!(SUPPORTED_VERSIONS[0]));
+        assert_eq!(
+            initialize_result(&Value::Null)["protocolVersion"],
+            json!(SUPPORTED_VERSIONS[0])
+        );
+    }
+
+    #[test]
+    fn initialize_names_the_client_for_its_session() {
+        let one = json!({ "jsonrpc": "2.0", "id": 1, "method": "initialize",
+            "params": { "clientInfo": { "name": "Claude Code", "version": "2" } } });
+        assert_eq!(first_initialize(&one).as_deref(), Some("Claude Code"));
+        let batch = json!([{ "jsonrpc": "2.0", "id": 1, "method": "ping" }, one]);
+        assert_eq!(first_initialize(&batch).as_deref(), Some("Claude Code"));
+        let nameless = json!({ "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {} });
+        assert_eq!(
+            first_initialize(&nameless).as_deref(),
+            Some("unnamed MCP client")
+        );
+        let call = json!({ "jsonrpc": "2.0", "id": 2, "method": "tools/call" });
+        assert_eq!(first_initialize(&call), None);
     }
 
     #[test]
@@ -1057,8 +1348,14 @@ mod tests {
 
     #[test]
     fn every_tool_carries_a_usable_schema() {
+        assert_eq!(core_tools().len(), 12);
         let tools = tool_definitions();
-        assert_eq!(tools.len(), 12);
+
+        let mut names: Vec<&str> = tools.iter().filter_map(|t| t["name"].as_str()).collect();
+        let count = names.len();
+        names.sort_unstable();
+        names.dedup();
+        assert_eq!(names.len(), count, "tool names must be unique");
 
         for tool in &tools {
             let name = tool["name"].as_str().expect("a tool has a name");
@@ -1071,9 +1368,9 @@ mod tests {
             assert!(tool["inputSchema"]["properties"].is_object());
         }
 
-        // Every site-scoped tool requires the site, and `list_sites` is the one
+        // Every site-scoped read requires the site, and `list_sites` is the one
         // that cannot, because it is how a caller learns the ids.
-        for tool in &tools {
+        for tool in &core_tools() {
             let required = &tool["inputSchema"]["required"];
             if tool["name"] == "list_sites" {
                 assert!(required.is_null());
@@ -1109,6 +1406,13 @@ mod tests {
             "get_policy_violations",
             "get_content_decay",
             "run_query",
+            "ask",
+            "submit_feedback",
+            "list_my_feedback",
+            "create_annotation",
+            "list_annotations",
+            "delete_annotation",
+            "create_goal",
         ] {
             assert!(names.iter().any(|n| n == expected), "missing {expected}");
         }

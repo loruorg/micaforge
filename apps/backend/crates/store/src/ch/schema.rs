@@ -150,6 +150,10 @@ const EVENTS: TableDef = TableDef {
         ("ttfb", "Nullable(Float32)"),
         ("import_id", "Nullable(UUID)"),
         ("sdk_version", "LowCardinality(String) DEFAULT ''"),
+        // The tracker's `data-sample` rate for this hit, 1-100. 100 (everyone)
+        // for every row written before sampling existed, and for every row a
+        // server SDK or an import writes.
+        ("sample_rate", "UInt8 DEFAULT 100"),
     ],
     engine: "MergeTree",
     partition_by: Some("toYYYYMM(timestamp)"),
@@ -389,6 +393,204 @@ const IMPORTS_RAW: TableDef = TableDef {
     time_column: Some("timestamp"),
 };
 
+/// `uptime_checks` — one row per uptime check of one monitor.
+///
+/// Sorted by monitor before time, because every read is "this monitor over
+/// this window": the latency chart, the uptime percentage, the status page's
+/// ninety daily bars. `ssl_days_left` is nullable rather than a sentinel,
+/// because a plain-HTTP monitor has no certificate and "no certificate" must
+/// not average into "expires today".
+const UPTIME_CHECKS: TableDef = TableDef {
+    name: "uptime_checks",
+    columns: &[
+        ("site_id", "UInt16"),
+        ("timestamp", "DateTime64(3)"),
+        ("monitor_id", "UUID"),
+        ("region", "LowCardinality(String)"),
+        ("ok", "UInt8"),
+        ("status_code", "UInt16 DEFAULT 0"),
+        ("latency_ms", "UInt32 DEFAULT 0"),
+        ("error", "String DEFAULT ''"),
+        ("ssl_days_left", "Nullable(Int32)"),
+    ],
+    engine: "MergeTree",
+    partition_by: Some("toYYYYMM(timestamp)"),
+    order_by: "(site_id, monitor_id, timestamp)",
+    ttl: None,
+    time_column: Some("timestamp"),
+};
+
+/// `link_clicks` — one row per short-link redirect, preview included.
+///
+/// Keyed by link rather than by site: a link may belong to an organisation and
+/// no site at all (`site_id` is then `0`), and every read is one link or a
+/// list of link ids. The enrichment columns are the ones ingest derives for a
+/// pageview, from the same functions; no address is stored.
+const LINK_CLICKS: TableDef = TableDef {
+    name: "link_clicks",
+    columns: &[
+        ("site_id", "UInt16 DEFAULT 0"),
+        ("timestamp", "DateTime64(3)"),
+        ("link_id", "UUID"),
+        ("org_id", "UUID"),
+        ("referrer", "String DEFAULT ''"),
+        ("referrer_host", "String DEFAULT ''"),
+        ("country", "LowCardinality(FixedString(2)) DEFAULT '  '"),
+        ("region", "LowCardinality(String) DEFAULT ''"),
+        ("device_type", "LowCardinality(String) DEFAULT ''"),
+        ("browser", "LowCardinality(String) DEFAULT ''"),
+        ("os", "LowCardinality(String) DEFAULT ''"),
+        ("is_bot", "UInt8 DEFAULT 0"),
+        ("bot_name", "LowCardinality(String) DEFAULT ''"),
+        ("target", "LowCardinality(String) DEFAULT 'web'"),
+    ],
+    engine: "MergeTree",
+    partition_by: Some("toYYYYMM(timestamp)"),
+    order_by: "(link_id, timestamp)",
+    ttl: None,
+    time_column: Some("timestamp"),
+};
+
+/// `revenue` — one row per payment or refund a provider webhook reported.
+///
+/// `amount` is an integer in the currency's minor unit, negative for a
+/// refund, exactly as Stripe and Paddle send it: money is never a float here,
+/// and amounts of different currencies are never summed by any reader. The
+/// attribution columns are copied from the visit the payment was matched to at
+/// the moment it arrived, so a report never joins the event stream again.
+const REVENUE: TableDef = TableDef {
+    name: "revenue",
+    columns: &[
+        ("site_id", "UInt16"),
+        ("timestamp", "DateTime64(3)"),
+        ("provider", "LowCardinality(String)"),
+        ("event_id", "String"),
+        ("transaction_id", "String DEFAULT ''"),
+        ("type", "LowCardinality(String)"),
+        ("amount", "Int64"),
+        ("currency", "LowCardinality(String)"),
+        ("customer", "String DEFAULT ''"),
+        ("session_id", "String DEFAULT ''"),
+        ("visitor_id", "String DEFAULT ''"),
+        ("attribution", "LowCardinality(String) DEFAULT 'none'"),
+        ("channel", "LowCardinality(String) DEFAULT ''"),
+        ("source", "LowCardinality(String) DEFAULT ''"),
+        ("referrer_host", "String DEFAULT ''"),
+        ("utm_source", "String DEFAULT ''"),
+        ("utm_medium", "String DEFAULT ''"),
+        ("utm_campaign", "String DEFAULT ''"),
+        ("country", "LowCardinality(FixedString(2)) DEFAULT '  '"),
+        ("device_type", "LowCardinality(String) DEFAULT ''"),
+        ("browser", "LowCardinality(String) DEFAULT ''"),
+        ("entry_path", "String DEFAULT ''"),
+    ],
+    engine: "MergeTree",
+    partition_by: Some("toYYYYMM(timestamp)"),
+    order_by: "(site_id, timestamp, event_id)",
+    ttl: None,
+    time_column: Some("timestamp"),
+};
+
+/// `flag_events` — feature-flag evaluations and exposures, as counts the SDKs
+/// aggregate and send in batches (see `ch::flag_rows`).
+///
+/// Sorted by flag before time: the one read is "this flag, per variant, over
+/// this window" on the flag detail screen. It follows the configured
+/// retention like every other event table; rows are already aggregated
+/// counts, so even "forever" stays small.
+const FLAG_EVENTS: TableDef = TableDef {
+    name: "flag_events",
+    columns: &[
+        ("site_id", "UInt16"),
+        ("timestamp", "DateTime64(3)"),
+        ("flag_key", "String"),
+        ("variant", "LowCardinality(String)"),
+        ("enabled", "UInt8"),
+        ("kind", "LowCardinality(String)"),
+        ("source", "LowCardinality(String)"),
+        ("environment", "LowCardinality(String)"),
+        ("count", "UInt32"),
+    ],
+    engine: "MergeTree",
+    partition_by: Some("toYYYYMM(timestamp)"),
+    order_by: "(site_id, flag_key, timestamp)",
+    ttl: None,
+    time_column: Some("timestamp"),
+};
+
+/// `search_console` — what Google Search Console reports for a site's
+/// property, per day, at five grains (see `ch::search_console_rows`).
+///
+/// A `ReplacingMergeTree` keyed by everything that names a row, versioned by
+/// `synced_at`, because the same day is fetched more than once: Google keeps
+/// revising the last three days, so the sync fetches them again every day.
+/// Merges keep the newest copy of each row. They run in the background, so a
+/// read does not wait for them: it keeps only the rows of the newest fetch of
+/// each day (`micaforge_query::search`), which also drops a row Google stopped
+/// reporting in a later fetch, something no merge could do.
+const SEARCH_CONSOLE: TableDef = TableDef {
+    name: "search_console",
+    columns: &[
+        ("site_id", "UInt16"),
+        ("property", "String"),
+        ("grain", "LowCardinality(String)"),
+        ("date", "Date"),
+        ("query", "String DEFAULT ''"),
+        ("page", "String DEFAULT ''"),
+        ("hostname", "String DEFAULT ''"),
+        ("pathname", "String DEFAULT ''"),
+        ("country", "LowCardinality(String) DEFAULT ''"),
+        ("device", "LowCardinality(String) DEFAULT ''"),
+        ("clicks", "UInt32"),
+        ("impressions", "UInt32"),
+        ("position", "Float64"),
+        ("synced_at", "DateTime64(3)"),
+    ],
+    engine: "ReplacingMergeTree(synced_at)",
+    partition_by: Some("toYYYYMM(date)"),
+    order_by: "(site_id, property, grain, date, query, page, country, device)",
+    ttl: None,
+    time_column: Some("date"),
+};
+
+/// `mcp_calls` — one request an MCP server answered (see `ch::mcp_rows`).
+///
+/// Sorted `(site_id, timestamp, method)`: every read is one site over one
+/// window, and the method next keeps a window's tool calls apart from its
+/// resource reads for the reports that ask for one of them. Rows follow the
+/// configured retention like every other event table. `arguments` is empty
+/// unless the operator opted in, and compressed hard when it is not, because
+/// a column of JSON documents is the one wide thing a row can carry.
+const MCP_CALLS: TableDef = TableDef {
+    name: "mcp_calls",
+    columns: &[
+        ("site_id", "UInt16"),
+        ("timestamp", "DateTime64(3)"),
+        ("server_name", "LowCardinality(String) DEFAULT ''"),
+        ("server_version", "LowCardinality(String) DEFAULT ''"),
+        ("method", "LowCardinality(String)"),
+        ("name", "String DEFAULT ''"),
+        ("client_name", "LowCardinality(String) DEFAULT ''"),
+        ("client_version", "LowCardinality(String) DEFAULT ''"),
+        ("protocol_version", "LowCardinality(String) DEFAULT ''"),
+        ("transport", "LowCardinality(String) DEFAULT ''"),
+        ("session_hash", "String DEFAULT ''"),
+        ("duration_ms", "UInt32 DEFAULT 0"),
+        ("status", "LowCardinality(String) DEFAULT 'ok'"),
+        ("error_type", "LowCardinality(String) DEFAULT ''"),
+        ("error_code", "Int32 DEFAULT 0"),
+        ("arg_bytes", "UInt32 DEFAULT 0"),
+        ("result_bytes", "UInt32 DEFAULT 0"),
+        ("arguments", "String DEFAULT '' CODEC(ZSTD(3))"),
+        ("sdk_version", "LowCardinality(String) DEFAULT ''"),
+    ],
+    engine: "MergeTree",
+    partition_by: Some("toYYYYMM(timestamp)"),
+    order_by: "(site_id, timestamp, method)",
+    ttl: None,
+    time_column: Some("timestamp"),
+};
+
 /// Every table, in creation order.
 pub const TABLES: &[TableDef] = &[
     EVENTS,
@@ -399,6 +601,12 @@ pub const TABLES: &[TableDef] = &[
     ERRORS,
     PAGE_INDEX,
     IMPORTS_RAW,
+    UPTIME_CHECKS,
+    LINK_CLICKS,
+    REVENUE,
+    FLAG_EVENTS,
+    SEARCH_CONSOLE,
+    MCP_CALLS,
 ];
 
 /// Name of the view that feeds [`SESSIONS_MV`].

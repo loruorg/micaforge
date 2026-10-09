@@ -1,0 +1,18 @@
+{
+  "action": "removed",
+  "installation": {
+    "id": 42,
+    "account": { "login": "acme", "id": 9001, "type": "Organization" },
+    "repository_selection": "selected",
+    "app_id": 123456,
+    "target_type": "Organization",
+    "suspended_at": null
+  },
+  "repository_selection": "selected",
+  "repositories_added": [],
+  "repositories_removed": [
+    { "id": 700123, "node_id": "R_kgDOAAqwmw", "name": "site", "full_name": "acme/site", "private": true }
+  ],
+  "requester": null,
+  "sender": { "login": "acme-owner", "id": 4343, "type": "User" }
+}

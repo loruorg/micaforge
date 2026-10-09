@@ -16,6 +16,7 @@ import {
   IconEvents,
   IconExperiments,
   IconFlags,
+  IconFrustration,
   IconFunnel,
   IconGap,
   IconGoals,
@@ -34,6 +35,16 @@ import {
   IconSources,
   IconVisitors,
   Mark,
+  IconAsk,
+  IconInsight,
+} from "./icons";
+import {
+  IconLink,
+  IconMcp,
+  IconRevenue,
+  IconSearchResults,
+  IconStatusPage,
+  IconUptime,
 } from "./icons";
 
 type ChannelDef = {
@@ -50,6 +61,8 @@ const BANKS: { bank: string; channels: ChannelDef[] }[] = [
     channels: [
       { to: "", label: "Dashboard", Icon: IconRecord },
       { to: "/realtime", label: "Realtime", Icon: IconPen },
+      { to: "/ask", label: "Ask AI", Icon: IconAsk },
+      { to: "/insights", label: "Insights", Icon: IconInsight },
     ],
   },
   {
@@ -82,6 +95,7 @@ const BANKS: { bank: string; channels: ChannelDef[] }[] = [
       { to: "/retention", label: "Retention", Icon: IconRetention },
       { to: "/flags", label: "Feature flags", Icon: IconFlags },
       { to: "/experiments", label: "Experiments", Icon: IconExperiments },
+      { to: "/frustration", label: "Frustration", Icon: IconFrustration },
     ],
   },
   {
@@ -89,6 +103,22 @@ const BANKS: { bank: string; channels: ChannelDef[] }[] = [
     channels: [
       { to: "/performance", label: "Performance", Icon: IconPerformance },
       { to: "/errors", label: "Errors", Icon: IconErrors },
+      { to: "/mcp", label: "MCP servers", Icon: IconMcp },
+    ],
+  },
+  {
+    bank: "Monitoring",
+    channels: [
+      { to: "/uptime", label: "Uptime", Icon: IconUptime },
+      { to: "/status-pages", label: "Status pages", Icon: IconStatusPage },
+    ],
+  },
+  {
+    bank: "Growth",
+    channels: [
+      { to: "/links", label: "Links", Icon: IconLink },
+      { to: "/revenue", label: "Revenue", Icon: IconRevenue },
+      { to: "/search", label: "Search", Icon: IconSearchResults },
     ],
   },
   {

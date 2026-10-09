@@ -1,0 +1,35 @@
+---
+title: "Click tags"
+description: "Sending a custom event from any element with data-track, without writing JavaScript."
+group: "tracking"
+order: 14
+updated: 2026-10-08
+---
+
+Put `data-tags` on the script tag, then tag any element with `data-track`:
+
+```html
+<script defer data-site="1" data-tags src="/mf.js"></script>
+
+<button data-track="signup" data-track-plan="pro" data-track-placement="hero">
+  Start free
+</button>
+```
+
+A click on the button, or on anything inside it, sends a custom event named `signup` with
+the properties `{ "plan": "pro", "placement": "hero" }`. It is the same event
+`micaforge.track("signup", { plan: "pro", placement: "hero" })` would send, so it appears
+under Events, can be a goal, and carries your default properties from `setProps`.
+
+## The rules
+
+- The event name is the value of `data-track`. An element without a value sends nothing.
+- Every `data-track-*` attribute becomes a property, named by the part after
+  `data-track-`. Values are sent as the text you wrote, cut to 200 characters.
+- Nothing is read from the element's content or from a form field.
+- A click inside a tagged element counts for the nearest tagged ancestor.
+
+`data-tags` loads the `tags` plugin, a small separate file. Clicks in the moment before it
+arrives are not seen, which is the price of keeping the core tracker under 3 KB. For a
+click that must never be missed, such as the first button on a landing page, call
+`micaforge.track()` from your own handler instead.

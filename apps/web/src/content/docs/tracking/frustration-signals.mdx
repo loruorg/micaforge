@@ -1,0 +1,64 @@
+---
+title: "Frustration signals"
+description: "Rage clicks, dead clicks and abandoned forms: what each one means, what is sent, and where they appear."
+group: "tracking"
+order: 12
+updated: 2026-10-08
+---
+
+Turn it on with `data-frustration` on the script tag:
+
+```html
+<script defer data-site="1" data-frustration src="/mf.js"></script>
+```
+
+The tracker then loads the `frustration` plugin and reports three signals. They appear on
+the **Frustration** screen, under Behavior.
+
+## Rage clicks
+
+Three or more clicks inside one second, within 30 pixels of each other. One report per
+burst, with the element clicked and how many clicks the burst had. A triple click that
+selects text is how people select a paragraph, so a burst that leaves a text selection on
+something that is not a control is not counted.
+
+## Dead clicks
+
+A click on something that looks clickable (a link, a button, an element with a button,
+link, tab or menu-item role, an `onclick` handler, or a `data-track` tag) that causes no
+navigation, no change to the page and no network request within one second. Controls that
+answer out of sight, such as a text field taking focus, a checkbox, a select, a video or a
+download link, are never counted. Each element is reported at most once per page view.
+
+To see whether a request started, the plugin notes the moment `fetch` or
+`XMLHttpRequest` is called. It wraps both, changes nothing else about them, and does so
+only on a page where `data-frustration` is set.
+
+## Abandoned forms
+
+A form somebody typed into or changed, then left without sending: the page was closed, or
+the visitor navigated to another path. A focus alone does not start a form; tabbing
+through a page is not filling it in.
+
+The report names the form by its `id`, its `name`, or a short selector, and the **last
+field touched** by its `name` or `id`. Never a value: nothing in the plugin reads what
+was typed.
+
+## How an element is named
+
+By a short CSS selector built from tag names, stable ids and class names, at most three
+levels deep: `section#pricing > div.card > button.buy`. Generated names (CSS-module hashes,
+framework ids) are left out, because they change between builds. The page's text is never
+used. Give an element an `id` or a `data-track` name and its selector becomes exactly that.
+
+## Limits
+
+At most 20 signals per page view. A signal is a `frustration` event named `rage_click`,
+`dead_click` or `form_abandon`, so it passes the same gates as every other hit: opt-out,
+`data-sample`, `data-exclude` and `data-mask`.
+
+## From the API
+
+`GET /api/stats/frustration` returns the totals, the pages with their pageviews, the
+elements, and the forms with their last fields, under the standard
+[query envelope](/docs/api/stats-api).

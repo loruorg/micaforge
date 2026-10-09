@@ -184,7 +184,11 @@ server, on one origin, so the same image works on every domain.
 **The SDK.** `packages/sdk` is the tracker, authored in TypeScript, bundled to a
 dependency-free IIFE, with a typed npm package and wrappers for React, Next, Vue
 and Svelte. Its size budget is enforced by the build: over 3 KB gzipped and it
-fails.
+fails. Beside it: [`packages/nuxt`](packages/nuxt), the Nuxt module;
+[`packages/sdk-swift`](packages/sdk-swift), the Swift SDK for Apple platforms,
+which Swift Package Manager adds from this repository's URL through the root
+`Package.swift`; and [`packages/devtools`](packages/devtools), a development
+overlay that shows what the tracker sends and why it did not send the rest.
 
 Full schemas, the API surface and the route map are in
 [`docs/CONTRACT.md`](docs/CONTRACT.md). What the product is for and who it is for
@@ -198,8 +202,9 @@ Two licences, deliberately.
 - **The server, the dashboard and everything you run: AGPL-3.0-only.** If you run
   a modified Micaforge as a service, the modifications are owed back. See
   [`LICENSE`](LICENSE).
-- **The SDK and the tracker: MIT.** These are the parts you embed in your own
-  site, and embedding them must not reach into your code. See
+- **The SDKs and the tracker: MIT.** These are the parts you embed in your own
+  site or app (`packages/sdk`, `sdk-server`, `nuxt`, `sdk-swift`, `devtools`),
+  and embedding them must not reach into your code. See
   [`packages/sdk/LICENSE`](packages/sdk/LICENSE).
 
 The self-hosted build is the whole build. There is no community edition with

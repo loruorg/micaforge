@@ -1,0 +1,77 @@
+---
+title: "Sampling and masking"
+description: "Keeping a share of visitors with data-sample, and hiding identifiers in URLs with data-mask and data-strip-query."
+group: "tracking"
+order: 13
+updated: 2026-10-08
+---
+
+Three attributes control what the tracker sends before anything leaves the page.
+
+## data-sample
+
+Keep only a share of visitors:
+
+```html
+<script defer data-site="1" data-sample="25" src="/mf.js"></script>
+```
+
+The value is a percentage from `0` to `100`. Absent, or `100`, keeps everyone; `0` sends
+nothing.
+
+The choice is made in the browser, once per visitor and day, and it is deterministic: the
+tracker hashes today's local date and the browser's own user agent, and a visitor whose
+hash falls inside the rate is kept for the whole day, on every page. Tomorrow is drawn
+again. Nothing is stored for this, and the inputs never leave the page.
+
+Every hit from a sampled visitor carries the rate (`sr` in the payload), and the server
+keeps it on each row. The figures are counted, never scaled up: a report over a sampled
+period shows what was recorded, and says so. The Overview and Frustration screens print a
+note naming the rate whenever the period holds sampled pageviews, and
+`GET /api/stats/sampling` returns the same reading for any envelope.
+
+## data-mask
+
+Replace the parts of a path that identify someone before the URL is sent:
+
+```html
+<script defer data-site="1" data-mask="/users/*,/orders/*/invoice,/share/**" src="/mf.js"></script>
+```
+
+A path that matches a pattern is reported as the pattern itself. `/users/12345` becomes
+`/users/*`, so every user's page counts as one page and the id never leaves the browser.
+The patterns are the ones `data-exclude` takes: `*` is one path segment, `**` is any
+depth, `?` is one character.
+
+The mask applies to the page URL and to the referrer, so the address of the previous page
+on your own site is masked too. It applies to every event: pageviews, custom events,
+error reports and frustration signals.
+
+## data-strip-query
+
+Remove query parameters before the URL is sent:
+
+```html
+<!-- Drop the whole query string. -->
+<script defer data-site="1" data-strip-query src="/mf.js"></script>
+
+<!-- Drop only these parameters. -->
+<script defer data-site="1" data-strip-query="token,email,session" src="/mf.js"></script>
+```
+
+On its own (or `"true"`), it drops the whole query string. That includes the `utm_*`
+parameters, so campaigns are no longer attributed; to keep them, list the parameters to
+drop instead.
+
+## From npm
+
+The same three options exist on `init()`:
+
+```ts
+init({
+  site: 1,
+  sample: 25,
+  mask: ["/users/*", "/orders/*/invoice"],
+  stripQuery: ["token", "email"],
+});
+```

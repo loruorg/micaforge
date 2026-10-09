@@ -1,55 +1,28 @@
-//! `/api/flags/*` and `/api/experiments/*`.
+//! `/api/experiments/*`.
 //!
-//! Two tables that look alike and answer different questions. A **flag** is a
-//! runtime switch: is this on, for whom, at what percentage. An **experiment** is
-//! a measurement: this hypothesis, these variants, *this goal*, this window.
+//! An **experiment** is a measurement: this hypothesis, these variants, *this
+//! goal*, this window. Feature flags, the runtime switches an experiment's
+//! variants are usually served through, live in [`super::flags`] and
+//! [`super::flag_delivery`].
 //!
 //! The goal is named when the experiment is created and cannot be swapped
 //! afterwards, which is the point: choosing the metric after seeing the data is
 //! how experiments lie, and an analytics tool that made it easy would be selling
 //! a way to be wrong on purpose.
-//!
-//! ## Bucketing is a pure function, computed twice
-//!
-//! `GET /api/flags/evaluate` is the SDK's hot path, so it must give the same
-//! answer every time with no state written anywhere.
-//! [`bucket`] is `blake3(salt=flag key ‖ visitor) mod 10 000`, taken through
-//! [`micaforge_core::crypto::visitor_hash`] so the tracker's identity primitive
-//! and this one cannot drift apart. Rollout uses the flag's key as the salt;
-//! variant assignment uses `"<key>:variant"`, a *different* salt, so a visitor
-//! who lands inside a 10% rollout is not thereby biased toward the first
-//! variant.
-//!
-//! ## What a flag condition may say
-//!
-//! Conditions are the filter shape from `docs/CONTRACT.md` §3.2, but they are
-//! evaluated **here**, against the small context the SDK sends, rather than in
-//! ClickHouse against an event row. Every operator is supported except
-//! `matches`, which is refused at write time with a message saying so — silently
-//! accepting a regular expression that would never be applied would be worse
-//! than refusing it.
 
-use std::collections::BTreeMap;
-use std::net::SocketAddr;
-
-use axum::extract::{ConnectInfo, Path, Query, State};
-use axum::http::{Extensions, HeaderMap};
+use axum::extract::{Path, State};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use chrono::{DateTime, Utc};
-use micaforge_core::{
-    filters, new_id, Error, Filter, FilterGroup, FilterNode, FilterOp, Logic, Result,
-};
+use micaforge_core::{new_id, Error, Result};
 use micaforge_query::{bind_all, GoalDef, Param};
-use micaforge_store::models::{flags, goals, sites};
-use serde::{Deserialize, Serialize};
+use micaforge_store::models::{flags, goals};
+use serde::Deserialize;
 use serde_json::{json, Value};
 use uuid::Uuid;
 
-use crate::client_ip::{address_tag, client_ip};
 use crate::error::ApiError;
 use crate::extract::{AuthUser, SiteAccess};
-use crate::middleware::LIMITER_BUDGET;
 use crate::response::ok;
 use crate::routes::orgs::{require_at_least, MEMBER, VIEWER};
 use crate::routes::sites::authorize_site;
@@ -61,29 +34,6 @@ use crate::state::AppState;
 /// has to be spelled out somewhere; naming it once here keeps `Result<T>` free
 /// to mean the core alias in the helpers below, which is what they all use.
 type ApiResult<T> = std::result::Result<T, ApiError>;
-
-/// Buckets a visitor can fall into. Ten thousand, so a rollout can be expressed
-/// to a hundredth of a percent even though the stored field is whole percent.
-const BUCKETS: u64 = 10_000;
-
-/// How long the SDK-facing flag list is cached in Redis.
-///
-/// Thirty seconds. Long enough that a busy site does not read Postgres on every
-/// page load, short enough that turning a flag off feels immediate. Writes
-/// invalidate the key anyway, so the TTL only bounds the staleness of a change
-/// made by another replica.
-const FLAG_CACHE_TTL_SECS: u32 = 30;
-
-/// Evaluations one address may make against one site per minute.
-///
-/// Keyed on the site *and* the caller's address tag. A single per-site bucket
-/// let any stranger spend a site's whole allowance from one machine, after
-/// which every real visitor's flags read as off. Six hundred a minute is ten
-/// page loads a second from one address, the same allowance the beacon gets,
-/// which a whole office behind one NAT stays well inside.
-const EVAL_LIMIT: u32 = 600;
-/// That window, in seconds.
-const EVAL_WINDOW: u32 = 60;
 
 /// The four states an experiment moves through.
 const STATUSES: &[&str] = &["draft", "running", "paused", "finished"];
@@ -101,19 +51,9 @@ const SIGNIFICANCE_P: f64 = 0.05;
 // Router
 // ---------------------------------------------------------------------------
 
-/// Every feature-flag and experiment route.
-///
-/// `GET /api/flags/evaluate` is the one route here with no authentication: it is
-/// the SDK's own call and it must work from a browser on the tracked site.
+/// Every experiment route.
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/api/flags", get(list_flags).post(create_flag))
-        .route("/api/flags/evaluate", get(evaluate))
-        .route(
-            "/api/flags/{id}",
-            get(get_flag).patch(update_flag).delete(delete_flag),
-        )
-        .route("/api/flags/{id}/toggle", post(toggle_flag))
         .route(
             "/api/experiments",
             get(list_experiments).post(create_experiment),
@@ -126,466 +66,6 @@ pub fn router() -> Router<AppState> {
         )
         .route("/api/experiments/{id}/status", post(set_status))
         .route("/api/experiments/{id}/results", get(results))
-}
-
-// ---------------------------------------------------------------------------
-// Feature flags
-// ---------------------------------------------------------------------------
-
-/// `GET /api/flags?site=…`
-async fn list_flags(State(st): State<AppState>, access: SiteAccess) -> ApiResult<Json<Value>> {
-    require_at_least(access.role.as_str(), VIEWER)?;
-    let rows = flags::list_flags(&st.pg, access.site.id).await?;
-    Ok(ok(rows.iter().map(flag_json).collect::<Vec<_>>()))
-}
-
-/// A flag, as the editor sends it.
-#[derive(Debug, Deserialize)]
-struct FlagBody {
-    /// The key the SDK asks for.
-    key: String,
-    #[serde(default)]
-    enabled: Option<bool>,
-    /// Percentage of eligible visitors the flag is on for.
-    #[serde(default)]
-    rollout_pct: Option<i32>,
-    /// `[{ "key": "control", "weight": 50 }, …]`, or absent for an on/off flag.
-    #[serde(default)]
-    variants: Option<Value>,
-    /// A filter group narrowing who is eligible.
-    #[serde(default)]
-    conditions: Option<Value>,
-}
-
-/// `POST /api/flags?site=…`
-async fn create_flag(
-    State(st): State<AppState>,
-    access: SiteAccess,
-    Json(body): Json<FlagBody>,
-) -> ApiResult<Json<Value>> {
-    require_at_least(access.role.as_str(), MEMBER)?;
-    let checked = check_flag(&body)?;
-
-    if flags::get_flag_by_key(&st.pg, access.site.id, &checked.key)
-        .await?
-        .is_some()
-    {
-        return Err(
-            Error::Conflict(format!("a flag named `{}` already exists", checked.key)).into(),
-        );
-    }
-
-    let flag = flags::create_flag(
-        &st.pg,
-        new_id(),
-        access.site.id,
-        &checked.key,
-        checked.enabled,
-        checked.rollout_pct,
-        &checked.variants,
-        &checked.conditions,
-    )
-    .await?;
-
-    invalidate_cache(&st, access.site_id).await;
-    Ok(ok(flag_json(&flag)))
-}
-
-/// `GET /api/flags/{id}`
-async fn get_flag(
-    State(st): State<AppState>,
-    auth: AuthUser,
-    Path(id): Path<Uuid>,
-) -> ApiResult<Json<Value>> {
-    let flag = flags::get_flag(&st.pg, id).await?;
-    reachable(&st, flag.site_id, auth.user.id, VIEWER, "feature flag").await?;
-    Ok(ok(flag_json(&flag)))
-}
-
-/// `PATCH /api/flags/{id}`
-async fn update_flag(
-    State(st): State<AppState>,
-    auth: AuthUser,
-    Path(id): Path<Uuid>,
-    Json(body): Json<FlagBody>,
-) -> ApiResult<Json<Value>> {
-    let flag = flags::get_flag(&st.pg, id).await?;
-    let site = reachable(&st, flag.site_id, auth.user.id, MEMBER, "feature flag").await?;
-    let checked = check_flag(&body)?;
-
-    if checked.key != flag.key {
-        if let Some(other) = flags::get_flag_by_key(&st.pg, flag.site_id, &checked.key).await? {
-            if other.id != flag.id {
-                return Err(Error::Conflict(format!(
-                    "a flag named `{}` already exists",
-                    checked.key
-                ))
-                .into());
-            }
-        }
-    }
-
-    let updated = flags::update_flag(
-        &st.pg,
-        flag.id,
-        &checked.key,
-        checked.enabled,
-        checked.rollout_pct,
-        &checked.variants,
-        &checked.conditions,
-    )
-    .await?;
-
-    invalidate_cache(&st, site.site_id_u16()).await;
-    Ok(ok(flag_json(&updated)))
-}
-
-/// The one field a kill switch changes.
-#[derive(Debug, Deserialize)]
-struct ToggleBody {
-    enabled: bool,
-}
-
-/// `POST /api/flags/{id}/toggle` — flip it without touching anything else.
-///
-/// A separate endpoint from `PATCH` on purpose. Turning a flag off in an
-/// incident must not require sending back the rollout and conditions, because
-/// that is how somebody at three in the morning accidentally re-enables the
-/// thing they were trying to switch off.
-async fn toggle_flag(
-    State(st): State<AppState>,
-    auth: AuthUser,
-    Path(id): Path<Uuid>,
-    Json(body): Json<ToggleBody>,
-) -> ApiResult<Json<Value>> {
-    let flag = flags::get_flag(&st.pg, id).await?;
-    let site = reachable(&st, flag.site_id, auth.user.id, MEMBER, "feature flag").await?;
-
-    let updated = flags::set_flag_enabled(&st.pg, flag.id, body.enabled).await?;
-    invalidate_cache(&st, site.site_id_u16()).await;
-
-    tracing::info!(flag = %flag.id, key = %flag.key, enabled = body.enabled, "flag toggled");
-    Ok(ok(flag_json(&updated)))
-}
-
-/// `DELETE /api/flags/{id}`
-async fn delete_flag(
-    State(st): State<AppState>,
-    auth: AuthUser,
-    Path(id): Path<Uuid>,
-) -> ApiResult<Json<Value>> {
-    let flag = flags::get_flag(&st.pg, id).await?;
-    let site = reachable(&st, flag.site_id, auth.user.id, MEMBER, "feature flag").await?;
-
-    flags::delete_flag(&st.pg, flag.id).await?;
-    invalidate_cache(&st, site.site_id_u16()).await;
-    Ok(ok(json!({ "deleted": flag.id })))
-}
-
-// ---------------------------------------------------------------------------
-// Evaluation (public)
-// ---------------------------------------------------------------------------
-
-/// What the SDK sends to resolve its flags.
-#[derive(Debug, Deserialize)]
-struct EvaluateQuery {
-    /// Numeric site id, as in the tracking snippet.
-    site: u16,
-    /// The visitor hash the tracker already holds. Absent means "no stable
-    /// identity", and a partial rollout then evaluates to off.
-    #[serde(default)]
-    visitor: Option<String>,
-    /// Resolve one flag rather than all of them.
-    #[serde(default)]
-    key: Option<String>,
-    /// A JSON object of attributes for the conditions to match against, such as
-    /// `{"country":"PT","device_type":"mobile"}`.
-    #[serde(default)]
-    context: Option<String>,
-}
-
-/// `GET /api/flags/evaluate` — the SDK's own call. No authentication.
-///
-/// Returns only what a browser is allowed to know: for each flag, whether it is
-/// on and which variant. The conditions, the rollout percentage and every other
-/// flag's configuration stay on the server, because the page this answers is a
-/// page anybody can load.
-///
-/// **Known exposure:** without `key`, the answer lists every flag key the site
-/// has, so a flag named after an unreleased feature is visible to anyone who
-/// reads the site id from its page. The SDK resolves its flags in one call, so
-/// the listing stays; a caller that wants one flag passes `key`, and a flag key
-/// should not be a secret.
-///
-/// The limiter fails open, and fast: a Valkey that errors or is slower than
-/// [`LIMITER_BUDGET`] must not turn every page view into flags read as off.
-async fn evaluate(
-    State(st): State<AppState>,
-    headers: HeaderMap,
-    extensions: Extensions,
-    Query(q): Query<EvaluateQuery>,
-) -> ApiResult<Json<Value>> {
-    let peer = extensions
-        .get::<ConnectInfo<SocketAddr>>()
-        .map(|ConnectInfo(addr)| addr.ip());
-    let caller = address_tag(client_ip(&headers, peer));
-    let allowed = tokio::time::timeout(
-        LIMITER_BUDGET,
-        st.kv.rate_limit(
-            &format!("flag-eval:{}:{caller}", q.site),
-            EVAL_LIMIT,
-            EVAL_WINDOW,
-        ),
-    )
-    .await;
-    if let Ok(Ok(false)) = allowed {
-        return Err(Error::RateLimited {
-            retry_after: u64::from(EVAL_WINDOW),
-        }
-        .into());
-    }
-
-    let all = cached_flags(&st, q.site).await?;
-    let visitor = q.visitor.unwrap_or_default();
-    let context = parse_context(q.context.as_deref())?;
-
-    let mut resolved = serde_json::Map::new();
-    for flag in all {
-        if let Some(wanted) = q.key.as_deref() {
-            if flag.key != wanted.trim() {
-                continue;
-            }
-        }
-        resolved.insert(flag.key.clone(), decide(&flag, &visitor, &context));
-    }
-
-    Ok(ok(json!({
-        "site": q.site,
-        "flags": resolved,
-        // The SDK caches on this, so it is part of the contract with the page.
-        "ttl_seconds": FLAG_CACHE_TTL_SECS,
-    })))
-}
-
-/// A flag as the evaluation path needs it: serialisable, so it can be cached.
-///
-/// The repository row is not `Serialize`, and giving it that derive would be a
-/// change to another crate. Copying the five fields is cheaper than the coupling.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct EvalFlag {
-    key: String,
-    enabled: bool,
-    rollout_pct: i32,
-    variants: Value,
-    conditions: Value,
-}
-
-/// `mf:flags:<site>` — the SDK-facing flag list.
-fn flag_cache_key(site: u16) -> String {
-    format!("mf:flags:{site}")
-}
-
-/// Read a site's flags, through Redis.
-///
-/// A cache miss reads Postgres and repopulates. A *cache failure* falls through
-/// to Postgres rather than failing the request: the flag list is derived data,
-/// and a cold Redis must not turn every page load on a customer's site into an
-/// error.
-async fn cached_flags(st: &AppState, site: u16) -> Result<Vec<EvalFlag>> {
-    let key = flag_cache_key(site);
-    if let Ok(Some(hit)) = st.kv.get_json::<Vec<EvalFlag>>(&key).await {
-        return Ok(hit);
-    }
-
-    let site_row = sites::get_by_site_id(&st.pg, site).await?;
-    let rows: Vec<EvalFlag> = flags::list_flags(&st.pg, site_row.id)
-        .await?
-        .into_iter()
-        .map(|f| EvalFlag {
-            key: f.key,
-            enabled: f.enabled,
-            rollout_pct: f.rollout_pct,
-            variants: f.variants,
-            conditions: f.conditions,
-        })
-        .collect();
-
-    if let Err(e) = st.kv.set_json(&key, &rows, Some(FLAG_CACHE_TTL_SECS)).await {
-        tracing::debug!(site, error = %e, "could not cache the flag list");
-    }
-    Ok(rows)
-}
-
-/// Drop a site's cached flag list after a write.
-///
-/// Best-effort: the TTL bounds the damage of a failure to at most
-/// [`FLAG_CACHE_TTL_SECS`], and failing an otherwise successful write because
-/// Redis was unreachable would be the wrong trade.
-async fn invalidate_cache(st: &AppState, site: u16) {
-    if let Err(e) = st.kv.del(&flag_cache_key(site)).await {
-        tracing::debug!(site, error = %e, "could not clear the flag cache");
-    }
-}
-
-/// Resolve one flag for one visitor.
-fn decide(flag: &EvalFlag, visitor: &str, context: &BTreeMap<String, String>) -> Value {
-    if !flag.enabled {
-        return json!({ "enabled": false, "variant": Value::Null, "reason": "disabled" });
-    }
-
-    // Conditions run before the rollout: a 50% rollout among mobile visitors is
-    // half of the mobile visitors, not a quarter of everybody.
-    if let Ok(group) = filters::parse_filters(&flag.conditions.to_string()) {
-        if !group.is_empty() && !group_matches(&group, context) {
-            return json!({ "enabled": false, "variant": Value::Null, "reason": "conditions" });
-        }
-    }
-
-    let rollout = flag.rollout_pct.clamp(0, 100) as u64;
-    if rollout < 100 {
-        // With no stable identity there is no honest way to hold somebody in or
-        // out of a partial rollout across page loads, so they stay out.
-        if visitor.is_empty() {
-            return json!({ "enabled": false, "variant": Value::Null, "reason": "no_visitor" });
-        }
-        if bucket(&flag.key, visitor) >= rollout * (BUCKETS / 100) {
-            return json!({ "enabled": false, "variant": Value::Null, "reason": "rollout" });
-        }
-    }
-
-    json!({
-        "enabled": true,
-        "variant": pick_variant(&flag.variants, &flag.key, visitor),
-        "reason": "match",
-    })
-}
-
-/// Which of `BUCKETS` a visitor falls into for one salt.
-///
-/// Reuses [`micaforge_core::crypto::visitor_hash`] so bucketing and visitor
-/// identity share one hash. The site id is deliberately zero: the salt already
-/// carries the flag key, and flag keys are per-site.
-fn bucket(salt: &str, visitor: &str) -> u64 {
-    let digest = micaforge_core::crypto::visitor_hash(salt.as_bytes(), 0, visitor, "");
-    u64::from_str_radix(&digest, 16).unwrap_or(0) % BUCKETS
-}
-
-/// Choose a variant by weight, or `null` for an on/off flag.
-///
-/// Salted differently from the rollout, so falling inside a narrow rollout does
-/// not correlate with landing in the first variant.
-fn pick_variant(variants: &Value, key: &str, visitor: &str) -> Value {
-    let Some(list) = variants.as_array().filter(|l| !l.is_empty()) else {
-        return Value::Null;
-    };
-
-    let weights: Vec<(String, u64)> = list
-        .iter()
-        .filter_map(|v| {
-            let name = v.get("key").and_then(Value::as_str)?;
-            let weight = v.get("weight").and_then(Value::as_u64).unwrap_or(1);
-            Some((name.to_string(), weight))
-        })
-        .collect();
-
-    let total: u64 = weights.iter().map(|(_, w)| *w).sum();
-    if total == 0 {
-        return weights
-            .first()
-            .map(|(name, _)| json!(name))
-            .unwrap_or(Value::Null);
-    }
-
-    let point = bucket(&format!("{key}:variant"), visitor) * total / BUCKETS;
-    let mut seen = 0u64;
-    for (name, weight) in &weights {
-        seen += weight;
-        if point < seen {
-            return json!(name);
-        }
-    }
-    // Only reachable through integer truncation at the very top of the range.
-    weights
-        .last()
-        .map(|(name, _)| json!(name))
-        .unwrap_or(Value::Null)
-}
-
-/// Parse the SDK's context object into a flat string map.
-fn parse_context(raw: Option<&str>) -> Result<BTreeMap<String, String>> {
-    let Some(raw) = raw.map(str::trim).filter(|s| !s.is_empty()) else {
-        return Ok(BTreeMap::new());
-    };
-    let parsed: Value = serde_json::from_str(raw)
-        .map_err(|e| Error::validation("context", format!("is not JSON: {e}")))?;
-    let Some(object) = parsed.as_object() else {
-        return Err(Error::validation("context", "must be a JSON object"));
-    };
-
-    let mut out = BTreeMap::new();
-    for (key, value) in object {
-        let flat = match value {
-            Value::String(s) => s.clone(),
-            Value::Null => String::new(),
-            other => other.to_string(),
-        };
-        out.insert(key.trim().to_lowercase(), flat);
-    }
-    Ok(out)
-}
-
-/// Does a filter group hold for this context?
-fn group_matches(group: &FilterGroup, context: &BTreeMap<String, String>) -> bool {
-    match group.logic {
-        Logic::And => group.filters.iter().all(|n| node_matches(n, context)),
-        Logic::Or => group.filters.iter().any(|n| node_matches(n, context)),
-    }
-}
-
-/// One node of a filter tree.
-fn node_matches(node: &FilterNode, context: &BTreeMap<String, String>) -> bool {
-    match node {
-        FilterNode::Leaf(filter) => leaf_matches(filter, context),
-        FilterNode::Group(group) => group_matches(group, context),
-    }
-}
-
-/// One condition against the supplied context.
-///
-/// An attribute the SDK did not send is the empty string, which is what makes
-/// `is_not_set` work and what makes `is` fail closed for an unknown attribute.
-fn leaf_matches(filter: &Filter, context: &BTreeMap<String, String>) -> bool {
-    let dimension = filter.dimension.as_str().to_lowercase();
-    let actual = context.get(&dimension).cloned().unwrap_or_default();
-    let wanted = filter.value.as_strings();
-    let lower = actual.to_lowercase();
-
-    match filter.op {
-        FilterOp::Is => wanted.iter().any(|v| v.eq_ignore_ascii_case(&actual)),
-        FilterOp::IsNot => !wanted.iter().any(|v| v.eq_ignore_ascii_case(&actual)),
-        FilterOp::Contains => wanted.iter().any(|v| lower.contains(&v.to_lowercase())),
-        FilterOp::NotContains => !wanted.iter().any(|v| lower.contains(&v.to_lowercase())),
-        FilterOp::StartsWith => wanted.iter().any(|v| lower.starts_with(&v.to_lowercase())),
-        FilterOp::EndsWith => wanted.iter().any(|v| lower.ends_with(&v.to_lowercase())),
-        FilterOp::IsSet => !actual.is_empty(),
-        FilterOp::IsNotSet => actual.is_empty(),
-        FilterOp::Gt | FilterOp::Lt | FilterOp::Gte | FilterOp::Lte => {
-            let (Some(left), Some(right)) =
-                (actual.trim().parse::<f64>().ok(), filter.value.as_f64())
-            else {
-                return false;
-            };
-            match filter.op {
-                FilterOp::Gt => left > right,
-                FilterOp::Lt => left < right,
-                FilterOp::Gte => left >= right,
-                _ => left <= right,
-            }
-        }
-        // Refused at write time; if one is somehow stored, it fails closed
-        // rather than silently behaving like a different operator.
-        FilterOp::Matches => false,
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1011,47 +491,6 @@ fn erf(x: f64) -> f64 {
 // Validation
 // ---------------------------------------------------------------------------
 
-/// A flag body that has been checked.
-#[derive(Debug)]
-struct CheckedFlag {
-    key: String,
-    enabled: bool,
-    rollout_pct: i32,
-    variants: Value,
-    conditions: Value,
-}
-
-/// Validate a flag body.
-fn check_flag(body: &FlagBody) -> Result<CheckedFlag> {
-    let key = clean_key(&body.key, "key")?;
-    let rollout = body.rollout_pct.unwrap_or(100);
-    if !(0..=100).contains(&rollout) {
-        return Err(Error::validation(
-            "rollout_pct",
-            "must be between 0 and 100",
-        ));
-    }
-
-    let variants = body.variants.clone().unwrap_or_else(|| json!([]));
-    check_variants(&variants, false)?;
-
-    let conditions = body.conditions.clone().unwrap_or_else(|| json!({}));
-    let group = filters::parse_filters(&conditions.to_string())
-        .map_err(|e| Error::validation("conditions", e.to_string()))?;
-    group
-        .validate()
-        .map_err(|e| Error::validation("conditions", e.to_string()))?;
-    refuse_unevaluable(&group)?;
-
-    Ok(CheckedFlag {
-        key,
-        enabled: body.enabled.unwrap_or(true),
-        rollout_pct: rollout,
-        variants,
-        conditions,
-    })
-}
-
 /// Validate an experiment body.
 fn check_experiment(body: &ExperimentBody) -> Result<(String, String, Value)> {
     let key = clean_key(&body.key, "key")?;
@@ -1071,7 +510,7 @@ fn check_experiment(body: &ExperimentBody) -> Result<(String, String, Value)> {
 }
 
 /// A flag or experiment key: lower-case, url and code safe.
-fn clean_key(raw: &str, field: &str) -> Result<String> {
+pub(crate) fn clean_key(raw: &str, field: &str) -> Result<String> {
     let key = raw.trim().to_lowercase();
     let usable = (1..=64).contains(&key.len())
         && key
@@ -1090,8 +529,9 @@ fn clean_key(raw: &str, field: &str) -> Result<String> {
 ///
 /// `required` is true for an experiment, which is meaningless with fewer than
 /// two arms, and false for a flag, where an empty list means a plain on/off
-/// switch.
-fn check_variants(variants: &Value, required: bool) -> Result<()> {
+/// switch. Weights must be whole numbers from zero up, so the three evaluators
+/// (`micaforge_core::flags` and the two SDK copies) read them identically.
+pub(crate) fn check_variants(variants: &Value, required: bool) -> Result<()> {
     let Some(list) = variants.as_array() else {
         return Err(Error::validation("variants", "must be an array"));
     };
@@ -1127,7 +567,16 @@ fn check_variants(variants: &Value, required: bool) -> Result<()> {
             ));
         }
         seen.push(name.to_string());
-        total += entry.get("weight").and_then(Value::as_u64).unwrap_or(1);
+        let weight = match entry.get("weight") {
+            None | Some(Value::Null) => 1,
+            Some(w) => w.as_u64().ok_or_else(|| {
+                Error::validation(
+                    "variants",
+                    format!("the weight of `{name}` must be a whole number from 0 up"),
+                )
+            })?,
+        };
+        total += weight;
     }
 
     if total == 0 {
@@ -1135,28 +584,6 @@ fn check_variants(variants: &Value, required: bool) -> Result<()> {
             "variants",
             "at least one variant needs a weight above zero",
         ));
-    }
-    Ok(())
-}
-
-/// Refuse a condition this endpoint could not honestly evaluate.
-///
-/// `matches` compiles to a ClickHouse RE2 call in a report. Flag evaluation runs
-/// in this process against a handful of attributes, so accepting one here would
-/// store a rule that silently never fires.
-fn refuse_unevaluable(group: &FilterGroup) -> Result<()> {
-    for node in &group.filters {
-        match node {
-            FilterNode::Leaf(filter) if filter.op == FilterOp::Matches => {
-                return Err(Error::validation(
-                    "conditions",
-                    "`matches` cannot be used in a flag condition, because flags are evaluated \
-                     against the request rather than against the event store",
-                ));
-            }
-            FilterNode::Group(inner) => refuse_unevaluable(inner)?,
-            FilterNode::Leaf(_) => {}
-        }
     }
     Ok(())
 }
@@ -1180,19 +607,6 @@ async fn check_goal_belongs(st: &AppState, goal_id: Option<Uuid>, site_id: Uuid)
 // Shaping and shared authorisation
 // ---------------------------------------------------------------------------
 
-/// One flag on the wire, for an authenticated reader.
-fn flag_json(flag: &flags::FeatureFlag) -> Value {
-    json!({
-        "id": flag.id,
-        "site_id": flag.site_id,
-        "key": flag.key,
-        "enabled": flag.enabled,
-        "rollout_pct": flag.rollout_pct,
-        "variants": flag.variants,
-        "conditions": flag.conditions,
-    })
-}
-
 /// One experiment on the wire.
 fn experiment_json(experiment: &flags::Experiment) -> Value {
     json!({
@@ -1211,7 +625,7 @@ fn experiment_json(experiment: &flags::Experiment) -> Value {
 
 /// Assert the caller may act on an object belonging to `site_id`, and hand back
 /// the site so the caller can reach its numeric id.
-async fn reachable(
+pub(crate) async fn reachable(
     st: &AppState,
     site_id: Uuid,
     user_id: Uuid,
@@ -1228,156 +642,6 @@ async fn reachable(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn flag(rollout: i32, variants: Value, conditions: Value) -> EvalFlag {
-        EvalFlag {
-            key: "new-nav".into(),
-            enabled: true,
-            rollout_pct: rollout,
-            variants,
-            conditions,
-        }
-    }
-
-    #[test]
-    fn bucketing_is_stable_and_salted_per_flag() {
-        let a = bucket("new-nav", "visitor-1");
-        assert_eq!(a, bucket("new-nav", "visitor-1"), "must not drift per call");
-        assert_ne!(a, bucket("other-flag", "visitor-1"), "salted by flag key");
-        assert!(a < BUCKETS);
-
-        // The variant salt is independent of the rollout salt, so being inside a
-        // narrow rollout does not bias which arm you land in.
-        assert_ne!(
-            bucket("new-nav", "visitor-1"),
-            bucket("new-nav:variant", "visitor-1")
-        );
-    }
-
-    #[test]
-    fn a_full_rollout_reaches_everybody_and_a_zero_rollout_nobody() {
-        let all = flag(100, json!([]), json!({}));
-        let none = flag(0, json!([]), json!({}));
-        let context = BTreeMap::new();
-
-        for visitor in ["a", "b", "c", "d", "e"] {
-            assert_eq!(decide(&all, visitor, &context)["enabled"], json!(true));
-            assert_eq!(decide(&none, visitor, &context)["enabled"], json!(false));
-        }
-    }
-
-    #[test]
-    fn a_partial_rollout_splits_roughly_where_it_says() {
-        let half = flag(50, json!([]), json!({}));
-        let context = BTreeMap::new();
-
-        let on = (0..2_000)
-            .filter(|i| decide(&half, &format!("visitor-{i}"), &context)["enabled"] == json!(true))
-            .count();
-        // Binomial noise on 2000 draws is a few percent; anything outside this
-        // band means the hash is not uniform.
-        assert!(
-            (900..1_100).contains(&on),
-            "50% rollout reached {on} of 2000"
-        );
-    }
-
-    #[test]
-    fn a_visitor_with_no_identity_stays_out_of_a_partial_rollout() {
-        let context = BTreeMap::new();
-        assert_eq!(
-            decide(&flag(50, json!([]), json!({})), "", &context)["enabled"],
-            json!(false)
-        );
-        // A full rollout still applies: there is nothing to hold stable.
-        assert_eq!(
-            decide(&flag(100, json!([]), json!({})), "", &context)["enabled"],
-            json!(true)
-        );
-    }
-
-    #[test]
-    fn a_disabled_flag_is_off_whatever_else_says() {
-        let mut f = flag(100, json!([]), json!({}));
-        f.enabled = false;
-        let decided = decide(&f, "visitor-1", &BTreeMap::new());
-        assert_eq!(decided["enabled"], json!(false));
-        assert_eq!(decided["reason"], json!("disabled"));
-    }
-
-    #[test]
-    fn conditions_are_matched_against_the_supplied_context() {
-        let mobile = flag(
-            100,
-            json!([]),
-            json!([{ "dimension": "device_type", "op": "is", "value": "mobile" }]),
-        );
-
-        let mut context = BTreeMap::new();
-        context.insert("device_type".into(), "mobile".into());
-        assert_eq!(decide(&mobile, "v1", &context)["enabled"], json!(true));
-
-        context.insert("device_type".into(), "desktop".into());
-        assert_eq!(
-            decide(&mobile, "v1", &context)["reason"],
-            json!("conditions")
-        );
-
-        // An attribute the SDK never sent fails closed rather than matching.
-        assert_eq!(
-            decide(&mobile, "v1", &BTreeMap::new())["reason"],
-            json!("conditions")
-        );
-    }
-
-    #[test]
-    fn variants_are_assigned_by_weight() {
-        let variants = json!([
-            { "key": "control", "weight": 50 },
-            { "key": "treatment", "weight": 50 }
-        ]);
-
-        let mut treatment = 0;
-        for i in 0..2_000 {
-            let picked = pick_variant(&variants, "exp", &format!("visitor-{i}"));
-            assert!(picked == json!("control") || picked == json!("treatment"));
-            if picked == json!("treatment") {
-                treatment += 1;
-            }
-        }
-        assert!(
-            (900..1_100).contains(&treatment),
-            "50/50 split gave {treatment}"
-        );
-
-        // A weight of zero must never be assigned.
-        let skewed = json!([
-            { "key": "on", "weight": 1 },
-            { "key": "never", "weight": 0 }
-        ]);
-        for i in 0..200 {
-            assert_eq!(pick_variant(&skewed, "exp", &format!("v{i}")), json!("on"));
-        }
-    }
-
-    #[test]
-    fn an_on_off_flag_has_no_variant() {
-        assert_eq!(pick_variant(&json!([]), "exp", "v1"), Value::Null);
-        assert_eq!(pick_variant(&Value::Null, "exp", "v1"), Value::Null);
-    }
-
-    #[test]
-    fn a_variant_assignment_never_moves_for_one_visitor() {
-        let variants = json!([
-            { "key": "a", "weight": 1 },
-            { "key": "b", "weight": 1 },
-            { "key": "c", "weight": 1 }
-        ]);
-        let first = pick_variant(&variants, "exp", "visitor-7");
-        for _ in 0..50 {
-            assert_eq!(pick_variant(&variants, "exp", "visitor-7"), first);
-        }
-    }
 
     #[test]
     fn the_normal_tail_matches_the_textbook() {
@@ -1468,47 +732,6 @@ mod tests {
     }
 
     #[test]
-    fn a_regex_condition_is_refused_at_write_time() {
-        let body = FlagBody {
-            key: "new-nav".into(),
-            enabled: None,
-            rollout_pct: None,
-            variants: None,
-            conditions: Some(
-                json!([{ "dimension": "pathname", "op": "matches", "value": "^/docs" }]),
-            ),
-        };
-        assert_eq!(check_flag(&body).unwrap_err().field(), Some("conditions"));
-    }
-
-    #[test]
-    fn keys_and_rollouts_are_bounded() {
-        let base = |key: &str, rollout: Option<i32>| FlagBody {
-            key: key.into(),
-            enabled: None,
-            rollout_pct: rollout,
-            variants: None,
-            conditions: None,
-        };
-        assert_eq!(
-            check_flag(&base("New Nav", None)).unwrap_err().field(),
-            Some("key")
-        );
-        assert_eq!(
-            check_flag(&base("", None)).unwrap_err().field(),
-            Some("key")
-        );
-        assert_eq!(
-            check_flag(&base("new-nav", Some(101))).unwrap_err().field(),
-            Some("rollout_pct")
-        );
-        assert_eq!(
-            check_flag(&base("New-Nav.v2", None)).unwrap().key,
-            "new-nav.v2"
-        );
-    }
-
-    #[test]
     fn an_experiment_needs_two_distinct_weighted_variants() {
         assert!(check_variants(&json!([]), true).is_err());
         assert!(check_variants(&json!([{ "key": "only" }]), true).is_err());
@@ -1527,23 +750,23 @@ mod tests {
             true
         )
         .is_ok());
+        // Weights are whole numbers, so every evaluator reads them the same.
+        assert!(check_variants(
+            &json!([{ "key": "a", "weight": 2.5 }, { "key": "b", "weight": 1 }]),
+            true
+        )
+        .is_err());
+        assert!(check_variants(&json!([{ "key": "a", "weight": -1 }]), false).is_err());
 
         // A flag is allowed to have none: that is an on/off switch.
         assert!(check_variants(&json!([]), false).is_ok());
     }
 
     #[test]
-    fn context_values_are_flattened_and_lower_cased() {
-        let parsed = parse_context(Some(r#"{"Device_Type":"mobile","plan":2,"x":null}"#)).unwrap();
-        assert_eq!(
-            parsed.get("device_type").map(String::as_str),
-            Some("mobile")
-        );
-        assert_eq!(parsed.get("plan").map(String::as_str), Some("2"));
-        assert_eq!(parsed.get("x").map(String::as_str), Some(""));
-
-        assert!(parse_context(None).unwrap().is_empty());
-        assert!(parse_context(Some("not json")).is_err());
-        assert!(parse_context(Some("[1,2]")).is_err());
+    fn keys_are_lower_case_and_code_safe() {
+        assert_eq!(clean_key(" New-Nav.v2 ", "key").unwrap(), "new-nav.v2");
+        assert_eq!(clean_key("", "key").unwrap_err().field(), Some("key"));
+        assert!(clean_key("has space", "key").is_err());
+        assert!(clean_key(&"x".repeat(65), "key").is_err());
     }
 }

@@ -1,4 +1,5 @@
-//! `/api/imports/*` — migrating GA4, Plausible and Umami history in.
+//! `/api/imports/*` — migrating GA4, Plausible, Umami, PostHog and Simple
+//! Analytics history in.
 //!
 //! One row per import, tracking status and progress so the settings screen can
 //! show a bar and so a failed import says why. The events themselves land in
@@ -24,12 +25,23 @@
 //! identical from inside it. The importer removes the file when the job is done
 //! or parked for good, and the worker's janitor removes any that outlive that.
 //!
-//! ## The importer reads CSV
+//! ## The importer reads CSV and JSON
 //!
-//! All three sources export CSV, and the staging reader is a CSV reader. An
-//! upload with any other extension is refused *here*, with a message naming what
-//! to export, rather than accepted and failed by a worker twenty minutes later
-//! with a parse error nobody can act on.
+//! The staging reader reads CSV and JSON (an array of records, or one record
+//! per line), which covers what every source exports. An upload with any other
+//! extension is refused *here*, with a message naming what to export, rather
+//! than accepted and failed by a worker twenty minutes later with a parse error
+//! nobody can act on.
+//!
+//! ## An API import sends no file
+//!
+//! PostHog and Simple Analytics can also be read through their APIs. The form
+//! then carries an API key instead of a file, and the key is sealed
+//! ([`micaforge_jobs::import_api::seal`]) and stored on the `imports` row in
+//! the same statement that creates it, before the job is queued. It is never in
+//! the job payload, never logged, and never returned; the job opens it, and the
+//! row drops it when the import is done or given up for good. Nothing reaches
+//! out to a provider unless an operator typed a key into this form.
 
 use axum::extract::multipart::Field;
 use axum::extract::{Multipart, Path, State};
@@ -41,9 +53,11 @@ use serde_json::{json, Value};
 use tokio::io::AsyncWriteExt;
 use uuid::Uuid;
 
+use micaforge_jobs::import_api::{self, ApiForm};
 use micaforge_jobs::outbound::BodyCap;
 use micaforge_store::models::sites::Site;
 
+use crate::audit::{self, Entry};
 use crate::error::ApiError;
 use crate::extract::{AuthUser, SiteAccess};
 use crate::response::ok;
@@ -58,8 +72,11 @@ use crate::state::AppState;
 /// to mean the core alias in the helpers below, which is what they all use.
 type ApiResult<T> = std::result::Result<T, ApiError>;
 
-/// The three tools Micaforge can read an export from.
-const SOURCES: &[&str] = &["ga4", "plausible", "umami"];
+/// The tools Micaforge can read an export from.
+const SOURCES: &[&str] = &["ga4", "plausible", "umami", "posthog", "simple_analytics"];
+
+/// The file types the staging reader reads.
+const EXTENSIONS: &[&str] = &[".csv", ".json", ".ndjson", ".jsonl"];
 
 /// Hard ceiling on an uploaded export.
 ///
@@ -138,12 +155,16 @@ struct Upload {
     filename: Option<String>,
     /// How much was written to the scratch file.
     bytes: u64,
+    /// The API form, for an import read from a provider's API. Its `Debug`
+    /// prints neither the key nor the user id.
+    api: ApiForm,
 }
 
 /// `POST /api/imports` — upload an export, or point at a URL.
 ///
-/// Multipart fields: `site`, `source`, and then either a `file` part or a `url`
-/// field, in that order. The caller's role on the site is checked when the
+/// Multipart fields: `site`, `source`, and then a `file` part, a `url` field,
+/// or, for PostHog and Simple Analytics, the API fields (`api_key`,
+/// `api_host`, `project`, `user_id`, `hostname`, `from`, `to`). The caller's role on the site is checked when the
 /// `file` part arrives and before any of it is written, so `site` has to come
 /// first; a form that sends the file before the site is refused. The scratch
 /// file is removed on every failure path, so a refused upload leaves nothing
@@ -212,6 +233,15 @@ async fn start_import(
     check_extension(upload.filename.as_deref())?;
 
     let has_file = upload.bytes > 0;
+    if upload.api.has_key() {
+        if has_file || upload.url.as_deref().is_some_and(|u| !u.trim().is_empty()) {
+            return Err(Error::validation(
+                "api_key",
+                "an API import reads from the provider; send the key or a file, not both",
+            ));
+        }
+        return start_api_import(st, import_id, &site, source, &upload.api).await;
+    }
     let url = upload
         .url
         .as_deref()
@@ -230,7 +260,7 @@ async fn start_import(
             .map_err(|e| Error::validation("url", e.to_string()))?;
     }
 
-    let import = imports::create(&st.pg, import_id, site.id, source).await?;
+    let import = imports::create(&st.pg, import_id, site.id, source, None).await?;
 
     let queued = micaforge_jobs::enqueue_now(
         &st.pg,
@@ -245,6 +275,7 @@ async fn start_import(
             } else {
                 url.map(str::to_string)
             },
+            api: None,
         },
     )
     .await?;
@@ -256,10 +287,67 @@ async fn start_import(
         bytes = upload.bytes,
         "import queued"
     );
+    audit::record(
+        st,
+        auth,
+        Entry::new("import.created")
+            .target("import", import.id, source)
+            .site(&site)
+            .meta(
+                json!({ "source": source, "uploaded_bytes": upload.bytes, "from_url": !has_file }),
+            ),
+    )
+    .await;
 
     let mut payload = import_json(&import);
     payload["job_id"] = json!(queued);
     payload["uploaded_bytes"] = json!(upload.bytes);
+    Ok(payload)
+}
+
+/// Validate an API import, seal its key onto a new `imports` row, and queue
+/// the job.
+///
+/// The form is checked box by box ([`import_api::prepare`]), so a refusal
+/// names the field to fix. The key is sealed before the row exists and written
+/// with it, so there is never an API import without its key, and never a key
+/// anywhere but sealed on its own row.
+async fn start_api_import(
+    st: &AppState,
+    import_id: Uuid,
+    site: &Site,
+    source: &str,
+    form: &ApiForm,
+) -> Result<Value> {
+    let today = chrono::Utc::now().date_naive();
+    let (api, credentials) = import_api::prepare(source, form, &site.domain, today)?;
+    let sealed = import_api::seal(&st.cfg, import_id, &credentials)?;
+    let import = imports::create(&st.pg, import_id, site.id, source, Some(&sealed)).await?;
+
+    let queued = micaforge_jobs::enqueue_now(
+        &st.pg,
+        micaforge_jobs::Kind::RunImport,
+        &micaforge_jobs::run_import::Payload {
+            import: import.id,
+            source: Some(source.to_string()),
+            path: None,
+            url: None,
+            api: Some(api.clone()),
+        },
+    )
+    .await?;
+
+    tracing::info!(
+        import = %import.id,
+        site = %site.id,
+        source,
+        provider = api.provider(),
+        "API import queued"
+    );
+
+    let mut payload = import_json(&import);
+    payload["job_id"] = json!(queued);
+    payload["uploaded_bytes"] = json!(0);
     Ok(payload)
 }
 
@@ -287,6 +375,7 @@ async fn delete_import(
 ) -> ApiResult<Json<Value>> {
     let import = imports::get(&st.pg, id).await?;
     reachable(&st, import.site_id, auth.user.id, MEMBER).await?;
+    let site = micaforge_store::models::sites::get(&st.pg, import.site_id).await?;
 
     if import.status == "running" {
         return Err(Error::Conflict(
@@ -299,6 +388,15 @@ async fn delete_import(
     // Normally the importer has already removed the file; this covers a
     // record deleted before its job ever ran.
     discard(&scratch_path(import.id)).await;
+    audit::record(
+        &st,
+        &auth,
+        Entry::new("import.deleted")
+            .target("import", import.id, &import.source)
+            .site(&site)
+            .before(json!({ "source": import.source, "status": import.status })),
+    )
+    .await;
 
     Ok(ok(json!({
         "deleted": import.id,
@@ -342,6 +440,13 @@ async fn read_upload(
                 "site" => upload.site = Some(text),
                 "source" => upload.source = Some(text),
                 "url" => upload.url = Some(text),
+                "api_key" => upload.api.api_key = Some(text),
+                "api_host" => upload.api.api_host = Some(text),
+                "project" => upload.api.project = Some(text),
+                "user_id" => upload.api.user_id = Some(text),
+                "hostname" => upload.api.hostname = Some(text),
+                "from" => upload.api.from = Some(text),
+                "to" => upload.api.to = Some(text),
                 // An unknown field is ignored rather than refused: a browser
                 // form habitually carries a CSRF token or a submit button name.
                 _ => {}
@@ -485,19 +590,20 @@ fn check_source(raw: Option<&str>) -> Result<&'static str> {
 
 /// Refuse a file the staging reader could not read.
 ///
-/// All three tools export CSV. A `.json` or a `.zip` here would be accepted,
-/// queued, and fail inside a worker with a parse error, so it is named now.
+/// The reader takes CSV and JSON. A `.zip` or a `.xlsx` here would be
+/// accepted, queued, and fail inside a worker with a parse error, so it is
+/// named now.
 fn check_extension(filename: Option<&str>) -> Result<()> {
     let Some(name) = filename.map(str::trim).filter(|n| !n.is_empty()) else {
         return Ok(());
     };
     let lower = name.to_lowercase();
-    if lower.ends_with(".csv") {
+    if EXTENSIONS.iter().any(|ext| lower.ends_with(ext)) {
         return Ok(());
     }
     Err(Error::validation(
         "file",
-        format!("`{name}` is not a CSV; export the report as CSV and upload that"),
+        format!("`{name}` is not CSV or JSON; export the data as CSV or JSON and upload that"),
     ))
 }
 
@@ -529,22 +635,31 @@ mod tests {
     use super::*;
 
     #[test]
-    fn only_the_three_named_tools_are_accepted() {
+    fn only_the_named_tools_are_accepted() {
         for source in SOURCES {
             assert_eq!(check_source(Some(source)).unwrap(), *source);
         }
         assert_eq!(check_source(Some("  GA4 ")).unwrap(), "ga4");
+        assert_eq!(check_source(Some("PostHog")).unwrap(), "posthog");
+        assert_eq!(
+            check_source(Some("simple_analytics")).unwrap(),
+            "simple_analytics"
+        );
         assert_eq!(check_source(None).unwrap_err().field(), Some("source"));
         assert!(check_source(Some("matomo")).is_err());
     }
 
     #[test]
-    fn a_non_csv_upload_is_refused_before_it_is_queued() {
+    fn an_unreadable_upload_is_refused_before_it_is_queued() {
         assert!(check_extension(Some("report.csv")).is_ok());
         assert!(check_extension(Some("REPORT.CSV")).is_ok());
+        // PostHog and Simple Analytics export JSON too, and the reader reads it.
+        assert!(check_extension(Some("export.json")).is_ok());
+        assert!(check_extension(Some("events.ndjson")).is_ok());
+        assert!(check_extension(Some("events.jsonl")).is_ok());
         // Named now rather than twenty minutes later in a worker.
-        assert!(check_extension(Some("export.json")).is_err());
         assert!(check_extension(Some("ga4.zip")).is_err());
+        assert!(check_extension(Some("report.xlsx")).is_err());
         assert!(check_extension(Some("events.csv.gz")).is_err());
         // No filename at all is the `url` path, which has no file to check.
         assert!(check_extension(None).is_ok());
@@ -559,6 +674,21 @@ mod tests {
 
         assert_eq!(name, format!("micaforge-import-{id}.csv"));
         assert!(path.starts_with(std::env::temp_dir()));
+    }
+
+    #[test]
+    fn an_api_form_never_prints_its_key() {
+        let upload = Upload {
+            api: ApiForm {
+                api_key: Some("phx_very_secret".into()),
+                user_id: Some("sa_user_id_private".into()),
+                ..ApiForm::default()
+            },
+            ..Upload::default()
+        };
+        let printed = format!("{upload:?}");
+        assert!(!printed.contains("phx_very_secret"));
+        assert!(!printed.contains("sa_user_id_private"));
     }
 
     #[test]

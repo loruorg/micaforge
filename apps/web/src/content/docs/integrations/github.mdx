@@ -1,0 +1,178 @@
+---
+title: "GitHub"
+description: "Put a site's deploys, releases and pushes on its charts, and open feedback as GitHub issues, with a GitHub App."
+group: "integrations"
+order: 4
+updated: 2026-10-09
+---
+
+The GitHub App puts what you ship next to what happened to your traffic. Each successful
+deployment, published release or push to the default branch of a site's repository becomes an
+annotation on the site's charts, with a link to the release or commit on GitHub. The
+[AI analyst](/docs/dashboard/ask-ai) and agents over [MCP](/docs/api/mcp-server) can read the same
+list, so they can answer "did traffic change after Tuesday's deploy?" from facts.
+
+One GitHub App serves the whole install: the operator creates it once. An organisation admin
+then connects it to a GitHub account, and a site admin picks the site's repository.
+
+It is off until its six variables are set. With them unset, nothing is sent to GitHub, and
+nothing GitHub sends is acted on.
+
+This is not the same as [GitHub sign-in](/docs/self-hosting/google-and-github-sign-in).
+Sign-in uses an OAuth app and `MICAFORGE_GITHUB_CLIENT_ID`; this uses a GitHub App and
+`MICAFORGE_GITHUB_APP_*`. An install can use either one without the other.
+
+## What it does
+
+- **Annotates deploys.** A deployment status of `success` becomes a note such as
+  "Deployed 0d1a26e to production (acme/site)". Only the environments the site names are
+  recorded, `production` by default, matched without regard to case. Vercel, Netlify,
+  GitHub Actions environments and most other hosts report deployments to GitHub this way.
+- **Annotates releases.** A published release becomes "Released v2.4.0: Pricing and docs
+  search". Drafts are skipped; pre-releases say so.
+- **Records pushes.** A push to the default branch is recorded with its last twenty commits.
+  It becomes an annotation only when the site asks for it, because a busy branch can mean
+  dozens of notes a day.
+- **Opens issues from feedback.** A [feedback](/docs/api/feedback) report about a site with a
+  linked repository can be opened as an issue there. See
+  [feedback to GitHub issues](#feedback-to-github-issues).
+
+Each deploy, release and push is recorded once per site. GitHub's redelivery, a second success
+status for the same deployment, or two deliveries arriving at once never write a second note.
+Deleting a note on the chart keeps it deleted when GitHub sends the event again.
+
+## Before you start
+
+- **The install must be reachable from the internet over HTTPS**, because GitHub calls it.
+- **`MICAFORGE_PUBLIC_URL` must be the public address.** The callback and webhook addresses
+  are built from it, and Site setup → GitHub shows both ready to copy.
+
+## Create the GitHub App
+
+1. On GitHub, open **Settings → Developer settings → GitHub Apps → New GitHub App**. For an
+   organisation, use the organisation's settings instead, so the App belongs to it.
+2. Give it a name. Its address, `github.com/apps/<slug>`, gives you the **slug**: the name in
+   lower case, with spaces turned into hyphens.
+3. **Homepage URL**: your Micaforge address.
+4. **Callback URL**: `MICAFORGE_PUBLIC_URL` + `/api/github/callback`, for example
+
+   ```text
+   https://analytics.example.com/api/github/callback
+   ```
+
+5. Turn on **Request user authorization (OAuth) during installation**. With it on, GitHub
+   sends people back to the callback URL after an install, with a code that lets Micaforge
+   check the installation is theirs. Leave **Setup URL** empty, and turn on
+   **Redirect on update**.
+6. **Webhook**: active. **Webhook URL**: `MICAFORGE_PUBLIC_URL` + `/api/github/webhook`.
+   **Webhook secret**: a long random value you choose (`openssl rand -hex 32`).
+7. **Repository permissions**, and nothing else:
+
+   | Permission | Access | Why |
+   | --- | --- | --- |
+   | Contents | Read | Push events. |
+   | Deployments | Read | Deployment status events. |
+   | Issues | Read and write | Opening an issue from feedback. |
+   | Metadata | Read | Always required; lists the repositories. |
+
+8. **Subscribe to events**: **Push**, **Release** and **Deployment status**. The installation
+   events (the App installed, removed, suspended, repositories added or removed) arrive
+   without a subscription.
+9. **Where can this GitHub App be installed?** Only on this account, unless people in other
+   GitHub accounts use your install.
+10. Create it. On its page, copy the **App ID**, the **Client ID**, generate a **client
+    secret**, and **generate a private key**, which downloads a `.pem` file.
+
+## Configure Micaforge
+
+```sh
+MICAFORGE_GITHUB_APP_ID=123456
+MICAFORGE_GITHUB_APP_SLUG=micaforge-deploys
+MICAFORGE_GITHUB_APP_PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----\nMIIE...\n-----END RSA PRIVATE KEY-----"
+MICAFORGE_GITHUB_APP_WEBHOOK_SECRET=
+MICAFORGE_GITHUB_APP_CLIENT_ID=Iv23li...
+MICAFORGE_GITHUB_APP_CLIENT_SECRET=
+```
+
+All six, or none; part of the group stops the server at boot and names the missing variable.
+The private key can be given with its line breaks written as `\n` on one line, as above, or
+with real line breaks if your environment file allows them. The server checks at boot that it
+is an RSA key it can sign with. Restart the server after setting them.
+
+The private key and the secrets stay in the environment. Micaforge stores no GitHub credential
+in Postgres: it signs a short-lived token with the key when it needs one, and keeps the
+hour-long installation token in Valkey, sealed, until five minutes before it expires. No token
+is written to the log.
+
+## Connect a repository
+
+1. An **organisation admin** opens a site's **Site setup → GitHub** and presses
+   **Connect GitHub**. GitHub asks which account to install the App on, and which repositories
+   it may read.
+2. GitHub sends them back to the same screen. Micaforge checks, with their own GitHub
+   authorisation, that GitHub lists the installation for them. Without that check anybody could
+   attach somebody else's account by typing its number into the address.
+3. A **site admin** chooses the repository from the list GitHub gives for the account, and
+   chooses what goes on the chart: deployments (and to which environments), releases, pushes.
+
+Each site follows one repository. Two sites built from one repository can both follow it.
+**Recorded from GitHub** lists what arrived for the site, and **Recent deliveries** shows
+site admins every delivery about the repository and what became of it, which is where a
+missing deploy is found.
+
+## Feedback to GitHub issues
+
+In the instance admin's feedback list, a report about a site with a linked repository has a
+**Create GitHub issue** button. The issue carries the report's title, its text in a code block
+(so nothing in it can mention a person or load an image), and plain facts: its kind, severity,
+where it was sent from, the site's domain, the page's path without its query string, the app
+version, when it arrived and its id. It never carries the reporter's name or address, their
+browser, or the API key used: the repository may be public. The issue's link is stored on the
+report, and pressing the button again answers with the same issue.
+
+Who may:
+
+- **A person, signed in**: someone who may read the report (the instance admin reads every
+  report) and holds the **admin** role on the site whose repository receives it.
+- **An agent**, with an API key or an MCP connection: only for a report it sent itself, only
+  with the `manage:write` scope, and only when a site admin has turned on
+  **Issues from agents** for the site's repository. The MCP tool is
+  `create_github_issue_from_feedback`.
+
+## What happens when GitHub changes something
+
+| On GitHub | In Micaforge |
+| --- | --- |
+| The App is uninstalled from an account | The connection is removed in every organisation, and the sites that followed its repositories stop. |
+| The App is suspended | Nothing is recorded from that account until the suspension is lifted. |
+| A repository is taken out of the installation | Sites that followed it stop following it. |
+| A repository is renamed, or its default branch changes | The link follows, by GitHub's repository id. |
+
+Each of these is written to the [audit log](/docs/dashboard/audit-log) under the system actor,
+beside the changes people make: connecting, disconnecting, linking, changing and unlinking a
+repository, and opening an issue. **Disconnect** in Micaforge removes the connection, and when
+no organisation on the server uses the installation any more, uninstalls the App from the
+account on GitHub too. Recorded deploys and their annotations stay in every case.
+
+## For agents
+
+| Surface | Name | Reads |
+| --- | --- | --- |
+| AI analyst | `list_deploys` | The site's deploys, releases and pushes in the window being asked about. |
+| MCP | `list_deploys` | The same, for one site, by `site`, `range` (or `start` and `end`) and `kinds`. |
+| MCP | `create_github_issue_from_feedback` | Opens one of the agent's own reports as an issue, as above. |
+
+The HTTP routes under `/api/github/` are for the dashboard and refuse API keys.
+
+## Troubleshooting
+
+- **"GitHub does not list that installation for your GitHub account"**: the GitHub account
+  you authorised on the way back is not one that can manage the installation. Sign in to GitHub
+  as an owner of the account, then press **Connect** again.
+- **Nothing appears after a deploy**: open **Recent deliveries**. No delivery means GitHub did
+  not send one: check the webhook address and that the App subscribes to Deployment status.
+  A delivery marked **Ignored** says why, such as an environment the site does not record.
+  A **Failed** one can be sent again with **Redeliver** in the App's advanced settings on
+  GitHub.
+- **A signature error in the server log**: `MICAFORGE_GITHUB_APP_WEBHOOK_SECRET` does not
+  match the webhook secret on GitHub.

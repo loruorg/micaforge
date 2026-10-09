@@ -85,6 +85,7 @@ use serde_json::{json, Value};
 use totp_rs::{Algorithm, Secret, TOTP};
 use uuid::Uuid;
 
+use crate::audit::{self, Actor, Entry};
 use crate::error::ApiError;
 use crate::extract::{AuthMethod, AuthUser, ClientAddr};
 use crate::response::ok;
@@ -324,6 +325,16 @@ impl NewAccount {
         })
     }
 
+    /// An account named by a sign-in provider. A name the provider sent that
+    /// is not usable as one (blank, or too long) is left out, and the account
+    /// is named from its address instead.
+    pub(crate) fn from_provider(name: Option<&str>) -> NewAccount {
+        NewAccount {
+            name: name.and_then(|n| clean_name(n, "name").ok()),
+            org_name: None,
+        }
+    }
+
     /// Each field from `self` when it has one, else from `earlier`. What the
     /// verification sends wins over what the request stored.
     fn or(self, earlier: &NewAccount) -> NewAccount {
@@ -554,6 +565,14 @@ async fn verify_code(
         } => {
             let (jar, session) = open_session(&st, jar, &user, &headers, &ip).await?;
             tracing::info!(user = %user.id, created, "signed in");
+            audit::record_as(
+                &st,
+                Actor::user(&user),
+                Entry::new("auth.signed_in")
+                    .target("account", user.id, &user.email)
+                    .meta(json!({ "created": created, "joined": joined })),
+            )
+            .await;
             Ok((
                 jar,
                 ok(json!({
@@ -681,12 +700,61 @@ async fn create_account(
     asked: NewAccount,
 ) -> Result<Verdict> {
     let account = asked.or(&seen.value.account);
+    // The code is consumed only once the door has been found open, and before
+    // anything is written: `open_account` awaits this future between the two.
+    let claim = st.kv.swap_json(key, &seen, None);
+    Ok(match open_account(st, email, &account, claim).await? {
+        Opened::Created { user, joined } => Verdict::SignedIn {
+            user,
+            created: true,
+            joined,
+        },
+        Opened::Closed | Opened::Lost => Verdict::Refused(CODE_REFUSED),
+    })
+}
+
+/// How [`open_account`] ended.
+pub(crate) enum Opened {
+    /// The account exists now, verified, in its organisations.
+    Created {
+        /// The new account, as it reads after creation.
+        user: users::User,
+        /// Organisations it joined through invitations waiting for it.
+        joined: Vec<Uuid>,
+    },
+    /// The door is shut for this address: no first account, registration
+    /// closed, no invitation.
+    Closed,
+    /// The claim was lost, or the address gained an account in the meantime.
+    Lost,
+}
+
+/// Create an account for an address whose control was just proved (an
+/// emailed code, or a provider's verified address), if the door is open.
+///
+/// The one place an account is made, for both ways in. `claim` is awaited
+/// after the door is found open and before anything is written: the code flow
+/// consumes its code there, so a refused door leaves the code alone and two
+/// requests racing with one code cannot both create. Everything else is the
+/// rule `docs/CONTRACT.md` §3.6 states:
+///
+/// - The door is checked again here, because it can have closed since the
+///   sign-in began: registration closed, or the invitation withdrawn.
+/// - The first account owns the instance (`routes::admin`), so deciding
+///   "first" and creating it are one step under an advisory lock: two people
+///   racing to claim a fresh install cannot both see an empty table. Only the
+///   fresh-install path pays for the lock.
+/// - A new account that has invitations waiting joins those organisations
+///   instead of getting a workspace of its own: it was invited somewhere, and
+///   an empty workspace beside that is clutter.
+pub(crate) async fn open_account(
+    st: &AppState,
+    email: &str,
+    account: &NewAccount,
+    claim: impl std::future::Future<Output = Result<bool>>,
+) -> Result<Opened> {
     let invites = pending_invites_for(&st.kv, &st.cfg, email).await?;
 
-    // The first account owns the instance (`routes::admin`), so deciding
-    // "first" and creating it are one step under an advisory lock: two people
-    // racing to claim a fresh install cannot both see an empty table. Only the
-    // fresh-install path pays for the lock.
     let maybe_first = users::count(&st.pg).await? == 0;
     let first_account_lock = if maybe_first {
         Some(lock_first_account(&st.pg).await?)
@@ -703,20 +771,19 @@ async fn create_account(
     )
     .is_none()
     {
-        return Ok(Verdict::Refused(CODE_REFUSED));
+        return Ok(Opened::Closed);
     }
 
-    if !st.kv.swap_json(key, &seen, None).await? {
-        return Ok(Verdict::Refused(CODE_REFUSED));
+    if !claim.await? {
+        return Ok(Opened::Lost);
     }
 
-    let name = account.name.unwrap_or_else(|| default_name(email));
+    let name = account.name.clone().unwrap_or_else(|| default_name(email));
     let user = match users::create(&st.pg, new_id(), email, &name).await {
         Ok(user) => user,
-        // The address gained an account between the lookup and the insert. The
-        // code that would have made it is the one just consumed, so this was
-        // made some other way; refusing is better than guessing whose it is.
-        Err(Error::Conflict(_)) => return Ok(Verdict::Refused(CODE_REFUSED)),
+        // The address gained an account between the lookup and the insert,
+        // some other way; refusing is better than guessing whose it is.
+        Err(Error::Conflict(_)) => return Ok(Opened::Lost),
         Err(e) => return Err(e),
     };
     users::mark_email_verified(&st.pg, user.id).await?;
@@ -742,11 +809,7 @@ async fn create_account(
     }
 
     let user = users::get(&st.pg, user.id).await?;
-    Ok(Verdict::SignedIn {
-        user,
-        created: true,
-        joined,
-    })
+    Ok(Opened::Created { user, joined })
 }
 
 /// Count one wrong guess against the code `seen` read, deleting the code when
@@ -926,6 +989,12 @@ async fn totp_verify(
     st.kv.del(&key).await?;
 
     tracing::info!(user = %auth.user.id, "two-factor enabled");
+    audit::record(
+        &st,
+        &auth,
+        Entry::new("auth.totp_enabled").target("account", auth.user.id, &auth.user.email),
+    )
+    .await;
     Ok(ok(json!({ "status": "enabled" })))
 }
 
@@ -966,6 +1035,12 @@ async fn totp_disable(
     st.kv.del(&totp_pending_key(auth.user.id)).await?;
 
     tracing::info!(user = %auth.user.id, "two-factor disabled");
+    audit::record(
+        &st,
+        &auth,
+        Entry::new("auth.totp_disabled").target("account", auth.user.id, &auth.user.email),
+    )
+    .await;
     Ok(ok(json!({ "status": "disabled" })))
 }
 
@@ -1069,7 +1144,7 @@ async fn update_me(
 fn current_session(auth: &AuthUser) -> Result<Uuid> {
     match auth.method {
         AuthMethod::Session(id) => Ok(id),
-        AuthMethod::ApiKey(_) => Err(Error::Forbidden(
+        AuthMethod::ApiKey(_) | AuthMethod::OAuth(_) => Err(Error::Forbidden(
             "API keys cannot be used on this endpoint; sign in to the dashboard".to_string(),
         )),
     }
@@ -1113,6 +1188,14 @@ async fn revoke_session(
         return Err(Error::NotFound("session".to_string()).into());
     }
     sessions::delete(&st.pg, id).await?;
+    audit::record(
+        &st,
+        &auth,
+        Entry::new("auth.session_revoked")
+            .target("account", auth.user.id, &auth.user.email)
+            .meta(json!({ "session": id })),
+    )
+    .await;
     Ok(ok(json!({ "revoked": id })))
 }
 
@@ -1123,11 +1206,19 @@ async fn revoke_other_sessions(
 ) -> ApiResult<Json<Value>> {
     let current = current_session(&auth)?;
     let revoked = sessions::delete_others(&st.pg, auth.user.id, current).await?;
+    audit::record(
+        &st,
+        &auth,
+        Entry::new("auth.sessions_revoked")
+            .target("account", auth.user.id, &auth.user.email)
+            .meta(json!({ "revoked": revoked })),
+    )
+    .await;
     Ok(ok(json!({ "revoked": revoked })))
 }
 
 /// Open a session and hand the browser its cookie.
-async fn open_session(
+pub(crate) async fn open_session(
     st: &AppState,
     jar: CookieJar,
     user: &users::User,
@@ -1269,7 +1360,12 @@ fn check_code(totp: &TOTP, code: &str) -> Result<bool> {
 }
 
 /// Open a stored TOTP seed and check a code against it.
-fn verify_totp_secret(cfg: &Config, user: &users::User, sealed: &[u8], code: &str) -> Result<bool> {
+pub(crate) fn verify_totp_secret(
+    cfg: &Config,
+    user: &users::User,
+    sealed: &[u8],
+    code: &str,
+) -> Result<bool> {
     let bytes = crypto::open(&cfg.derive_key("totp"), user.id.as_bytes(), sealed)?;
     let totp = build_totp(bytes)?;
     check_code(&totp, code)
@@ -1385,7 +1481,7 @@ fn default_name(email: &str) -> String {
 }
 
 /// One user on the wire. Never carries the TOTP seed.
-fn user_json(user: &users::User, is_instance_admin: bool) -> Value {
+pub(crate) fn user_json(user: &users::User, is_instance_admin: bool) -> Value {
     json!({
         "id": user.id,
         "email": user.email,
@@ -1686,6 +1782,18 @@ mod tests {
             mail_from: "Micaforge <no-reply@localhost>".into(),
             log_format: "text".into(),
             worker_concurrency: 2,
+            llm: None,
+            chat: Default::default(),
+            feedback_channel: Default::default(),
+            region: "default".into(),
+            links_host: None,
+            google_oauth: None,
+            github_oauth: None,
+            billing_enabled: false,
+            billing_plans: Vec::new(),
+            stripe: None,
+            search_console: None,
+            github_app: None,
         }
     }
 
@@ -1765,6 +1873,16 @@ mod tests {
                     ranges: Arc::new(RwLock::new(RangeStore::new())),
                     mailer: Arc::new(mailer),
                     http: reqwest::Client::new(),
+                    link_clicks: micaforge_store::TableWriter::spawn(
+                        Ch::connect("http://127.0.0.1:9", "micaforge", "default", "").unwrap(),
+                        "link_clicks",
+                        WriterCfg::default(),
+                    ),
+                    mcp_calls: micaforge_store::TableWriter::spawn(
+                        Ch::connect("http://127.0.0.1:9", "micaforge", "default", "").unwrap(),
+                        "mcp_calls",
+                        WriterCfg::default(),
+                    ),
                 };
                 Harness {
                     st,

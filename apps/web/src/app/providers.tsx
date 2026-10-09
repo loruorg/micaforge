@@ -63,6 +63,8 @@ export interface Account {
   email_verified_at: string | null;
   totp_enabled?: boolean;
   created_at?: string;
+  /** True for whoever runs this instance; the server enforces it on every admin call. */
+  instance_admin?: boolean;
 }
 
 export interface AuthValue {

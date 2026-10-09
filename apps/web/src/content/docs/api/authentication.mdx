@@ -6,12 +6,13 @@ order: 1
 updated: 2026-10-08
 ---
 
-Four credentials, each for one job.
+Five credentials, each for one job.
 
 | Credential | Used by | Sent as |
 | --- | --- | --- |
 | Session cookie | The dashboard in a browser | `mf_session`, HttpOnly |
 | API key | Scripts, integrations, agents | `Authorization: Bearer mfg_…` |
+| OAuth access token | MCP clients a person approved | `Authorization: Bearer mfo_…`, on `/api/mcp` only |
 | Share slug | A shared dashboard link | `?share=<slug>`, or `?share=mfs_…` once unlocked |
 | Ingest signature | Server-side hit collection | `x-micaforge-signature` |
 
@@ -38,15 +39,17 @@ GET    /api/keys/:id/usage     when it was last used, and how much
 
 ### Scopes
 
-Four values, deliberately coarse. A scope list nobody can hold in their head is a scope
+Five values, deliberately coarse. A scope list nobody can hold in their head is a scope
 list everybody sets to "all".
 
 | Scope | Opens |
 | --- | --- |
 | `stats:read` | The analytics read endpoints. |
-| `manage:read` | Management `GET`s: sites, goals, funnels, alerts, flags. |
+| `manage:read` | Management `GET`s: sites, goals, funnels, alerts, flags, and the flag ruleset a server SDK decides with. |
 | `manage:write` | Management writes. Everything a member could do in the dashboard. |
 | `ingest:write` | `POST /api/log/edge`, for a shipper or a proxy module. |
+| `audit:read` | The organisation's [audit log](/docs/dashboard/audit-log), for a security tool. Needs a key granted on the organisation, not bound to one site. |
+| `export:read` | `GET /api/export/raw`, every recorded row of a site as a ZIP. Not implied by `stats:read`. |
 
 A key with no scopes given gets `stats:read`, because the overwhelmingly common reason to
 mint one is to pull numbers into somebody else's dashboard, and a default that could also
@@ -68,6 +71,14 @@ ownership routes, whatever its scopes. Keys can carry an expiry.
   than all of them.
 - Rotate by minting the new one, moving the consumer, then revoking the old. There is no
   grace period on a revoke, which is the point.
+
+## OAuth tokens
+
+An MCP client can connect without a key: it sends a person to a consent screen, the person
+picks an organisation and scopes, and the client receives an access token, `mfo_…`, that
+lives an hour, and a refresh token, `mfr_…`. The token acts for that person, never above
+`member`, and works only on `/api/mcp`. Every approved client is listed, and revoked, in
+Account → Connected apps. The flow is in [MCP server](/docs/api/mcp-server#oauth-for-client-authors).
 
 ## Session cookies
 

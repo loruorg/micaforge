@@ -1,0 +1,134 @@
+/* ============================================================================
+   Annotations on the dashboard's traffic chart (app/record/Annotations.tsx).
+
+   The form and the list sit inside the Traffic panel, under the chart, so a
+   note is written and read next to the moment it describes. The colour of a
+   note is the author's choice of neutral, green or red; it never borrows the
+   people blue or the AI orange. Every value is a var(--mf-*) token.
+   ========================================================================= */
+
+/* ── the form ────────────────────────────────────────────────────────────── */
+
+.mf-ann-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mf-4);
+  margin-top: var(--mf-4);
+  padding: var(--mf-4);
+  background: var(--mf-ground);
+  border: 1px solid var(--mf-rule);
+  border-radius: var(--mf-r-sm);
+  min-width: 0;
+}
+
+.mf-ann-form__title { font-size: var(--mf-t-sm); font-weight: 600; color: var(--mf-ink-strong); }
+.mf-ann-form__hint { margin-top: calc(var(--mf-3) * -1); font-size: var(--mf-t-xs); color: var(--mf-ink-3); }
+
+.mf-ann-form__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--mf-4);
+  min-width: 0;
+}
+
+.mf-ann-form__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mf-3);
+}
+
+.mf-ann-field { display: flex; flex-direction: column; gap: var(--mf-1); min-width: 0; margin: 0; padding: 0; border: 0; }
+.mf-ann-field__label { font-size: var(--mf-t-xs); font-weight: 500; color: var(--mf-ink-2); padding: 0; }
+.mf-ann-field__opt { font-weight: 400; color: var(--mf-ink-3); }
+.mf-ann-field__err { font-size: var(--mf-t-xs); color: var(--mf-danger); }
+.mf-ann-field__count { align-self: flex-end; font-size: var(--mf-t-2xs); color: var(--mf-ink-3); }
+
+/* Three choices, each with its flag and its name, so the choice reads in
+   greyscale too. Pressed is the same neutral fill the other toggles use. */
+.mf-ann-colors__row { display: flex; flex-wrap: wrap; gap: var(--mf-2); }
+.mf-ann-colors__key {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mf-2);
+  padding: 5px var(--mf-3);
+  font: inherit;
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-2);
+  background: var(--mf-ground-2);
+  border: 1px solid var(--mf-rule-strong);
+  border-radius: var(--mf-r-sm);
+  cursor: pointer;
+  transition: background-color var(--mf-dur-1) linear, border-color var(--mf-dur-1) linear;
+}
+.mf-ann-colors__key:hover { background: var(--mf-ground-3); }
+.mf-ann-colors__key[aria-pressed="true"] {
+  color: var(--mf-ink-strong);
+  background: var(--mf-ground-3);
+  border-color: var(--mf-ink-3);
+  box-shadow: var(--mf-inset);
+  font-weight: 500;
+}
+
+.mf-ann__flag { flex: none; }
+
+/* ── one quiet line ──────────────────────────────────────────────────────── */
+
+.mf-ann-say { font-size: var(--mf-t-xs); color: var(--mf-ink-3); }
+.mf-ann-say[data-tone="warn"] { color: var(--mf-danger); }
+
+.mf-ann-retry {
+  font: inherit;
+  color: var(--mf-ink);
+  background: none;
+  border: 0;
+  border-bottom: 1px solid currentColor;
+  padding: 0 0 1px;
+  cursor: pointer;
+}
+
+/* ── the list ────────────────────────────────────────────────────────────── */
+
+.mf-ann-list { margin-top: var(--mf-4); border-top: 1px solid var(--mf-rule); min-width: 0; }
+p.mf-ann-list { padding-top: var(--mf-3); }
+.mf-ann-list--waiting { padding-top: var(--mf-3); }
+
+.mf-ann-rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+
+.mf-ann-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--mf-3);
+  padding: var(--mf-3) 0;
+  border-top: 1px solid var(--mf-rule);
+  min-width: 0;
+}
+.mf-ann-row:first-child { border-top: 0; }
+.mf-ann-row .mf-ann__flag { margin-top: 3px; }
+.mf-ann-row__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.mf-ann-row__what { font-size: var(--mf-t-sm); color: var(--mf-ink); overflow-wrap: anywhere; }
+.mf-ann-row__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px var(--mf-3);
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+}
+.mf-ann-row__acts { display: flex; flex-wrap: wrap; gap: var(--mf-1); flex: none; }
+/* The GitHub link on a note from the GitHub App: ink with an underline,
+   never the people blue or the AI orange. */
+.mf-ann-row__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--mf-ink-2);
+  text-decoration: underline;
+  text-decoration-color: var(--mf-rule-strong);
+  text-underline-offset: 2px;
+}
+.mf-ann-row__link:hover { color: var(--mf-ink); text-decoration-color: currentColor; }
+
+@media (max-width: 560px) {
+  .mf-ann-row { flex-wrap: wrap; }
+  .mf-ann-row__acts { width: 100%; padding-left: 24px; }
+}

@@ -3,7 +3,7 @@ title: "What we store"
 description: "Every column, and the three things that are never written down."
 group: "privacy"
 order: 1
-updated: 2026-08-22
+updated: 2026-10-08
 ---
 
 The short version: traffic, not individuals. The long version is this page, because a
@@ -40,6 +40,7 @@ nothing in it was never sent.
 | Client | `browser`, `browser_version`, `os`, `os_version`, `device_type`, `screen_w/h`, `viewport_w/h`, `language`, `timezone` |
 | Place | `country`, `region`, `city`, `lat`, `lon`, `asn`, `asn_org`, `is_datacenter` |
 | Behaviour | `kind`, `event_name`, `props`, `duration_ms`, `scroll_pct`, `revenue`, `currency` |
+| Sampling | `sample_rate`: the percentage of visitors your tracker keeps, `100` unless you set `data-sample` |
 | Experiments | `flags`, `experiment`, `variant` |
 | Performance | `lcp`, `cls`, `inp`, `fcp`, `ttfb` |
 
@@ -68,14 +69,37 @@ you. Send opaque values.
 product name. Use `data-exclude` for paths that should never be reported, and remember that
 a [shared dashboard](/docs/dashboard/sharing) publishes the pages report.
 
-**`identify()` is a choice.** Nothing attaches an id unless you call it. See
-[identify()](/docs/tracking/identify).
+**Paths can be masked.** `data-mask="/users/*"` reports `/users/12345` as `/users/*`, and
+`data-strip-query` drops query parameters, both in the browser before anything is sent. See
+[Sampling and masking](/docs/tracking/sampling-and-masking).
+
+**`identify()` is a choice.** Nothing attaches an id unless you call it. When you do, each
+`identify()` or `setTraits()` call that changes something is kept as an `identify` event
+with the traits you passed, so the profile can show their history; and that day's visitor
+hash is linked to the id, because your call put the two side by side. Nothing links a hash
+your site never named. See [identify() and setTraits()](/docs/tracking/identify).
+
+## Optional recorders
+
+Three plugins record more, and each is off until its attribute is on the script tag.
+
+- **Error reports** (`data-errors`): the error's type, its message cut to 500 characters,
+  its stack cut to 30 lines, the file, line and column. Query strings are removed from
+  every URL in them and anything shaped like an email address is replaced, before they
+  are sent. They are kept in the `errors` table with the session and visitor hash.
+- **Frustration signals** (`data-frustration`): rage clicks and dead clicks with a short CSS
+  selector for the element, and abandoned forms with the form's id or name and the name of
+  the last field touched. Never a field's value, and never the text on the page.
+- **Click tags** (`data-tags`): a custom event with the `data-track-*` attribute values you
+  wrote into your own HTML.
 
 ## Where it lives
 
 On a self-hosted install: on your machine, in your ClickHouse and your Postgres, and nowhere
 else. The build makes no outbound call at runtime, for anything, including geolocation.
-That is why geography needs a database on disk rather than an API.
+That is why geography needs a database on disk rather than an API. The exceptions are the
+ones you configure: mail, an AI model, chat apps and webhooks. See
+[processors and transfers](/docs/privacy/gdpr#processors-and-transfers).
 
 ## How long
 

@@ -1,0 +1,42 @@
+---
+/**
+ * A public status page.
+ *
+ * One static document serves every status page on the install: the island
+ * reads the slug off the address (`/status/<slug>`) and fetches that page from
+ * the API. The set of pages is not known at build time, and a page's state
+ * changes every few minutes, so nothing about a particular page is baked in.
+ *
+ * The catch-all with an undefined parameter is what emits `/status/index.html`,
+ * which is the file `public/_redirects` rewrites every `/status/*` address to.
+ *
+ * The island is NOT the dashboard: it is a small standalone component, because
+ * every visitor to a customer's status page downloads it, and they did not come
+ * for an analytics application.
+ */
+import type { GetStaticPaths } from "astro";
+import Base from "../../layouts/Base.astro";
+import StatusPage from "../../components/status/StatusPage.tsx";
+import "../../styles/status.css";
+
+export const getStaticPaths = (() => [{ params: { path: undefined } }]) satisfies GetStaticPaths;
+---
+
+<Base title="Status" description="Current status, incidents and ninety days of uptime." bare={true}>
+  <StatusPage client:only="react">
+    <div class="mf-status-frame" slot="fallback">
+      <main id="main" class="mf-status">
+        <div class="mf-status-wait" aria-busy="true">
+          <span class="mf-status-sr">Loading the status page…</span>
+          <span class="mf-status-wait__bar" style="width: 42%; height: 22px"></span>
+          <span class="mf-status-wait__bar" style="width: 100%; height: 56px"></span>
+          <span class="mf-status-wait__bar" style="width: 100%; height: 44px"></span>
+          <span class="mf-status-wait__bar" style="width: 100%; height: 44px"></span>
+        </div>
+        <noscript>
+          <p class="mf-status-quiet">This status page needs JavaScript to load its current state.</p>
+        </noscript>
+      </main>
+    </div>
+  </StatusPage>
+</Base>

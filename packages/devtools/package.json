@@ -1,0 +1,62 @@
+{
+  "name": "@micaforge/devtools",
+  "version": "0.1.0",
+  "description": "Micaforge DevTools: a development overlay that shows, live, every event the tracker sends, every flag and why, and what it would not send",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": [
+    "./dist/devtools.js",
+    "./src/auto.ts"
+  ],
+  "homepage": "https://github.com/loruorg/micaforge/tree/main/packages/devtools",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/loruorg/micaforge.git",
+    "directory": "packages/devtools"
+  },
+  "keywords": [
+    "analytics",
+    "devtools",
+    "debugging",
+    "overlay",
+    "micaforge"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./devtools.js": "./dist/devtools.js",
+    "./package.json": "./package.json"
+  },
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "unpkg": "./dist/devtools.js",
+  "jsdelivr": "./dist/devtools.js",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "node scripts/build.mjs && tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "@micaforge/sdk": "workspace:*",
+    "esbuild": "^0.25.0",
+    "jsdom": "^26.1.0",
+    "typescript": "^6.0.3",
+    "vitest": "^3.2.4"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

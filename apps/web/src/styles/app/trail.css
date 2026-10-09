@@ -1,0 +1,179 @@
+/* ============================================================================
+   Text a model wrote (components/react/PlainText.tsx) and the queries behind
+   it (components/react/QueryTrail.tsx).
+
+   Shared by Ask AI and Insights. The trail is a record of what the server ran,
+   so it reads as data: Geist Mono for the tool names, the requests and the
+   SQL, on the sunken code well, each block scrolling inside itself. Every
+   colour, space and radius is a var(--mf-*).
+   ========================================================================= */
+
+/* ── model-written text ──────────────────────────────────────────────────── */
+
+.mf-plain {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mf-3);
+  min-width: 0;
+  font-size: var(--mf-t-base);
+  line-height: var(--mf-lead-body);
+  color: var(--mf-ink);
+  overflow-wrap: anywhere;
+}
+.mf-plain p { margin: 0; max-width: var(--mf-measure); }
+.mf-plain ul,
+.mf-plain ol {
+  margin: 0;
+  padding-left: var(--mf-5);
+  max-width: var(--mf-measure);
+  display: flex;
+  flex-direction: column;
+  gap: var(--mf-1);
+}
+.mf-plain ul { list-style: disc; }
+.mf-plain ol { list-style: decimal; }
+.mf-plain li::marker { color: var(--mf-ink-3); }
+.mf-plain strong { font-weight: 600; color: var(--mf-ink-strong); }
+.mf-plain__head { font-weight: 600; color: var(--mf-ink-strong); }
+.mf-plain__code {
+  padding: 1px 4px;
+  font-size: 0.9em;
+  background: var(--mf-well-2);
+  border: 1px solid var(--mf-rule);
+  border-radius: 4px;
+}
+.mf-plain__pre {
+  margin: 0;
+  max-height: 20rem;
+  overflow: auto;
+  padding: var(--mf-3);
+  font-family: var(--mf-font-data);
+  font-size: var(--mf-t-xs);
+  line-height: 1.55;
+  background: var(--mf-well-2);
+  border: 1px solid var(--mf-rule);
+  border-radius: var(--mf-r-sm);
+  white-space: pre;
+}
+
+/* ── the queries behind it ───────────────────────────────────────────────── */
+
+.mf-trail { border-top: 1px solid var(--mf-rule); min-width: 0; }
+
+.mf-trail__summary {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--mf-1) var(--mf-3);
+}
+.mf-trail__count { font-size: var(--mf-t-xs); color: var(--mf-ink-3); }
+
+.mf-trail__none {
+  padding-top: var(--mf-3);
+  border-top: 1px solid var(--mf-rule);
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+}
+
+.mf-trail__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--mf-4);
+  min-width: 0;
+}
+
+.mf-trail__call {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mf-3);
+  min-width: 0;
+  padding: var(--mf-4);
+  background: var(--mf-ground-2);
+  border: 1px solid var(--mf-rule);
+  border-radius: var(--mf-r-sm);
+}
+
+.mf-trail__call-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mf-2) var(--mf-3);
+  min-width: 0;
+}
+
+.mf-trail__n {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 var(--mf-1);
+  font-size: var(--mf-t-2xs);
+  color: var(--mf-ink-2);
+  background: var(--mf-ground-3);
+  border-radius: 4px;
+}
+
+.mf-trail__tool {
+  font-size: var(--mf-t-sm);
+  font-weight: 500;
+  color: var(--mf-ink-strong);
+  overflow-wrap: anywhere;
+}
+
+.mf-trail__state {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mf-1);
+  font-size: var(--mf-t-xs);
+}
+.mf-trail__state[data-ok="true"] { color: var(--mf-success); }
+.mf-trail__state[data-ok="false"] { color: var(--mf-danger); }
+
+.mf-trail__meta { margin-left: auto; font-size: var(--mf-t-xs); color: var(--mf-ink-3); }
+
+.mf-trail__error { font-size: var(--mf-t-sm); color: var(--mf-danger); overflow-wrap: anywhere; }
+
+.mf-trail__block { display: flex; flex-direction: column; gap: var(--mf-1); min-width: 0; }
+.mf-trail__block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mf-3);
+  min-width: 0;
+}
+
+.mf-trail__label { font-size: var(--mf-t-xs); font-weight: 500; color: var(--mf-ink-2); }
+
+.mf-trail__code {
+  margin: 0;
+  max-height: 16rem;
+  overflow: auto;
+  padding: var(--mf-3);
+  font-family: var(--mf-font-data);
+  font-size: var(--mf-t-xs);
+  line-height: 1.55;
+  font-variant-numeric: tabular-nums lining-nums;
+  color: var(--mf-ink);
+  background: var(--mf-well-2);
+  border: 1px solid var(--mf-rule);
+  border-radius: var(--mf-r-sm);
+  white-space: pre;
+  tab-size: 2;
+}
+
+.mf-trail__sql { display: flex; flex-direction: column; gap: var(--mf-2); min-width: 0; }
+.mf-trail__params {
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-2);
+  overflow-wrap: anywhere;
+}
+.mf-trail__quiet { font-size: var(--mf-t-xs); color: var(--mf-ink-3); }
+
+@media (max-width: 560px) {
+  .mf-trail__call { padding: var(--mf-3); }
+  .mf-trail__meta { margin-left: 0; width: 100%; }
+}

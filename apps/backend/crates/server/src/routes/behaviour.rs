@@ -16,8 +16,10 @@
 //! resolved, and answers `not_found` when they differ — the same way a site
 //! lookup does, because a `403` confirms the row exists.
 
+use std::collections::HashMap;
+
 use axum::extract::{Path, Query, State};
-use axum::routing::get;
+use axum::routing::{get, post};
 use axum::{Json, Router};
 use chrono::{Datelike, TimeZone, Timelike};
 use serde::Deserialize;
@@ -26,12 +28,13 @@ use uuid::Uuid;
 
 use micaforge_core::{Compare, Error, Filter, FilterGroup, FilterNode, Granularity, Metric};
 use micaforge_query::stats::{self, FunnelStepDef, GoalDef};
-use micaforge_store::models::{funnels as funnel_repo, goals as goal_repo};
+use micaforge_store::models::{error_states, funnels as funnel_repo, goals as goal_repo};
 
 use super::agents::{json_body, same_site};
 use crate::error::ApiError;
-use crate::extract::{Envelope, SiteAccess};
+use crate::extract::{AuthUser, Envelope, SiteAccess};
 use crate::response::{ok, ok_meta};
+use crate::routes::orgs::{require_at_least, MEMBER};
 use crate::state::AppState;
 
 /// Goals, funnels, journeys, retention and errors.
@@ -44,6 +47,10 @@ pub fn router() -> Router<AppState> {
         .route("/api/stats/journeys", get(journeys))
         .route("/api/stats/retention", get(retention))
         .route("/api/stats/errors", get(errors))
+        .route(
+            "/api/stats/errors/{fingerprint}/status",
+            post(set_error_status),
+        )
 }
 
 /// Most goals a request will draw a trend for.
@@ -580,17 +587,66 @@ async fn retention(
 /// Parameters the error register takes beyond the envelope.
 #[derive(Debug, Default, Deserialize)]
 struct ErrorParams {
-    /// A release to narrow to. Accepted only so it can be refused by name.
+    /// A release to narrow to: a column of `errors`, not one of the filter
+    /// dimensions of §3.2, so it travels by name rather than in `filters`.
     release: Option<String>,
+    /// One group. With it the answer is that group's detail, not a list.
+    fingerprint: Option<String>,
+}
+
+/// A fingerprint as the ingest path writes one, or `None`.
+///
+/// Lower-case hex, sixteen characters today; up to sixty-four accepted so a
+/// longer digest in a later build does not need this changed in step.
+fn clean_fingerprint(raw: &str) -> Option<String> {
+    let fp = raw.trim();
+    (!fp.is_empty() && fp.len() <= 64 && fp.bytes().all(|b| b.is_ascii_hexdigit()))
+        .then(|| fp.to_ascii_lowercase())
+}
+
+/// A release name to narrow by, or `None` for none.
+fn clean_release(raw: Option<&str>) -> Result<Option<String>, Error> {
+    match raw.map(str::trim).filter(|r| !r.is_empty()) {
+        None => Ok(None),
+        Some(r) if r.chars().count() <= 64 => Ok(Some(r.to_string())),
+        Some(_) => Err(Error::validation(
+            "release",
+            "a release is at most 64 characters",
+        )),
+    }
+}
+
+/// One group on the wire, with the state a person gave it.
+fn group_json(g: &stats::ErrorGroup, marks: &HashMap<String, error_states::ErrorState>) -> Value {
+    json!({
+        "fingerprint": g.fingerprint,
+        "name": g.name,
+        "message": g.message,
+        "count": g.count,
+        // The engine calls this `users`; the register prints it under the word
+        // every other report on this site uses.
+        "visitors": g.users,
+        "session_count": g.sessions,
+        "first_seen": g.first_seen,
+        "last_seen": g.last_seen,
+        "handled": g.handled,
+        "release": g.release,
+        "top_path": g.top_path,
+        "browsers": g.browsers,
+        "status": error_states::effective(marks.get(&g.fingerprint), g.last_seen),
+        "trend": g.sparkline,
+    })
 }
 
 /// `GET /api/stats/errors` — client-side exceptions grouped by fingerprint.
 ///
-/// `release` is refused rather than ignored. The `errors` table carries a
-/// release column, but `release` is not one of the dimensions in §3.2, so the
-/// engine has no way to narrow by it — and answering an unfiltered question with
-/// a filtered request's status code would report the wrong number as if it were
-/// the right one.
+/// The list carries totals over every group in scope (not only the page
+/// listed) and the four facets the screen narrows by, so the strip above the
+/// table and the menus beside it describe the whole window. With
+/// `?fingerprint=` the answer is one group in full instead: its stack, where and
+/// when it fired, and the sessions it fired in; `data` is `null` when that group
+/// has no occurrence in the window, which the detail screen reads as "nothing
+/// here", not as a failure.
 async fn errors(
     State(st): State<AppState>,
     access: SiteAccess,
@@ -598,49 +654,122 @@ async fn errors(
     Query(params): Query<ErrorParams>,
 ) -> Result<Json<Value>, ApiError> {
     same_site(&access, &env)?;
-    if params
-        .release
-        .as_deref()
-        .map(str::trim)
-        .is_some_and(|r| !r.is_empty())
-    {
-        return Err(Error::validation(
-            "release",
-            "narrowing errors by release is not available yet; \
-             `release` is not one of the filter dimensions in the contract",
-        )
-        .into());
+    let release = clean_release(params.release.as_deref())?;
+    let marks = error_states::for_site(&st.pg, access.site.id).await?;
+
+    if let Some(raw) = params.fingerprint.as_deref() {
+        let fingerprint = clean_fingerprint(raw)
+            .ok_or_else(|| Error::validation("fingerprint", "is not an error fingerprint"))?;
+        let Some(detail) = stats::error_detail(&st.ch, &env, &fingerprint, release).await? else {
+            return Ok(ok(Value::Null));
+        };
+        let mut body = group_json(&detail.group, &marks);
+        if let Value::Object(map) = &mut body {
+            map.insert("stack".into(), json!(detail.stack));
+            map.insert("filename".into(), json!(detail.filename));
+            map.insert("lineno".into(), json!(detail.lineno));
+            map.insert("colno".into(), json!(detail.colno));
+            map.insert("by_page".into(), json_body(&detail.by_page)?);
+            map.insert("by_browser".into(), json_body(&detail.by_browser)?);
+            map.insert("by_os".into(), json_body(&detail.by_os)?);
+            map.insert("series".into(), json_body(&detail.series)?);
+            map.insert("sessions".into(), json_body(&detail.sessions)?);
+        }
+        return Ok(ok(body));
     }
 
-    let groups = stats::errors(&st.ch, &env).await?;
+    let narrow = stats::ErrorNarrow {
+        release,
+        fingerprint: None,
+    };
+    let groups = stats::error_groups(&st.ch, &env, &narrow).await?;
+    let totals = stats::error_totals(&st.ch, &env, &narrow).await?;
+    let facets = stats::error_facets(&st.ch, &env, &narrow).await?;
 
-    let rows: Vec<Value> = groups
-        .iter()
-        .map(|g| {
-            json!({
-                "fingerprint": g.fingerprint,
-                "name": g.name,
-                "message": g.message,
-                "count": g.count,
-                // The engine calls this `users`; the register prints it under
-                // the word every other report on this site uses.
-                "visitors": g.users,
-                "first_seen": g.first_seen,
-                "last_seen": g.last_seen,
-                "trend": g.sparkline,
-            })
-        })
-        .collect();
-
-    let occurrences: u64 = groups.iter().map(|g| g.count).sum();
-
-    let meta = json!({ "rows": rows.len() });
+    let rows: Vec<Value> = groups.iter().map(|g| group_json(g, &marks)).collect();
+    let meta = json!({ "rows": rows.len(), "total": totals.groups });
     Ok(ok_meta(
         json!({
             "rows": rows,
-            "groups": groups.len(),
-            "occurrences": occurrences,
+            "totals": json_body(&totals)?,
+            "facets": json_body(&facets)?,
+            // Kept at the top level for callers written before `totals`.
+            "groups": totals.groups,
+            "occurrences": totals.occurrences,
         }),
         meta,
     ))
+}
+
+/// What a person may set an error group to.
+#[derive(Debug, Deserialize)]
+struct StatusBody {
+    /// `open` | `resolved` | `ignored`.
+    status: String,
+}
+
+/// `POST /api/stats/errors/{fingerprint}/status` — resolve, ignore or reopen
+/// one group. Needs `member` on the site: it changes what every reader of the
+/// register sees, which is a decision about the site, not a reading of it.
+///
+/// The group does not have to have fired in any particular window, so nothing
+/// is read from ClickHouse; a fingerprint is only checked for its shape.
+async fn set_error_status(
+    State(st): State<AppState>,
+    auth: AuthUser,
+    access: SiteAccess,
+    Path(fingerprint): Path<String>,
+    Json(body): Json<StatusBody>,
+) -> Result<Json<Value>, ApiError> {
+    require_at_least(access.role.as_str(), MEMBER)?;
+    let fingerprint = clean_fingerprint(&fingerprint)
+        .ok_or_else(|| Error::validation("fingerprint", "is not an error fingerprint"))?;
+
+    let status = match body.status.trim() {
+        "open" => {
+            error_states::clear(&st.pg, access.site.id, &fingerprint).await?;
+            "open"
+        }
+        s @ ("resolved" | "ignored") => {
+            error_states::set(&st.pg, access.site.id, &fingerprint, s, auth.user.id).await?;
+            if s == "resolved" {
+                "resolved"
+            } else {
+                "ignored"
+            }
+        }
+        _ => {
+            return Err(
+                Error::validation("status", "an error can be open, resolved or ignored").into(),
+            )
+        }
+    };
+    Ok(ok(json!({ "fingerprint": fingerprint, "status": status })))
+}
+
+#[cfg(test)]
+mod error_tests {
+    use super::*;
+
+    #[test]
+    fn only_a_hex_fingerprint_is_one() {
+        assert_eq!(
+            clean_fingerprint(" A1b2c3d4e5f60718 "),
+            Some("a1b2c3d4e5f60718".into())
+        );
+        assert_eq!(clean_fingerprint(""), None);
+        assert_eq!(clean_fingerprint("abc' OR 1=1"), None);
+        assert_eq!(clean_fingerprint(&"a".repeat(65)), None);
+    }
+
+    #[test]
+    fn a_release_is_narrowed_by_when_given_and_bounded() {
+        assert_eq!(clean_release(None).unwrap(), None);
+        assert_eq!(clean_release(Some("  ")).unwrap(), None);
+        assert_eq!(
+            clean_release(Some(" 2026.10.1 ")).unwrap(),
+            Some("2026.10.1".into())
+        );
+        assert!(clean_release(Some(&"x".repeat(65))).is_err());
+    }
 }

@@ -52,23 +52,41 @@ interface IssuedKey extends ApiKeyRecord {
   key: string;
 }
 
+/**
+ * The scope vocabulary, exactly as the server checks it (`routes/keys.rs`
+ * SCOPES). A name the server does not know is refused when the key is made,
+ * so this list and that one must say the same thing.
+ */
 const SCOPES: { key: string; label: string; hint: string }[] = [
-  { key: "stats:read", label: "Read analytics", hint: "Every endpoint under /api/stats, plus CSV and PDF export." },
   {
-    key: "agents:read",
-    label: "Read AI crawler traffic",
-    hint: "AI crawler traffic, crawl coverage, the Citation gap and the robots.txt check.",
+    key: "stats:read",
+    label: "Read analytics",
+    hint: "Every report under /api/stats, AI crawler traffic, the Citation gap, the robots.txt check, CSV and PDF export, and the MCP server.",
   },
-  { key: "sites:read", label: "Read site configuration", hint: "The site list, its settings and its goals." },
   {
-    key: "sites:write",
+    key: "manage:read",
+    label: "Read site configuration",
+    hint: "The site list, its settings, goals, funnels, segments, alerts and imports.",
+  },
+  {
+    key: "manage:write",
     label: "Change site configuration",
-    hint: "Create and edit sites, goals, funnels, segments and alerts. Cannot delete a site.",
+    hint: "Create and edit goals, funnels, segments, alerts and imports. A key never deletes a site or reads its secrets.",
   },
   {
-    key: "keys:manage",
-    label: "Issue and revoke keys",
-    hint: "A key holding this can mint another key with any scope. Grant it to almost nothing.",
+    key: "ingest:write",
+    label: "Send server logs",
+    hint: "POST /api/log/edge, for the log shipper or a server middleware.",
+  },
+  {
+    key: "export:read",
+    label: "Export raw data",
+    hint: "GET /api/export/raw: every recorded row for a site and date range, as a ZIP. Not implied by Read analytics.",
+  },
+  {
+    key: "audit:read",
+    label: "Read the audit log",
+    hint: "The organisation's audit log, for a security tool. Only for a key not bound to one site.",
   },
 ];
 
@@ -89,7 +107,7 @@ export function ApiKeysSettings() {
   });
 
   const [name, setName] = useState("");
-  const [scopes, setScopes] = useState<string[]>(["stats:read", "agents:read"]);
+  const [scopes, setScopes] = useState<string[]>(["stats:read"]);
   const [siteScope, setSiteScope] = useState("");
   const [expiry, setExpiry] = useState("365");
   const [issued, setIssued] = useState<IssuedKey | null>(null);

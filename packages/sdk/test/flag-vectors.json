@@ -1,0 +1,2330 @@
+{
+  "about": "Feature-flag evaluation vectors shared by the Rust server (micaforge_core::flags), the browser SDK (packages/sdk/src/flag-eval.ts) and the Node SDK (packages/sdk-server/src/flag-eval.ts). Every suite asserts every case. Expectations are computed by the Rust evaluator (regenerate_the_vector_file in apps/backend/crates/core/src/flags.rs) and reviewed by hand. A blake3 case with `len` hashes the bytes i % 251 for i in 0..len.",
+  "blake3": [
+    {
+      "hex": "af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262",
+      "text": ""
+    },
+    {
+      "hex": "6437b3ac38465133ffb63b75273a8db548c558465d79db03fd359c6cd5bd9d85",
+      "text": "abc"
+    },
+    {
+      "hex": "2d3adedff11b61f14c886e35afa036736dcd87a74d27b5c1510225d0f592e213",
+      "len": 1
+    },
+    {
+      "hex": "e9bc37a594daad83be9470df7f7b3798297c3d834ce80ba85d6e207627b7db7b",
+      "len": 63
+    },
+    {
+      "hex": "4eed7141ea4a5cd4b788606bd23f46e212af9cacebacdc7d1f4c6dc7f2511b98",
+      "len": 64
+    },
+    {
+      "hex": "de1e5fa0be70df6d2be8fffd0e99ceaa8eb6e8c93a63f2d8d1c30ecb6b263dee",
+      "len": 65
+    },
+    {
+      "hex": "10108970eeda3eb932baac1428c7a2163b0e924c9a9e25b35bba72b28f70bd11",
+      "len": 1023
+    },
+    {
+      "hex": "42214739f095a406f3fc83deb889744ac00df831c10daa55189b5d121c855af7",
+      "len": 1024
+    },
+    {
+      "hex": "d00278ae47eb27b34faecf67b4fe263f82d5412916c1ffd97c8cb7fb814b8444",
+      "len": 1025
+    },
+    {
+      "hex": "e776b6028c7cd22a4d0ba182a8bf62205d2ef576467e838ed6f2529b85fba24a",
+      "len": 2048
+    },
+    {
+      "hex": "5f4d72f40d7a5f82b15ca2b2e44b1de3c2ef86c426c95c1af0b6879522563030",
+      "len": 2049
+    },
+    {
+      "hex": "b98cb0ff3623be03326b373de6b9095218513e64f1ee2edd2525c7ad1e5cffd2",
+      "len": 3072
+    },
+    {
+      "hex": "7124b49501012f81cc7f11ca069ec9226cecb8a2c850cfe644e327d22d3e1cd3",
+      "len": 3073
+    },
+    {
+      "hex": "015094013f57a5277b59d8475c0501042c0b642e531b0a1c8f58d2163229e969",
+      "len": 4096
+    },
+    {
+      "hex": "9b4052b38f1c5fc8b1f9ff7ac7b27cd242487b3d890d15c96a1c25b8aa0fb995",
+      "len": 4097
+    },
+    {
+      "hex": "9cadc15fed8b5d854562b26a9536d9707cadeda9b143978f319ab34230535833",
+      "len": 5120
+    },
+    {
+      "hex": "61da957ec2499a95d6b8023e2b0e604ec7f6b50e80a9678b89d2628e99ada77a",
+      "len": 7168
+    },
+    {
+      "hex": "aae792484c8efe4f19e2ca7d371d8c467ffb10748d8a5a1ae579948f718a2a63",
+      "len": 8192
+    },
+    {
+      "hex": "62b6960e1a44bcc1eb1a611a8d6235b6b4b78f32e7abc4fb4c6cdcce94895c47",
+      "len": 31744
+    }
+  ],
+  "buckets": [
+    {
+      "bucket": 6811,
+      "salt": "new-nav",
+      "subject": "visitor-1"
+    },
+    {
+      "bucket": 570,
+      "salt": "new-nav",
+      "subject": "visitor-2"
+    },
+    {
+      "bucket": 402,
+      "salt": "new-nav:variant",
+      "subject": "visitor-1"
+    },
+    {
+      "bucket": 1456,
+      "salt": "checkout",
+      "subject": "u_42"
+    },
+    {
+      "bucket": 853,
+      "salt": "a",
+      "subject": "b"
+    },
+    {
+      "bucket": 8955,
+      "salt": "",
+      "subject": ""
+    },
+    {
+      "bucket": 5375,
+      "salt": "flag",
+      "subject": "ünïcødé-訪問者"
+    },
+    {
+      "bucket": 1005,
+      "salt": "flag",
+      "subject": "abcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghij"
+    },
+    {
+      "bucket": 7585,
+      "salt": "ab:variant",
+      "subject": "visitor-3"
+    },
+    {
+      "bucket": 8924,
+      "salt": "half",
+      "subject": "user@example.com"
+    },
+    {
+      "bucket": 4666,
+      "salt": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "subject": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+    },
+    {
+      "bucket": 6298,
+      "salt": "emoji-🚀",
+      "subject": "😀 visitor"
+    }
+  ],
+  "cases": [
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": false,
+        "reason": "unknown",
+        "variant": null
+      },
+      "key": "ghost",
+      "name": "an unknown key is off",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": null
+      },
+      "key": "on-flag",
+      "name": "a full rollout is on",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": null
+      },
+      "key": "on-flag",
+      "name": "a full rollout needs no subject",
+      "ruleset": "basic",
+      "subject": ""
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": false,
+        "reason": "disabled",
+        "variant": null
+      },
+      "key": "off-flag",
+      "name": "a disabled flag is off",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": false,
+        "reason": "rollout",
+        "variant": null
+      },
+      "key": "half",
+      "name": "a half rollout for visitor-1",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": false,
+        "reason": "rollout",
+        "variant": null
+      },
+      "key": "half",
+      "name": "a half rollout for visitor-2",
+      "ruleset": "basic",
+      "subject": "visitor-2"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": null
+      },
+      "key": "half",
+      "name": "a half rollout for visitor-3",
+      "ruleset": "basic",
+      "subject": "visitor-3"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": false,
+        "reason": "rollout",
+        "variant": null
+      },
+      "key": "half",
+      "name": "a half rollout for visitor-4",
+      "ruleset": "basic",
+      "subject": "visitor-4"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": null
+      },
+      "key": "half",
+      "name": "a half rollout for visitor-5",
+      "ruleset": "basic",
+      "subject": "visitor-5"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": null
+      },
+      "key": "half",
+      "name": "a half rollout for visitor-6",
+      "ruleset": "basic",
+      "subject": "visitor-6"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": null
+      },
+      "key": "half",
+      "name": "a half rollout for visitor-7",
+      "ruleset": "basic",
+      "subject": "visitor-7"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": null
+      },
+      "key": "half",
+      "name": "a half rollout for visitor-8",
+      "ruleset": "basic",
+      "subject": "visitor-8"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": false,
+        "reason": "rollout",
+        "variant": null
+      },
+      "key": "half",
+      "name": "a half rollout for u_42",
+      "ruleset": "basic",
+      "subject": "u_42"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": false,
+        "reason": "rollout",
+        "variant": null
+      },
+      "key": "half",
+      "name": "a half rollout for user@example.com",
+      "ruleset": "basic",
+      "subject": "user@example.com"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": false,
+        "reason": "rollout",
+        "variant": null
+      },
+      "key": "half",
+      "name": "a half rollout for ünïcødé-訪問者",
+      "ruleset": "basic",
+      "subject": "ünïcødé-訪問者"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": false,
+        "reason": "rollout",
+        "variant": null
+      },
+      "key": "half",
+      "name": "a half rollout for abcdefghijabcdefghijabcd",
+      "ruleset": "basic",
+      "subject": "abcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghij"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": false,
+        "reason": "no_visitor",
+        "variant": null
+      },
+      "key": "half",
+      "name": "a partial rollout holds out a visitor with no subject",
+      "ruleset": "basic",
+      "subject": ""
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": false,
+        "reason": "rollout",
+        "variant": null
+      },
+      "key": "zero",
+      "name": "a zero rollout is off",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": false,
+        "reason": "no_visitor",
+        "variant": null
+      },
+      "key": "zero",
+      "name": "a zero rollout with no subject says why",
+      "ruleset": "basic",
+      "subject": ""
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": "control"
+      },
+      "key": "ab",
+      "name": "an even split for visitor-1",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": "treatment"
+      },
+      "key": "ab",
+      "name": "an even split for visitor-2",
+      "ruleset": "basic",
+      "subject": "visitor-2"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": "treatment"
+      },
+      "key": "ab",
+      "name": "an even split for visitor-3",
+      "ruleset": "basic",
+      "subject": "visitor-3"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": "treatment"
+      },
+      "key": "ab",
+      "name": "an even split for visitor-4",
+      "ruleset": "basic",
+      "subject": "visitor-4"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": "control"
+      },
+      "key": "ab",
+      "name": "an even split for visitor-5",
+      "ruleset": "basic",
+      "subject": "visitor-5"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": "treatment"
+      },
+      "key": "ab",
+      "name": "an even split for visitor-6",
+      "ruleset": "basic",
+      "subject": "visitor-6"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": "c"
+      },
+      "key": "three-way",
+      "name": "a weighted three-way split for visitor-1",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": "c"
+      },
+      "key": "three-way",
+      "name": "a weighted three-way split for visitor-2",
+      "ruleset": "basic",
+      "subject": "visitor-2"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": "c"
+      },
+      "key": "three-way",
+      "name": "a weighted three-way split for visitor-3",
+      "ruleset": "basic",
+      "subject": "visitor-3"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": "b"
+      },
+      "key": "three-way",
+      "name": "a weighted three-way split for visitor-4",
+      "ruleset": "basic",
+      "subject": "visitor-4"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": "x"
+      },
+      "key": "zero-weights",
+      "name": "all weights zero picks the first variant",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": "b"
+      },
+      "key": "weird-weights",
+      "name": "only whole non-negative weights count",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": "treatment"
+      },
+      "key": "ab",
+      "name": "an even split with no subject is stable",
+      "ruleset": "basic",
+      "subject": ""
+    },
+    {
+      "context": {
+        "device_type": "mobile"
+      },
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": null
+      },
+      "key": "mobile-only",
+      "name": "a condition that matches",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {
+        "Device_Type": "MOBILE"
+      },
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": null
+      },
+      "key": "mobile-only",
+      "name": "a condition compares without case",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {
+        "device_type": "desktop"
+      },
+      "environment": null,
+      "expect": {
+        "enabled": false,
+        "reason": "conditions",
+        "variant": null
+      },
+      "key": "mobile-only",
+      "name": "a condition that does not match",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": false,
+        "reason": "conditions",
+        "variant": null
+      },
+      "key": "mobile-only",
+      "name": "a missing attribute fails closed",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {
+        "plan": "team"
+      },
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": null
+      },
+      "key": "pro-or-team",
+      "name": "an or group matches on its first member",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {
+        "email": "ada@Example.COM",
+        "plan": "free"
+      },
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": null
+      },
+      "key": "pro-or-team",
+      "name": "an or group matches on its second member",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {
+        "email": "ada@example.org",
+        "plan": "free"
+      },
+      "environment": null,
+      "expect": {
+        "enabled": false,
+        "reason": "conditions",
+        "variant": null
+      },
+      "key": "pro-or-team",
+      "name": "an or group with nothing matching",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {
+        "age": 30
+      },
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": null
+      },
+      "key": "numeric",
+      "name": "numbers compare as numbers",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {
+        "age": "17"
+      },
+      "environment": null,
+      "expect": {
+        "enabled": false,
+        "reason": "conditions",
+        "variant": null
+      },
+      "key": "numeric",
+      "name": "a numeric string compares as a number",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {
+        "age": "65"
+      },
+      "environment": null,
+      "expect": {
+        "enabled": false,
+        "reason": "conditions",
+        "variant": null
+      },
+      "key": "numeric",
+      "name": "the upper bound is exclusive",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {
+        "age": "1.8e1"
+      },
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": null
+      },
+      "key": "numeric",
+      "name": "exponent notation is a number",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {
+        "age": "adult"
+      },
+      "environment": null,
+      "expect": {
+        "enabled": false,
+        "reason": "conditions",
+        "variant": null
+      },
+      "key": "numeric",
+      "name": "a word is not a number",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {
+        "age": 18.0
+      },
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": null
+      },
+      "key": "numeric",
+      "name": "a float that is whole compares",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {
+        "user_id": ""
+      },
+      "environment": null,
+      "expect": {
+        "enabled": false,
+        "reason": "conditions",
+        "variant": null
+      },
+      "key": "set-check",
+      "name": "is_set refuses an empty value",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {
+        "user_id": "u1"
+      },
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": null
+      },
+      "key": "set-check",
+      "name": "is_set accepts a value",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": null
+      },
+      "key": "not-set-check",
+      "name": "is_not_set accepts a missing attribute",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {
+        "user_id": "u1"
+      },
+      "environment": null,
+      "expect": {
+        "enabled": false,
+        "reason": "conditions",
+        "variant": null
+      },
+      "key": "not-set-check",
+      "name": "is_not_set refuses a value",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {
+        "email": "ops@acme.io"
+      },
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": null
+      },
+      "key": "contains",
+      "name": "contains ignores case on both sides",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {
+        "email": "qa+test@example.com"
+      },
+      "environment": null,
+      "expect": {
+        "enabled": false,
+        "reason": "conditions",
+        "variant": null
+      },
+      "key": "not-contains",
+      "name": "not_contains refuses any listed value",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {
+        "email": "ada@example.com"
+      },
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": null
+      },
+      "key": "not-contains",
+      "name": "not_contains accepts a clean value",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {
+        "path": "/docs/start"
+      },
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": null
+      },
+      "key": "starts",
+      "name": "starts_with ignores case",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {
+        "country": "PT",
+        "plan": "pro"
+      },
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": null
+      },
+      "key": "nested",
+      "name": "a nested group matches",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {
+        "country": "US",
+        "plan": "pro"
+      },
+      "environment": null,
+      "expect": {
+        "enabled": false,
+        "reason": "conditions",
+        "variant": null
+      },
+      "key": "nested",
+      "name": "a nested group refuses a listed country",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {
+        "beta": true,
+        "country": "PT"
+      },
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": null
+      },
+      "key": "nested",
+      "name": "a boolean condition value matches a boolean attribute",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {
+        "country": "PT"
+      },
+      "environment": null,
+      "expect": {
+        "enabled": false,
+        "reason": "conditions",
+        "variant": null
+      },
+      "key": "nested",
+      "name": "a nested group needs one of its or members",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {
+        "plan": "pro"
+      },
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": null
+      },
+      "key": "single-leaf",
+      "name": "a single leaf object is a condition",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": null
+      },
+      "key": "empty-or",
+      "name": "an empty or group at the top constrains nothing",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": false,
+        "reason": "conditions",
+        "variant": null
+      },
+      "key": "nested-empty-or",
+      "name": "an empty or group inside is false",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {
+        "plan": "pro"
+      },
+      "environment": null,
+      "expect": {
+        "enabled": false,
+        "reason": "conditions",
+        "variant": null
+      },
+      "key": "malformed",
+      "name": "a malformed condition fails closed",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {
+        "plan": "pro"
+      },
+      "environment": null,
+      "expect": {
+        "enabled": false,
+        "reason": "conditions",
+        "variant": null
+      },
+      "key": "bad-logic",
+      "name": "an unknown logic fails closed",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {
+        "path": "/docs"
+      },
+      "environment": null,
+      "expect": {
+        "enabled": false,
+        "reason": "conditions",
+        "variant": null
+      },
+      "key": "regex",
+      "name": "a regular expression never matches",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {
+        "seats": 5.0
+      },
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": null
+      },
+      "key": "seats",
+      "name": "a whole float attribute equals an integer value",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {
+        "seats": "5"
+      },
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": null
+      },
+      "key": "seats",
+      "name": "a numeric string equals an integer value",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {
+        "seats": "5.0"
+      },
+      "environment": null,
+      "expect": {
+        "enabled": false,
+        "reason": "conditions",
+        "variant": null
+      },
+      "key": "seats",
+      "name": "a decimal string does not equal an integer value",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {
+        "beta": true
+      },
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": null
+      },
+      "key": "beta-group",
+      "name": "a target group that matches",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {
+        "beta": "TRUE"
+      },
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": null
+      },
+      "key": "beta-group",
+      "name": "a target group compares without case",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {
+        "beta": false
+      },
+      "environment": null,
+      "expect": {
+        "enabled": false,
+        "reason": "target_group",
+        "variant": null
+      },
+      "key": "beta-group",
+      "name": "a target group that does not match",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {
+        "email": "ada@micaforge.test"
+      },
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": null
+      },
+      "key": "two-groups",
+      "name": "any one of several target groups is enough",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {
+        "email": "ada@example.com"
+      },
+      "environment": null,
+      "expect": {
+        "enabled": false,
+        "reason": "target_group",
+        "variant": null
+      },
+      "key": "two-groups",
+      "name": "no target group matching",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": false,
+        "reason": "target_group",
+        "variant": null
+      },
+      "key": "missing-group",
+      "name": "a target group that no longer exists matches nobody",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": null
+      },
+      "key": "everyone-group",
+      "name": "a target group with no conditions matches everyone",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {
+        "beta": "true",
+        "country": "PT"
+      },
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": null
+      },
+      "key": "group-and-conditions",
+      "name": "a target group and the flag's own conditions both apply",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {
+        "beta": "true",
+        "country": "ES"
+      },
+      "environment": null,
+      "expect": {
+        "enabled": false,
+        "reason": "conditions",
+        "variant": null
+      },
+      "key": "group-and-conditions",
+      "name": "the flag's own conditions still apply inside a target group",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": null
+      },
+      "key": "needs-on",
+      "name": "a prerequisite that is on",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": false,
+        "reason": "dependency",
+        "variant": null
+      },
+      "key": "needs-off-flag-on",
+      "name": "a prerequisite that is off",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": null
+      },
+      "key": "needs-off",
+      "name": "a prerequisite required to be off",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": false,
+        "reason": "dependency",
+        "variant": null
+      },
+      "key": "needs-missing",
+      "name": "a missing prerequisite is off",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": null
+      },
+      "key": "needs-missing-off",
+      "name": "a missing prerequisite satisfies a required off",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": null
+      },
+      "key": "chain-a",
+      "name": "a chain of prerequisites",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": false,
+        "reason": "dependency",
+        "variant": null
+      },
+      "key": "cycle-a",
+      "name": "a cycle is off",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": false,
+        "reason": "dependency",
+        "variant": null
+      },
+      "key": "bad-dep",
+      "name": "a malformed prerequisite never holds",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": false,
+        "reason": "disabled",
+        "variant": null
+      },
+      "key": "disabled-with-bad-dep",
+      "name": "disabled comes before dependencies",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": false,
+        "reason": "dependency",
+        "variant": null
+      },
+      "key": "deep1",
+      "name": "a chain past the depth limit is off",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": null
+      },
+      "key": "deep2",
+      "name": "a chain at the depth limit holds",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": false,
+        "reason": "dependency",
+        "variant": null
+      },
+      "key": "needs-variant",
+      "name": "a variant prerequisite for visitor-1",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": null
+      },
+      "key": "needs-variant",
+      "name": "a variant prerequisite for visitor-2",
+      "ruleset": "basic",
+      "subject": "visitor-2"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": null
+      },
+      "key": "needs-variant",
+      "name": "a variant prerequisite for visitor-3",
+      "ruleset": "basic",
+      "subject": "visitor-3"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": null
+      },
+      "key": "needs-variant",
+      "name": "a variant prerequisite for visitor-4",
+      "ruleset": "basic",
+      "subject": "visitor-4"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": false,
+        "reason": "dependency",
+        "variant": null
+      },
+      "key": "needs-variant",
+      "name": "a variant prerequisite for visitor-5",
+      "ruleset": "basic",
+      "subject": "visitor-5"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": null
+      },
+      "key": "needs-variant",
+      "name": "a variant prerequisite for visitor-6",
+      "ruleset": "basic",
+      "subject": "visitor-6"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": false,
+        "reason": "dependency",
+        "variant": null
+      },
+      "key": "needs-half",
+      "name": "a prerequisite in a partial rollout for visitor-1",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": false,
+        "reason": "dependency",
+        "variant": null
+      },
+      "key": "needs-half",
+      "name": "a prerequisite in a partial rollout for visitor-2",
+      "ruleset": "basic",
+      "subject": "visitor-2"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": null
+      },
+      "key": "needs-half",
+      "name": "a prerequisite in a partial rollout for visitor-3",
+      "ruleset": "basic",
+      "subject": "visitor-3"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": false,
+        "reason": "dependency",
+        "variant": null
+      },
+      "key": "needs-half",
+      "name": "a prerequisite in a partial rollout for visitor-4",
+      "ruleset": "basic",
+      "subject": "visitor-4"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": false,
+        "reason": "disabled",
+        "variant": null
+      },
+      "key": "envs",
+      "name": "no environment uses the flag's own settings",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {},
+      "environment": "staging",
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": null
+      },
+      "key": "envs",
+      "name": "an environment override turns a flag on",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {},
+      "environment": " STAGING ",
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": null
+      },
+      "key": "envs",
+      "name": "environment names are trimmed and compared without case",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {},
+      "environment": "development",
+      "expect": {
+        "enabled": false,
+        "reason": "rollout",
+        "variant": null
+      },
+      "key": "envs",
+      "name": "override names are compared without case",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {},
+      "environment": "development",
+      "expect": {
+        "enabled": false,
+        "reason": "no_visitor",
+        "variant": null
+      },
+      "key": "envs",
+      "name": "an override that only sets enabled keeps the rollout",
+      "ruleset": "basic",
+      "subject": ""
+    },
+    {
+      "context": {},
+      "environment": "production",
+      "expect": {
+        "enabled": false,
+        "reason": "disabled",
+        "variant": null
+      },
+      "key": "envs",
+      "name": "an environment with no override uses the flag's own settings",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {},
+      "environment": "",
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": null
+      },
+      "key": "env-rollout",
+      "name": "an empty environment is no environment",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {},
+      "environment": "qa",
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": null
+      },
+      "key": "env-rollout",
+      "name": "an override with a non-number rollout is ignored",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {},
+      "environment": "production",
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": null
+      },
+      "key": "env-rollout",
+      "name": "an environment rollout for visitor-1",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {},
+      "environment": "production",
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": null
+      },
+      "key": "env-rollout",
+      "name": "an environment rollout for visitor-2",
+      "ruleset": "basic",
+      "subject": "visitor-2"
+    },
+    {
+      "context": {},
+      "environment": "production",
+      "expect": {
+        "enabled": false,
+        "reason": "rollout",
+        "variant": null
+      },
+      "key": "env-rollout",
+      "name": "an environment rollout for visitor-3",
+      "ruleset": "basic",
+      "subject": "visitor-3"
+    },
+    {
+      "context": {},
+      "environment": "production",
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": null
+      },
+      "key": "env-rollout",
+      "name": "an environment rollout for visitor-4",
+      "ruleset": "basic",
+      "subject": "visitor-4"
+    },
+    {
+      "context": {},
+      "environment": "production",
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": null
+      },
+      "key": "env-rollout",
+      "name": "an environment rollout for visitor-5",
+      "ruleset": "basic",
+      "subject": "visitor-5"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": null
+      },
+      "key": "no-rollout-field",
+      "name": "no rollout field means everyone",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": false,
+        "reason": "rollout",
+        "variant": null
+      },
+      "key": "string-rollout",
+      "name": "a rollout that is not a number means nobody",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": null
+      },
+      "key": "null-rollout",
+      "name": "a null rollout means everyone",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": true,
+        "reason": "match",
+        "variant": null
+      },
+      "key": "fraction-rollout",
+      "name": "a fractional rollout rounds to a whole percent",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    },
+    {
+      "context": {},
+      "environment": null,
+      "expect": {
+        "enabled": false,
+        "reason": "disabled",
+        "variant": null
+      },
+      "key": "enabled-string",
+      "name": "enabled must be the boolean true",
+      "ruleset": "basic",
+      "subject": "visitor-1"
+    }
+  ],
+  "rulesets": {
+    "basic": {
+      "flags": [
+        {
+          "enabled": true,
+          "key": "on-flag",
+          "rollout_pct": 100
+        },
+        {
+          "enabled": false,
+          "key": "off-flag",
+          "rollout_pct": 100
+        },
+        {
+          "enabled": true,
+          "key": "half",
+          "rollout_pct": 50
+        },
+        {
+          "enabled": true,
+          "key": "zero",
+          "rollout_pct": 0
+        },
+        {
+          "enabled": true,
+          "key": "ab",
+          "rollout_pct": 100,
+          "variants": [
+            {
+              "key": "control",
+              "weight": 50
+            },
+            {
+              "key": "treatment",
+              "weight": 50
+            }
+          ]
+        },
+        {
+          "enabled": true,
+          "key": "three-way",
+          "variants": [
+            {
+              "key": "a",
+              "weight": 1
+            },
+            {
+              "key": "b",
+              "weight": 1
+            },
+            {
+              "key": "c",
+              "weight": 2
+            }
+          ]
+        },
+        {
+          "enabled": true,
+          "key": "zero-weights",
+          "variants": [
+            {
+              "key": "x",
+              "weight": 0
+            },
+            {
+              "key": "y",
+              "weight": 0
+            }
+          ]
+        },
+        {
+          "enabled": true,
+          "key": "weird-weights",
+          "variants": [
+            {
+              "key": "a",
+              "weight": 2.5
+            },
+            {
+              "key": "b"
+            },
+            {
+              "key": "",
+              "weight": 5
+            },
+            {
+              "key": "c",
+              "weight": -1
+            },
+            {
+              "weight": 9
+            }
+          ]
+        },
+        {
+          "conditions": [
+            {
+              "dimension": "device_type",
+              "op": "is",
+              "value": "mobile"
+            }
+          ],
+          "enabled": true,
+          "key": "mobile-only"
+        },
+        {
+          "conditions": {
+            "filters": [
+              {
+                "dimension": "plan",
+                "op": "is",
+                "value": [
+                  "pro",
+                  "team"
+                ]
+              },
+              {
+                "dimension": "email",
+                "op": "ends_with",
+                "value": "@example.com"
+              }
+            ],
+            "logic": "or"
+          },
+          "enabled": true,
+          "key": "pro-or-team"
+        },
+        {
+          "conditions": [
+            {
+              "dimension": "age",
+              "op": "gte",
+              "value": 18
+            },
+            {
+              "dimension": "age",
+              "op": "lt",
+              "value": "65"
+            }
+          ],
+          "enabled": true,
+          "key": "numeric"
+        },
+        {
+          "conditions": [
+            {
+              "dimension": "user_id",
+              "op": "is_set"
+            }
+          ],
+          "enabled": true,
+          "key": "set-check"
+        },
+        {
+          "conditions": [
+            {
+              "dimension": "user_id",
+              "op": "is_not_set"
+            }
+          ],
+          "enabled": true,
+          "key": "not-set-check"
+        },
+        {
+          "conditions": [
+            {
+              "dimension": " Email ",
+              "op": "contains",
+              "value": "ACME"
+            }
+          ],
+          "enabled": true,
+          "key": "contains"
+        },
+        {
+          "conditions": [
+            {
+              "dimension": "email",
+              "op": "not_contains",
+              "value": [
+                "spam",
+                "test"
+              ]
+            }
+          ],
+          "enabled": true,
+          "key": "not-contains"
+        },
+        {
+          "conditions": [
+            {
+              "dimension": "path",
+              "op": "starts_with",
+              "value": "/Docs"
+            }
+          ],
+          "enabled": true,
+          "key": "starts"
+        },
+        {
+          "conditions": {
+            "filters": [
+              {
+                "dimension": "country",
+                "op": "is_not",
+                "value": [
+                  "us",
+                  "ca"
+                ]
+              },
+              {
+                "filters": [
+                  {
+                    "dimension": "plan",
+                    "op": "is",
+                    "value": "pro"
+                  },
+                  {
+                    "dimension": "beta",
+                    "op": "is",
+                    "value": true
+                  }
+                ],
+                "logic": "or"
+              }
+            ],
+            "logic": "and"
+          },
+          "enabled": true,
+          "key": "nested"
+        },
+        {
+          "conditions": {
+            "dimension": "plan",
+            "op": "is",
+            "value": "pro"
+          },
+          "enabled": true,
+          "key": "single-leaf"
+        },
+        {
+          "conditions": {
+            "filters": [],
+            "logic": "or"
+          },
+          "enabled": true,
+          "key": "empty-or"
+        },
+        {
+          "conditions": [
+            {
+              "filters": [],
+              "logic": "or"
+            }
+          ],
+          "enabled": true,
+          "key": "nested-empty-or"
+        },
+        {
+          "conditions": "plan is pro",
+          "enabled": true,
+          "key": "malformed"
+        },
+        {
+          "conditions": {
+            "filters": [
+              {
+                "dimension": "plan",
+                "op": "is",
+                "value": "pro"
+              }
+            ],
+            "logic": "xor"
+          },
+          "enabled": true,
+          "key": "bad-logic"
+        },
+        {
+          "conditions": [
+            {
+              "dimension": "path",
+              "op": "matches",
+              "value": "^/"
+            }
+          ],
+          "enabled": true,
+          "key": "regex"
+        },
+        {
+          "conditions": [
+            {
+              "dimension": "seats",
+              "op": "is",
+              "value": 5
+            }
+          ],
+          "enabled": true,
+          "key": "seats"
+        },
+        {
+          "enabled": true,
+          "key": "beta-group",
+          "target_groups": [
+            "g-beta"
+          ]
+        },
+        {
+          "enabled": true,
+          "key": "two-groups",
+          "target_groups": [
+            "g-missing",
+            "g-staff"
+          ]
+        },
+        {
+          "enabled": true,
+          "key": "missing-group",
+          "target_groups": [
+            "g-missing"
+          ]
+        },
+        {
+          "enabled": true,
+          "key": "everyone-group",
+          "target_groups": [
+            "g-everyone"
+          ]
+        },
+        {
+          "conditions": [
+            {
+              "dimension": "country",
+              "op": "is",
+              "value": "pt"
+            }
+          ],
+          "enabled": true,
+          "key": "group-and-conditions",
+          "target_groups": [
+            "g-beta"
+          ]
+        },
+        {
+          "dependencies": [
+            {
+              "flag": "on-flag"
+            }
+          ],
+          "enabled": true,
+          "key": "needs-on"
+        },
+        {
+          "dependencies": [
+            {
+              "flag": "off-flag"
+            }
+          ],
+          "enabled": true,
+          "key": "needs-off-flag-on"
+        },
+        {
+          "dependencies": [
+            {
+              "enabled": false,
+              "flag": "off-flag"
+            }
+          ],
+          "enabled": true,
+          "key": "needs-off"
+        },
+        {
+          "dependencies": [
+            {
+              "flag": "ab",
+              "variant": "treatment"
+            }
+          ],
+          "enabled": true,
+          "key": "needs-variant"
+        },
+        {
+          "dependencies": [
+            {
+              "flag": "ghost"
+            }
+          ],
+          "enabled": true,
+          "key": "needs-missing"
+        },
+        {
+          "dependencies": [
+            {
+              "enabled": false,
+              "flag": "ghost"
+            }
+          ],
+          "enabled": true,
+          "key": "needs-missing-off"
+        },
+        {
+          "dependencies": [
+            {
+              "flag": "half"
+            }
+          ],
+          "enabled": true,
+          "key": "needs-half"
+        },
+        {
+          "dependencies": [
+            {
+              "flag": "chain-b"
+            }
+          ],
+          "enabled": true,
+          "key": "chain-a"
+        },
+        {
+          "dependencies": [
+            {
+              "flag": "chain-c"
+            }
+          ],
+          "enabled": true,
+          "key": "chain-b"
+        },
+        {
+          "enabled": true,
+          "key": "chain-c"
+        },
+        {
+          "dependencies": [
+            {
+              "flag": "cycle-b"
+            }
+          ],
+          "enabled": true,
+          "key": "cycle-a"
+        },
+        {
+          "dependencies": [
+            {
+              "flag": "cycle-a"
+            }
+          ],
+          "enabled": true,
+          "key": "cycle-b"
+        },
+        {
+          "dependencies": [
+            {
+              "enabled": true
+            }
+          ],
+          "enabled": true,
+          "key": "bad-dep"
+        },
+        {
+          "dependencies": [
+            {
+              "flag": "ghost"
+            }
+          ],
+          "enabled": false,
+          "key": "disabled-with-bad-dep"
+        },
+        {
+          "enabled": false,
+          "environments": {
+            "Development": {
+              "enabled": true
+            },
+            "staging": {
+              "enabled": true,
+              "rollout_pct": 100
+            }
+          },
+          "key": "envs",
+          "rollout_pct": 0
+        },
+        {
+          "enabled": true,
+          "environments": {
+            "production": {
+              "rollout_pct": 60
+            },
+            "qa": {
+              "rollout_pct": "all"
+            }
+          },
+          "key": "env-rollout",
+          "rollout_pct": 100
+        },
+        {
+          "enabled": true,
+          "key": "no-rollout-field"
+        },
+        {
+          "enabled": true,
+          "key": "string-rollout",
+          "rollout_pct": "50"
+        },
+        {
+          "enabled": true,
+          "key": "null-rollout",
+          "rollout_pct": null
+        },
+        {
+          "enabled": true,
+          "key": "fraction-rollout",
+          "rollout_pct": 99.5
+        },
+        {
+          "enabled": "true",
+          "key": "enabled-string"
+        },
+        {
+          "dependencies": [
+            {
+              "flag": "deep2"
+            }
+          ],
+          "enabled": true,
+          "key": "deep1"
+        },
+        {
+          "dependencies": [
+            {
+              "flag": "deep3"
+            }
+          ],
+          "enabled": true,
+          "key": "deep2"
+        },
+        {
+          "dependencies": [
+            {
+              "flag": "deep4"
+            }
+          ],
+          "enabled": true,
+          "key": "deep3"
+        },
+        {
+          "dependencies": [
+            {
+              "flag": "deep5"
+            }
+          ],
+          "enabled": true,
+          "key": "deep4"
+        },
+        {
+          "dependencies": [
+            {
+              "flag": "deep6"
+            }
+          ],
+          "enabled": true,
+          "key": "deep5"
+        },
+        {
+          "dependencies": [
+            {
+              "flag": "deep7"
+            }
+          ],
+          "enabled": true,
+          "key": "deep6"
+        },
+        {
+          "dependencies": [
+            {
+              "flag": "deep8"
+            }
+          ],
+          "enabled": true,
+          "key": "deep7"
+        },
+        {
+          "dependencies": [
+            {
+              "flag": "deep9"
+            }
+          ],
+          "enabled": true,
+          "key": "deep8"
+        },
+        {
+          "enabled": true,
+          "key": "deep9"
+        }
+      ],
+      "target_groups": {
+        "g-beta": {
+          "conditions": [
+            {
+              "dimension": "beta",
+              "op": "is",
+              "value": "true"
+            }
+          ]
+        },
+        "g-everyone": {
+          "conditions": []
+        },
+        "g-staff": {
+          "conditions": {
+            "filters": [
+              {
+                "dimension": "email",
+                "op": "ends_with",
+                "value": "@micaforge.test"
+              }
+            ],
+            "logic": "and"
+          }
+        }
+      }
+    }
+  },
+  "version": 1
+}

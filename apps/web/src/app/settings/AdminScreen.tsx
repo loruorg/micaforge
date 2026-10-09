@@ -25,6 +25,8 @@ import {
 import { IconReplay } from "../../components/react/icons";
 import { ApiError, api } from "../../lib/api";
 import { ago, bytes, compact, duration, num } from "../../lib/format";
+import { useAuth } from "../providers";
+import { FeedbackTriage } from "../feedback/FeedbackTriage";
 import {
   Foot,
   Note,
@@ -127,6 +129,7 @@ function useDebounced<T>(value: T, ms = 250): T {
 
 export function AdminScreen() {
   const qc = useQueryClient();
+  const { user } = useAuth();
   const [userQ, setUserQ] = useState("");
   const q = useDebounced(userQ);
 
@@ -373,6 +376,10 @@ export function AdminScreen() {
           )}
         </QueryState>
       </Panel>
+
+      {/* Feedback is about the instance as a whole, so only the person who
+          runs it is shown the list. The server refuses everyone else too. */}
+      {user?.instance_admin ? <FeedbackTriage /> : null}
 
       <Panel>
         <PanelHead

@@ -279,7 +279,13 @@ export interface InstanceConfig {
   mail_enabled?: boolean;
   self_hosted?: boolean;
   version?: string;
+  /** The sign-in providers this install has a client for. Empty when none is set up. */
+  oauth_providers?: OAuthProvider[];
+  /** Plans and payments. Off on every self-hosted install unless its operator turns them on. */
+  billing?: { enabled: boolean; stripe: boolean };
 }
+
+export type OAuthProvider = "google" | "github";
 
 /**
  * A closed instance is a real, common configuration, not an error, so the

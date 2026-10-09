@@ -1,0 +1,5 @@
+added_iso,hostname,path,query,document_referrer,utm_source,utm_medium,utm_campaign,country_code,browser_name,browser_version,os_name,os_version,device_type,lang_language,session_id,uuid,is_robot,duration_seconds,scrolled_percentage,datapoint,metadata.plan_text,metadata.seats_int
+2026-09-04T09:15:00.000Z,example.com,/blog/how-agents-read,ref=hn,https://news.ycombinator.com/,,,,DE,Firefox,130,Linux,,desktop,de,sa-sess-1,sa-uuid-1,false,12,80,,,
+2026-09-04T09:16:00.000Z,example.com,/pricing,,,newsletter,email,autumn,DE,Firefox,130,Linux,,desktop,de,sa-sess-1,sa-uuid-2,false,40,100,,,
+2026-09-04T09:16:30.000Z,example.com,/pricing,,,,,,US,Chrome,129,Windows,10,desktop,en,sa-sess-2,sa-uuid-3,true,1,0,,,
+2026-09-04T09:17:00.000Z,example.com,/pricing,,,,,,DE,Firefox,130,Linux,,desktop,de,sa-sess-1,sa-uuid-4,false,,,newsletter_signup,pro,3

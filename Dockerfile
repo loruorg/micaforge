@@ -152,6 +152,9 @@ COPY --from=builder /usr/local/bin/micaforge-server /usr/local/bin/micaforge-ser
 # The real tracker, at the first place routes/script.rs looks for it. Without
 # it the server would fall back to its compiled-in pageview-only tracker.
 COPY --from=web-build /src/packages/sdk/dist/mf.js /src/packages/sdk/dist/mf.min.js /app/tracker/
+# Its plugins (web vitals, error capture, frustration signals, ...), served at
+# /api/track/p/<name>.js. Without them those features load an empty script.
+COPY --from=web-build /src/packages/sdk/dist/p/ /app/tracker/p/
 
 # /geoip: where an operator drops a MaxMind-compatible city and ASN database.
 #   Without one Micaforge resolves no geography at all, which is a smaller

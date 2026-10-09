@@ -1,0 +1,29 @@
+{
+  "action": "published",
+  "release": {
+    "url": "https://api.github.com/repos/acme/site/releases/180000001",
+    "html_url": "https://github.com/acme/site/releases/tag/v2.4.0",
+    "id": 180000001,
+    "node_id": "RE_kwDOAAqwm84Kt0Ah",
+    "tag_name": "v2.4.0",
+    "target_commitish": "main",
+    "name": "Pricing and docs search",
+    "draft": false,
+    "prerelease": false,
+    "created_at": "2026-10-07T13:55:00Z",
+    "published_at": "2026-10-07T14:00:00Z",
+    "author": { "login": "ada-example", "id": 4242, "type": "User" },
+    "body": "## What changed\n\n- New pricing page\n- Search in the docs"
+  },
+  "repository": {
+    "id": 700123,
+    "name": "site",
+    "full_name": "acme/site",
+    "private": true,
+    "owner": { "login": "acme", "id": 9001, "type": "Organization" },
+    "html_url": "https://github.com/acme/site",
+    "default_branch": "main"
+  },
+  "sender": { "login": "ada-example", "id": 4242, "type": "User" },
+  "installation": { "id": 42, "node_id": "MDIzOkludGVncmF0aW9uSW5zdGFsbGF0aW9uNDI=" }
+}

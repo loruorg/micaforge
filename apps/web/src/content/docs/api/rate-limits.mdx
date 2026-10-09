@@ -51,6 +51,17 @@ by what a key can reach, and a self-hosted install is answering only to its own 
 That is a statement about how it is built, not a promise to keep forever: if you are
 building something that hammers the read API, build it to handle a `429` anyway.
 
+## AI questions and feedback
+
+| What | Limit |
+| --- | --- |
+| Questions to the [AI analyst](/docs/dashboard/ask-ai) | `MICAFORGE_LLM_DAILY_LIMIT` per organisation per UTC day, shared by the dashboard, the MCP `ask` tool, the chat apps and investigation explanations. `0`, the default, is no limit. |
+| [Feedback](/docs/api/feedback) reports | 20 per hour per reporter. |
+
+Both answer `429 rate_limited`, and the AI limit sends `Retry-After` with it. A question
+costs a call to a model the operator pays for or runs, which is why it has a budget when the
+reads have none.
+
 ## What a limited response looks like
 
 ```http

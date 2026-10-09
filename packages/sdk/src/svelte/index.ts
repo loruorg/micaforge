@@ -22,6 +22,7 @@ import {
   optOut,
   pageview,
   setProps,
+  setTraits,
   track,
   type InitConfig,
 } from "../index.js";
@@ -67,6 +68,7 @@ export const micaforge = {
   track: track,
   pageview: pageview,
   identify: identify,
+  setTraits: setTraits,
   setProps: setProps,
   optIn: optIn,
   optOut: optOut,
@@ -137,6 +139,6 @@ export function pageviewOn(_node: HTMLElement, location: string) {
 }
 
 export default micaforge;
-export { init, getTracker, track, pageview, identify, setProps, optIn, optOut, flush } from "../index.js";
+export { init, getTracker, track, pageview, identify, setTraits, setProps, optIn, optOut, flush } from "../index.js";
 export type { InitConfig } from "../index.js";
 export type { Props, TrackerApi } from "../types.js";

@@ -113,6 +113,8 @@ export const RESERVED_APP_SEGMENTS: readonly string[] = [
   "reset-password",
   "verify-email",
   "invite",
+  // The OAuth consent screen an MCP client sends a person to.
+  "oauth",
 ];
 
 /**

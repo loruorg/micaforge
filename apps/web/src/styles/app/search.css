@@ -1,0 +1,101 @@
+/* ============================================================================
+   Search: the Google Search Console screen.
+
+   It is built from the Growth area's scaffolding (.mf-gr, .mf-gr-pad,
+   .mf-gr-bar, .mf-gr-strip) and adds only what is its own: the freshness line
+   under the bar, the pair of country and device tables, the sync facts list,
+   and the in-page disconnect step.
+
+   Colour: Google Search traffic is people, so the one chart series is the
+   people blue and nothing here is orange.
+
+   UNLAYERED, like growth.css, so it refines the shared components without a
+   specificity fight.
+   ========================================================================= */
+
+/* Which property, how fresh, and "Sync now", on one wrapping line. */
+.mf-sc-fresh {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mf-2) var(--mf-4);
+  min-width: 0;
+}
+.mf-sc-fresh .mf-gr-aside { margin: 0; }
+
+/* Countries beside devices on a wide screen, stacked on a narrow one. The
+   split follows the screen's own width (the .mf-gr container), not the
+   viewport, because the navigation takes a different share at each size. */
+.mf-sc-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--mf-6);
+}
+@container mf-gr (min-width: 760px) {
+  .mf-sc-pair { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+}
+
+/* The search box in the search-term table's control strip. */
+.mf-sc-find {
+  flex: 1 1 14rem;
+  max-width: 22rem;
+}
+
+/* A button with the sentence that reports what it did. */
+.mf-sc-act {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mf-2) var(--mf-3);
+  min-width: 0;
+}
+.mf-sc-act .mf-gr-say { margin: 0; }
+
+.mf-sc-row {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.mf-sc-pick {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mf-3);
+  max-width: 36rem;
+}
+
+/* The sync facts: label and value on one hairline row each. */
+.mf-sc-facts {
+  margin: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  border-top: 1px solid var(--mf-rule);
+}
+.mf-sc-facts__row {
+  display: grid;
+  grid-template-columns: minmax(7rem, 11rem) minmax(0, 1fr);
+  gap: var(--mf-3);
+  padding: var(--mf-2) 0;
+  border-bottom: 1px solid var(--mf-rule);
+  font-size: var(--mf-t-sm);
+}
+.mf-sc-facts__row dt { color: var(--mf-ink-3); }
+.mf-sc-facts__row dd { margin: 0; color: var(--mf-ink); overflow-wrap: anywhere; }
+
+/* The disconnect step: one sentence and the two choices, inside the page. */
+.mf-sc-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mf-3);
+  max-width: 40rem;
+  padding: var(--mf-3) var(--mf-4);
+  border: 1px solid var(--mf-rule-strong);
+  border-radius: var(--mf-r-sm);
+  background: var(--mf-well-2);
+}
+.mf-sc-confirm p {
+  margin: 0;
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink-2);
+}

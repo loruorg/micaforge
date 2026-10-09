@@ -1,0 +1,107 @@
+---
+title: "Nuxt"
+description: "@micaforge/nuxt: the tag, router pageviews, useMicaforge(), useFlag() and Nitro helpers."
+group: "getting-started"
+order: 5
+updated: 2026-10-09
+---
+
+The Nuxt module adds the tracker tag to every server-rendered page, reports route changes
+from the Nuxt router, and gives every component two auto-imported composables. It works
+with Nuxt 3.13 and later, and Nuxt 4. MIT licensed.
+
+```sh
+npm install @micaforge/nuxt
+```
+
+```ts
+// nuxt.config.ts
+export default defineNuxtConfig({
+  modules: ["@micaforge/nuxt"],
+  micaforge: {
+    siteKey: 1,
+    host: "https://analytics.example.com",
+    plugins: ["errors", "forms"],
+    devtools: true,
+  },
+});
+```
+
+`siteKey` is the numeric site id, the `data-site` of the script tag. The site id and the
+host can also be set at run time, with no rebuild, through `NUXT_PUBLIC_MICAFORGE_SITE_KEY`
+and `NUXT_PUBLIC_MICAFORGE_HOST`.
+
+## Options
+
+| Option | Default | What it does |
+| --- | --- | --- |
+| `siteKey` | none | The numeric site id. Required. |
+| `host` | none | Your Micaforge server. Required. |
+| `scriptSrc` | `<host>/mf.js` | Where the tracker is loaded from. Set it when you [proxy the script](/docs/tracking/proxying-the-script). |
+| `plugins` | vitals only | Tracker plugins: `["errors", "frustration", "forms", "track404", "tags"]`, or an object such as `{ vitals: false, errors: true }`. |
+| `enabled` | `true` | `false` adds nothing to the page and turns every call into a no-op. |
+| `routeTracking` | `true` | Report route changes from the Nuxt router. |
+| `devtools` | `false` | Load the [DevTools overlay](/docs/getting-started/devtools) in development. |
+| `tracker` | none | The tag's other settings: `exclude`, `mask`, `stripQuery`, `sample`, `respectDnt`, `hash`, `debug`, `outbound`, `downloads`, `scroll`, `engagement`, `release`. Each is the [attribute](/docs/getting-started/script-tag) of the same name. |
+| `flags` | none | For `useFlag()`: `bootstrap`, `environment`, `context`, `ttlMs`, `stats`. |
+
+## Route changes are counted once
+
+The tracker follows client-side navigation by itself, by patching `history.pushState`.
+The Nuxt router can report the same navigation, and if both did, every route change would
+count twice. So the module gives the tag `data-spa="false"` and reports each completed
+navigation from `router.afterEach` instead.
+
+The rule is the tracker's own, so the numbers do not change: the address is the URL
+without its hash (unless `tracker.hash` is on), a navigation that lands on the same
+address sends nothing, and an aborted navigation sends nothing. The first page is
+reported by the tracker when it starts. `routeTracking: false` hands navigation back to
+the tracker.
+
+## In a component
+
+```vue
+<script setup lang="ts">
+const { track, identify } = useMicaforge();
+const { enabled: newCheckout, variant } = useFlag("new-checkout");
+</script>
+
+<template>
+  <NewCheckout v-if="newCheckout" :variant="variant" />
+  <button @click="track('signup', { plan: 'pro' })">Sign up</button>
+</template>
+```
+
+`useMicaforge()` has the same calls as the script tag: `track`, `pageview`, `identify`,
+`setTraits`, `setProps`, `optOut`, `optIn`, `isOptedOut` and `flush`. It does nothing
+during server rendering, and a call made before the deferred tag has run is queued and
+replayed when it starts.
+
+`useFlag(key, fallback)` returns read-only refs: `enabled`, `variant`, `payload` and the
+whole `record`. On the server it answers from `flags.bootstrap`, the client hydrates with
+the same value, and the evaluated answer from
+[`GET /api/flags/evaluate`](/docs/tracking/feature-flags) replaces it once the app is
+ready. That order is what keeps the page free of hydration mismatches. `identify()` moves
+the flags to the identified id, so a percentage rollout stays with the person.
+
+## In Nitro
+
+Two helpers are auto-imported in server routes and middleware:
+
+```ts
+// server/middleware/micaforge.ts
+export default defineEventHandler((event) => {
+  useMicaforgeServer()?.pageview(event.node.req);
+});
+```
+
+- `useMicaforgeServer()` is the [server SDK](/docs/agents/shipping-server-logs) client.
+  It records server-rendered pageviews and the AI crawler fetches a browser tag can never
+  see. It needs the site's ingest key in `NUXT_MICAFORGE_INGEST_KEY`.
+- `useMicaforgeFlags()` decides flags on the server from a cached ruleset, with no
+  network call per request. It needs an API key with `manage:read` in
+  `NUXT_MICAFORGE_API_KEY`.
+
+Both keys are private runtime config: they are never sent to the browser. Without its key,
+each helper returns `undefined`, so `useMicaforgeServer()?.pageview(...)` is safe to leave
+in place.

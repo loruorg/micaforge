@@ -1,5 +1,5 @@
 {
   "version": 1,
   "include": ["/*"],
-  "exclude": ["/_astro/*", "/fonts/*", "/app", "/app/*", "/share", "/share/*", "/mark.svg", "/og/*"]
+  "exclude": ["/_astro/*", "/fonts/*", "/app", "/app/*", "/share", "/share/*", "/mark.svg", "/og/*", "/status", "/status/*"]
 }

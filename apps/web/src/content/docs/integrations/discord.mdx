@@ -1,0 +1,213 @@
+---
+title: "Discord"
+description: "Ask about a site with a Discord slash command, get new investigations in a channel, and create the app."
+group: "integrations"
+order: 2
+updated: 2026-10-08
+---
+
+The Discord app answers questions about a site with one slash command, and posts to a
+channel when the numbers move. One Discord application serves the whole install: the
+operator creates it once, and each site then links the channels it wants.
+
+It is off until its three variables are set. With them unset, nothing is sent to Discord, and
+nothing Discord sends is acted on.
+
+## What it does
+
+- **Answers questions.** A question goes to the [AI analyst](/docs/dashboard/ask-ai), which
+  runs the dashboard's own queries against the linked site and answers in the channel.
+- **Reports today.** `stats` replies with today's visitors, pageviews, AI crawler fetches and
+  AI-answer visits, straight from the store, with no model involved.
+- **Posts what changed.** Every new [investigation](/docs/dashboard/insights) on the site is
+  posted to each linked channel, and each update to it is a reply to that first message.
+- **Takes feedback.** `feedback` files a report with the people who run this install. See
+  [feedback](/docs/api/feedback).
+
+## Commands
+
+Everything is one slash command, `/micaforge`, with a subcommand. Discord prompts for each
+option as you type.
+
+| Command | Does |
+| --- | --- |
+| `/micaforge ask question:<question>` | Asks the AI analyst about the linked site. |
+| `/micaforge stats` | Today's visitors, pageviews, AI crawler fetches and AI-answer visits. |
+| `/micaforge link code:<code>` | Links this channel to a site, with a code from the dashboard. |
+| `/micaforge unlink` | Removes this channel's link. |
+| `/micaforge feedback text:<text>` | Sends feedback to the instance admins. |
+| `/micaforge help` | Lists the commands. |
+
+The app reads nothing but these commands. It does not answer mentions or ordinary messages,
+and it needs no privileged intent.
+
+The commands are the same on [Slack](/docs/integrations/slack) and
+[Telegram](/docs/integrations/telegram); only the syntax differs.
+
+## Before you start
+
+- **The install must be reachable from the internet over HTTPS**, because Discord calls it.
+  A laptop on `MICAFORGE_DOMAIN=:80` cannot receive Discord's requests.
+- **`MICAFORGE_PUBLIC_URL` must be the public address.** The interactions URL is built from
+  it, and Site setup → Chat apps shows it ready to copy.
+- **Questions need the AI analyst.** Without `MICAFORGE_LLM_BASE_URL` and
+  `MICAFORGE_LLM_MODEL`, the app still links channels, reports `stats` and posts
+  investigations, but it cannot answer a question. See
+  [configuring a model](/docs/dashboard/ask-ai#configuring-a-model).
+
+## Create the Discord application
+
+1. Open the [Discord Developer Portal](https://discord.com/developers/applications) and
+   choose **New Application**. Give it a name (the examples here use Micaforge).
+2. Under **General Information**, copy two values:
+
+   | Value | Variable |
+   | --- | --- |
+   | Application ID | `MICAFORGE_DISCORD_APPLICATION_ID` |
+   | Public Key | `MICAFORGE_DISCORD_PUBLIC_KEY`, 64 hex characters |
+
+3. Under **Bot**, choose **Reset Token** and copy the token. It goes in
+   `MICAFORGE_DISCORD_BOT_TOKEN`. Discord shows it once.
+4. Set the three variables and restart the server, so it is ready to answer Discord's check
+   in the next step:
+
+   ```sh
+   MICAFORGE_DISCORD_APPLICATION_ID=…
+   MICAFORGE_DISCORD_PUBLIC_KEY=…
+   MICAFORGE_DISCORD_BOT_TOKEN=…
+   ```
+
+   ```sh
+   docker compose up -d micaforge
+   ```
+
+5. Back under **General Information**, set **Interactions Endpoint URL** to
+   `https://analytics.example.com/api/chat/discord/interactions` and save. Discord saves it
+   only if the server answers a signed `PING` correctly and refuses a request with a bad
+   signature, so this step fails if the server is not configured yet.
+6. Register the `/micaforge` command. Run this on the host:
+
+   ```sh
+   docker compose exec micaforge micaforge-server chat-setup discord
+   ```
+
+   The same action is open to an instance admin's session as
+   `POST /api/admin/chat/discord/commands`. Both register one global command with its
+   subcommands. Running it again replaces the command with the same definition.
+7. Invite the app to your server. Under **OAuth2 → URL Generator**, tick the
+   `applications.commands` and `bot` scopes, then the **Send Messages** and **Read Message
+   History** bot permissions (updates to an investigation are replies to its first post, and a
+   reply needs to read the message it answers). Open the generated URL, pick your server and
+   authorise.
+8. Discord lets a bot send messages through its API only after the bot has connected to the
+   Discord gateway at least once. Micaforge answers interactions and posts over HTTP and
+   does not hold a gateway connection, so connect the bot once (for example with any small
+   gateway client logged in with the bot token) before you expect investigations in a channel.
+   Answers to `/micaforge` commands do not need this: they are interaction replies.
+
+Replace `analytics.example.com` with your own address.
+
+## Link a channel
+
+A channel answers about one site once it is linked to it, and about one site at a time:
+linking it again with a code from another site moves it. Linking needs a code from the
+dashboard, so only someone with at least the `member` role on the site can do it.
+
+1. In Micaforge, open the site, then **Site setup → Chat apps**, and choose **Generate a
+   link code**. The code is 8 characters long, lives 15 minutes, and works once. The screen
+   shows the exact command to type.
+2. In the Discord channel, type the command:
+
+   ```text
+   /micaforge link code:K7Q2M9XP
+   ```
+
+The app confirms in the channel, and the link appears in Site setup → Chat apps with who
+made it. To remove it, use `/micaforge unlink` in the channel, or remove it on that screen.
+
+**Anyone who can use the command in a linked channel can ask about that site and read the
+answers.** Discord users are not Micaforge accounts, so the channel's permissions are the
+access rule. Link only channels whose members may see the site's numbers.
+
+## How requests are verified
+
+Discord signs every interaction with the application's Ed25519 key. The server checks the
+signature against `MICAFORGE_DISCORD_PUBLIC_KEY` before it reads anything else, and refuses
+the request with `401` when it does not verify:
+
+```text
+message   = X-Signature-Timestamp + raw request body
+signature = X-Signature-Ed25519   (hex, checked with the public key)
+```
+
+Discord's `PING`, which it sends when you save the endpoint URL and now and then after, is
+answered with a `PONG` once its signature has verified. A refused request does nothing: no
+command runs and nothing is posted.
+
+## Answers arrive after the acknowledgement
+
+Discord waits three seconds for the first response to a command. An answer takes longer than
+that, because the model calls one query after another. So the server acknowledges at once
+with a deferred response, which Discord shows as the app thinking, runs the question in the
+background, and sends the answer when it is ready.
+
+## Investigations in Discord
+
+When an investigation opens on a site, each channel linked to that site gets a message with
+what changed and by how much. Updates to the same investigation follow as replies to that
+message, so one change stays in one place. The app posts these with its bot token, so it
+needs to see the channel and send messages in it. See [insights](/docs/dashboard/insights).
+
+## Discord as an alert channel
+
+Traffic alerts do not use the Discord app. They post to a channel webhook, which needs no
+variables on the server:
+
+1. In Discord, open the channel's settings, then **Integrations → Webhooks → New Webhook**.
+   Name it, then **Copy Webhook URL**. It starts with `https://discord.com/api/webhooks/`.
+2. In Micaforge, open **Site setup → Alerts**, set the alert's channel to **Discord**, and
+   paste the URL.
+
+Through the API, the channel is one more key in the alert's `channels` document:
+
+```json
+{ "discord": "https://discord.com/api/webhooks/…" }
+```
+
+The same kind of URL can also receive new feedback for the whole install. See
+[the feedback channel](/docs/self-hosting/configuration#feedback-channel-off-by-default).
+
+## What leaves the server
+
+- **To the model provider:** the question, the site's domain and name, the aggregate query
+  results the model asked for (visitors per source, fetches per page and the like), and the
+  answer it writes.
+  Visitor ids and identified ids are never sent to the model.
+- **To Discord:** answers, `stats` replies, confirmations, and the investigation messages
+  for linked channels.
+- **From Discord:** the `/micaforge` commands people type, with their options. The app has no
+  access to other messages.
+
+## Troubleshooting
+
+**Discord will not save the Interactions Endpoint URL.** The server did not answer the
+signed `PING`. Check that the address is public and HTTPS, that the three variables are set,
+that the server was restarted, and that `MICAFORGE_DISCORD_PUBLIC_KEY` is this application's
+key. Site setup → Chat apps says whether Discord is configured.
+
+**The `/micaforge` command does not appear.** Register it with
+`micaforge-server chat-setup discord`, and check that the invite included the
+`applications.commands` scope. Reload the Discord client after either.
+
+**Discord says the application did not respond.** The server did not acknowledge within
+three seconds. Check that it is up and reachable: `docker compose logs micaforge`.
+
+**Commands work, but investigations never reach the channel.** The app's role cannot see the
+channel, send messages or read message history in it, or the bot has never connected to the
+gateway (step 8 above). Check the channel's permissions for the app.
+
+**The app says AI is off on this server.** Set the `MICAFORGE_LLM_*` variables. See
+[configuring a model](/docs/dashboard/ask-ai#configuring-a-model).
+
+**The server will not start and names a `MICAFORGE_DISCORD_*` variable.** Either one of the
+three is missing, or the public key is not 64 hex characters. Set all three, or none.

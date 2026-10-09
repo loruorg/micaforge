@@ -8,12 +8,15 @@
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  bucket,
   createTracker,
   flagOn,
   globToRegExp,
   hasDownloadExtension,
+  inSample,
   isExcluded,
   isOutboundUrl,
+  maskUrl,
 } from "../core.js";
 import { readScriptConfig } from "./index.js";
 import type { TrackerConfig } from "../types.js";
@@ -42,6 +45,7 @@ function stubBrowser(
   } = {},
 ) {
   const sent: Sent[] = [];
+  const scripts: string[] = [];
   const handlers: Record<string, ((e?: any) => void)[]> = {};
   const storage: Record<string, string> = {};
   if (opts.optedOut) storage["mf-opt-out"] = "1";
@@ -71,9 +75,12 @@ function stubBrowser(
     addEventListener: listen("d:"),
     querySelector: () => null,
     currentScript: null,
+    // Just enough for the plugin loader: it makes a <script> and appends it.
+    createElement: (tag: string) => ({ tagName: tag }),
+    head: { append: (el: any) => scripts.push(el.src) },
   };
 
-  const navigator: any = { language: "en-GB" };
+  const navigator: any = { language: "en-GB", userAgent: "Mozilla/5.0 (test)" };
   if (opts.dnt) navigator.doNotTrack = opts.dnt;
   if (opts.beacon !== "missing")
     navigator.sendBeacon = (url: string, body: string) => {
@@ -123,6 +130,7 @@ function stubBrowser(
 
   return {
     sent,
+    scripts,
     storage,
     window,
     document,
@@ -209,7 +217,9 @@ describe("payload construction", () => {
     mf.setProps({ theme: "dark" });
     mf.track("signup", { step: 2 });
 
-    const p = b.sent[0].body;
+    // identify() itself sends one `identify` event first; the custom event follows.
+    expect(b.sent[0].body.t).toBe("identify");
+    const p = b.sent[1].body;
     expect(p.t).toBe("custom");
     expect(p.n).toBe("signup");
     expect(p.id).toBe("u_123");
@@ -221,7 +231,7 @@ describe("payload construction", () => {
     const b = stubBrowser();
     const mf = start();
     mf.track("x", { a: 1 });
-    const allowed = "s t n u r w h vw vh l tz d sc p id v e".split(" ");
+    const allowed = "s t n u r w h vw vh l tz d sc p id v e sr".split(" ");
     for (const hit of b.sent) for (const k of Object.keys(hit.body)) expect(allowed).toContain(k);
   });
 
@@ -499,14 +509,235 @@ describe("outbound links and downloads", () => {
     expect(b.sent[0].body.t).toBe("file_download");
   });
 
-  it("reports a form by id or name, and never its fields", () => {
-    const b = stubBrowser();
-    start({ autoPageview: false, forms: true });
-    b.fire("d:submit", { target: { id: "signup", name: "signup-form", elements: [{ value: "a@b.c" }] } });
+  it("leaves form submissions to the forms plugin, and loads it only when asked", () => {
+    const off = stubBrowser();
+    start({ autoPageview: false });
+    off.fire("d:submit", { target: { id: "signup" } });
+    expect(off.sent).toHaveLength(0);
+    expect(off.scripts).toEqual([]);
+    vi.unstubAllGlobals();
 
-    expect(b.sent[0].body.t).toBe("form");
-    expect(b.sent[0].body.n).toBe("signup");
-    expect(JSON.stringify(b.sent[0].body)).not.toContain("a@b.c");
+    const on = stubBrowser();
+    start({ autoPageview: false, forms: true });
+    expect(on.scripts).toEqual([ENDPOINT + "/p/forms.js"]);
+  });
+});
+
+describe("plugins", () => {
+  it("loads web vitals by default and every other plugin only when turned on", () => {
+    const b = stubBrowser();
+    createTracker({ site: 1, host: HOST } as TrackerConfig);
+    expect(b.scripts).toEqual([ENDPOINT + "/p/vitals.js"]);
+    vi.unstubAllGlobals();
+
+    const all = stubBrowser();
+    createTracker({
+      site: 1,
+      host: HOST + "/",
+      vitals: "false",
+      errors: "",
+      frustration: true,
+      forms: "1",
+      track404: "",
+      tags: "on",
+    } as TrackerConfig);
+    expect(all.scripts).toEqual(
+      ["errors", "frustration", "forms", "track404", "tags"].map((k) => ENDPOINT + "/p/" + k + ".js"),
+    );
+  });
+
+  it("loads nothing for a browser that would not report", () => {
+    const b = stubBrowser({ optedOut: true });
+    createTracker({ site: 1, host: HOST, errors: true } as TrackerConfig);
+    expect(b.scripts).toEqual([]);
+  });
+
+  it("asks the revenue route for a checkout reference, and never rejects", async () => {
+    const b = stubBrowser();
+    const asked: string[] = [];
+    b.window.fetch = (url: string) => {
+      asked.push(url);
+      return Promise.resolve({ json: () => Promise.resolve({ data: { ref: "mfr_abc" } }) });
+    };
+    const mf = start({ autoPageview: false });
+    await expect(mf.checkoutRef()).resolves.toBe("mfr_abc");
+    expect(asked).toEqual([HOST + "/api/revenue/ref?s=1"]);
+
+    // An error envelope, a body that is not JSON, and a network failure all
+    // resolve to nothing.
+    b.window.fetch = () => Promise.resolve({ json: () => Promise.resolve({ error: { code: "not_found" } }) });
+    await expect(mf.checkoutRef()).resolves.toBeUndefined();
+    b.window.fetch = () => Promise.resolve({ json: () => Promise.reject(new Error("not json")) });
+    await expect(mf.checkoutRef()).resolves.toBeUndefined();
+    b.window.fetch = () => Promise.reject(new Error("offline"));
+    await expect(mf.checkoutRef()).resolves.toBeUndefined();
+  });
+
+  it("leaves itself on __mf for the plugin it loads", () => {
+    stubBrowser();
+    const mf = start({ errors: true });
+    expect((globalThis as any).__mf).toBe(mf);
+  });
+
+  it("sends a plugin's event through every gate a pageview passes, raw or merged", () => {
+    const b = stubBrowser();
+    const mf = start({ autoPageview: false, props: { theme: "dark" }, mask: ["/docs/*"] });
+    mf.x("error", { name: "TypeError", props: { message: "x" }, raw: true });
+    mf.x("form", { name: "signup" });
+
+    expect(b.sent[0].body).toMatchObject({ t: "error", n: "TypeError", p: { message: "x" } });
+    expect(b.sent[0].body.u).toBe("https://example.com/docs/*?a=1");
+    expect(b.sent[1].body).toMatchObject({ t: "form", n: "signup", p: { theme: "dark" } });
+
+    mf.optOut();
+    mf.x("error", { name: "TypeError", raw: true });
+    expect(b.sent).toHaveLength(2);
+  });
+
+  it("gives a plugin the moment the page hides, and flush() too", () => {
+    const b = stubBrowser();
+    const mf = start({ autoPageview: false });
+    const calls: string[] = [];
+    mf.h = () => calls.push("hidden");
+    b.document.visibilityState = "hidden";
+    b.fire("d:visibilitychange");
+    mf.flush();
+    expect(calls).toEqual(["hidden", "hidden"]);
+  });
+});
+
+describe("sampling", () => {
+  it("buckets the same seed the same way every time, across the whole range", () => {
+    expect(bucket("Thu Oct 08 2026Mozilla")).toBe(bucket("Thu Oct 08 2026Mozilla"));
+    const seen = new Set<number>();
+    for (let i = 0; i < 2000; i++) {
+      const b = bucket("seed-" + i);
+      expect(b).toBeGreaterThanOrEqual(0);
+      expect(b).toBeLessThan(100);
+      seen.add(b);
+    }
+    // FNV-1a spreads short, similar strings over every bucket.
+    expect(seen.size).toBe(100);
+  });
+
+  it("keeps everyone without a rate, nobody at 0, and about the rate between", () => {
+    expect(inSample(NaN, "x")).toBe(true);
+    expect(inSample(100, "x")).toBe(true);
+    expect(inSample(0, "x")).toBe(false);
+    let kept = 0;
+    for (let i = 0; i < 10000; i++) if (inSample(25, "visitor-" + i)) kept++;
+    expect(kept).toBeGreaterThan(2300);
+    expect(kept).toBeLessThan(2700);
+  });
+
+  it("decides once per visitor and day, the same way on every page", () => {
+    const decide = (ua: string) => {
+      const b = stubBrowser();
+      b.window.navigator.userAgent = ua;
+      start({ sample: "50" });
+      vi.unstubAllGlobals();
+      return b.sent.length;
+    };
+    // Same browser, same day: the same answer on every page load.
+    for (let i = 0; i < 20; i++) {
+      const ua = "Mozilla/5.0 browser-" + i;
+      expect(decide(ua)).toBe(decide(ua));
+    }
+  });
+
+  it("sends the rate with every hit of a sampled visitor, and nothing at 0%", () => {
+    const b = stubBrowser();
+    // Find a user agent that is in a 50% sample today, the way the tracker draws.
+    let ua = "";
+    for (let i = 0; !ua; i++) {
+      const candidate = "Mozilla/5.0 candidate-" + i;
+      if (bucket(Date().slice(0, 15) + candidate) < 50) ua = candidate;
+    }
+    b.window.navigator.userAgent = ua;
+    start({ sample: 50 });
+    expect(b.sent).toHaveLength(1);
+    expect(b.sent[0].body.sr).toBe(50);
+    vi.unstubAllGlobals();
+
+    const none = stubBrowser();
+    start({ sample: "0" });
+    expect(none.sent).toHaveLength(0);
+    vi.unstubAllGlobals();
+
+    const all = stubBrowser();
+    start({ sample: "100" });
+    expect(all.sent).toHaveLength(1);
+    expect(all.sent[0].body).not.toHaveProperty("sr");
+  });
+});
+
+describe("masking", () => {
+  it("replaces a matching path with its glob and leaves the rest alone", () => {
+    const c = { mask: ["/users/*", "/orders/*/items", "/docs/**"] };
+    expect(maskUrl("https://example.com/users/123", c)).toBe("https://example.com/users/*");
+    expect(maskUrl("https://example.com/users/123?tab=2#h", c)).toBe("https://example.com/users/*?tab=2#h");
+    expect(maskUrl("https://example.com/orders/9/items", c)).toBe("https://example.com/orders/*/items");
+    expect(maskUrl("https://example.com/docs/a/b/c", c)).toBe("https://example.com/docs/**");
+    // One star is one segment, as in data-exclude.
+    expect(maskUrl("https://example.com/users/1/edit", c)).toBe("https://example.com/users/1/edit");
+    expect(maskUrl("https://example.com/pricing", c)).toBe("https://example.com/pricing");
+    expect(maskUrl("", c)).toBe("");
+  });
+
+  it("strips the whole query string, or only the parameters named", () => {
+    const url = "https://example.com/reset?token=abc&email=a%40b.c&utm_source=x";
+    expect(maskUrl(url, { stripQuery: true })).toBe("https://example.com/reset");
+    expect(maskUrl(url, { stripQuery: ["token", "email"] })).toBe("https://example.com/reset?utm_source=x");
+    expect(maskUrl(url, {})).toBe(url);
+  });
+
+  it("masks the page and a same-site referrer before either leaves the page", () => {
+    const b = stubBrowser({
+      href: "https://example.com/users/42?token=s3cret",
+      referrer: "https://example.com/users/41?token=old",
+    });
+    start({ mask: ["/users/*"], stripQuery: ["token"] });
+    expect(b.sent[0].body.u).toBe("https://example.com/users/*");
+    expect(b.sent[0].body.r).toBe("https://example.com/users/*");
+    expect(JSON.stringify(b.sent[0].body)).not.toContain("42");
+    expect(JSON.stringify(b.sent[0].body)).not.toContain("s3cret");
+  });
+});
+
+describe("identify and traits", () => {
+  it("sends one identify event per change, carrying the traits and nothing else", () => {
+    const b = stubBrowser();
+    const mf = start({ autoPageview: false, props: { theme: "dark" } });
+    mf.identify("u_1", { email: "a@example.com" });
+    mf.identify("u_1", { email: "a@example.com" }); // a router effect, again
+    mf.setTraits({ plan: "pro" });
+    mf.setTraits({ plan: "pro" });
+    mf.identify("u_2");
+
+    const ids = b.sent.filter((hit) => hit.body.t === "identify").map((hit) => hit.body);
+    expect(ids).toHaveLength(3);
+    expect(ids[0]).toMatchObject({ id: "u_1", p: { email: "a@example.com" } });
+    expect(ids[0].p).not.toHaveProperty("theme");
+    expect(ids[1]).toMatchObject({ id: "u_1", p: { plan: "pro" } });
+    expect(ids[2].id).toBe("u_2");
+    expect(ids[2]).not.toHaveProperty("p");
+  });
+
+  it("keeps identify's traits as default properties, and setTraits out of them", () => {
+    const b = stubBrowser();
+    const mf = start({ autoPageview: false });
+    mf.identify("u_1", { plan: "pro" });
+    mf.setTraits({ email: "a@example.com" });
+    mf.track("signup");
+    const custom = b.sent.find((hit) => hit.body.t === "custom")!.body;
+    expect(custom.p).toEqual({ plan: "pro" });
+  });
+
+  it("sends nothing when an id is cleared", () => {
+    const b = stubBrowser();
+    const mf = start({ autoPageview: false });
+    mf.identify(null);
+    expect(b.sent).toHaveLength(0);
   });
 });
 
@@ -595,6 +826,12 @@ describe("script tag configuration", () => {
         "data-scroll": "no",
         "data-engagement": "0",
         "data-debug": "true",
+        "data-sample": "25",
+        "data-mask": "/users/*, /orders/*",
+        "data-strip-query": "token,email",
+        "data-errors": "",
+        "data-frustration": "",
+        "data-tags": "",
       }),
       "https://example.com",
     )!;
@@ -611,6 +848,19 @@ describe("script tag configuration", () => {
     expect(flagOn(cfg.scroll, true)).toBe(false);
     expect(flagOn(cfg.engagement, true)).toBe(false);
     expect(flagOn(cfg.debug, false)).toBe(true);
+    expect(cfg.sample).toBe("25");
+    expect(cfg.mask).toEqual(["/users/*", "/orders/*"]);
+    expect(cfg.stripQuery).toEqual(["token", "email"]);
+    expect(flagOn(cfg.errors, false)).toBe(true);
+    expect(flagOn(cfg.frustration, false)).toBe(true);
+    expect(flagOn(cfg.tags, false)).toBe(true);
+  });
+
+  it("reads data-strip-query alone as the whole query string", () => {
+    expect(readScriptConfig(el({ "data-site": "1", "data-strip-query": "" }), "")!.stripQuery).toBe(true);
+    expect(readScriptConfig(el({ "data-site": "1", "data-strip-query": "true" }), "")!.stripQuery).toBe(true);
+    expect(readScriptConfig(el({ "data-site": "1" }), "")!.stripQuery).toBeUndefined();
+    expect(readScriptConfig(el({ "data-site": "1" }), "")!.mask).toEqual([]);
   });
 
   it("defaults the ingest origin to the script's own origin", () => {

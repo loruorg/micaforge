@@ -20,8 +20,11 @@
 mod behaviour;
 mod content;
 mod diagnostics;
+mod frustration;
 mod overview;
 mod people;
+mod profiles;
+mod sampling;
 
 pub use behaviour::{
     event_properties, events, funnel, goals, journeys, retention, Cohort, EventProperty,
@@ -31,7 +34,14 @@ pub use content::{
     breakdown, devices, locations, pages, sources, BreakdownRow, CampaignRow, ChannelRow,
     DeviceRow, Devices, GeoRow, Locations, PageRow, SourceRow, SourcesTree,
 };
-pub use diagnostics::{errors, performance, ErrorGroup, PerfRating, PerfRow};
+pub use diagnostics::{
+    error_detail, error_facets, error_groups, error_totals, errors, performance, ErrorDetail,
+    ErrorFacet, ErrorFacets, ErrorGroup, ErrorNarrow, ErrorSession, ErrorTotals, PerfRating,
+    PerfRow,
+};
+pub use frustration::{
+    frustration, AbandonedForm, FrustratedElement, FrustratedPage, Frustration, LastField,
+};
 pub use overview::{
     overview, realtime, timeseries, Bucket, LiveRow, Overview, OverviewDelta, Realtime, RecentHit,
     Series,
@@ -40,6 +50,11 @@ pub use people::{
     session_detail, sessions, visitor_detail, visitors, Hit, SessionDetail, SessionRow,
     VisitorDetail, VisitorRow,
 };
+pub use profiles::{
+    profile, search_profiles, AnonymousSession, LinkedVisitor, Profile, ProfileHit, TraitChange,
+    MIN_QUERY,
+};
+pub use sampling::{sampling, Sampling};
 
 use micaforge_core::{Error, FilterGroup, Result, Table};
 use serde::{Deserialize, Serialize};

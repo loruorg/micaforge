@@ -315,6 +315,13 @@ async fn config(State(state): State<AppState>) -> Response {
         "replay_retention_days": cfg.replay_retention_days,
         "public_url": cfg.public_url,
         "dashboard_url": cfg.dashboard_url,
+        // Only the providers whose client id and secret are set, so the
+        // sign-in screen offers a button only when it works.
+        "oauth_providers": cfg.oauth_providers(),
+        "billing": {
+            "enabled": cfg.billing_enabled,
+            "stripe": cfg.stripe_keys().is_some(),
+        },
     });
 
     let mut res = crate::response::ok(body).into_response();

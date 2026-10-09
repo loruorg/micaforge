@@ -557,6 +557,83 @@ impl Kv {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Salt rotation and plain counters
+// ---------------------------------------------------------------------------
+
+impl Kv {
+    /// Replace a site's salt for `day` with a fresh one, now.
+    ///
+    /// What "rotate the visitor salt" in site settings does: every hit after
+    /// this one hashes to a new visitor id, as if the day had turned over, so
+    /// nothing written before can be joined to anything written after. The
+    /// new salt gets the same 48-hour life as one made at midnight.
+    pub async fn rotate_salt(&self, site_id: u16, day: NaiveDate) -> Result<()> {
+        let key = format!("mf:salt:{site_id}:{day}");
+        let salt = crypto::random_token(SALT_BYTES).into_bytes();
+        let mut conn = self.conn.clone();
+        bounded(
+            redis::cmd("SET")
+                .arg(&key)
+                .arg(&salt)
+                .arg("EX")
+                .arg(SALT_TTL_SECS)
+                .query_async::<()>(&mut conn),
+        )
+        .await?;
+        Ok(())
+    }
+
+    /// Add `by` to a counter that expires `ttl_secs` after its last write, and
+    /// return the new total.
+    ///
+    /// For tallies that are allowed to be lost with Valkey, such as the
+    /// blocked-request counts of an ingest guard. The key should carry its own
+    /// period (a day, say), so the expiry only bounds how long old periods are
+    /// kept. Atomic, like [`Kv::rate_limit`]: the increment and the expiry
+    /// cannot be separated.
+    pub async fn count(&self, key: &str, by: u64, ttl_secs: u32) -> Result<u64> {
+        let mut conn = self.conn.clone();
+        let (total,): (u64,) = bounded(
+            redis::pipe()
+                .atomic()
+                .cmd("INCRBY")
+                .arg(key)
+                .arg(by)
+                .cmd("EXPIRE")
+                .arg(key)
+                .arg(ttl_secs.max(1))
+                .ignore()
+                .query_async(&mut conn),
+        )
+        .await?;
+        Ok(total)
+    }
+
+    /// Read several counters in one round trip. A missing key reads as zero.
+    pub async fn read_counts(&self, keys: &[String]) -> Result<Vec<u64>> {
+        if keys.is_empty() {
+            return Ok(Vec::new());
+        }
+        let mut conn = self.conn.clone();
+        let values: Vec<Option<u64>> =
+            bounded(redis::cmd("MGET").arg(keys).query_async(&mut conn)).await?;
+        Ok(values.into_iter().map(Option::unwrap_or_default).collect())
+    }
+}
+
+/// `mf:guard:<site>:<UTC day>:<reason>` — one day's count of hits an ingest
+/// guard blocked for one reason. Written by the server's ingest guard and read
+/// by its settings screen and by the daily digest job, so the shape is spelled
+/// once, here.
+pub fn blocked_key(site: u16, day: NaiveDate, reason: &str) -> String {
+    format!("mf:guard:{site}:{day}:{reason}")
+}
+
+/// Every reason [`blocked_key`] counts, in the order the screen and the
+/// digest list them.
+pub const BLOCKED_REASONS: [&str; 3] = ["denylist", "not_allowlisted", "hostname"];
+
 /// `mf:rt:h:<site>` for humans, `mf:rt:a:<site>` for agents.
 fn realtime_key(site: u16, is_agent: bool) -> String {
     let audience = if is_agent { 'a' } else { 'h' };

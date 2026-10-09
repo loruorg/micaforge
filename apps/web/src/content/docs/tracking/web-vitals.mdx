@@ -3,11 +3,17 @@ title: "Web Vitals"
 description: "The five metrics collected, how they are measured, and where they surface."
 group: "tracking"
 order: 6
-updated: 2026-08-22
+updated: 2026-10-08
 ---
 
-On by default. No library, no polyfill: the tracker reads `PerformanceObserver`
+On by default. No library, no polyfill: the `vitals` plugin reads `PerformanceObserver`
 directly, which is why the whole feature costs a few hundred bytes.
+
+The plugin is a separate small file, `/api/track/p/vitals.js`, that the tracker loads
+after the page. It reads the browser's buffered entries, so the largest paint and the
+layout shifts that happened before it arrived still count. The one thing the buffer does
+not keep is an interaction under 104 ms, so a very fast tap in the first moment of a page
+does not count towards INP.
 
 | Metric | What it is | Unit |
 | --- | --- | --- |

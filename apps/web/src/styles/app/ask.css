@@ -1,0 +1,441 @@
+/* ============================================================================
+   Ask AI: the conversation list, the thread and the question box.
+
+   Built on the shared panel, buttons and states in global.css; this file adds
+   only the layout they sit in and the few marks the screen needs. Three rules:
+
+     1. Only var(--mf-*) for colour, space, radius and duration. Structural
+        sizes (a column width, a box height) are written directly.
+     2. Orange appears in one place: the small "AI" badge on an answer. The
+        Send button is the near-black primary, links are ink, the active
+        conversation is marked by fill, weight and a left rule, never by hue.
+     3. The page never scrolls sideways. Long questions wrap, code scrolls in
+        its own block, and the two columns stack under 960px.
+   ========================================================================= */
+
+/* ── the screen ──────────────────────────────────────────────────────────── */
+
+.mf-ask {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mf-6);
+  max-width: var(--mf-shell-max);
+  min-width: 0;
+}
+
+/* Title left, the model on the right, one rule under both. */
+.mf-ask-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--mf-3) var(--mf-6);
+  padding-bottom: var(--mf-4);
+  border-bottom: 1px solid var(--mf-rule);
+}
+.mf-ask-bar__text { min-width: 0; flex: 1 1 28rem; }
+.mf-ask-bar__title {
+  font-family: var(--mf-font-display);
+  font-size: var(--mf-t-xl);
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: var(--mf-track-display);
+  color: var(--mf-ink);
+  margin: 0;
+}
+.mf-ask-bar__note {
+  margin-top: var(--mf-2);
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink-3);
+  max-width: 68ch;
+}
+.mf-ask-bar__model {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mf-1) var(--mf-2);
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-2);
+}
+.mf-ask-bar__sep { color: var(--mf-ink-3); }
+
+/* The AI badge: orange ink on white with a soft orange edge. The only orange
+   on this screen, and it carries the word "AI", not a colour alone. */
+.mf-ask-badge {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  padding: 0 5px;
+  font-size: var(--mf-t-2xs);
+  font-weight: 600;
+  line-height: 16px;
+  color: var(--mf-accent-ink);
+  background: var(--mf-ground-2);
+  border: 1px solid color-mix(in oklab, var(--mf-accent) 30%, var(--mf-ground-2));
+  border-radius: 4px;
+}
+
+/* A link in running text: ink, underlined, never orange or blue. */
+.mf-ask-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mf-1);
+  font-size: var(--mf-t-sm);
+  font-weight: 500;
+  color: var(--mf-ink-2);
+  text-decoration: underline;
+  text-decoration-color: var(--mf-rule-strong);
+  text-underline-offset: 3px;
+  transition: color var(--mf-dur-1) linear, text-decoration-color var(--mf-dur-1) linear;
+}
+.mf-ask-link:hover { color: var(--mf-ink-strong); text-decoration-color: currentColor; }
+
+/* ── no model configured ─────────────────────────────────────────────────── */
+
+.mf-ask-off {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--mf-4);
+  padding: 0 var(--mf-5) var(--mf-5);
+}
+.mf-ask-off__lead { font-size: var(--mf-t-sm); color: var(--mf-ink-2); max-width: 64ch; }
+.mf-ask-off__vars {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 52rem;
+  margin: 0;
+  border-top: 1px solid var(--mf-rule);
+}
+.mf-ask-off__var {
+  display: grid;
+  grid-template-columns: minmax(0, 17rem) minmax(0, 1fr);
+  gap: var(--mf-2) var(--mf-5);
+  padding: var(--mf-3) 0;
+  border-bottom: 1px solid var(--mf-rule);
+  font-size: var(--mf-t-sm);
+}
+.mf-ask-off__var dt { color: var(--mf-ink-strong); overflow-wrap: anywhere; }
+.mf-ask-off__var dd { margin: 0; color: var(--mf-ink-2); overflow-wrap: anywhere; }
+
+/* ── the two columns ─────────────────────────────────────────────────────── */
+
+.mf-ask-cols {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: var(--mf-5);
+  align-items: start;
+  min-width: 0;
+}
+
+/* ── the conversation list ───────────────────────────────────────────────── */
+
+.mf-ask-list { min-width: 0; }
+.mf-ask-convs {
+  list-style: none;
+  margin: 0;
+  padding: 0 var(--mf-2) var(--mf-2);
+  max-height: calc(100dvh - 15rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.mf-ask-conv { border-top: 1px solid var(--mf-rule); }
+.mf-ask-conv:first-child { border-top: 0; }
+.mf-ask-conv__row { display: flex; align-items: center; gap: var(--mf-1); min-width: 0; }
+
+.mf-ask-conv__link {
+  display: grid;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  padding: var(--mf-2) var(--mf-3);
+  color: var(--mf-ink-2);
+  text-decoration: none;
+  border-radius: var(--mf-r-sm);
+  transition: background-color var(--mf-dur-1) linear, color var(--mf-dur-1) linear;
+}
+.mf-ask-conv__link:hover { background: var(--mf-ground-3); color: var(--mf-ink); }
+/* The open conversation: fill, weight and a left rule, so no single cue carries it. */
+.mf-ask-conv__link[aria-current="page"] {
+  background: var(--mf-ground-3);
+  color: var(--mf-ink-strong);
+  box-shadow: inset 2px 0 0 var(--mf-ink-strong);
+}
+.mf-ask-conv__link[aria-current="page"] .mf-ask-conv__title { font-weight: 600; }
+
+.mf-ask-conv__title {
+  font-size: var(--mf-t-sm);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mf-ask-conv__meta { font-size: var(--mf-t-2xs); color: var(--mf-ink-3); }
+
+.mf-ask-conv__del { flex: none; }
+
+.mf-ask-conv__confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mf-2);
+  padding: 0 var(--mf-3) var(--mf-3);
+}
+.mf-ask-conv__ask { font-size: var(--mf-t-xs); color: var(--mf-ink-2); }
+.mf-ask-conv__keys { display: inline-flex; gap: var(--mf-2); }
+.mf-ask-conv__err {
+  padding: 0 var(--mf-3) var(--mf-3);
+  font-size: var(--mf-t-xs);
+  color: var(--mf-danger);
+}
+
+/* ── waiting ─────────────────────────────────────────────────────────────── */
+
+.mf-ask-wait {
+  display: grid;
+  gap: var(--mf-4);
+  padding: var(--mf-2) var(--mf-5) var(--mf-5);
+}
+.mf-ask-wait--thread { padding: var(--mf-4) 0; }
+.mf-ask-compose .mf-ask-wait { padding: 0; }
+@media (prefers-reduced-motion: no-preference) {
+  .mf-ask-wait .mf-wait { animation: mf-ask-feed var(--mf-dur-4) var(--mf-ease-out) infinite alternate; }
+  .mf-ask-wait .mf-wait:nth-child(2n) { animation-delay: var(--mf-dur-1); }
+}
+@keyframes mf-ask-feed {
+  from { opacity: 1; }
+  to { opacity: 0.55; }
+}
+
+/* ── the thread ──────────────────────────────────────────────────────────── */
+
+.mf-ask-main { min-width: 0; display: flex; flex-direction: column; }
+.mf-ask-main__title {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.mf-ask-body { padding: 0 var(--mf-5) var(--mf-5); min-width: 0; }
+
+.mf-ask-thread {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--mf-5);
+  min-width: 0;
+}
+
+.mf-ask-msg { display: flex; flex-direction: column; gap: var(--mf-3); min-width: 0; }
+
+/* A question sits in a light box of its own; an answer runs the full width,
+   because it is the thing being read. */
+.mf-ask-msg[data-role="user"] {
+  align-self: flex-end;
+  max-width: min(46rem, 100%);
+  padding: var(--mf-3) var(--mf-4);
+  background: var(--mf-ground-3);
+  border: 1px solid var(--mf-rule);
+  border-radius: var(--mf-r-md);
+}
+.mf-ask-msg[data-role="assistant"] { padding-top: var(--mf-1); }
+
+.mf-ask-msg__head { display: flex; align-items: center; flex-wrap: wrap; gap: var(--mf-2); }
+.mf-ask-msg__who { font-size: var(--mf-t-xs); font-weight: 500; color: var(--mf-ink-2); }
+.mf-ask-msg__time { font-size: var(--mf-t-xs); color: var(--mf-ink-3); }
+
+.mf-ask-msg__question {
+  font-size: var(--mf-t-base);
+  line-height: var(--mf-lead-body);
+  color: var(--mf-ink);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.mf-ask-quiet { font-size: var(--mf-t-sm); color: var(--mf-ink-3); }
+
+/* An answer the model did not give: the problem, in words, on the danger wash. */
+.mf-ask-failed,
+.mf-ask-note {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mf-2);
+  padding: var(--mf-3) var(--mf-4);
+  background: var(--mf-danger-wash);
+  border-radius: var(--mf-r-sm);
+  max-width: var(--mf-measure);
+}
+.mf-ask-failed__title,
+.mf-ask-note__title {
+  display: flex;
+  align-items: center;
+  gap: var(--mf-2);
+  font-size: var(--mf-t-sm);
+  font-weight: 500;
+  color: var(--mf-danger-deep);
+}
+.mf-ask-failed__title svg,
+.mf-ask-note__title svg { flex: none; }
+.mf-ask-failed__body,
+.mf-ask-note__body {
+  font-size: var(--mf-t-sm);
+  line-height: var(--mf-lead-body);
+  color: var(--mf-ink);
+  overflow-wrap: anywhere;
+}
+.mf-ask-note__act { display: flex; flex-wrap: wrap; gap: var(--mf-2); margin-top: var(--mf-1); }
+
+/* ── the tools, as they run ──────────────────────────────────────────────── */
+
+.mf-ask-steps { display: flex; flex-direction: column; gap: var(--mf-3); }
+.mf-ask-steps__title {
+  display: flex;
+  align-items: center;
+  gap: var(--mf-2);
+  font-size: var(--mf-t-sm);
+  font-weight: 500;
+  color: var(--mf-ink-2);
+}
+.mf-ask-steps__list {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 var(--mf-1);
+  display: flex;
+  flex-direction: column;
+  gap: var(--mf-2);
+}
+.mf-ask-step {
+  display: flex;
+  align-items: baseline;
+  gap: var(--mf-2);
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink-2);
+  overflow-wrap: anywhere;
+}
+.mf-ask-step__glyph { flex: none; display: inline-flex; align-self: center; }
+.mf-ask-step[data-state="running"] .mf-ask-step__glyph { color: var(--mf-ink-3); }
+.mf-ask-step[data-state="ran"] .mf-ask-step__glyph { color: var(--mf-success); }
+.mf-ask-step[data-state="failed"] { color: var(--mf-danger); }
+.mf-ask-step__meta { color: var(--mf-ink-3); font-size: var(--mf-t-xs); }
+.mf-ask-steps__next { font-size: var(--mf-t-sm); color: var(--mf-ink-3); }
+
+/* A running step fades softly. Everything it says is already written, so the
+   fade is safe to switch off. */
+@media (prefers-reduced-motion: no-preference) {
+  .mf-ask-step[data-state="running"] .mf-ask-step__glyph {
+    animation: mf-ask-feed var(--mf-dur-4) var(--mf-ease-out) infinite alternate;
+  }
+}
+
+/* ── an empty thread: where to start ─────────────────────────────────────── */
+
+.mf-ask-start {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mf-3);
+  padding: var(--mf-4) 0 var(--mf-2);
+}
+.mf-ask-start__title {
+  font-family: var(--mf-font-display);
+  font-size: var(--mf-t-md);
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--mf-ink);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.mf-ask-start__body { font-size: var(--mf-t-sm); color: var(--mf-ink-3); max-width: 64ch; }
+
+.mf-ask-suggest {
+  list-style: none;
+  margin: var(--mf-2) 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr));
+  gap: var(--mf-3);
+}
+.mf-ask-suggest__q {
+  width: 100%;
+  height: 100%;
+  padding: var(--mf-3) var(--mf-4);
+  font: inherit;
+  font-size: var(--mf-t-sm);
+  line-height: var(--mf-lead-snug);
+  text-align: left;
+  color: var(--mf-ink);
+  background: var(--mf-ground-2);
+  border: 1px solid var(--mf-rule-strong);
+  border-radius: var(--mf-r-sm);
+  box-shadow: var(--mf-shadow-xs);
+  cursor: pointer;
+  transition: background-color var(--mf-dur-1) linear, border-color var(--mf-dur-1) linear;
+}
+.mf-ask-suggest__q:hover { background: var(--mf-ground-3); border-color: var(--mf-ink-3); }
+.mf-ask-suggest__q[disabled] { opacity: 0.42; cursor: not-allowed; }
+
+/* ── the question box ────────────────────────────────────────────────────── */
+
+.mf-ask-compose {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mf-2);
+  margin-top: auto;
+  padding: var(--mf-4) var(--mf-5) var(--mf-5);
+  border-top: 1px solid var(--mf-rule);
+}
+.mf-ask-compose .mf-empty { padding: var(--mf-4) 0; }
+
+.mf-ask-compose__scope { font-size: var(--mf-t-xs); color: var(--mf-ink-3); }
+.mf-ask-compose__scope-v { color: var(--mf-ink-2); font-weight: 500; }
+
+.mf-ask-compose__box {
+  width: 100%;
+  min-width: 0;
+  min-height: 84px;
+  max-height: 16rem;
+  resize: vertical;
+  padding: var(--mf-3);
+  font: inherit;
+  font-size: var(--mf-t-base);
+  line-height: var(--mf-lead-body);
+  color: var(--mf-ink);
+  background: var(--mf-well);
+  border: 1px solid var(--mf-rule-strong);
+  border-radius: var(--mf-r-sm);
+  box-shadow: var(--mf-shadow-xs);
+  transition: border-color var(--mf-dur-1) linear;
+}
+.mf-ask-compose__box::placeholder { color: var(--mf-ink-3); }
+.mf-ask-compose__box:hover { border-color: var(--mf-ink-3); }
+.mf-ask-compose__box[readonly] { background: var(--mf-well-2); color: var(--mf-ink-2); }
+
+.mf-ask-compose__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mf-2) var(--mf-4);
+}
+.mf-ask-compose__hint { font-size: var(--mf-t-xs); color: var(--mf-ink-3); }
+.mf-ask-compose__count { margin-left: auto; font-size: var(--mf-t-xs); color: var(--mf-ink-3); }
+
+/* ── narrow screens ──────────────────────────────────────────────────────── */
+
+@media (max-width: 960px) {
+  .mf-ask-cols { grid-template-columns: minmax(0, 1fr); }
+  /* Stacked, the list keeps to a short scrolling strip so the question box is
+     not pushed a screen away by a long history. */
+  .mf-ask-convs { max-height: 15rem; }
+}
+
+@media (max-width: 560px) {
+  .mf-ask-body { padding: 0 var(--mf-4) var(--mf-4); }
+  .mf-ask-compose { padding: var(--mf-3) var(--mf-4) var(--mf-4); }
+  .mf-ask-off { padding: 0 var(--mf-4) var(--mf-4); }
+  .mf-ask-off__var { grid-template-columns: minmax(0, 1fr); gap: var(--mf-1); }
+  .mf-ask-msg[data-role="user"] { align-self: stretch; }
+  .mf-ask-compose__count { margin-left: 0; }
+}

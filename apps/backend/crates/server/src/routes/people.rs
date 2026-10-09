@@ -95,7 +95,7 @@ const MAX_ERASURE_SESSIONS: u32 = 10_000;
 /// retention window do not exist, and asking ClickHouse to consider them costs a
 /// planning pass for nothing. With retention disabled (`0`, meaning "forever")
 /// there is no horizon, so the epoch is the honest bound.
-fn whole_history(env: &QueryEnvelope, retention_days: u32) -> QueryEnvelope {
+pub(super) fn whole_history(env: &QueryEnvelope, retention_days: u32) -> QueryEnvelope {
     let end = Utc::now() + Duration::hours(1);
     let start = if retention_days == 0 {
         DateTime::<Utc>::from_timestamp(0, 0).unwrap_or(end)
@@ -231,6 +231,13 @@ async fn visitor_detail(
 /// every day. Both are matched here, and a caller erasing on request should be
 /// given the identified id when there is one.
 ///
+/// Erasing an identified id also erases the anonymous activity the site tied to
+/// it: the rows of every daily hash an `identify()` call linked to the id that
+/// carry no id of their own (what the person did that day before signing in).
+/// The profile screen shows those sessions as theirs, so erasure must reach
+/// them too. Rows of a linked hash that carry somebody else's id are left: on a
+/// shared machine they are that other person's.
+///
 /// Recordings are erased first and events last, because the recordings are found
 /// *through* the events: reversing the order would leave the heaviest rows on
 /// disk with nothing left pointing at them.
@@ -250,7 +257,20 @@ async fn forget_visitor(
 
     let site_id = access.site_id;
 
-    let session_ids: Vec<String> = fetch_all::<String>(
+    // The daily hashes the site linked to this id. Empty for a bare hash.
+    let linked: Vec<String> = fetch_all::<String>(
+        &st.ch,
+        "erasure_linked",
+        &format!(
+            "SELECT DISTINCT visitor_id FROM events \
+             WHERE site_id = ? AND kind = 'identify' AND identified_id = ? AND visitor_id != '' \
+             LIMIT {MAX_ERASURE_SESSIONS}"
+        ),
+        &[Param::U16(site_id), Param::Str(id.clone())],
+    )
+    .await?;
+
+    let mut session_ids: Vec<String> = fetch_all::<String>(
         &st.ch,
         "erasure_sessions",
         &format!(
@@ -265,6 +285,26 @@ async fn forget_visitor(
         ],
     )
     .await?;
+
+    if !linked.is_empty() {
+        let anonymous: Vec<String> = bind_all(
+            st.ch.client().query(&format!(
+                "SELECT DISTINCT session_id FROM events \
+                 WHERE site_id = ? AND identified_id = '' AND has(?, visitor_id) \
+                 LIMIT {MAX_ERASURE_SESSIONS}"
+            )),
+            &[Param::U16(site_id)],
+        )
+        .bind(&linked)
+        .fetch_all::<String>()
+        .await
+        .map_err(|e| Error::Database(format!("erasure_linked_sessions: {e}")))?;
+        for session in anonymous {
+            if !session_ids.contains(&session) {
+                session_ids.push(session);
+            }
+        }
+    }
 
     if !session_ids.is_empty() {
         let query = bind_all(
@@ -304,6 +344,19 @@ async fn forget_visitor(
             .map_err(|e| Error::Database(format!("{report}: {e}")))?;
     }
 
+    if !linked.is_empty() {
+        bind_all(
+            st.ch.client().query(
+                "DELETE FROM events WHERE site_id = ? AND identified_id = '' AND has(?, visitor_id)",
+            ),
+            &[Param::U16(site_id)],
+        )
+        .bind(&linked)
+        .execute()
+        .await
+        .map_err(|e| Error::Database(format!("erase_linked_events: {e}")))?;
+    }
+
     if !session_ids.is_empty() {
         let query = bind_all(
             st.ch
@@ -318,11 +371,17 @@ async fn forget_visitor(
             .map_err(|e| Error::Database(format!("erase_session_errors: {e}")))?;
     }
 
-    tracing::info!(site = %site_id, sessions = session_ids.len(), "visitor erased");
+    tracing::info!(
+        site = %site_id,
+        sessions = session_ids.len(),
+        linked = linked.len(),
+        "visitor erased"
+    );
 
     Ok(ok(json!({
         "erased": true,
         "sessions": session_ids.len(),
+        "linked_visitors": linked.len(),
     })))
 }
 

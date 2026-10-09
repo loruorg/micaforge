@@ -1,0 +1,152 @@
+---
+title: "Feedback"
+description: "Report a bug or ask for a feature from the dashboard, the API, an agent or a chat app, and how admins triage it."
+group: "api"
+order: 6
+updated: 2026-10-08
+---
+
+Feedback is a report to the people who run this install: a bug, a problem, a feature you
+need. On micaforge.com that is the team that runs the hosted service. On a self-hosted
+install it is your own instance admins, and a report goes nowhere else unless you add a
+[feedback channel](#notifications).
+
+Four ways in, one list out.
+
+| From | How |
+| --- | --- |
+| The dashboard | Account menu → **Send feedback**. |
+| The API | `POST /api/feedback`, with a session or an API key. |
+| An agent | The MCP tools `submit_feedback` and `list_my_feedback`. |
+| A chat app | `feedback <text>` in a linked channel. |
+
+## What a report holds
+
+| Field | Values |
+| --- | --- |
+| `kind` | `bug`, `problem`, `feature` or `other`. |
+| `title` | 3 to 140 characters. |
+| `body` | 1 to 5,000 characters. What you did, what you expected, what happened. |
+| `severity` | Optional: `low`, `medium`, `high` or `critical`. |
+| `site` | Optional: the site it is about. |
+
+With it, the server records what it knows about where the report came from:
+
+- **the reporter:** the account, its email address and name; for an agent, the MCP client's
+  name and the API key or OAuth connection it used; for a chat message, the platform and the
+  sender
+- **the page URL**, which the dashboard always sends and an API caller may send as `page_url`
+- **the app version**, when the client sent one as `app_version`
+- **the user agent** of the request
+- **the organisation and site**, when the report is about one
+
+Nothing else is attached: no screenshot, no session, no analytics data.
+
+## From the dashboard
+
+Open the account menu and choose **Send feedback**. Pick the kind, write a title and the
+details, and send. The page you were on is sent with it, so "this number looks wrong" can be
+matched to the screen it was on.
+
+## The API
+
+```sh
+curl -X POST "https://analytics.example.com/api/feedback" \
+  -H "Authorization: Bearer mfg_…" \
+  -H "Content-Type: application/json" \
+  -d '{"kind":"feature","title":"Compare two months on the Pages screen","body":"I want to see which pages grew between September and October.","severity":"low","site":1}'
+```
+
+```http
+POST /api/feedback        send one; a session, or an API key with stats:read
+GET  /api/feedback/mine   your own reports, newest first, with their status
+```
+
+`POST` answers with the stored report, including its `id` and `status`. A reporter can send
+20 reports an hour; the 21st is refused with `429 rate_limited`.
+
+## From an agent
+
+An agent connected through the [MCP server](/docs/api/mcp-server) has two tools, and both
+need only `stats:read`:
+
+| Tool | Does |
+| --- | --- |
+| `submit_feedback` | Sends a report: `kind`, `title`, `body`, optional `severity` and `site`. |
+| `list_my_feedback` | Lists the reports this caller sent, newest first, with each one's status. |
+
+When an agent should send one:
+
+- a tool fails in a way that looks like a fault in Micaforge, not in the arguments
+- a number contradicts another number from the same install, for the same window
+- the person it works for needs something no tool can do
+
+When it should not: to report a problem with the person's own website, or with anything
+Micaforge only measures. And never with personal data in the body.
+
+Call `list_my_feedback` first. If the same report is already there, read its status rather
+than sending it again.
+
+The client's own name, from `initialize`, is recorded on the report when the client sends the
+`Mcp-Session-Id` header back on later requests, as MCP clients do.
+
+## From a chat app
+
+In a channel linked to a site, the `feedback` command sends a report about that site, with the
+platform and the sender recorded as the reporter:
+
+| Platform | Command |
+| --- | --- |
+| Slack | `/micaforge feedback The overview shows no AI crawlers today` |
+| Discord | `/micaforge feedback text:The overview shows no AI crawlers today` |
+| Telegram | `/feedback The overview shows no AI crawlers today` |
+
+## Triage
+
+Instance admins read every report on the **Instance** screen, in its feedback list. It
+filters by status, kind and source, and each report shows everything recorded with it. An
+admin moves a report through its statuses and can set or change its severity:
+
+| Status | Means |
+| --- | --- |
+| `new` | Nobody has read it yet. |
+| `triaged` | Read and understood. |
+| `planned` | Will be done. |
+| `done` | Done. |
+| `wont_fix` | Will not be done. |
+
+The reporter sees the status change in `GET /api/feedback/mine` and `list_my_feedback`.
+
+```http
+GET   /api/admin/feedback?status=new&kind=bug&source=mcp&limit=50&page=1
+PATCH /api/admin/feedback/:id    { "status": "planned", "severity": "high" }
+```
+
+Both need an instance admin's session. An instance admin is the first account on the install,
+and any address in `MICAFORGE_ADMIN_EMAILS` once its owner has verified it.
+
+A report about a site whose repository is linked to the [GitHub App](/docs/integrations/github)
+can be opened as an issue in that repository, with **Create GitHub issue** in the report or:
+
+```http
+POST /api/github/feedback/:id/issue    {}
+```
+
+It needs a person who may read the report and holds the admin role on the site; the answer is
+`{ url, number, repo, created }`, and the report then carries `github_issue`. Asking again
+returns the same issue. See [feedback to GitHub issues](/docs/integrations/github#feedback-to-github-issues)
+for what the issue says and how an agent may do it.
+
+## Notifications
+
+Each new report is sent to:
+
+- **every instance admin, by email**, when the install sends mail
+- **a webhook**, when `MICAFORGE_FEEDBACK_WEBHOOK_URL` is set: a Slack incoming webhook, any
+  endpoint that accepts the same body, or a Discord webhook (recognised by its
+  `discord.com` or `discordapp.com` host)
+- **a Telegram chat**, when `MICAFORGE_FEEDBACK_TELEGRAM_CHAT_ID` is set, sent by the
+  install's [Telegram bot](/docs/integrations/telegram)
+
+All three are optional, and with none of them set a report still lands in the triage list.
+See [the feedback channel](/docs/self-hosting/configuration#feedback-channel-off-by-default).

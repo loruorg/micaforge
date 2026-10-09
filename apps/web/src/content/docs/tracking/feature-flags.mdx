@@ -1,13 +1,17 @@
 ---
 title: "Feature flags"
-description: "A synchronous flag client that never flickers, and what it sends back."
+description: "Rollouts, variants, audiences, prerequisites and environments, decided the same way in the browser, on your server and in Micaforge."
 group: "tracking"
 order: 9
-updated: 2026-08-22
+updated: 2026-10-09
 ---
 
-The flag client is part of the npm package and is tree-shakeable: it only lands in your
-bundle if you import it.
+A flag is on or off for a visitor, or it picks one of its variants. Micaforge decides it
+with one rule, and that rule runs in four places: on the Micaforge server, in the browser
+SDK, in the Node SDK and in the [Swift SDK](/docs/getting-started/swift). The four copies
+are held together by one file of test vectors, so a page your server renders and the
+browser that reads it afterwards agree on every visitor. In Nuxt, `useFlag()` wraps the
+browser client; see [the Nuxt module](/docs/getting-started/nuxt).
 
 ```ts
 import { init, flags } from "@micaforge/sdk";
@@ -19,19 +23,81 @@ if (flags().isEnabled("new-nav")) {
 }
 ```
 
-Reads are **synchronous** and never throw. They answer in this order:
+The flag client is part of the npm package and is tree-shakeable: it only lands in your
+bundle if you import it.
 
-1. the evaluated set from the server, once it has arrived
-2. the `bootstrap` payload your server rendered into the page
-3. a deterministic local rule, bucketed from the subject and the key
+## What a flag can say
 
-Because step 3 is a pure function, a flag holds the same value on every render and does
-not flicker while the network is in flight.
+| Setting | What it does |
+| --- | --- |
+| On or off | Off means off for everybody, whatever else is set. |
+| Rollout | The share of subjects, 0 to 100%, that get the flag. |
+| Variants | Keys with weights (`a: 1, b: 1` is half and half). No variants means an on/off switch. |
+| Conditions | Attributes the subject must have, such as `plan is pro` or `country is_not DE`. |
+| Target groups | Saved audiences, shared between flags. A subject in any one listed group matches. |
+| Prerequisites | Other flags that must be on (or off, or on a given variant) first. |
+| Environments | Per-environment overrides of on/off and rollout, such as staging at 100%. |
 
-## The API
+Each check runs in this order, and the first one that fails decides the answer. The reason
+comes back with every decision, so "why is this off for me" has an answer.
+
+1. The environment's override replaces the flag's own on/off and rollout, when there is one.
+2. Off: `disabled`.
+3. A prerequisite did not hold: `dependency`.
+4. Target groups are listed and the subject is in none: `target_group`.
+5. The conditions do not match: `conditions`.
+6. The rollout is below 100% and there is no subject to bucket: `no_visitor`.
+7. The subject's bucket is outside the rollout: `rollout`.
+8. Otherwise the flag is on, with a variant when it has variants: `match`.
+
+A key the ruleset does not know answers `unknown`, and off.
+
+### Conditions
+
+A condition is `{ dimension, op, value }`. The dimension is a key of the context you pass
+(compared without case). Operators: `is`, `is_not`, `contains`, `not_contains`,
+`starts_with`, `ends_with`, `is_set`, `is_not_set`, and `gt`, `lt`, `gte`, `lte` for numbers.
+Text comparisons ignore case. `value` may be a list for `is` and `is_not`, meaning any one
+of them. Conditions combine with AND by default; a group `{ logic: "or", filters: [...] }`
+makes an OR, and groups nest.
+
+A malformed condition never matches. A flag with a typo in a condition is off, not on for
+everybody.
+
+### Prerequisites
+
+A prerequisite names another flag on the same site and what it must evaluate to. A write
+that would make flags depend on each other in a loop is refused, and the refusal names the
+loop (`a -> b -> a`). A flag that other flags depend on cannot be deleted or renamed until
+they stop depending on it. At evaluation time, a chain deeper than eight flags is treated as
+failed.
+
+### Environments
+
+Environment names are 1 to 32 lower-case letters, digits, `-` and `_`. The dashboard offers
+`production`, `staging` and `development`, and takes any other name. Pass the environment to
+the client; a flag without an override for it uses its own settings.
+
+## Bucketing
+
+Pass a `visitor`: a user id, an account id, anything durable. An `identity` wins over the
+visitor when both are given. Without either, bucketing is stable for the page load and no
+longer, because there is no cookie to make it stable and Micaforge is not going to set one.
+
+The bucket is the first eight bytes of `BLAKE3(key, 1f 00 00 1f, subject, 1f)`, read as a
+big-endian integer, modulo 10,000. A 25% rollout admits buckets 0 to 2,499. Variants use a
+second bucket salted with `key:variant`, so the variant a subject gets does not move when
+the rollout grows. The same subject and key give the same answer in every runtime, and the
+answer can be reproduced from those two values alone.
+
+## The browser client
 
 ```ts
-const f = flags({ visitor: "u_123" });
+const f = flags({
+  visitor: "u_123",
+  environment: "production",
+  context: { plan: "pro", country: "NL" },
+});
 
 await f.load();              // fetch and cache; never rejects
 f.isEnabled("new-nav");      // boolean
@@ -42,22 +108,22 @@ f.bucket("new-nav");         // this subject's 0-99 bucket, no network
 f.onChange((all) => rerender(all));
 f.setVisitor("u_456");
 f.clearCache();
+f.flushStats();              // send the counts now
 ```
 
+Reads are **synchronous** and never throw. They answer in this order:
+
+1. the evaluated set from the server, once it has arrived
+2. a ruleset you handed the client (`rules`), decided locally
+3. the `bootstrap` payload your server rendered into the page
+4. a local fallback rule, decided with the same function
+
 The client reads `GET /api/flags/evaluate` and caches the answer in memory for 60 seconds
-by default. It writes nothing to storage: the tracker's one storage key is the opt-out
-key, and that is all this SDK will ever write.
+by default. The context goes along with it, so the server decides conditions on the same
+attributes. It writes nothing to storage: the tracker's one storage key is the opt-out key,
+and that is all this SDK will ever write.
 
-## Bucketing
-
-Pass a `visitor`: a user id, an account id, anything durable. Without one, bucketing is
-stable for the page load and no longer, because there is no cookie to make it stable and
-Micaforge is not going to set one.
-
-The bucket is `FNV-1a(subject + ":" + key) % 100`, computed identically in every runtime,
-so a flag a user has can be reproduced from the id and the key alone.
-
-## No flicker on first paint
+### No flicker on first paint
 
 Render the evaluated set into the page and hand it to the client:
 
@@ -71,10 +137,11 @@ Render the evaluated set into the page and hand it to the client:
 const f = flags({ visitor: userId, bootstrap: window.__FLAGS__ });
 ```
 
-A bootstrap value is used until the network answers, which means the first frame is
-already correct.
+Or render the whole ruleset (from the Node client below, or `GET /api/flags/ruleset`) and
+pass it as `rules`. The browser then decides every flag itself, before the network answers,
+and gets the answer the server would give.
 
-## When the network never answers
+### When the network never answers
 
 Give the keys you care about a local rule. It is used before the first response and
 instead of it if the request fails.
@@ -90,13 +157,49 @@ const f = flags({
 ```
 
 Weights are relative and need not sum to anything. `off` sets what a visitor outside the
-rollout gets.
+rollout gets. A fallback that mirrors the flag's real settings puts each visitor in the
+same bucket the server would.
 
-## Recording exposures
+## On your server: local evaluation
 
-Nothing is recorded automatically: reading a flag is not an event. The `events` table has
-a `flags` map for exposures, and the browser payload has no field for it, so a browser
-install records exposure as a property.
+`@micaforge/sdk-server/flags` fetches the site's ruleset with an API key, keeps it in
+memory, refreshes it every 30 seconds and decides every flag in your process. A request
+never waits on Micaforge.
+
+```ts
+import { createFlagsClient } from "@micaforge/sdk-server/flags";
+
+const flags = createFlagsClient({
+  host: "https://analytics.example.com",
+  apiKey: process.env.MICAFORGE_API_KEY!, // needs the manage:read scope
+  site: 3,
+  environment: "production",
+});
+await flags.ready(); // the first load attempt; never rejects
+
+const user = { identity: req.user.id, context: { plan: req.user.plan } };
+if (flags.isEnabled("new-nav", user)) renderNewNav();
+const hero = flags.variant("hero", user, "a");
+const why = flags.evaluate("new-nav", user); // { enabled, variant, reason }
+
+process.on("SIGTERM", () => void flags.close());
+```
+
+Before the first ruleset arrives, and for a key the ruleset does not have, `isEnabled`
+answers the fallback you pass (`false` by default). A failed refresh keeps the last good
+ruleset. The key travels only in the `Authorization` header.
+
+## Evaluation counts
+
+Both clients count how often each flag was decided (evaluations) and how often each
+subject actually read it (exposures), per variant, and send the counts in batches to
+`POST /api/flags/events`: the browser on a ten-second timer and when the page is hidden,
+the server every ten seconds and on `close()`. Only counts are sent, never the subject.
+The flag's screen draws them per variant over 24 hours to 90 days. `stats: false` turns
+this off.
+
+Counts are what an SDK reports, so they are not a substitute for an event. To analyse a
+flag against your goals, record the exposure as part of an event:
 
 ```ts
 const f = flags({
@@ -106,19 +209,29 @@ const f = flags({
 });
 ```
 
-`onExposure` fires the first time each key is read, once per client.
-
-From a server, the map is a first-class field:
+From a server, the `flags` map of an event is a first-class field, and `flag.<key>` is a
+filter dimension over it:
 
 ```ts
 micaforge.track({ name: "checkout_started", url: req.url, flags: { checkout: "b" } });
 ```
 
-Which is why server-side exposure is the more accurate path: `flag.<key>` is a filter
-dimension over that map, and a map is cheaper to group by than a property.
-
 ## Managing them
 
-Flags live in Postgres (key, enabled, rollout percentage, variants, conditions) and are
-edited on the Flags screen or through `/api/flags/*`. A flag with variants is
-multivariate; a flag without them is a switch.
+Flags are edited on the Flags screen or through `/api/flags/*` with an API key
+(`manage:read` to read, `manage:write` to change). Viewers of a site can read its flags;
+members can change them.
+
+- **Templates.** A new flag can start from *Gradual rollout*, *Beta users*, *Kill switch* or
+  *A/B test*. The template fills only what you did not set.
+- **Target groups.** Saved on the site and shared by every flag that lists them. Editing a
+  group changes every flag using it at once. Deleting one detaches it from those flags, and
+  the screen says which.
+- **The on/off switch** in the list changes only on/off, so turning a flag off in an
+  incident never sends back a stale rollout.
+- **History.** Every change is kept with who made it and the fields before and after. Any
+  change but the creation can be reverted, and the revert is itself a change you can revert.
+  Flag changes also appear in the organisation's [audit log](/docs/dashboard/audit-log).
+
+A changed flag reaches server SDKs within 30 seconds, the ruleset's cache lifetime, and
+browsers at their next fetch.

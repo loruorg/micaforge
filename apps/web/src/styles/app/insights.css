@@ -1,0 +1,267 @@
+/* ============================================================================
+   Insights: the list of investigations and one investigation.
+
+   Built on the shared pieces in global.css and shell.css: the panel, the
+   table, the metric strip, the buttons, and the segmented control
+   (.mfs-bank) for the status filter and the status switch. This file adds the
+   page header, the marks, and the timeline.
+
+   House rules, as everywhere in the dashboard:
+     - every colour, space, radius and duration is a var(--mf-*);
+     - a severity or a status is a glyph AND a word, and its tone is the third
+       cue, never the only one;
+     - no mark here is blue (people) or orange (AI). The one orange on these
+       screens is the small "AI" badge, which marks text an AI model wrote or a
+       metric that counts AI traffic, and nothing else.
+   ========================================================================= */
+
+/* ── the screen ──────────────────────────────────────────────────────────── */
+
+.mf-ins {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mf-6);
+  max-width: var(--mf-shell-max);
+  min-width: 0;
+}
+
+/* ── the page header ─────────────────────────────────────────────────────
+   Title left, controls right, one rule under both, as on the AI traffic
+   screens. */
+
+.mf-ins-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mf-3) var(--mf-5);
+  padding-bottom: var(--mf-4);
+  border-bottom: 1px solid var(--mf-rule);
+  min-width: 0;
+}
+.mf-ins-bar__title {
+  font-family: var(--mf-font-display);
+  font-size: var(--mf-t-xl);
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: var(--mf-track-display);
+  color: var(--mf-ink);
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.mf-ins-bar--detail .mf-ins-bar__title { flex-basis: 100%; }
+.mf-ins-bar__controls {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--mf-3);
+}
+.mf-ins-bar__label { font-size: var(--mf-t-xs); color: var(--mf-ink-3); }
+.mf-ins-bar__marks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mf-2) var(--mf-4);
+  min-width: 0;
+}
+.mf-ins-bar__scope {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mf-2);
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink-2);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* One quiet line saying what an action did. */
+.mf-ins-say {
+  flex-basis: 100%;
+  font-size: var(--mf-t-xs);
+  line-height: var(--mf-lead-body);
+  color: var(--mf-ink-3);
+}
+.mf-ins-say[data-tone="warn"] { color: var(--mf-danger); }
+.mf-ins-say[data-tone="good"] { color: var(--mf-success); }
+
+/* The dates an investigation carries, in one row of small figures. */
+.mf-ins-facts {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mf-2) var(--mf-6);
+  margin: 0;
+}
+.mf-ins-facts > div { display: flex; align-items: baseline; gap: var(--mf-2); }
+.mf-ins-facts dt { font-size: var(--mf-t-xs); color: var(--mf-ink-3); }
+.mf-ins-facts dd { margin: 0; font-size: var(--mf-t-sm); color: var(--mf-ink); }
+.mf-ins-facts__none { color: var(--mf-ink-3); }
+
+@media (max-width: 760px) {
+  .mf-ins-bar__controls { margin-left: 0; flex-basis: 100%; }
+}
+
+/* The way back to the list: a quiet button, its caret turned to point left. */
+.mf-ins-back { align-self: flex-start; text-decoration: none; }
+.mf-ins-back__caret { transform: rotate(90deg); }
+
+/* ── marks ───────────────────────────────────────────────────────────────── */
+
+.mf-ins-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mf-1);
+  font-size: var(--mf-t-xs);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.mf-ins-mark svg { flex: none; }
+.mf-ins-mark[data-severity="info"] { color: var(--mf-ink-3); }
+.mf-ins-mark[data-severity="warning"] { color: var(--mf-ink-strong); }
+.mf-ins-mark[data-severity="critical"] { color: var(--mf-danger); }
+.mf-ins-mark[data-status="open"] { color: var(--mf-ink-strong); }
+.mf-ins-mark[data-status="monitoring"] { color: var(--mf-ink-2); }
+.mf-ins-mark[data-status="resolved"] { color: var(--mf-success); }
+
+.mf-ins-change {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  white-space: nowrap;
+  color: var(--mf-ink-2);
+}
+.mf-ins-change[data-tone="good"] { color: var(--mf-success); }
+.mf-ins-change[data-tone="warn"] { color: var(--mf-danger); }
+.mf-ins-change[data-tone="flat"] { color: var(--mf-ink-3); }
+
+/* Text an AI model wrote, or a metric that counts AI: orange-ink text on white
+   with a light orange edge. The only orange on these screens. */
+.mf-ins-ai {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 5px;
+  font-family: var(--mf-font-ui);
+  font-size: var(--mf-t-2xs);
+  font-weight: 600;
+  line-height: 16px;
+  letter-spacing: 0.02em;
+  color: var(--mf-accent-ink);
+  background: var(--mf-ground-2);
+  border: 1px solid color-mix(in oklab, var(--mf-accent) 26%, var(--mf-ground-2));
+  border-radius: 4px;
+  vertical-align: middle;
+}
+.mf-ins-titled { display: inline-flex; align-items: center; gap: var(--mf-2); }
+
+/* ── the list ────────────────────────────────────────────────────────────── */
+
+/* A cell with a main line and a quiet line under it. A block, not a span, so
+   the table's one-line truncation rule for spans does not reach it. */
+.mf-ins-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.mf-ins-cell--num { align-items: flex-end; }
+.mf-ins-cell__title {
+  font-weight: 500;
+  color: var(--mf-ink-strong);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.mf-ins-cell__scope {
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.mf-ins .mf-sheet td { vertical-align: top; }
+
+/* ── the detail ──────────────────────────────────────────────────────────── */
+
+.mf-ins-body { padding: 0 var(--mf-5) var(--mf-5); min-width: 0; }
+.mf-ins-body--flush { padding-left: 0; padding-right: 0; padding-bottom: 0; }
+/* A metric strip that ends the panel: the panel's own edge closes it. */
+.mf-ins-body--flush > .mf-readout { border-bottom: 0; }
+
+.mf-ins-prose {
+  max-width: var(--mf-measure);
+  font-size: var(--mf-t-base);
+  line-height: var(--mf-lead-body);
+  color: var(--mf-ink-2);
+}
+.mf-ins-prose--quiet { font-size: var(--mf-t-sm); color: var(--mf-ink-3); }
+
+.mf-ins-link {
+  color: var(--mf-ink);
+  text-decoration: underline;
+  text-decoration-color: var(--mf-rule-strong);
+  text-underline-offset: 3px;
+  transition: text-decoration-color var(--mf-dur-1) linear;
+}
+.mf-ins-link:hover { text-decoration-color: currentColor; }
+
+/* ── the timeline ────────────────────────────────────────────────────────
+   One entry per row on a hairline, oldest first: what happened, in words, and
+   when. The kind is a glyph and a word in a fixed column, so the summaries
+   line up. */
+
+.mf-ins-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--mf-rule);
+}
+.mf-ins-event {
+  display: grid;
+  grid-template-columns: 9.5rem minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: var(--mf-2) var(--mf-4);
+  padding: var(--mf-3) 0;
+  border-bottom: 1px solid var(--mf-rule);
+}
+.mf-ins-event:last-child { border-bottom: 0; }
+.mf-ins-event__kind {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mf-2);
+  font-size: var(--mf-t-xs);
+  font-weight: 500;
+  color: var(--mf-ink-2);
+  white-space: nowrap;
+}
+.mf-ins-event__kind svg { flex: none; color: var(--mf-ink-3); }
+.mf-ins-event__summary {
+  margin: 0;
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink);
+  overflow-wrap: anywhere;
+}
+.mf-ins-event__at { font-size: var(--mf-t-xs); color: var(--mf-ink-3); white-space: nowrap; }
+
+@media (max-width: 560px) {
+  .mf-ins-event { grid-template-columns: minmax(0, 1fr) auto; }
+  .mf-ins-event__summary { grid-column: 1 / -1; grid-row: 2; }
+}
+
+/* ── loading ─────────────────────────────────────────────────────────────── */
+
+.mf-ins-wait { display: flex; flex-direction: column; gap: var(--mf-4); min-width: 0; }
+.mf-ins-wait__panel { display: flex; flex-direction: column; gap: var(--mf-4); padding: var(--mf-5); }
+@media (prefers-reduced-motion: no-preference) {
+  .mf-ins-wait .mf-wait {
+    animation: mf-ins-feed var(--mf-dur-4) var(--mf-ease-out) infinite alternate;
+  }
+}
+@keyframes mf-ins-feed {
+  from { opacity: 1; }
+  to { opacity: 0.55; }
+}
+
+@media (max-width: 760px) {
+  .mf-ins-body { padding: 0 var(--mf-4) var(--mf-4); }
+  .mf-ins-body--flush { padding: 0; }
+}

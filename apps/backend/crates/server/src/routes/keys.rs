@@ -17,7 +17,7 @@
 //!
 //! ## Scopes
 //!
-//! [`SCOPES`] is the vocabulary. It is deliberately small and coarse — four
+//! [`SCOPES`] is the vocabulary. It is deliberately small and coarse — five
 //! values, not one per endpoint — because a scope list nobody can hold in their
 //! head is a scope list everybody sets to "all".
 //!
@@ -41,6 +41,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use uuid::Uuid;
 
+use crate::audit::{self, Entry};
 use crate::error::ApiError;
 use crate::extract::AuthUser;
 use crate::response::ok;
@@ -76,6 +77,12 @@ pub const SCOPES: &[&str] = &[
     "manage:write",
     // `POST /api/log/edge`, for a log shipper or a reverse-proxy module.
     "ingest:write",
+    // `GET /api/audit*`: the organisation's audit log, for a security tool.
+    "audit:read",
+    // `GET /api/export/raw`: every recorded row of a site, as a ZIP. Its own
+    // scope, because carrying off the rows is a different grant from reading
+    // totals, and a key minted for a status badge must not be able to.
+    "export:read",
 ];
 
 /// What a key gets when the caller does not say.
@@ -190,6 +197,15 @@ async fn create_key(
     .await?;
 
     tracing::info!(key = %key.id, org = %org.id, actor = %auth.user.id, "api key created");
+    audit::record(
+        &st,
+        &auth,
+        Entry::new("api_key.created")
+            .org(org.id)
+            .target("api_key", key.id, &key.name)
+            .after(json!({ "name": key.name, "prefix": key.prefix, "scopes": key.scopes, "site_id": key.site_id })),
+    )
+    .await;
 
     let mut payload = key_json(&st, &key).await?;
     payload["token"] = json!(token);
@@ -254,6 +270,16 @@ async fn update_key(
     };
 
     let updated = keys::update(&st.pg, key.id, &name, &scopes).await?;
+    audit::record(
+        &st,
+        &auth,
+        Entry::new("api_key.updated")
+            .org(key.org_id)
+            .target("api_key", key.id, &updated.name)
+            .before(json!({ "name": key.name, "scopes": key.scopes }))
+            .after(json!({ "name": updated.name, "scopes": updated.scopes })),
+    )
+    .await;
     Ok(ok(key_json(&st, &updated).await?))
 }
 
@@ -267,6 +293,15 @@ async fn revoke_key(
     keys::delete(&st.pg, key.id).await?;
 
     tracing::info!(key = %key.id, actor = %auth.user.id, "api key revoked");
+    audit::record(
+        &st,
+        &auth,
+        Entry::new("api_key.revoked")
+            .org(key.org_id)
+            .target("api_key", key.id, &key.name)
+            .before(json!({ "name": key.name, "prefix": key.prefix, "scopes": key.scopes })),
+    )
+    .await;
     Ok(ok(json!({ "revoked": key.id, "prefix": key.prefix })))
 }
 

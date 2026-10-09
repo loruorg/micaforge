@@ -36,6 +36,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use uuid::Uuid;
 
+use crate::audit::{self, Entry};
 use crate::error::ApiError;
 use crate::extract::{AuthUser, ClientAddr, PublicSite, SiteAccess};
 use crate::response::ok;
@@ -397,20 +398,34 @@ async fn create_site(
         return Err(Error::Conflict(format!("{domain} is already being tracked")).into());
     }
 
-    // The per-organisation cap a shared install sets (`MICAFORGE_MAX_SITES_PER_ORG`).
-    // Checked after the domain, so a duplicate still gets the clearer answer.
-    let cap = st.cfg.max_sites_per_org;
+    // The per-organisation cap a shared install sets (`MICAFORGE_MAX_SITES_PER_ORG`),
+    // or the organisation's plan when billing is on. Checked after the domain,
+    // so a duplicate still gets the clearer answer.
+    let cap = crate::routes::billing::site_cap(&st, org.id).await?;
     if cap > 0
         && sites::list_for_org(&st.pg, org.id).await?.len() >= cap as usize
         && !crate::routes::admin::is_instance_admin(&st, &auth.user).await?
     {
+        let whose = if st.cfg.billing_enabled {
+            "its plan allows"
+        } else {
+            "this install allows"
+        };
         return Err(Error::Forbidden(format!(
-            "this organisation already has {cap} sites, the most this install allows"
+            "this organisation already has {cap} sites, the most {whose}"
         ))
         .into());
     }
 
     let site = sites::create(&st.pg, new_id(), org.id, &domain, &name, &timezone).await?;
+    audit::record(
+        &st,
+        &auth,
+        Entry::new("site.created")
+            .site(&site)
+            .after(audit_view(&site)),
+    )
+    .await;
     Ok(ok(site_json(&site, Some(ADMIN))))
 }
 
@@ -490,6 +505,15 @@ async fn update_site(
         updated = reloaded;
     }
 
+    audit::record(
+        &st,
+        &auth,
+        Entry::new("site.updated")
+            .site(&updated)
+            .before(audit_view(&site))
+            .after(audit_view(&updated)),
+    )
+    .await;
     let role = effective_site_role(&st.pg, &updated, auth.user.id).await?;
     Ok(ok(site_json(&updated, Some(&role))))
 }
@@ -506,6 +530,14 @@ async fn delete_site(
 ) -> ApiResult<Json<Value>> {
     let site = authorize_site_ref(&st, &site_ref, auth.user.id, OWNER).await?;
     sites::delete(&st.pg, site.id).await?;
+    audit::record(
+        &st,
+        &auth,
+        Entry::new("site.deleted")
+            .site(&site)
+            .before(audit_view(&site)),
+    )
+    .await;
     Ok(ok(json!({
         "deleted": site.id,
         "site_id": site.site_id,
@@ -692,6 +724,12 @@ async fn rotate_key(
     let key = rotate_ingest_key(&st.pg, &st.cfg, &site).await?;
 
     tracing::info!(site = %site.id, actor = %auth.user.id, "ingest key rotated");
+    audit::record(
+        &st,
+        &auth,
+        Entry::new("site.ingest_key_rotated").site(&site),
+    )
+    .await;
     Ok(ok(json!({
         "site_id": site.site_id_u16(),
         "ingest_key": key,
@@ -752,6 +790,7 @@ struct NewShare {
 /// `POST /api/share?site=…` — publish a read-only dashboard.
 async fn create_share(
     State(st): State<AppState>,
+    auth: AuthUser,
     access: SiteAccess,
     Json(body): Json<NewShare>,
 ) -> ApiResult<Json<Value>> {
@@ -789,10 +828,46 @@ async fn create_share(
     )
     .await?;
 
+    audit::record(
+        &st,
+        &auth,
+        Entry::new("share.created")
+            .target("share_link", link.id, &link.slug)
+            .site(&access.site)
+            .after(share_audit_view(&link)),
+    )
+    .await;
     Ok(ok(share_json(
         &link,
         st.cfg.dashboard_url.trim_end_matches('/'),
     )))
+}
+
+/// A share link as the audit log keeps it: never the password digest, only
+/// whether there is one.
+fn share_audit_view(link: &sites::ShareLink) -> Value {
+    json!({
+        "slug": link.slug,
+        "has_password": link.password_hash.is_some(),
+        "expires_at": link.expires_at,
+        "scopes": share_scopes_of(&link.scopes),
+    })
+}
+
+/// A site as the audit log keeps it: the fields an admin edits, never the
+/// sealed ingest key.
+fn audit_view(site: &Site) -> Value {
+    let mut settings = site.settings.clone();
+    if let Some(object) = settings.as_object_mut() {
+        object.remove(INGEST_KEY_FIELD);
+    }
+    json!({
+        "name": site.name,
+        "domain": site.domain,
+        "timezone": site.timezone,
+        "public": site.public,
+        "settings": settings,
+    })
 }
 
 /// Every column of `share_links`, matching the repository's own list.
@@ -938,6 +1013,17 @@ async fn update_share(
     .map_err(Error::from)?
     .ok_or_else(|| Error::not_found("share link"))?;
 
+    let site = sites::get(&st.pg, updated.site_id).await?;
+    audit::record(
+        &st,
+        &auth,
+        Entry::new("share.updated")
+            .target("share_link", updated.id, &updated.slug)
+            .site(&site)
+            .before(share_audit_view(&link))
+            .after(share_audit_view(&updated)),
+    )
+    .await;
     Ok(ok(share_json(
         &updated,
         st.cfg.dashboard_url.trim_end_matches('/'),
@@ -955,6 +1041,16 @@ async fn delete_share(
 ) -> ApiResult<Json<Value>> {
     let link = authorize_share(&st, id, auth.user.id).await?;
     sites::delete_share_link(&st.pg, link.id).await?;
+    let site = sites::get(&st.pg, link.site_id).await?;
+    audit::record(
+        &st,
+        &auth,
+        Entry::new("share.deleted")
+            .target("share_link", link.id, &link.slug)
+            .site(&site)
+            .before(share_audit_view(&link)),
+    )
+    .await;
     Ok(ok(json!({ "revoked": link.id })))
 }
 
@@ -1376,7 +1472,7 @@ fn share_scopes_of(stored: &Value) -> Vec<String> {
 // ---------------------------------------------------------------------------
 
 /// One site on the wire. Never carries the sealed ingest key.
-fn site_json(site: &Site, role: Option<&str>) -> Value {
+pub(crate) fn site_json(site: &Site, role: Option<&str>) -> Value {
     let mut settings = site.settings.clone();
     if let Some(object) = settings.as_object_mut() {
         object.remove(INGEST_KEY_FIELD);
@@ -1449,7 +1545,12 @@ fn merge_settings(current: &Value, patch: &Value) -> Result<Value> {
         // request body. Allowing it would let a caller install a key of their
         // own choosing and sign whatever they liked. The public slug is an
         // address the server issues: a chosen one could claim another site's.
-        if key == INGEST_KEY_FIELD || key == PUBLIC_SLUG_FIELD {
+        // The ingest guards are validated entry by entry by their own route
+        // (`routes::guards`), and an unchecked list here would bypass that.
+        if key == INGEST_KEY_FIELD
+            || key == PUBLIC_SLUG_FIELD
+            || key == crate::ingest_guard::SETTINGS_KEY
+        {
             continue;
         }
         if value.is_null() {
@@ -1676,6 +1777,14 @@ mod tests {
 
         assert_eq!(merged[INGEST_KEY_FIELD], json!("sealed"));
         assert_eq!(merged["exclude"], json!(["/private"]));
+    }
+
+    #[test]
+    fn a_settings_patch_can_never_write_the_ingest_guards() {
+        let stored = json!({ "ingest_guards": { "deny": [{ "cidr": "10.0.0.0/8" }] } });
+        let patch = json!({ "ingest_guards": { "allow": [{ "cidr": "0.0.0.0/0" }] } });
+        let merged = merge_settings(&stored, &patch).unwrap();
+        assert_eq!(merged["ingest_guards"], stored["ingest_guards"]);
     }
 
     #[test]

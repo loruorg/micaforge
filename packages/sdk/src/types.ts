@@ -5,6 +5,7 @@
  * two characters because the whole payload rides inside a `sendBeacon`. Nothing here
  * may be renamed or added to without the contract changing first.
  */
+import type { FlagRuleset } from "./flag-eval.js";
 
 /** A JSON value that can travel in `props`. */
 export type PropValue = string | number | boolean | null | PropValue[] | { [k: string]: PropValue };
@@ -21,7 +22,11 @@ export type EventKind =
   | "form"
   | "error"
   | "web_vitals"
-  | "engagement";
+  | "engagement"
+  /** `identify()` or `setTraits()`: links today's visitor to the id, keeps the traits. */
+  | "identify"
+  /** a rage click, a dead click or an abandoned form, from the frustration plugin */
+  | "frustration";
 
 /** Core Web Vitals, sent as `e`. Every value is a number; CLS is unitless, the rest ms. */
 export interface Vitals {
@@ -70,6 +75,8 @@ export interface Payload {
   v: string;
   /** web vitals */
   e?: Vitals;
+  /** `data-sample` rate, 1-99, sent only when this browser is in a sample */
+  sr?: number;
 }
 
 /**
@@ -95,9 +102,11 @@ export interface TrackerConfig {
   downloads?: Flagish;
   /** extensions counted as a download. Defaults to `DOWNLOAD_EXTENSIONS`. */
   downloadExtensions?: string[];
-  /** auto-capture form submissions (id/name only, never field values). Default false. */
+  /** auto-capture form submissions (id/name only, never field values). Default false.
+   *  Loads the `forms` plugin. */
   forms?: Flagish;
-  /** report a 404 when the page carries the 404 marker. Default false. */
+  /** report a 404 when the page carries the 404 marker. Default false. Loads the
+   *  `track404` plugin. */
   track404?: Flagish;
   /** treat the URL hash as part of the page identity. Default false. */
   hash?: Flagish;
@@ -105,7 +114,7 @@ export interface TrackerConfig {
   exclude?: string[];
   /** honour `navigator.doNotTrack === "1"`. Default false. */
   respectDnt?: Flagish;
-  /** collect LCP/CLS/INP/FCP/TTFB. Default true. */
+  /** collect LCP/CLS/INP/FCP/TTFB. Default true. Loads the `vitals` plugin. */
   vitals?: Flagish;
   /** track max scroll depth. Default true. */
   scroll?: Flagish;
@@ -121,6 +130,34 @@ export interface TrackerConfig {
   enabled?: boolean;
   /** set false to wire nothing up until `start()` is called. Default true. */
   autoStart?: boolean;
+  /**
+   * percent of visitors to keep, 0-100, drawn per visitor and day in the
+   * browser. Absent or 100 keeps everyone. The rate rides on every hit as `sr`.
+   */
+  sample?: number | string;
+  /** path globs reported as the glob itself: `["/users/*"]` sends `/users/*`, never the id */
+  mask?: string[];
+  /** `true` drops the whole query string; a list drops only those parameters */
+  stripQuery?: boolean | string[];
+  /** capture uncaught errors and unhandled rejections. Default false. Loads the `errors` plugin. */
+  errors?: Flagish;
+  /** report rage clicks, dead clicks and abandoned forms. Default false. Loads the `frustration` plugin. */
+  frustration?: Flagish;
+  /** send a custom event for every click on a `data-track` element. Default false.
+   *  Loads the `tags` plugin. */
+  tags?: Flagish;
+}
+
+/**
+ * What a plugin hands to `x`: the event name, its properties, and web vitals.
+ * With `raw` set the properties are sent as they are; without it the page's
+ * default properties are merged in, as they are for `track()`.
+ */
+export interface PluginEvent {
+  name?: string;
+  props?: Props;
+  vitals?: Vitals;
+  raw?: boolean;
 }
 
 /** Per-call pageview overrides. */
@@ -139,8 +176,11 @@ export interface TrackerApi {
   track(name: string, props?: Props): void;
   /** a pageview. Called for you unless `autoPageview` is off. */
   pageview(overrides?: PageviewOverrides): void;
-  /** attach a stable id (and optional default props) to following events */
+  /** attach a stable id (and optional default props) to following events, and
+   *  record the traits on the profile */
   identify(id: string | null, traits?: Props): void;
+  /** record traits on the profile without changing the id or the default props */
+  setTraits(traits: Props): void;
   /** merge default properties sent with every following event */
   setProps(props: Props): void;
   /** stop sending, on this browser, until `optIn()` */
@@ -152,6 +192,19 @@ export interface TrackerApi {
   flush(): void;
   /** wire up listeners and send the first pageview. Idempotent. */
   start(): void;
+  /**
+   * This visit's checkout reference (`mfr_…`), for a Stripe or Paddle checkout,
+   * from `GET /api/revenue/ref`. Resolves to `undefined` when the server has
+   * none to give, and never rejects.
+   */
+  checkoutRef(): Promise<string | undefined>;
+  /**
+   * Internal: how a plugin sends. Not part of the stable API; it exists so a
+   * plugin bundle never carries a second copy of the transport.
+   */
+  x(kind: EventKind, event: PluginEvent): void;
+  /** Internal: set by a plugin that reports when the page is hidden or flushed. */
+  h?: () => void;
 }
 
 /* ------------------------------------------------------------------ flags */
@@ -164,11 +217,17 @@ export interface FlagRecord {
   variant?: string;
   /** arbitrary JSON attached to the flag */
   payload?: PropValue;
+  /** why the server decided this way, when the server decided it */
+  reason?: string;
 }
 
-/** A locally-evaluated rule, used before the network answers and when it never does. */
+/**
+ * A locally-evaluated rule, used before the network answers and when it never does.
+ * Bucketed with the server's own hash, so a rule that mirrors a flag's server settings
+ * gives each visitor the server's answer.
+ */
 export interface FlagFallback {
-  /** 0-100. The visitor buckets into the flag when `bucket < rolloutPct`. */
+  /** 0-100. The visitor buckets into the flag when its server bucket is inside it. */
   rolloutPct?: number;
   /** weighted variants; weights are relative, they need not sum to 100. */
   variants?: { key: string; weight?: number }[];
@@ -194,6 +253,17 @@ export interface FlagsConfig {
   onExposure?: (key: string, record: FlagRecord) => void;
   /** override the fetch used, for tests or a custom transport */
   fetchImpl?: typeof fetch;
+  /** the environment the page runs in (`production`, `staging`, ...); flags may override per environment */
+  environment?: string;
+  /** attributes the flags' conditions and target groups test, such as `{ plan: "pro" }` */
+  context?: Record<string, PropValue>;
+  /**
+   * a ruleset to decide flags locally, as `GET /api/flags/ruleset` returns it (for
+   * example rendered into the page by your server); answers before bootstrap and fallback
+   */
+  rules?: FlagRuleset;
+  /** send evaluation and exposure counts to the flag's stats. Default true. */
+  stats?: boolean;
 }
 
 export interface FlagsClient {
@@ -207,9 +277,11 @@ export interface FlagsClient {
   all(): Record<string, FlagRecord>;
   /** subscribe to evaluated-set changes; returns the unsubscribe */
   onChange(cb: (flags: Record<string, FlagRecord>) => void): () => void;
-  /** the visitor's 0-99 bucket for a key. Deterministic, no network. */
+  /** the visitor's 0-99 bucket for a key: the server's bucket, in whole percent. No network. */
   bucket(key: string): number;
   /** set or change the bucketing subject */
   setVisitor(visitor: string): void;
   clearCache(): void;
+  /** send the counted evaluations and exposures now rather than at the next flush */
+  flushStats(): void;
 }

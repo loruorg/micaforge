@@ -22,6 +22,11 @@
 //! would be silently dropped and the operator would believe it was configured.
 //! So the same parser runs here, and anything it *cannot* see is refused.
 //!
+//! A Telegram channel's bot token is sealed here, at write time
+//! ([`micaforge_jobs::notify::seal_telegram_token`]), and the plaintext never
+//! reaches Postgres. A document read back carries the sealed form, and sending
+//! it back unchanged keeps the token; sending a new `bot_token` replaces it.
+//!
 //! A webhook is additionally put through [`micaforge_jobs::fetch::guard_url`],
 //! which refuses a private address. Without it, "send my alerts to this URL"
 //! would be a request-forgery primitive pointed at whatever the host can reach.
@@ -35,14 +40,15 @@ use axum::extract::{Path, State};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use chrono::Utc;
-use micaforge_core::{new_id, Error, Result};
-use micaforge_jobs::notify::Channels;
+use micaforge_core::{new_id, Config, Error, Result};
+use micaforge_jobs::notify::{self as channels_doc, Channels};
 use micaforge_jobs::outbound::{self, FailureKind};
 use micaforge_store::models::{alerts, goals};
 use serde::Deserialize;
 use serde_json::{json, Map, Value};
 use uuid::Uuid;
 
+use crate::audit::{self, Entry};
 use crate::error::ApiError;
 use crate::extract::{AuthUser, SiteAccess};
 use crate::response::ok;
@@ -139,6 +145,7 @@ struct AlertBody {
 /// `POST /api/alerts?site=…`
 async fn create_alert(
     State(st): State<AppState>,
+    auth: AuthUser,
     access: SiteAccess,
     Json(body): Json<AlertBody>,
 ) -> ApiResult<Json<Value>> {
@@ -146,11 +153,35 @@ async fn create_alert(
     let kind = check_kind(&body.kind)?;
     let config = complete_config(kind, body.config.as_ref())?;
     check_goal_reference(&st, kind, &config, access.site.id).await?;
-    let channels = check_channels(&body.channels, "channels")?;
+    let channels = check_channels(&st.cfg, &body.channels, "channels")?;
 
     let alert =
         alerts::create_alert(&st.pg, new_id(), access.site.id, kind, &config, &channels).await?;
+    audit::record(
+        &st,
+        &auth,
+        Entry::new("alert.created")
+            .target("alert", alert.id, &alert.kind)
+            .site(&access.site)
+            .after(alert_audit_view(&alert)),
+    )
+    .await;
     Ok(ok(alert_json(&alert)))
+}
+
+/// An alert as the audit log keeps it. The channels are left out: a webhook
+/// address is a credential, and the audit log is read by every admin.
+fn alert_audit_view(alert: &alerts::Alert) -> Value {
+    json!({ "kind": alert.kind, "config": alert.config })
+}
+
+/// A report as the audit log keeps it: its cadence and how many people it
+/// goes to, not their addresses or its webhook.
+fn report_audit_view(report: &alerts::Report) -> Value {
+    json!({
+        "cadence": report.cadence,
+        "recipients": report.recipients.as_array().map(Vec::len).unwrap_or(0),
+    })
 }
 
 /// `GET /api/alerts/{id}`
@@ -172,14 +203,24 @@ async fn update_alert(
     Json(body): Json<AlertBody>,
 ) -> ApiResult<Json<Value>> {
     let alert = alerts::get_alert(&st.pg, id).await?;
-    reachable(&st, alert.site_id, auth.user.id, MEMBER, "alert").await?;
+    let site = reachable(&st, alert.site_id, auth.user.id, MEMBER, "alert").await?;
 
     let kind = check_kind(&body.kind)?;
     let config = complete_config(kind, body.config.as_ref())?;
     check_goal_reference(&st, kind, &config, alert.site_id).await?;
-    let channels = check_channels(&body.channels, "channels")?;
+    let channels = check_channels(&st.cfg, &body.channels, "channels")?;
 
     let updated = alerts::update_alert(&st.pg, alert.id, kind, &config, &channels).await?;
+    audit::record(
+        &st,
+        &auth,
+        Entry::new("alert.updated")
+            .target("alert", alert.id, &updated.kind)
+            .site(&site)
+            .before(alert_audit_view(&alert))
+            .after(alert_audit_view(&updated)),
+    )
+    .await;
     Ok(ok(alert_json(&updated)))
 }
 
@@ -190,8 +231,17 @@ async fn delete_alert(
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<Value>> {
     let alert = alerts::get_alert(&st.pg, id).await?;
-    reachable(&st, alert.site_id, auth.user.id, MEMBER, "alert").await?;
+    let site = reachable(&st, alert.site_id, auth.user.id, MEMBER, "alert").await?;
     alerts::delete_alert(&st.pg, alert.id).await?;
+    audit::record(
+        &st,
+        &auth,
+        Entry::new("alert.deleted")
+            .target("alert", alert.id, &alert.kind)
+            .site(&site)
+            .before(alert_audit_view(&alert)),
+    )
+    .await;
     Ok(ok(json!({ "deleted": alert.id })))
 }
 
@@ -257,6 +307,39 @@ async fn test_alert(
     }
     if let Some(url) = channels.slack.as_deref() {
         results.push(test_webhook(&st, url, &json!({ "text": payload.headline })).await);
+    }
+    if let Some(url) = channels.discord.as_deref() {
+        let mut result = test_webhook(
+            &st,
+            url,
+            &json!({ "content": payload.headline, "allowed_mentions": { "parse": [] } }),
+        )
+        .await;
+        result["channel"] = json!("discord");
+        results.push(result);
+    }
+    if let Some(target) = channels.telegram.as_ref() {
+        let sent = match target.token(&st.cfg) {
+            Ok(token) => micaforge_jobs::chat::telegram_send(
+                &st.http,
+                &token,
+                &target.chat_id,
+                &payload.headline,
+                None,
+            )
+            .await
+            .map(|_| ()),
+            Err(e) => Err(e),
+        };
+        if let Err(e) = &sent {
+            tracing::warn!(error = %e, "test telegram message failed");
+        }
+        results.push(json!({
+            "channel": "telegram",
+            "target": target.chat_id,
+            "delivered": sent.is_ok(),
+            "error": sent.err().map(|_| "the message was not accepted; check the bot token and that the bot is in the chat"),
+        }));
     }
 
     Ok(ok(json!({
@@ -326,14 +409,15 @@ struct ReportBody {
 /// Lisbon whoever configured it.
 async fn create_report(
     State(st): State<AppState>,
+    auth: AuthUser,
     access: SiteAccess,
     Json(body): Json<ReportBody>,
 ) -> ApiResult<Json<Value>> {
     require_at_least(access.role.as_str(), MEMBER)?;
     let cadence = check_cadence(&body.cadence)?;
-    let recipients = check_channels(&body.recipients, "recipients")?;
+    let recipients = check_channels(&st.cfg, &body.recipients, "recipients")?;
     let channels = match body.channels.as_ref() {
-        Some(value) => check_channels(value, "channels")?,
+        Some(value) => check_channels(&st.cfg, value, "channels")?,
         None => json!({}),
     };
     let next_run = next_run(&access.site.timezone, cadence);
@@ -348,6 +432,15 @@ async fn create_report(
         next_run,
     )
     .await?;
+    audit::record(
+        &st,
+        &auth,
+        Entry::new("report.created")
+            .target("report", report.id, &report.cadence)
+            .site(&access.site)
+            .after(report_audit_view(&report)),
+    )
+    .await;
     Ok(ok(report_json(&report)))
 }
 
@@ -376,13 +469,23 @@ async fn update_report(
     let site = reachable(&st, report.site_id, auth.user.id, MEMBER, "report").await?;
 
     let cadence = check_cadence(&body.cadence)?;
-    let recipients = check_channels(&body.recipients, "recipients")?;
+    let recipients = check_channels(&st.cfg, &body.recipients, "recipients")?;
     let channels = match body.channels.as_ref() {
-        Some(value) => check_channels(value, "channels")?,
+        Some(value) => check_channels(&st.cfg, value, "channels")?,
         None => report.channels.clone(),
     };
 
     let updated = alerts::update_report(&st.pg, report.id, cadence, &recipients, &channels).await?;
+    audit::record(
+        &st,
+        &auth,
+        Entry::new("report.updated")
+            .target("report", report.id, &updated.cadence)
+            .site(&site)
+            .before(report_audit_view(&report))
+            .after(report_audit_view(&updated)),
+    )
+    .await;
 
     if cadence != report.cadence {
         if let Some(next) = next_run(&site.timezone, cadence) {
@@ -402,8 +505,17 @@ async fn delete_report(
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<Value>> {
     let report = alerts::get_report(&st.pg, id).await?;
-    reachable(&st, report.site_id, auth.user.id, MEMBER, "report").await?;
+    let site = reachable(&st, report.site_id, auth.user.id, MEMBER, "report").await?;
     alerts::delete_report(&st.pg, report.id).await?;
+    audit::record(
+        &st,
+        &auth,
+        Entry::new("report.deleted")
+            .target("report", report.id, &report.cadence)
+            .site(&site)
+            .before(report_audit_view(&report)),
+    )
+    .await;
     Ok(ok(json!({ "deleted": report.id })))
 }
 
@@ -612,7 +724,8 @@ async fn check_goal_reference(
 /// address, and every webhook has to be a URL that does not point at the local
 /// network. A document that parses to nothing at all is refused, because a
 /// notification with nowhere to go is a notification that will not arrive.
-fn check_channels(value: &Value, field: &str) -> Result<Value> {
+pub(crate) fn check_channels(cfg: &Config, value: &Value, field: &str) -> Result<Value> {
+    let value = &seal_telegram(cfg, value, field)?;
     let parsed = Channels::from_json(value);
     if parsed.is_empty() {
         return Err(Error::validation(
@@ -632,15 +745,64 @@ fn check_channels(value: &Value, field: &str) -> Result<Value> {
             Error::validation(field, format!("`{address}` is not a valid email address"))
         })?;
     }
-    for url in [parsed.webhook.as_deref(), parsed.slack.as_deref()]
-        .into_iter()
-        .flatten()
+    for url in [
+        parsed.webhook.as_deref(),
+        parsed.slack.as_deref(),
+        parsed.discord.as_deref(),
+    ]
+    .into_iter()
+    .flatten()
     {
         micaforge_jobs::fetch::guard_url(url)
             .map_err(|e| Error::validation(field, e.to_string()))?;
     }
+    if let Some(target) = parsed.telegram.as_ref() {
+        // The sealed token must open, here, for this chat: a document that
+        // carries someone else's sealed blob is refused now rather than
+        // failing silently at 3am.
+        target.token(cfg).map_err(|_| {
+            Error::validation(
+                field,
+                "the Telegram bot token is missing or unreadable; enter it again",
+            )
+        })?;
+    }
 
     Ok(value.clone())
+}
+
+/// Replace a Telegram `bot_token` with its sealed form, keeping everything else.
+fn seal_telegram(cfg: &Config, value: &Value, field: &str) -> Result<Value> {
+    let mut doc = value.clone();
+    let Some(telegram) = doc.get_mut("telegram").and_then(Value::as_object_mut) else {
+        return Ok(doc);
+    };
+    let chat_id = match telegram.get("chat_id") {
+        Some(Value::String(s)) => s.trim().to_string(),
+        Some(Value::Number(n)) => n.to_string(),
+        _ => {
+            return Err(Error::validation(
+                field,
+                "a Telegram channel needs a chat_id",
+            ))
+        }
+    };
+    if chat_id.is_empty() || chat_id.len() > 64 {
+        return Err(Error::validation(
+            field,
+            "a Telegram channel needs a chat_id",
+        ));
+    }
+    telegram.insert("chat_id".to_string(), json!(chat_id));
+    if let Some(token) = telegram
+        .remove("bot_token")
+        .and_then(|v| v.as_str().map(str::trim).map(str::to_string))
+        .filter(|t| !t.is_empty())
+    {
+        let sealed = channels_doc::seal_telegram_token(cfg, &chat_id, &token)?;
+        telegram.insert("bot_token_sealed".to_string(), json!(sealed));
+    }
+    Ok(doc)
 }
 
 /// When a report of this cadence should next go out, in the site's own zone.
@@ -665,11 +827,18 @@ fn alert_json(alert: &alerts::Alert) -> Value {
         "last_fired_at": alert.last_fired_at,
         // Resolved so the screen can say "3 addresses, 1 webhook" without
         // re-implementing the lenient parser the worker uses.
-        "resolved_channels": {
-            "emails": channels.emails,
-            "webhook": channels.webhook,
-            "slack": channels.slack,
-        },
+        "resolved_channels": resolved(&channels),
+    })
+}
+
+/// What a channels document resolves to, for the screen. Never a token.
+fn resolved(channels: &Channels) -> Value {
+    json!({
+        "emails": channels.emails,
+        "webhook": channels.webhook,
+        "slack": channels.slack,
+        "discord": channels.discord,
+        "telegram": channels.telegram.as_ref().map(|t| json!({ "chat_id": t.chat_id })),
     })
 }
 
@@ -684,11 +853,7 @@ fn report_json(report: &alerts::Report) -> Value {
         "recipients": report.recipients,
         "channels": report.channels,
         "next_run_at": report.next_run_at,
-        "resolved_channels": {
-            "emails": channels.emails,
-            "webhook": channels.webhook,
-            "slack": channels.slack,
-        },
+        "resolved_channels": resolved(&channels),
     })
 }
 
@@ -709,7 +874,7 @@ async fn reachable(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     #[test]
@@ -795,18 +960,26 @@ mod tests {
 
     #[test]
     fn channels_are_refused_when_nothing_would_be_delivered() {
-        assert!(check_channels(&json!({}), "channels").is_err());
-        assert!(check_channels(&json!([]), "channels").is_err());
+        assert!(check_channels(&test_cfg(), &json!({}), "channels").is_err());
+        assert!(check_channels(&test_cfg(), &json!([]), "channels").is_err());
         // A key the parser does not know contributes nothing, so it is refused
         // rather than silently stored as a channel that never fires.
-        assert!(check_channels(&json!({ "sms": "+351000000000" }), "channels").is_err());
+        assert!(
+            check_channels(&test_cfg(), &json!({ "sms": "+351000000000" }), "channels").is_err()
+        );
     }
 
     #[test]
     fn channels_accept_every_shape_the_worker_reads() {
-        assert!(check_channels(&json!(["ops@example.com"]), "channels").is_ok());
-        assert!(check_channels(&json!({ "email": "ops@example.com" }), "channels").is_ok());
+        assert!(check_channels(&test_cfg(), &json!(["ops@example.com"]), "channels").is_ok());
         assert!(check_channels(
+            &test_cfg(),
+            &json!({ "email": "ops@example.com" }),
+            "channels"
+        )
+        .is_ok());
+        assert!(check_channels(
+            &test_cfg(),
             &json!({ "emails": ["a@example.com", "b@example.com"] }),
             "channels"
         )
@@ -815,22 +988,133 @@ mod tests {
 
     #[test]
     fn a_bad_address_is_named_rather_than_dropped() {
-        let err = check_channels(&json!(["not-an-address"]), "recipients").unwrap_err();
+        let err =
+            check_channels(&test_cfg(), &json!(["not-an-address"]), "recipients").unwrap_err();
         assert_eq!(err.field(), Some("recipients"));
     }
 
     #[test]
     fn a_webhook_cannot_point_at_the_local_network() {
         // Otherwise "send my alerts here" is a request-forgery primitive.
-        assert!(
-            check_channels(&json!({ "webhook": "http://127.0.0.1/admin" }), "channels").is_err()
-        );
-        assert!(check_channels(&json!({ "webhook": "file:///etc/passwd" }), "channels").is_err());
         assert!(check_channels(
+            &test_cfg(),
+            &json!({ "webhook": "http://127.0.0.1/admin" }),
+            "channels"
+        )
+        .is_err());
+        assert!(check_channels(
+            &test_cfg(),
+            &json!({ "webhook": "file:///etc/passwd" }),
+            "channels"
+        )
+        .is_err());
+        assert!(check_channels(
+            &test_cfg(),
             &json!({ "webhook": "https://hooks.example.com/abc" }),
             "channels"
         )
         .is_ok());
+    }
+
+    pub(crate) fn test_cfg() -> Config {
+        Config {
+            bind_addr: "127.0.0.1:0".into(),
+            database_url: "postgres://localhost/micaforge".into(),
+            clickhouse_url: "http://localhost:8123".into(),
+            clickhouse_db: "micaforge".into(),
+            clickhouse_user: "default".into(),
+            clickhouse_password: String::new(),
+            redis_url: "redis://127.0.0.1:6379".into(),
+            public_url: "https://mf.example.com".into(),
+            dashboard_url: "https://app.example.com".into(),
+            secret_key_base: "x".repeat(48),
+            geoip_city_path: None,
+            geoip_asn_path: None,
+            retention_days: 0,
+            replay_retention_days: 30,
+            disable_registration: false,
+            max_sites_per_org: 0,
+            max_orgs_per_user: 0,
+            self_hosted: true,
+            smtp_url: None,
+            cloudflare_email_token: None,
+            cloudflare_account_id: None,
+            mail_from: "Micaforge <noreply@localhost>".into(),
+            log_format: "text".into(),
+            worker_concurrency: 2,
+            llm: None,
+            chat: Default::default(),
+            feedback_channel: Default::default(),
+            region: "default".into(),
+            links_host: None,
+            google_oauth: None,
+            github_oauth: None,
+            billing_enabled: false,
+            billing_plans: Vec::new(),
+            stripe: None,
+            search_console: None,
+            github_app: None,
+        }
+    }
+
+    #[test]
+    fn a_telegram_token_is_sealed_before_it_is_stored() {
+        let cfg = test_cfg();
+        let stored = check_channels(
+            &cfg,
+            &json!({ "telegram": { "chat_id": -100123, "bot_token": "123:secret-token" } }),
+            "channels",
+        )
+        .unwrap();
+        let text = stored.to_string();
+        assert!(
+            !text.contains("secret-token"),
+            "the plaintext never reaches Postgres"
+        );
+        assert_eq!(stored["telegram"]["chat_id"], "-100123");
+        assert!(stored["telegram"]["bot_token_sealed"].is_string());
+
+        // Sent back unchanged, it is kept and still opens.
+        let again = check_channels(&cfg, &stored, "channels").unwrap();
+        assert_eq!(
+            again["telegram"]["bot_token_sealed"],
+            stored["telegram"]["bot_token_sealed"]
+        );
+
+        // Moved to another chat, it no longer opens, and the write is refused.
+        let mut moved = stored.clone();
+        moved["telegram"]["chat_id"] = json!("-200");
+        assert!(check_channels(&cfg, &moved, "channels").is_err());
+
+        // Without a token at all there is nothing to send with.
+        assert!(check_channels(
+            &cfg,
+            &json!({ "telegram": { "chat_id": "-100" } }),
+            "channels"
+        )
+        .is_err());
+        assert!(check_channels(
+            &cfg,
+            &json!({ "telegram": { "bot_token": "1:a" } }),
+            "channels"
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn a_discord_webhook_is_a_channel_and_is_guarded() {
+        assert!(check_channels(
+            &test_cfg(),
+            &json!({ "discord": "https://discord.com/api/webhooks/1/abc" }),
+            "channels"
+        )
+        .is_ok());
+        assert!(check_channels(
+            &test_cfg(),
+            &json!({ "discord": "http://10.0.0.5/hook" }),
+            "channels"
+        )
+        .is_err());
     }
 
     #[test]

@@ -138,6 +138,9 @@ import { micaforge } from "@micaforge/sdk/vue";
 createApp(App).use(micaforge, { site: 1, host: "https://analytics.example.com" });
 ```
 
+In Nuxt, use [the Nuxt module](/docs/getting-started/nuxt) instead: it adds the tag,
+reports route changes from the router and gives you `useMicaforge()` and `useFlag()`.
+
 Inside a component the tracker is available as `this.$micaforge`, by `inject("micaforge")`,
 or from `useMicaforge()`. The `v-mf` directive tracks a click on any element, and takes
 either an event name or an `{ event, props }` object.

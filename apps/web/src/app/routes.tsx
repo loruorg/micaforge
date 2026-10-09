@@ -44,6 +44,7 @@ import { OverviewScreen, RealtimeScreen } from "./record";
 import { AgentsScreen, CitationGapScreen, DecayScreen, PolicyScreen } from "./machines";
 import { DevicesScreen, LocationsScreen, PagesScreen, SourcesScreen } from "./audience";
 import { ErrorDetail, ErrorsScreen, PerformanceScreen } from "./health";
+import { FrustrationScreen } from "./signals/FrustrationScreen";
 
 /* ── areas holding a lazy channel: imported screen by screen ─────────────── */
 
@@ -65,10 +66,18 @@ import { ReportsSettings } from "./settings/ReportsSettings";
 import { ImportsSettings } from "./settings/ImportsSettings";
 import { ShareSettings } from "./settings/ShareSettings";
 import { DangerZone } from "./settings/DangerZone";
+import { LogDrainsSettings } from "./settings/LogDrainsSettings";
 import { AccountSettings } from "./settings/AccountSettings";
 import { OrgSettings } from "./settings/OrgSettings";
 import { TeamsSettings } from "./settings/TeamsSettings";
 import { ApiKeysSettings } from "./settings/ApiKeysSettings";
+import { AuditLogSettings } from "./settings/AuditLogSettings";
+import { BillingSettings } from "./settings/BillingSettings";
+import { IngestGuards } from "./settings/IngestGuards";
+
+/* ── the OAuth consent sheet: outside the frame, behind sign-in ──────────── */
+
+import { ConsentScreen } from "./oauth/ConsentScreen";
 
 /* ── the heavy channels ──────────────────────────────────────────────────── */
 
@@ -81,6 +90,26 @@ const QueryScreen = lazy(() => import("./bench/QueryScreen"));
 const FlagsScreen = lazy(() => import("./bench/FlagsScreen"));
 const ExperimentsScreen = lazy(() => import("./bench/ExperimentsScreen"));
 const AdminScreen = lazy(() => import("./settings/AdminScreen"));
+const AskScreen = lazy(() => import("./ask/AskScreen"));
+const InsightsScreen = lazy(() => import("./insights/InsightsScreen"));
+const InsightDetail = lazy(() => import("./insights/InsightDetail"));
+/* Settings that are opened once, to connect something, not every day. */
+const ChatAppsSettings = lazy(() => import("./settings/ChatAppsSettings"));
+const AiInsightsSettings = lazy(() => import("./settings/AiInsightsSettings"));
+const ConnectedAppsSettings = lazy(() => import("./settings/ConnectedAppsSettings"));
+const GitHubSettings = lazy(() => import("./settings/GitHubSettings"));
+
+/* ── monitoring and growth: each screen its own chunk ────────────────────── */
+
+const UptimeScreen = lazy(() => import("./monitoring/UptimeScreen"));
+const StatusPagesScreen = lazy(() => import("./monitoring/StatusPagesScreen"));
+const LinksScreen = lazy(() => import("./growth/LinksScreen"));
+const RevenueScreen = lazy(() => import("./growth/RevenueScreen"));
+const SearchScreen = lazy(() => import("./search/SearchScreen"));
+
+/* ── MCP server analytics: its own chunk ─────────────────────────────────── */
+
+const McpScreen = lazy(() => import("./mcp/McpScreen"));
 
 /* ── waiting ─────────────────────────────────────────────────────────────── */
 
@@ -287,6 +316,18 @@ export function AppRoutes() {
       {/* The public record. No account, no station chrome. */}
       <Route path="/share/:slug" element={<ShareScreen />} />
 
+      {/* The OAuth consent sheet draws its own page like the entry sheets, but
+          only for a signed-in reader: the gate sends anyone else to sign in and
+          back here with the full query string. */}
+      <Route
+        path="/app/oauth/authorize"
+        element={
+          <RequireAccount>
+            <ConsentScreen />
+          </RequireAccount>
+        }
+      />
+
       {/* Everything else is read at the station. */}
       <Route
         path="/app"
@@ -309,6 +350,9 @@ export function AppRoutes() {
           <Route path="organisation" element={<OrgSettings />} />
           <Route path="teams" element={<TeamsSettings />} />
           <Route path="keys" element={<ApiKeysSettings />} />
+          <Route path="connected-apps" element={<ConnectedAppsSettings />} />
+          <Route path="audit" element={<AuditLogSettings />} />
+          <Route path="billing" element={<BillingSettings />} />
         </Route>
 
         <Route path="admin" element={<AdminScreen />} />
@@ -342,6 +386,7 @@ export function AppRoutes() {
           <Route path="performance" element={<PerformanceScreen />} />
           <Route path="errors" element={<ErrorsScreen />} />
           <Route path="errors/:fingerprint" element={<ErrorDetail />} />
+          <Route path="frustration" element={<FrustrationScreen />} />
 
           {/* people */}
           <Route path="sessions" element={<SessionsScreen />} />
@@ -358,6 +403,16 @@ export function AppRoutes() {
           <Route path="dashboards/:id" element={<DashboardEditor />} />
           <Route path="query" element={<QueryScreen />} />
 
+          {/* monitoring and growth */}
+          <Route path="uptime" element={<UptimeScreen />} />
+          <Route path="status-pages" element={<StatusPagesScreen />} />
+          <Route path="links" element={<LinksScreen />} />
+          <Route path="revenue" element={<RevenueScreen />} />
+          <Route path="search" element={<SearchScreen />} />
+
+          {/* MCP server analytics */}
+          <Route path="mcp" element={<McpScreen />} />
+
           {/* this site's setup */}
           <Route path="settings" element={<SettingsLayout scope="site" />}>
             <Route index element={<TrackingSetup />} />
@@ -369,7 +424,19 @@ export function AppRoutes() {
             <Route path="imports" element={<ImportsSettings />} />
             <Route path="share" element={<ShareSettings />} />
             <Route path="danger" element={<DangerZone />} />
+            <Route path="chat" element={<ChatAppsSettings />} />
+            <Route path="ai" element={<AiInsightsSettings />} />
+            <Route path="guards" element={<IngestGuards />} />
+            <Route path="log-drains" element={<LogDrainsSettings />} />
+            <Route path="github" element={<GitHubSettings />} />
           </Route>
+
+          {/* the AI analyst, and what it found. One route for Ask AI with an
+              optional conversation, so opening the conversation a new question
+              just started keeps the screen, and its answer in flight, mounted. */}
+          <Route path="ask/:conversation?" element={<AskScreen />} />
+          <Route path="insights" element={<InsightsScreen />} />
+          <Route path="insights/:id" element={<InsightDetail />} />
 
           <Route path="*" element={<NotFound />} />
         </Route>

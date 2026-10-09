@@ -3,11 +3,11 @@ title: "The script tag"
 description: "Every data attribute the tracker reads, and what each one turns off."
 group: "getting-started"
 order: 2
-updated: 2026-08-22
+updated: 2026-10-08
 ---
 
 The tracker configures itself entirely from the attributes on its own script tag. There
-is nothing to call, no init step, and no second file.
+is nothing to call and no init step.
 
 ```html
 <script
@@ -44,15 +44,35 @@ attribute reads as true, so `data-forms` and `data-forms="true"` mean the same t
 | `data-spa` | on | Follow `pushState`, `replaceState`, `popstate` and `hashchange`. |
 | `data-outbound` | on | Report clicks on links that leave the site. |
 | `data-downloads` | on | Report clicks on file links. Also accepts a list. |
-| `data-forms` | off | Report form submissions, by id or name only. |
+| `data-forms` | off | Report form submissions, by id or name only. Loads the `forms` plugin. |
 | `data-hash` | off | Treat the URL hash as part of the page identity. |
 | `data-respect-dnt` | off | Send nothing when the browser sets `doNotTrack`. |
-| `data-vitals` | on | Collect LCP, CLS, INP, FCP and TTFB. |
+| `data-vitals` | on | Collect LCP, CLS, INP, FCP and TTFB. Loads the `vitals` plugin. |
 | `data-scroll` | on | Track how far down the page the reader got. |
 | `data-engagement` | on | Track time the page was actually visible. |
 | `data-exclude` | none | Comma-separated path globs that are never reported. |
-| `data-404` | off | Report a `404` when the page carries the marker element. |
+| `data-404` | off | Report a `404` when the page carries the marker element. Loads the `track404` plugin. |
 | `data-debug` | off | Log every payload, and report from localhost too. |
+| `data-sample` | everyone | Keep this percent of visitors, `0` to `100`, drawn per visitor and day. See [Sampling and masking](/docs/tracking/sampling-and-masking). |
+| `data-mask` | none | Comma-separated path globs reported as the glob itself: `/users/*` sends `/users/*`, never the id. |
+| `data-strip-query` | off | Alone, drop the whole query string; with a list, drop only those parameters. |
+| `data-errors` | off | Capture uncaught errors and unhandled rejections. See [Error tracking](/docs/tracking/error-tracking). |
+| `data-release` | none | Your release name, sent with every captured error. |
+| `data-frustration` | off | Report rage clicks, dead clicks and abandoned forms. See [Frustration signals](/docs/tracking/frustration-signals). |
+| `data-tags` | off | Send a custom event for every click on a `data-track` element. See [Click tags](/docs/tracking/click-tags). |
+
+## The core and its plugins
+
+`/mf.js` is the core: pageviews, client-side navigation, engagement, scroll, outbound
+links and downloads, identify, sampling and masking. It stays under 3 KB gzipped, and the
+build fails when it does not.
+
+Everything else is a plugin, a second small file the core appends to the page only when
+its attribute asks for it: web vitals (on by default), error capture, frustration signals,
+form submissions, the 404 marker and click tags. A plugin is served from
+`/api/track/p/<name>.js` on the same host the hits go to, so a proxy that already forwards
+`/api/track` forwards the plugins too. A browser that has opted out, or that is outside
+the sample, loads none of them.
 
 ### Excluding paths
 
@@ -118,11 +138,13 @@ working:
 micaforge.track("signup", { plan: "pro" });
 micaforge.pageview();
 micaforge.identify("u_123", { plan: "pro" });
+micaforge.setTraits({ plan: "team" });
 micaforge.setProps({ theme: "dark" });
 micaforge.optOut();
 micaforge.optIn();
 micaforge.isOptedOut();
 micaforge.flush();
+await micaforge.checkoutRef(); // "mfr_…" for a Stripe or Paddle checkout, or undefined
 ```
 
 ## What it never does

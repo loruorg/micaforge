@@ -29,11 +29,26 @@
 //! `must-revalidate` is the important half: it forbids a cache from serving the
 //! stale copy after expiry, which is what stops an old tracker outliving the
 //! collector it talks to.
+//!
+//! ## The plugins
+//!
+//! `GET /api/track/p/<name>.js` serves the bundles the tracker loads on demand
+//! (`packages/sdk/dist/p/*.js`): web vitals by default, and error capture,
+//! frustration signals, form submissions, the 404 marker and click tags when the
+//! site turns them on. They live under the ingest path on purpose. Every proxy
+//! a customer has written to keep the tracker first-party already forwards
+//! `/api/track*`, so a plugin reaches the page through the same rule the hits
+//! use, and nobody's vitals stop arriving because a new path was not proxied.
+//!
+//! The names are a closed set ([`PLUGINS`]); anything else is `404`. A plugin
+//! that was not built is served as an empty script rather than a `404`, for the
+//! same reason the core has a fallback: a missing file would put an error in the
+//! console of the customer's page, and an absent optional feature should not.
 
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
-use axum::extract::Request;
+use axum::extract::{Path as UrlPath, Request};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
@@ -132,6 +147,98 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/mf.js", get(serve_tracker))
         .route("/mf.min.js", get(serve_minified))
+        .route("/api/track/p/{file}", get(serve_plugin))
+}
+
+/// The plugin bundles, by name. The order is the index into [`plugin`]'s table.
+pub const PLUGINS: &[&str] = &[
+    "vitals",
+    "errors",
+    "frustration",
+    "forms",
+    "track404",
+    "tags",
+];
+
+/// `GET /api/track/p/<name>.js`.
+async fn serve_plugin(UrlPath(file): UrlPath<String>, headers: HeaderMap) -> Response {
+    match plugin_index(&file) {
+        Some(index) => respond(plugin(index), &headers),
+        None => {
+            let mut res = StatusCode::NOT_FOUND.into_response();
+            put(res.headers_mut(), "cache-control", "no-store");
+            put(res.headers_mut(), "access-control-allow-origin", "*");
+            res
+        }
+    }
+}
+
+/// Which plugin a requested file name is, or `None` for one that is not a plugin.
+fn plugin_index(file: &str) -> Option<usize> {
+    let name = file.strip_suffix(".js")?;
+    PLUGINS.iter().position(|p| *p == name)
+}
+
+/// One plugin bundle, loaded on first use.
+fn plugin(index: usize) -> &'static Bundle {
+    static BUNDLES: OnceLock<Vec<Bundle>> = OnceLock::new();
+    &BUNDLES.get_or_init(|| PLUGINS.iter().map(|name| load_plugin(name)).collect())[index]
+}
+
+/// Locate and read one plugin bundle.
+///
+/// Looked for beside the tracker: in a `p/` directory next to the file
+/// `MICAFORGE_TRACKER_PATH` names when it is set, then in the same
+/// conventional places as the tracker. No new variable: an operator who
+/// relocated the tracker relocated its plugins with it.
+fn load_plugin(name: &str) -> Bundle {
+    let filename = format!("{name}.js");
+    let mut paths = Vec::new();
+    if let Some(configured) = std::env::var("MICAFORGE_TRACKER_PATH")
+        .ok()
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
+    {
+        if let Some(dir) = Path::new(&configured).parent() {
+            paths.push(dir.join("p").join(&filename));
+        }
+    }
+    for base in [
+        "/app/tracker/p",
+        "packages/sdk/dist/p",
+        "../../packages/sdk/dist/p",
+    ] {
+        paths.push(Path::new(base).join(&filename));
+    }
+
+    for candidate in paths {
+        match std::fs::read_to_string(&candidate) {
+            Ok(source) if !source.trim().is_empty() => {
+                tracing::info!(path = %candidate.display(), bytes = source.len(), "tracker plugin loaded");
+                // Leaked once per plugin per process, for the reason `load` gives.
+                let body: &'static str = Box::leak(source.into_boxed_str());
+                return Bundle {
+                    body,
+                    etag: etag_of(body),
+                    origin: candidate.display().to_string(),
+                };
+            }
+            Ok(_) | Err(_) => {}
+        }
+    }
+
+    tracing::warn!(
+        plugin = name,
+        "no built tracker plugin found; serving an empty script. \
+         Build the SDK (`pnpm --filter @micaforge/sdk build`)."
+    );
+    let body: &'static str =
+        Box::leak(format!("/*! Micaforge plugin {name}: not built */").into_boxed_str());
+    Bundle {
+        body,
+        etag: etag_of(body),
+        origin: "empty fallback".to_string(),
+    }
 }
 
 /// `GET /mf.js`.
@@ -366,6 +473,42 @@ mod tests {
         assert_eq!(configured.first().unwrap(), Path::new("/srv/custom/mf.js"));
         assert_eq!(configured.len(), conventions.len() + 1);
         std::env::remove_var(VAR);
+    }
+
+    #[test]
+    fn only_the_known_plugins_are_served() {
+        assert_eq!(plugin_index("vitals.js"), Some(0));
+        assert_eq!(plugin_index("frustration.js"), Some(2));
+        assert_eq!(plugin_index("tags.js"), Some(PLUGINS.len() - 1));
+        // Anything else is not a file this route will look for, so a request
+        // can never steer the loader at a path of its choosing.
+        assert_eq!(plugin_index("vitals"), None);
+        assert_eq!(plugin_index("../mf.js"), None);
+        assert_eq!(plugin_index("..%2Fsecret.js"), None);
+        assert_eq!(plugin_index("unknown.js"), None);
+    }
+
+    #[test]
+    fn the_plugin_list_matches_the_sdk_build() {
+        // The tracker asks for these names and the SDK build writes these
+        // files; a name in one list and not the other is a feature that loads
+        // an empty script on every page.
+        let build = include_str!("../../../../../../packages/sdk/scripts/build.mjs");
+        let line = build
+            .lines()
+            .find(|l| l.trim_start().starts_with("const PLUGINS = ["))
+            .expect("the SDK build names its plugins");
+        for name in PLUGINS {
+            assert!(
+                line.contains(&format!("\"{name}\"")),
+                "{name} is not built by the SDK"
+            );
+        }
+        assert_eq!(
+            line.matches('"').count(),
+            PLUGINS.len() * 2,
+            "the SDK builds a plugin this route does not serve"
+        );
     }
 
     #[test]

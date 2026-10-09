@@ -37,6 +37,8 @@ argon2 = "0.5"
 chacha20poly1305 = "0.10"
 blake3 = "1"
 sha2 = "0.10"
+# HMAC-SHA1, for one purpose only: Vercel signs drain deliveries with it.
+sha1 = "0.10"
 hmac = "0.12"
 subtle = "2"
 rand = "0.9"
@@ -44,6 +46,9 @@ hex = "0.4"
 base64 = "0.22"
 jsonwebtoken = "9"
 totp-rs = { version = "5", features = ["gen_secret"] }
+# Discord signs every interaction with Ed25519; the dalek crate is the
+# maintained, audited implementation the Rust ecosystem uses for it.
+ed25519-dalek = "2"
 
 # HTTP client
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "gzip", "stream"] }
@@ -64,6 +69,9 @@ maxminddb = "0.26"
 woothee = "0.13"
 publicsuffix = "2"
 flate2 = "1"
+# Short-link QR codes, drawn as SVG. No default features: the PNG renderer
+# would pull in the `image` crate for a format the dashboard does not offer.
+qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 
 # Observability
 tracing = "0.1"
@@ -86,3 +94,4 @@ micaforge-enrich = { path = "crates/enrich" }
 micaforge-query = { path = "crates/query" }
 micaforge-jobs = { path = "crates/jobs" }
 micaforge-mail = { path = "crates/mail" }
+micaforge-ai = { path = "crates/ai" }

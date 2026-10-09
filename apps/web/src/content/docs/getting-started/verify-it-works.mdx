@@ -26,6 +26,10 @@ suppression that stops the tracker reporting from `localhost`, a `.local` host o
 If nothing is logged, the script did not load or `data-site` is missing. Check the
 network tab for `mf.js`.
 
+For a fuller view, load [the DevTools overlay](/docs/getting-started/devtools): it lists
+every event as it is sent, and for each one the tracker did not send, the rule that
+stopped it.
+
 ## 2. Watch the request
 
 In the network tab, filter for `track`. A pageview is a `POST` to

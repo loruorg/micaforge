@@ -16,7 +16,8 @@
     "isolatedModules": true,
     "declaration": false,
     "noEmit": true,
-    "types": []
+    "types": [],
+    "resolveJsonModule": true
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"]
 }

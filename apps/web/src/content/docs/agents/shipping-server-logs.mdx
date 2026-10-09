@@ -3,7 +3,7 @@ title: "Shipping server logs"
 description: "The log shipper, the framework middlewares, and the signed endpoint they both use."
 group: "agents"
 order: 2
-updated: 2026-08-22
+updated: 2026-10-08
 ---
 
 Crawlers do not run JavaScript. Your script tag will never see GPTBot, and no amount of
@@ -17,6 +17,9 @@ There are two ways to get them to Micaforge, and you only need one.
 - **A middleware**, if your site is a Node application.
 
 Both send to `POST /api/log/edge`, signed with the site's ingest key.
+
+A site hosted on Vercel can skip both: a [Vercel log drain](/docs/agents/vercel-log-drains)
+sends Vercel's own request log to Micaforge, with no change to the site's code.
 
 ## The ingest key
 

@@ -1,11 +1,13 @@
 /**
  * IMPORTS: adding history from an older analytics tool.
  *
- * Everything is file-based on purpose. A self-hosted Micaforge makes no
- * outbound call at runtime, so there is no "connect your Google account" here
- * and there never will be: you export from the old tool and hand the file over.
- * That constraint is stated on the screen rather than hidden, because it is the
- * reason the product can be run on a machine with no egress at all.
+ * A file is the default way in, and for GA4, Plausible and Umami the only one:
+ * you export from the old tool and hand the file over, and Micaforge makes no
+ * outbound call at all. PostHog and Simple Analytics can also be read through
+ * their own APIs. That is the one outbound call an import ever makes, and it
+ * happens only because somebody typed that provider's API key into this form,
+ * which the screen says in so many words. The key is sealed on the server the
+ * moment it arrives and dropped when the import ends; it is never shown again.
  */
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -26,11 +28,36 @@ import {
   Spec,
   SpecRow,
   Status,
+  TextInput,
   errText,
   type StateName,
 } from "./SettingsLayout";
 
-type Source = "ga4" | "plausible" | "umami";
+type Source = "ga4" | "plausible" | "umami" | "posthog" | "simple_analytics";
+
+/** The two sources with an API Micaforge can read. */
+const API_SOURCES: Source[] = ["posthog", "simple_analytics"];
+
+/** What an API import sends instead of a file. Never kept after the request. */
+interface ApiFields {
+  api_key: string;
+  api_host: string;
+  project: string;
+  user_id: string;
+  hostname: string;
+  from: string;
+  to: string;
+}
+
+const NO_FIELDS: ApiFields = {
+  api_key: "",
+  api_host: "",
+  project: "",
+  user_id: "",
+  hostname: "",
+  from: "",
+  to: "",
+};
 
 interface ImportRecord {
   id: string;
@@ -46,12 +73,18 @@ const SOURCE_NAME: Record<string, string> = {
   ga4: "Google Analytics 4",
   plausible: "Plausible",
   umami: "Umami",
+  posthog: "PostHog",
+  simple_analytics: "Simple Analytics",
 };
 
 const SOURCE_FILE: Record<Source, string> = {
   ga4: "The CSV an Exploration exports, or a BigQuery events export as newline-delimited JSON.",
   plausible: "The CSV bundle from the site's own export, or a stats API dump.",
   umami: "The JSON export from the website's settings.",
+  posthog:
+    "An events export as CSV or JSON (the event list's export, or a batch export with one event per line), or read it through PostHog's API.",
+  simple_analytics:
+    "The data points CSV from the website's export, or read it through Simple Analytics' export API.",
 };
 
 const CARRIES: { carried: boolean; what: string; detail: string }[] = [
@@ -64,7 +97,17 @@ const CARRIES: { carried: boolean; what: string; detail: string }[] = [
   },
   { carried: true, what: "Geography", detail: "Country, region and city wherever the export carries them." },
   { carried: true, what: "Device, browser and system", detail: "Normalised to Micaforge's own names." },
-  { carried: true, what: "Custom events and goals", detail: "Plausible and Umami events, matched to goals of the same name." },
+  { carried: true, what: "Custom events and goals", detail: "Plausible, Umami, PostHog and Simple Analytics events with their properties, matched to goals of the same name." },
+  {
+    carried: false,
+    what: "PostHog's own events",
+    detail: "Autocapture, page leave, identify and feature flag events have no Micaforge equivalent and are skipped. Page views, web vitals and your own events are imported.",
+  },
+  {
+    carried: false,
+    what: "People and their properties",
+    detail: "PostHog's person properties, distinct ids and email addresses are never imported. Imported rows are never identified.",
+  },
   {
     carried: false,
     what: "AI crawler traffic",
@@ -99,12 +142,24 @@ function fraction(p: number | undefined): number {
 /**
  * The one write in this area that cannot go through `api`: a multipart body.
  * It reproduces the same error envelope so failures read the same everywhere.
+ * A file import sends the file; an API import sends the API fields and no file.
  */
-async function uploadImport(site: string | number, source: Source, file: File): Promise<ImportRecord> {
+async function startImport(
+  site: string | number,
+  source: Source,
+  input: { file: File } | { fields: ApiFields },
+): Promise<ImportRecord> {
   const body = new FormData();
+  // `site` first: the server authorises the upload before it reads the file.
   body.set("site", String(site));
   body.set("source", source);
-  body.set("file", file);
+  if ("file" in input) {
+    body.set("file", input.file);
+  } else {
+    for (const [name, value] of Object.entries(input.fields)) {
+      if (value.trim()) body.set(name, value.trim());
+    }
+  }
 
   let res: Response;
   try {
@@ -131,13 +186,23 @@ async function uploadImport(site: string | number, source: Source, file: File): 
 }
 
 export function ImportsSettings() {
-  const { siteId } = useSite();
+  const { siteId, domain } = useSite();
   const qc = useQueryClient();
   const key = ["settings", "imports", siteId];
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [source, setSource] = useState<Source>("plausible");
   const [file, setFile] = useState<File | null>(null);
+  const [viaApi, setViaApi] = useState(false);
+  const [fields, setFields] = useState<ApiFields>(NO_FIELDS);
+  const apiPossible = API_SOURCES.includes(source);
+  const usingApi = apiPossible && viaApi;
+  const field = (name: keyof ApiFields) => ({
+    value: fields[name],
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
+      setFields((f) => ({ ...f, [name]: e.target.value })),
+    disabled: start.isPending,
+  });
 
   const imports = useQuery({
     queryKey: key,
@@ -152,11 +217,14 @@ export function ImportsSettings() {
 
   const start = useMutation({
     mutationFn: () => {
+      if (usingApi) return startImport(asSite(siteId), source, { fields });
       if (!file) throw new ApiError(0, "no_file", "Choose an export file first.");
-      return uploadImport(asSite(siteId), source, file);
+      return startImport(asSite(siteId), source, { file });
     },
     onSuccess: () => {
       setFile(null);
+      // The key leaves the page with the request; nothing keeps a copy of it.
+      setFields(NO_FIELDS);
       if (fileRef.current) fileRef.current.value = "";
       void qc.invalidateQueries({ queryKey: key });
     },
@@ -227,7 +295,7 @@ export function ImportsSettings() {
       <Panel>
         <PanelHead
           title="Bring history in"
-          note="Micaforge never calls out to Google, Plausible or anyone else. A self-hosted instance makes no outbound request at all, so you export the file from the old tool and hand it over here."
+          note="A file import makes no outbound request: you export the file from the old tool and hand it over here. Only an API import calls out, to PostHog or Simple Analytics, and only because you typed its key below."
         />
         <Spec>
           <SpecRow name="Coming from" hint={SOURCE_FILE[source]} htmlFor="imp-source">
@@ -235,12 +303,66 @@ export function ImportsSettings() {
               <option value="ga4">Google Analytics 4</option>
               <option value="plausible">Plausible</option>
               <option value="umami">Umami</option>
+              <option value="posthog">PostHog</option>
+              <option value="simple_analytics">Simple Analytics</option>
             </Select>
           </SpecRow>
 
+          {apiPossible ? (
+            <SpecRow
+              name="Read it from"
+              hint="An API import reads the days you choose straight from the provider. Its key is sealed on this server, used only by the import, and deleted when the import ends."
+              htmlFor="imp-via"
+            >
+              <Select id="imp-via" value={usingApi ? "api" : "file"} onChange={(e) => setViaApi(e.target.value === "api")}>
+                <option value="file">A file I upload</option>
+                <option value="api">{SOURCE_NAME[source]}'s API</option>
+              </Select>
+            </SpecRow>
+          ) : null}
+
+          {usingApi && source === "posthog" ? (
+            <>
+              <SpecRow name="PostHog address" hint="https://us.posthog.com, https://eu.posthog.com, or your own PostHog. Empty means the US cloud." htmlFor="imp-host">
+                <TextInput id="imp-host" data placeholder="https://us.posthog.com" autoComplete="off" {...field("api_host")} />
+              </SpecRow>
+              <SpecRow name="Project id" hint="The number in /project/12345 in PostHog's address bar." htmlFor="imp-project">
+                <TextInput id="imp-project" data inputMode="numeric" autoComplete="off" {...field("project")} />
+              </SpecRow>
+              <SpecRow name="Personal API key" hint="Starts with phx_ and needs the Query Read permission. The project token (phc_) cannot read events." htmlFor="imp-key">
+                <TextInput id="imp-key" data type="password" autoComplete="off" spellCheck={false} {...field("api_key")} />
+              </SpecRow>
+            </>
+          ) : null}
+
+          {usingApi && source === "simple_analytics" ? (
+            <>
+              <SpecRow name="Website" hint={`As Simple Analytics lists it. Empty means ${domain ?? "this site's domain"}.`} htmlFor="imp-hostname">
+                <TextInput id="imp-hostname" data placeholder={domain ?? "example.com"} autoComplete="off" {...field("hostname")} />
+              </SpecRow>
+              <SpecRow name="API key" hint="Starts with sa_api_key_. Create one in Simple Analytics' account settings." htmlFor="imp-key">
+                <TextInput id="imp-key" data type="password" autoComplete="off" spellCheck={false} {...field("api_key")} />
+              </SpecRow>
+              <SpecRow name="User id" hint="Starts with sa_user_id_, on the same settings page. The export API needs both." htmlFor="imp-user">
+                <TextInput id="imp-user" data autoComplete="off" spellCheck={false} {...field("user_id")} />
+              </SpecRow>
+            </>
+          ) : null}
+
+          {usingApi ? (
+            <SpecRow name="Days" hint="Both days included, in UTC. Import only the days before you installed the Micaforge tag." htmlFor="imp-from">
+              <div className="mf-set-row">
+                <TextInput id="imp-from" type="date" aria-label="First day" {...field("from")} />
+                <span className="mf-set-note">to</span>
+                <TextInput id="imp-to" type="date" aria-label="Last day" {...field("to")} />
+              </div>
+            </SpecRow>
+          ) : null}
+
+          {usingApi ? null : (
           <SpecRow
             name="Export file"
-            hint="csv, json, ndjson or a zip of them. Large files are read in chunks, so the upload finishing is not the import finishing."
+            hint="CSV or JSON (an array, or one record per line). Large files are read in chunks, so the upload finishing is not the import finishing."
           >
             <div className="mf-set-row">
               <input
@@ -248,7 +370,7 @@ export function ImportsSettings() {
                 id="imp-file"
                 type="file"
                 className="mf-set-file"
-                accept=".csv,.json,.ndjson,.zip,.gz"
+                accept=".csv,.json,.ndjson,.jsonl"
                 disabled={start.isPending}
                 onChange={(e) => setFile(e.target.files?.[0] ?? null)}
               />
@@ -269,14 +391,26 @@ export function ImportsSettings() {
               </span>
             </div>
           </SpecRow>
+          )}
         </Spec>
 
         <Foot>
-          <Button tone="primary" disabled={!file || start.isPending} onClick={() => start.mutate()}>
-            {start.isPending ? "Uploading…" : "Start the import"}
+          <Button
+            tone="primary"
+            disabled={
+              start.isPending ||
+              (usingApi ? !fields.api_key.trim() || !fields.from || !fields.to : !file)
+            }
+            onClick={() => start.mutate()}
+          >
+            {start.isPending ? (usingApi ? "Starting…" : "Uploading…") : "Start the import"}
           </Button>
           <span className="mf-set-foot__spacer" />
-          <Result action={start} done="Uploaded. The import is queued." working="Uploading…" />
+          <Result
+            action={start}
+            done={usingApi ? "Queued. The import reads the provider's API now." : "Uploaded. The import is queued."}
+            working={usingApi ? "Starting…" : "Uploading…"}
+          />
         </Foot>
       </Panel>
 

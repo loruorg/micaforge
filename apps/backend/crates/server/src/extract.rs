@@ -109,6 +109,10 @@ pub enum AuthMethod {
     /// An `Authorization: Bearer mfg_…` key. Carries its organisation's
     /// authority, bounded by the key's scopes.
     ApiKey(Uuid),
+    /// An OAuth access token (`Bearer mfo_…`) issued to an MCP client. Acts for
+    /// the person who consented, inside the one organisation and the scopes
+    /// they chose, and only on the MCP endpoint. Carries the grant's id.
+    OAuth(Uuid),
 }
 
 /// What an API key was issued for: its organisation, its optional site, and its
@@ -251,7 +255,10 @@ impl FromRequestParts<AppState> for AuthUser {
 
         let resolved = match bearer_token(parts) {
             Some(token) => authenticate_key_request(parts, state, &token).await?,
-            None => authenticate_session(parts, state).await?,
+            None => match oauth_token(parts) {
+                Some(token) => authenticate_oauth_request(parts, state, &token).await?,
+                None => authenticate_session(parts, state).await?,
+            },
         };
 
         parts.extensions.insert(resolved.clone());
@@ -311,6 +318,53 @@ async fn authenticate_key_request(
     })
 }
 
+/// Authenticate an OAuth access token and hold it to its grant.
+///
+/// The token is accepted on the MCP endpoint and nowhere else: it was issued
+/// for that resource (RFC 8707), and a token a person approved for "let this
+/// editor read my analytics" must not also open the management API. Inside the
+/// endpoint it is bound exactly like an API key, so the same role functions cap
+/// it at its organisation and its scopes.
+async fn authenticate_oauth_request(
+    parts: &Parts,
+    state: &AppState,
+    token: &str,
+) -> Result<AuthUser> {
+    if parts.uri.path() != "/api/mcp" {
+        return Err(Error::Forbidden(
+            "OAuth access tokens are accepted only by the MCP endpoint".to_string(),
+        ));
+    }
+    let (grant, user) = crate::routes::oauth::authenticate_access(state, token).await?;
+    let scopes = string_list(&grant.scopes);
+    let bound = KeyGrant {
+        key_id: grant.id,
+        org_id: grant.org_id,
+        site_id: None,
+        scopes: scopes.clone(),
+    };
+    if !bound.has_scope("stats:read") {
+        return Err(Error::Forbidden(
+            "this token does not hold the `stats:read` scope".to_string(),
+        ));
+    }
+    if !bind_key(&bound) {
+        tracing::error!(
+            path = parts.uri.path(),
+            "an OAuth token reached a route with no key scope layer"
+        );
+        return Err(Error::Forbidden(
+            "OAuth tokens are not accepted on this endpoint".to_string(),
+        ));
+    }
+    Ok(AuthUser {
+        user,
+        method: AuthMethod::OAuth(grant.id),
+        scopes,
+        key: Some(bound),
+    })
+}
+
 /// Resolve the `mf_session` cookie to an account.
 ///
 /// The stored value is a SHA-256 digest of the token, so a Postgres dump yields
@@ -360,6 +414,18 @@ fn bearer_token(parts: &Parts) -> Option<String> {
         .or_else(|| raw.strip_prefix("bearer "))?
         .trim();
     token.starts_with(KEY_PREFIX).then(|| token.to_string())
+}
+
+/// The `Authorization: Bearer mfo_…` OAuth access token, when one was presented.
+fn oauth_token(parts: &Parts) -> Option<String> {
+    let raw = parts.headers.get("authorization")?.to_str().ok()?.trim();
+    let token = raw
+        .strip_prefix("Bearer ")
+        .or_else(|| raw.strip_prefix("bearer "))?
+        .trim();
+    token
+        .starts_with(crate::routes::oauth::ACCESS_PREFIX)
+        .then(|| token.to_string())
 }
 
 // ---------------------------------------------------------------------------
@@ -414,6 +480,16 @@ pub fn key_route_policy(method: &Method, path: &str) -> KeyRoute {
         // Every MCP tool is a read, so the transport needs the read scope even
         // though it is a `POST`.
         ["mcp"] => KeyRoute::Needs("stats:read"),
+        // A key may report a problem and read back what it reported; that is
+        // not a management act, so the read scope every key holds is enough.
+        ["feedback", ..] => KeyRoute::Needs("stats:read"),
+        ["annotations", ..] => {
+            if read {
+                KeyRoute::Needs("stats:read")
+            } else {
+                KeyRoute::Needs("manage:write")
+            }
+        }
         ["stats" | "agents" | "citation-gap" | "policy" | "content" | "replay", ..] => {
             if read {
                 KeyRoute::Needs("stats:read")
@@ -429,6 +505,31 @@ pub fn key_route_policy(method: &Method, path: &str) -> KeyRoute {
                 KeyRoute::Needs("manage:write")
             }
         }
+        // Monitoring and growth. Monitors, status pages and links are objects
+        // an operator manages; revenue reports are analytics reads, and its
+        // integrations need `admin`, which no key ever holds.
+        ["uptime" | "status-pages" | "status-incidents" | "links" | "link-folders", ..] => {
+            if read {
+                KeyRoute::Needs("manage:read")
+            } else {
+                KeyRoute::Needs("manage:write")
+            }
+        }
+        ["revenue", ..] => {
+            if read {
+                KeyRoute::Needs("stats:read")
+            } else {
+                KeyRoute::Needs("manage:write")
+            }
+        }
+        // The audit log reads with its own scope and is never written through
+        // the API; `routes::audit_log` explains why a scope, not a role.
+        ["audit", ..] if read => KeyRoute::Needs("audit:read"),
+        // The raw rows of a site. A grant of its own, never implied by
+        // `stats:read`: a key minted to draw totals on a status page must not be
+        // able to carry off every row they were computed from. Reads only.
+        ["export", ..] if read => KeyRoute::Needs("export:read"),
+        ["export", ..] => KeyRoute::Refused,
         _ => KeyRoute::Refused,
     }
 }
@@ -1090,6 +1191,13 @@ mod tests {
             .insert("authorization", "Bearer mfg_abc123".parse().unwrap());
         assert_eq!(bearer_token(&parts).as_deref(), Some("mfg_abc123"));
 
+        // An OAuth token is not an API key; it has a path of its own.
+        parts
+            .headers
+            .insert("authorization", "Bearer mfo_abc123".parse().unwrap());
+        assert!(bearer_token(&parts).is_none());
+        assert_eq!(oauth_token(&parts).as_deref(), Some("mfo_abc123"));
+
         // A proxy's JWT must fall through to the cookie path, not be rejected as
         // a bad API key.
         parts
@@ -1239,6 +1347,10 @@ mod tests {
             // A route nobody has classified is closed until somebody does.
             (Method::GET, "/api/something-new"),
             (Method::GET, "/mf.js"),
+            // Billing belongs to a person, and the audit log is read-only.
+            (Method::GET, "/api/billing"),
+            (Method::POST, "/api/billing/checkout"),
+            (Method::POST, "/api/audit"),
         ];
         for (method, path) in cases {
             assert_eq!(key_route_policy(&method, path), Refused, "{method} {path}");
@@ -1293,6 +1405,52 @@ mod tests {
         assert_eq!(
             key_route_policy(&Method::PATCH, "/api/share/0190"),
             Needs("manage:write")
+        );
+
+        // Feedback needs only the read scope; annotations follow the method.
+        assert_eq!(
+            key_route_policy(&Method::POST, "/api/feedback"),
+            Needs("stats:read")
+        );
+        assert_eq!(
+            key_route_policy(&Method::GET, "/api/annotations"),
+            Needs("stats:read")
+        );
+        assert_eq!(
+            key_route_policy(&Method::DELETE, "/api/annotations/0190"),
+            Needs("manage:write")
+        );
+        // The AI analyst's conversations belong to a person, not to a key.
+        assert_eq!(
+            key_route_policy(&Method::POST, "/api/ai/ask"),
+            KeyRoute::Refused
+        );
+        // The audit log has a scope of its own.
+        assert_eq!(
+            key_route_policy(&Method::GET, "/api/audit"),
+            Needs("audit:read")
+        );
+        assert_eq!(
+            key_route_policy(&Method::GET, "/api/audit/export.csv"),
+            Needs("audit:read")
+        );
+        // A server SDK reads the flag ruleset with the management read scope.
+        assert_eq!(
+            key_route_policy(&Method::GET, "/api/flags/ruleset"),
+            Needs("manage:read")
+        );
+        assert_eq!(
+            key_route_policy(&Method::GET, "/api/export/raw"),
+            Needs("export:read")
+        );
+        assert_eq!(
+            key_route_policy(&Method::POST, "/api/export/raw"),
+            KeyRoute::Refused
+        );
+        // Raw rows are not a statistic: `stats:read` alone does not reach them.
+        assert_ne!(
+            key_route_policy(&Method::GET, "/api/export/raw"),
+            Needs("stats:read")
         );
     }
 

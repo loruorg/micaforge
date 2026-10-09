@@ -4,3 +4,6 @@
 # rewrite onto a redirect resolves to nothing.
 /app/*   /app/   200
 /share/* /share/ 200
+# A public status page is one static document that reads its slug off the
+# address and fetches the page from the API.
+/status/* /status/ 200

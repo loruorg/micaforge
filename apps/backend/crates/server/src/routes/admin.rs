@@ -107,6 +107,33 @@ pub async fn is_instance_admin(st: &AppState, user: &users::User) -> Result<bool
     Ok(first == Some(user.id))
 }
 
+/// The addresses of every instance admin, for a notice meant for them.
+///
+/// The same two rules as [`is_instance_admin`]: every listed address whose
+/// account has verified it, and the first account. Deduplicated, because the
+/// first account is often also listed.
+pub async fn instance_admin_addresses(st: &AppState) -> Result<Vec<String>> {
+    let mut out: Vec<String> = Vec::new();
+    for address in ADMIN_EMAILS.iter() {
+        if let Some(user) = users::find_by_email(&st.pg, address).await? {
+            if listed_and_verified(&ADMIN_EMAILS, &user) {
+                out.push(user.email.to_lowercase());
+            }
+        }
+    }
+    let first: Option<String> =
+        sqlx::query_scalar("SELECT email::text FROM users ORDER BY created_at ASC, id ASC LIMIT 1")
+            .fetch_optional(&st.pg)
+            .await?;
+    if let Some(email) = first {
+        let email = email.to_lowercase();
+        if !out.contains(&email) {
+            out.push(email);
+        }
+    }
+    Ok(out)
+}
+
 /// The `MICAFORGE_ADMIN_EMAILS` rule: listed, and the address proven.
 ///
 /// A code sign-in proves the address, but an account carried over from a

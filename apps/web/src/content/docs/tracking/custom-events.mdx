@@ -3,7 +3,7 @@ title: "Custom events"
 description: "track(), event properties, and what belongs in a property rather than a name."
 group: "tracking"
 order: 2
-updated: 2026-08-22
+updated: 2026-10-08
 ---
 
 ```js
@@ -20,6 +20,9 @@ import { track } from "@micaforge/sdk";
 
 track("signup", { plan: "pro", seats: 5 });
 ```
+
+No script at all is needed for a click: put `data-tags` on the script tag and
+`data-track="signup"` on the button. See [Click tags](/docs/tracking/click-tags).
 
 ## Names
 

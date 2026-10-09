@@ -79,7 +79,7 @@ const rows: { q: string; cells: [Cell, Cell] }[] = [
   {
     q: "Sampling, thresholding and modelling",
     cells: [
-      { s: "yes", w: "None", n: "Every number is a count of stored rows. When something cannot be known, the screen says so instead of estimating." },
+      { s: "yes", w: "None", n: "Every number is a count of stored rows. When something cannot be known, the screen says so instead of estimating. If you choose to sample visitors in the tracker, the screens say the figures are a sample and never scale them up." },
       { s: "no", w: "All three", n: "Rows can be withheld for privacy, and some reported figures are modelled rather than observed. What was withheld does not come across in an export." },
     ],
   },
@@ -93,7 +93,7 @@ const rows: { q: string; cells: [Cell, Cell] }[] = [
   {
     q: "Advertising and search integration",
     cells: [
-      { s: "no", w: "None", n: "No Ads, no Search Console, no Looker Studio connector. If you buy traffic, this is a real loss." },
+      { s: "partial", w: "Search Console only", n: "Search Console's search terms, pages and positions per site. No Ads and no Looker Studio connector. If you buy traffic, this is a real loss." },
       { s: "yes", w: "The whole ecosystem", n: "Ads, Search Console, Looker Studio, audiences, conversion import. Nothing here competes with that and nothing is trying to." },
     ],
   },
@@ -190,9 +190,9 @@ const sections = [
         <dl>
           <dt>The ecosystem</dt>
           <dd>
-            Google Ads, Search Console, Looker Studio, audience export, conversion import.
-            Micaforge has none of this and is not attempting it. If you buy traffic, GA4 earns
-            its place.
+            Google Ads, Looker Studio, audience export, conversion import. Micaforge reads
+            Search Console and has none of the rest, and is not attempting it. If you buy
+            traffic, GA4 earns its place.
           </dd>
           <dt>Everyone already knows it</dt>
           <dd>

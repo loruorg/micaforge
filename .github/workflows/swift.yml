@@ -1,0 +1,46 @@
+# The Swift SDK.
+#
+# A workflow of its own rather than a job in CI, because it needs a macOS runner
+# and those cost several times a Linux one: it runs only when the Swift package,
+# its root manifest, or the flag vectors it is held to change.
+
+name: Swift SDK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - Package.swift
+      - packages/sdk-swift/**
+      - packages/sdk/test/flag-vectors.json
+      - .github/workflows/swift.yml
+  pull_request:
+    paths:
+      - Package.swift
+      - packages/sdk-swift/**
+      - packages/sdk/test/flag-vectors.json
+      - .github/workflows/swift.yml
+
+concurrency:
+  group: swift-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  swift:
+    name: Build and test
+    runs-on: macos-15
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: swift build
+
+      # Includes the shared flag vectors in packages/sdk/test, read in place, so
+      # the Swift evaluator is held to the same cases as the TypeScript one.
+      - name: Test
+        run: swift test

@@ -1,0 +1,59 @@
+---
+title: "From Simple Analytics"
+description: "Importing Simple Analytics data points from a CSV export or from its export API."
+group: "migrating"
+order: 6
+updated: 2026-10-08
+---
+
+Simple Analytics exports data points: one row per page view and one per event. Both import
+directly, with the same time, page and referrer they had.
+
+## Two ways in
+
+### A CSV export
+
+In Simple Analytics, export the website's data points (page views, events, or both) as CSV,
+and upload the file on the site's **Imports** settings screen with **Simple Analytics** as
+the source.
+
+### The export API
+
+Choose **Simple Analytics' API** instead of a file, and give:
+
+- **Website**: as Simple Analytics lists it. Empty means this site's own domain.
+- **API key**: it starts with `sa_api_key_`.
+- **User id**: it starts with `sa_user_id_`, on the same account settings page. The export
+  API needs both.
+- **Days**: the first and last day to import, in UTC.
+
+The import asks for page views and then events, in UTC, with robots left out at the source.
+
+**Where the key goes.** The key and the user id are sealed on the Micaforge server the
+moment the form is sent, bound to that one import, and never shown again, never logged, and
+never in the job queue. They are deleted when the import finishes or is given up. This is
+the one outbound call an import makes, and it happens only because you typed the key.
+
+## What maps
+
+| Simple Analytics | Micaforge |
+| --- | --- |
+| A page view | A pageview at its `added_iso` time. |
+| An event (`datapoint`) | A custom event with that name. |
+| `metadata.*` | `props`. A `_int` field is a number again and a `_bool` field a true or false. |
+| `path`, `query`, `hostname` | The page. |
+| `document_referrer` | The referrer, re-resolved into channel and source. |
+| `utm_*` | Campaign columns. |
+| `country_code` | Country. |
+| `browser_name`, `os_name`, versions, `device_type`, screen and viewport | Client columns. |
+| `lang_language` | Language. |
+| `session_id` | The session, so an event joins the page views of its visit. |
+| `duration_seconds`, `scrolled_percentage` | Time on the page and scroll depth. |
+
+A row Simple Analytics flagged as a robot (`is_robot`) is not imported: Micaforge keeps
+people and machines in separate tables, and an export row has no user agent to classify.
+
+## After the import
+
+Import only the days before you installed the Micaforge tag. Page views should agree with
+Simple Analytics for a week the two share, because both count a page view the same way.

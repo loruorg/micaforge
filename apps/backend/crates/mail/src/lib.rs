@@ -330,6 +330,53 @@ impl Mailer {
             .await
     }
 
+    /// Send the weekly digest of one site's investigations.
+    pub async fn send_insight_digest(
+        &self,
+        to: &str,
+        site: &str,
+        digest: &DigestPayload,
+    ) -> Result<()> {
+        self.dispatch(to, templates::insight_digest(&self.base_url, site, digest))
+            .await
+    }
+
+    /// Tell an instance admin that feedback arrived.
+    pub async fn send_feedback_notice(&self, to: &str, feedback: &FeedbackPayload) -> Result<()> {
+        self.dispatch(to, templates::feedback_notice(&self.base_url, feedback))
+            .await
+    }
+
+    /// Send the daily digest of requests an ingest guard blocked on one site.
+    pub async fn send_blocked_traffic(
+        &self,
+        to: &str,
+        site: &str,
+        blocked: &templates::BlockedTraffic,
+    ) -> Result<()> {
+        self.dispatch(
+            to,
+            templates::blocked_traffic(&self.base_url, site, blocked),
+        )
+        .await
+    }
+
+    /// Send the 80% or 100% usage email of an organisation.
+    pub async fn send_usage(&self, to: &str, notice: &templates::UsageNotice) -> Result<()> {
+        self.dispatch(to, templates::usage(&self.base_url, notice))
+            .await
+    }
+
+    /// Tell an organisation's owner a subscription payment failed.
+    pub async fn send_payment_failed(
+        &self,
+        to: &str,
+        failed: &templates::PaymentFailed,
+    ) -> Result<()> {
+        self.dispatch(to, templates::payment_failed(&self.base_url, failed))
+            .await
+    }
+
     /// Send an already-rendered message.
     async fn dispatch(&self, to: &str, r: Rendered) -> Result<()> {
         self.send(to, &r.subject, &r.html, &r.text).await
@@ -520,6 +567,56 @@ pub struct AlertPayload {
     /// What the rule expected instead.
     pub expected: f64,
     /// Absolute dashboard link to the view that shows this.
+    pub link: String,
+}
+
+/// One week of a site's investigations, as the digest job computed it.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct DigestPayload {
+    /// The week, in words, resolved in the site's timezone ("29 September to 5 October").
+    pub period: String,
+    /// Investigations opened during the week.
+    pub opened: u64,
+    /// Investigations resolved during the week.
+    pub resolved: u64,
+    /// Every investigation that changed, open ones first.
+    pub items: Vec<DigestItem>,
+    /// Absolute link to the Insights screen.
+    pub link: String,
+    /// False when no model is configured, so the digest says why it carries no
+    /// explanations.
+    pub ai_configured: bool,
+}
+
+/// One investigation in a digest.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct DigestItem {
+    /// Its title.
+    pub title: String,
+    /// `open` | `monitoring` | `resolved`.
+    pub status: String,
+    /// The change in words ("+42% against the previous 7 days").
+    pub change: String,
+}
+
+/// A new feedback report, for the instance admins' notice.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct FeedbackPayload {
+    /// `bug` | `problem` | `feature` | `other`.
+    pub kind: String,
+    /// One line.
+    pub title: String,
+    /// The reporter's words.
+    pub body: String,
+    /// `dashboard` | `mcp` | `api` | `chat`.
+    pub source: String,
+    /// Who sent it, in words: an address, an MCP client's name, a chat sender.
+    pub reporter: String,
+    /// The site's domain, when the report named one.
+    pub site: Option<String>,
+    /// The page it was sent from.
+    pub page_url: Option<String>,
+    /// Absolute link to the triage screen.
     pub link: String,
 }
 

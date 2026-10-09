@@ -1,25 +1,58 @@
 ---
 title: "MCP server"
-description: "Twelve read tools over JSON-RPC, so an agent can query the analytics it is helping to produce."
+description: "Report, monitoring, revenue and Google Search tools, the AI analyst, and writes for goals, notes, feature flags and short links over JSON-RPC, with an API key or OAuth."
 group: "api"
 order: 4
-updated: 2026-08-22
+updated: 2026-10-09
 ---
 
 The agents this product counts on one screen can, through this endpoint, read the count.
 
 ```http
 POST /api/mcp
-Authorization: Bearer mfg_…
+Authorization: Bearer mfg_…    an API key, or an OAuth access token: mfo_…
 ```
 
-JSON-RPC 2.0 over a single HTTP POST, protocol revision `2024-11-05`. Nothing here is a
-new capability: every tool is one of the read endpoints, answered by the same query
-functions, over the same [query envelope](/docs/api/stats-api).
+JSON-RPC 2.0 over a single HTTP POST. Nearly every tool is one of the read endpoints,
+answered by the same query functions, over the same [query envelope](/docs/api/stats-api). A
+few tools write, and they are small: a goal, an annotation, a feedback report.
+
+## Protocol revisions
+
+Three revisions are accepted: `2025-06-18`, `2025-03-26` and `2024-11-05`. The server answers
+`initialize` with the revision the client asked for when it is one of these, and with
+`2025-06-18` when it is not, which is the negotiation the specification describes.
+
+`initialize` also returns an `Mcp-Session-Id` header. Send it back on later requests, as MCP
+clients do: it is how a [feedback report](/docs/api/feedback) knows which client sent it.
 
 ## Connecting
 
-Any MCP client that can speak HTTP with a bearer token will do:
+Two ways to authenticate. Both reach the same tools.
+
+### With OAuth
+
+A client that supports MCP authorization needs only the address:
+
+```json
+{
+  "mcpServers": {
+    "micaforge": { "url": "https://analytics.example.com/api/mcp" }
+  }
+}
+```
+
+The client opens a browser. You sign in to Micaforge as usual, then a consent screen shows
+the client's name and where it will send you back. Pick the organisation it may read and the
+scopes it gets, and approve. The client receives its tokens; there is nothing to copy.
+
+Every client you approved is listed in **Account → Connected apps**, with its organisation, its
+scopes, when you connected it and when it was last used. Revoke it there, and both of its
+tokens stop working at once.
+
+### With an API key
+
+Any MCP client that can send a header will do:
 
 ```json
 {
@@ -32,16 +65,123 @@ Any MCP client that can speak HTTP with a bearer token will do:
 }
 ```
 
-A key, not a session. The caller is a program: a session cookie belongs to a browser, and
-an agent holding one is an agent running inside somebody's dashboard tab. A key is a
-credential an operator minted deliberately, can name, can scope to one site, and can revoke
-without logging anybody out. `stats:read` is enough for every tool here.
+A key, not a session. The caller is a program: a session cookie belongs to a browser, and an
+agent holding one is an agent running inside somebody's dashboard tab. A key is a credential
+an operator minted deliberately, can name, can scope to one site, and can revoke without
+logging anybody out. See [authentication](/docs/api/authentication).
+
+### Scopes
+
+| Scope | Opens |
+| --- | --- |
+| `stats:read` | Every read tool, `ask`, and the two feedback tools. |
+| `manage:write` | The write tools: `create_goal`, `create_annotation`, `delete_annotation`, the feature flag writes (`create_flag`, `update_flag`, `set_flag_enabled`, `delete_flag`) and the short link writes (`create_link`, `update_link`, `delete_link`). |
+
+A key needs `stats:read` to reach the endpoint at all. In an OAuth grant, `stats:read` is
+required and `manage:write` is optional.
+
+## OAuth, for client authors
+
+The server follows the MCP authorization specification: OAuth 2.1, with this install as both
+the resource and the authorization server. Every step below is public; none needs a session.
+
+**1. Discovery.** A request with no token, or a token that is not valid, is answered with:
+
+```http
+HTTP/1.1 401 Unauthorized
+WWW-Authenticate: Bearer resource_metadata="https://analytics.example.com/.well-known/oauth-protected-resource/api/mcp"
+```
+
+That document is the protected resource metadata (RFC 9728), also served at
+`/.well-known/oauth-protected-resource`. It names the resource,
+`https://analytics.example.com/api/mcp`, the authorization server, and the scopes. The
+authorization server metadata (RFC 8414) is at `/.well-known/oauth-authorization-server`, and
+lists the endpoints below with what each accepts.
+
+**2. Registration.** Dynamic client registration (RFC 7591):
+
+```sh
+curl -X POST https://analytics.example.com/api/oauth/register \
+  -H "Content-Type: application/json" \
+  -d '{"client_name":"My editor","redirect_uris":["http://127.0.0.1:33418/callback"],"token_endpoint_auth_method":"none"}'
+```
+
+The answer carries the `client_id`. `token_endpoint_auth_method` is `none` for a public client,
+whose proof is PKCE, or `client_secret_post` or `client_secret_basic` for a client that can
+keep a secret, which then also receives a `client_secret`. A redirect URI must be one of:
+
+- an `https` address
+- an `http` address on a loopback host, such as `http://127.0.0.1:33418/callback`
+- a private-use scheme, such as `com.example.editor:/callback`
+
+Registration is open, so a registered client is only a name and some addresses. What makes a
+token trustworthy is the consent a signed-in person gives, which is why the consent screen
+shows both.
+
+**3. Authorization.** Send the person's browser to the authorization endpoint, with PKCE.
+Shown here one parameter per line and unencoded; send each value URL-encoded:
+
+```text
+https://analytics.example.com/api/oauth/authorize
+  ?response_type=code
+  &client_id=…
+  &redirect_uri=http://127.0.0.1:33418/callback
+  &code_challenge=…
+  &code_challenge_method=S256
+  &scope=stats:read manage:write
+  &state=…
+  &resource=https://analytics.example.com/api/mcp
+```
+
+`S256` is the only code challenge method. `resource` (RFC 8707) must name this MCP endpoint.
+The server checks the request, then sends the browser to the dashboard's consent screen at
+`/app/oauth/authorize`, through sign-in first when needed. Approval sends the browser back to
+`redirect_uri` with `code` and your `state`; refusal sends it back with
+`error=access_denied`. A code lives ten minutes and works once.
+
+**4. Token.** Exchange the code at the token endpoint, form-encoded:
+
+```sh
+curl -X POST https://analytics.example.com/api/oauth/token \
+  -d grant_type=authorization_code \
+  -d code=… \
+  -d redirect_uri=http://127.0.0.1:33418/callback \
+  -d client_id=… \
+  -d code_verifier=… \
+  -d resource=https://analytics.example.com/api/mcp
+```
+
+The answer holds an access token, `mfo_…`, which lives one hour, and a refresh token, `mfr_…`,
+which lives 30 days. Send the access token as `Authorization: Bearer mfo_…`.
+
+**5. Refresh.** `grant_type=refresh_token` with the refresh token and the `client_id` returns
+a new access token and a new refresh token. Refresh tokens rotate on every use: the old one
+stops working at once, and presenting it again revokes the whole grant, both tokens, because
+only a copy that leaked would be presented twice.
+
+**6. Revocation.** `POST /api/oauth/revoke` with `token=…` (RFC 7009) revokes an access or a
+refresh token. The person can do the same in Account → Connected apps.
+
+Tokens are stored as SHA-256 digests only, like API keys, so a database dump holds no working
+token.
+
+### What an OAuth token can do
+
+- It acts for the person who approved it, inside the organisation they picked, with the
+  scopes they ticked.
+- It never acts above `member`, whatever the person's own role.
+- It works only on `/api/mcp`. Sent to any other route, it is refused.
+
+### Behind your own proxy
+
+The discovery documents live under `/.well-known/`, outside `/api`. The shipped Caddyfile sends
+`/.well-known/oauth-*` to the server. If you put another proxy in front, forward those paths
+too, or OAuth clients stop at discovery and only API keys work.
 
 ## The methods
 
-`initialize`, `tools/list`, `tools/call` and `ping`. Batches are accepted, and a
-notification (a member with no `id`) is answered with no response, which is what JSON-RPC
-requires and costs nothing here, because every tool is a read.
+`initialize`, `tools/list`, `tools/call` and `ping`. Batches are accepted, and a notification
+(a member with no `id`) is answered with no response, which is what JSON-RPC requires.
 
 ```sh
 curl -X POST https://analytics.example.com/api/mcp \
@@ -54,9 +194,11 @@ curl -X POST https://analytics.example.com/api/mcp \
 
 Start with `list_sites`: it returns the numeric `site` id every other tool needs.
 
+### Reads
+
 | Tool | Answers |
 | --- | --- |
-| `list_sites` | Which sites this key can read, with each id, domain and timezone. |
+| `list_sites` | Which sites this caller can read, with each id, domain and timezone. |
 | `get_overview` | Visitors, sessions, pageviews, bounce, duration, views per session, each with its change. |
 | `get_timeseries` | One metric in buckets, plus the comparison series. |
 | `get_breakdown` | Ranked rows for one dimension, with metrics and each row's share. |
@@ -68,9 +210,13 @@ Start with `list_sites`: it returns the numeric `site` id every other tool needs
 | `get_policy_violations` | Fetches of a path robots.txt disallowed, per agent and path. |
 | `get_content_decay` | Pages the machines still read and people no longer do. |
 | `run_query` | The general console: a dimension and metrics, or the totals without one. |
+| `list_annotations` | The [annotations](/docs/dashboard/annotations) overlapping a window. |
+| `ask` | A question for the [AI analyst](/docs/dashboard/ask-ai), answered in words. |
+| `list_my_feedback` | The feedback this caller sent, newest first, with each report's status. |
+| `list_deploys` | The deploys, releases and pushes the [GitHub App](/docs/integrations/github) recorded for a site in a window. |
 
-Every tool except `list_sites` takes the query envelope: `site`, a window, `compare`, `tz`,
-`granularity`, `filters`, `audience`.
+The report tools take the query envelope: `site`, a window, `compare`, `tz`, `granularity`,
+`filters`, `audience`. `list_annotations` takes `site` and a window.
 
 ```json
 {
@@ -84,14 +230,138 @@ Every tool except `list_sites` takes the query envelope: `site`, a window, `comp
 }
 ```
 
+**`ask`** takes `site` and `question`, and optionally a window and `filters`. The analyst runs
+its own tools against that site, combined with those filters, and the result is the written
+answer and the trace of every query it ran: the tool, the arguments, the equivalent stats
+request and the SQL. It needs a model configured on the server; without one the call fails
+with `ai_not_configured`. Each call counts against the organisation's daily limit, shared with
+the dashboard and the chat apps.
+
+An agent that can query the reports itself usually should: the rows are exact and cost no
+model call. `ask` is for a client that would rather have the answer than the rows.
+
+### Writes
+
+| Tool | Arguments | Needs |
+| --- | --- | --- |
+| `create_goal` | `site`, `name`, `kind` (`path`, `event`, `outbound`, `file` or `revenue`), `conditions`, optional `value_cents` | `manage:write` |
+| `create_annotation` | `site`, `starts_at`, optional `ends_at`, `text`, optional `color` (`neutral`, `green`, `red`) and `category` | `manage:write` |
+| `delete_annotation` | `id` | `manage:write` |
+| `submit_feedback` | `kind` (`bug`, `problem`, `feature`, `other`), `title`, `body`, optional `severity` and `site` | `stats:read` |
+| `create_github_issue_from_feedback` | `feedback`, optional `site` | `manage:write`, and the site's admins must allow it ([GitHub](/docs/integrations/github#feedback-to-github-issues)) |
+
+A goal's `conditions` is a filter group, the same shape as
+[filters](/docs/dashboard/filters-and-segments), checked exactly as the goals screen checks it.
+See [goals](/docs/dashboard/goals). When an agent should send feedback, and when it should not,
+is on the [feedback](/docs/api/feedback#from-an-agent) page.
+
+### Feature flags and short links
+
+An agent that ships a feature behind a flag can create the flag, roll it out, switch it off
+and remove it; an agent writing a launch post can make the short links it cites. Each tool
+goes through the same checks, history and audit entry as the dashboard, so a change an agent
+made reads in the [audit log](/docs/dashboard/audit-log) as the key or the person, followed by
+`via` and the MCP client's name.
+
+| Tool | Arguments | Needs |
+| --- | --- | --- |
+| `list_flags` | `site` | `stats:read` and `viewer` on the site |
+| `create_flag` | `site`, `key`, optional `name`, `description`, `enabled`, `rollout_pct`, `variants`, `conditions`, `target_groups`, `dependencies`, `environments`, `template` | `manage:write` and `member` |
+| `update_flag` | `site`, `key`, then only the fields to change; `rename_to` changes the key | `manage:write` and `member` |
+| `set_flag_enabled` | `site`, `key`, `enabled` | `manage:write` and `member` |
+| `delete_flag` | `site`, `key`, `confirm: true` | `manage:write` and `member` |
+| `create_link` | `site`, `target_url`, optional `slug`, `utm`, `title`, `description`, `image_url`, `ios_url`, `android_url`, `deep_link`, `expires_at`, `folder_id` | `manage:write` and `member` |
+| `update_link` | `site`, `link` (the id from `list_links`), then only the fields to change; `null` clears an optional field | `manage:write` and `member` |
+| `delete_link` | `site`, `link`, `confirm: true` | `manage:write` and `member` |
+
+The two deletes are refused unless the call carries `confirm: true`. A deleted flag takes its
+history with it and every SDK falls back to its default; a deleted link answers not-found to
+everyone who still has the address. An agent should ask the person first, and the argument is
+where it says it did. An argument a tool does not take is refused with its name, so a
+misspelt `rollout` does not leave a flag silently unchanged. The flag fields are described in
+[feature flags](/docs/tracking/feature-flags), the link fields in
+[short links](/docs/dashboard/short-links). The link tools act on a site's links; a link that
+belongs to the whole organisation is managed in the dashboard.
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 4,
+  "method": "tools/call",
+  "params": {
+    "name": "update_flag",
+    "arguments": { "site": 1, "key": "new-nav", "rollout_pct": 25 }
+  }
+}
+```
+
+### Uptime, links and revenue
+
+Six more tools read [uptime monitoring](/docs/dashboard/uptime-monitoring),
+[short links](/docs/dashboard/short-links) and [revenue](/docs/tracking/revenue). They
+take their own arguments, not the whole query envelope:
+
+| Tool | Arguments | Answers |
+| --- | --- | --- |
+| `get_uptime_summary` | `site` | Each monitor's state, latency, SSL days left and uptime over 24 hours, 7 and 30 days, and the number of open incidents. |
+| `list_uptime_incidents` | `site`, `limit` | Incidents, newest first, open ones included, with the cause and the duration. |
+| `list_links` | `site`, `q` | The site's short links, filtered by the text in `q`. |
+| `get_link_stats` | `site`, `link`, `range` | Clicks of one link: people and bots over time, referrers, countries, devices, browsers, targets. `link` is the link id; `range` is `24h`, `7d`, `30d` or `90d`. |
+| `get_revenue_overview` | `site` and a window | Gross, refunds, net, payments and customers, per currency. |
+| `get_revenue_breakdown` | `site`, `range`, `dimension`, `currency` | Revenue by one dimension, per currency. `dimension` takes the values listed under [reading revenue](/docs/tracking/revenue#reading-it); `currency` is optional. |
+
+They need `stats:read`, like every other tool here.
+
+### Google Search
+
+Three tools read [Google Search Console](/docs/integrations/google-search-console) data for a
+site that has connected a property. They take the query envelope's `site` and window
+(`range`, or `start` and `end`, and `compare`); `audience` and `filters` do not apply, because
+these are Google's figures. A site with no property connected answers `not_found`.
+
+| Tool | Extra arguments | Answers |
+| --- | --- | --- |
+| `get_search_overview` | none | Clicks, impressions, click-through rate and average position, with the change against the comparison window, and one point per day. |
+| `get_search_queries` | `query`, `path`, `country`, `device`, `sort` | Search terms with their clicks, impressions, CTR and position. |
+| `get_search_breakdown` | `dimension` (`page`, `country`, `device`), `path`, `sort` | The same figures by page (with Micaforge's own visitors on the same path), country or device. |
+
+`sort` is `clicks`, `impressions`, `ctr` or `position`. They need `stats:read`.
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 3,
+  "method": "tools/call",
+  "params": {
+    "name": "get_revenue_breakdown",
+    "arguments": { "site": 1, "range": "30d", "dimension": "utm_campaign" }
+  }
+}
+```
+
+### Your own MCP servers
+
+Two tools read [MCP server analytics](/docs/tracking/mcp-server-analytics): the calls the
+MCP servers you run measured, so an agent can ask how its own tools are doing. They take
+`site`, a window (`range`, or `start` and `end`; seven days when you name none) and the
+optional filters `server`, `method` and `client`, and need `stats:read`.
+
+| Tool | Extra arguments | Answers |
+| --- | --- | --- |
+| `get_mcp_server_stats` | none | Calls, failed calls, tool errors, error rate, p50 and p95 latency, sessions and servers, the busiest tools with their error rates, and the clients with their share. |
+| `list_mcp_calls` | `view` (`slowest` or `failing`), `limit` | Single calls: time, server, tool, client, transport, duration, status, error class and code, sizes. |
+
+Neither returns an argument value or an error message, because neither is recorded unless
+the server's owner opted in, and stored arguments are never returned by a tool.
+
 ## Two things a caller should know
 
 **Errors are JSON-RPC objects, not HTTP statuses.** Once a request has parsed, every
-failure (an unknown tool, a bad range, a site this key may not read) comes back as an
-`error` member with HTTP 200, and the stable `snake_case` code is in `error.data.code`. A
-client that receives a naked 4xx on a batch has to guess which call failed and generally
-just reports that the server is broken. The one exception is authentication, which is a
-property of the transport and answers with the ordinary `401`.
+failure (an unknown tool, a bad range, a site this caller may not read, a write without
+`manage:write`) comes back as an `error` member with HTTP 200, and the stable `snake_case`
+code is in `error.data.code`. A client that receives a naked 4xx on a batch has to guess
+which call failed and generally just reports that the server is broken. The one exception is
+authentication, which is a property of the transport and answers with the ordinary `401`.
 
 **Rows are capped at 1,000 per call**, lower than the HTTP ceiling. The consumer is a
 context window, and ten thousand breakdown rows is not an answer to any question an agent
@@ -99,6 +369,9 @@ can usefully ask. For a whole table, use the CSV export.
 
 ## What it cannot do
 
-Every tool is a read. There is no tool that creates a goal, edits a site, deletes anything
-or changes a setting, and that is a design decision rather than an oversight: an agent
-should be able to read the record it is helping to write, and not to alter it.
+The writes are few on purpose: create a goal, create or delete an annotation, manage feature
+flags and short links, send feedback. No tool edits or deletes a site, edits or deletes a
+goal, changes a site's settings, connects an integration, manages people or keys, or reads a
+single visitor's sessions. An agent should be able to read the record it is helping to write,
+to leave a note on it, and to operate the switches and links it ships with, and not to alter
+the record itself.

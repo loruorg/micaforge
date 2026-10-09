@@ -373,3 +373,85 @@ export function Mark({ size = 24, ...rest }: SVGProps<SVGSVGElement> & { size?: 
     </svg>
   );
 }
+
+/** Ask AI: a question box with two lines of answer in it. */
+export const IconAsk = (p: IconProps) => (
+  <Glyph {...p}>
+    <path d="M2 2.5h12v8.5H8.5L5 13.8V11H2z" />
+    <path d="M5 5.5h6M5 8h3.5" />
+  </Glyph>
+);
+
+/** Insights: a traffic line with the moment that changed ringed. */
+export const IconInsight = (p: IconProps) => (
+  <Glyph {...p}>
+    <path d="M1.5 13.5h13" />
+    <path d="M1.5 10.5 4.5 8.5 7 9.5 8.6 7.6" />
+    <circle cx={10.6} cy={5.4} r={2.4} />
+    <path d="M12.6 7.2 14.5 9" />
+  </Glyph>
+);
+
+/* ── monitoring and growth ──────────────────────────────────────────────── */
+
+/** Uptime: a pulse line with one beat, read left to right. */
+export const IconUptime = (p: IconProps) => (
+  <Glyph {...p}>
+    <path d="M1.5 8.5h3l1.6-4 2.6 8 1.8-4H14.5" />
+  </Glyph>
+);
+
+/** A status page: a sheet with three rows, each with its state dot. */
+export const IconStatusPage = (p: IconProps) => (
+  <Glyph {...p}>
+    <rect x={2} y={2.5} width={12} height={11} rx={1.6} />
+    <path d="M7 6h4.5M7 8.5h4.5M7 11h4.5" />
+    <path d="M4.6 6h.01M4.6 8.5h.01M4.6 11h.01" strokeWidth={1.8} />
+  </Glyph>
+);
+
+/** A short link: two open loops joined on the diagonal. */
+export const IconLink = (p: IconProps) => (
+  <Glyph {...p}>
+    <path d="M6.8 9.2 9.2 6.8" />
+    <path d="M7.6 4.6 8.9 3.3a2.6 2.6 0 0 1 3.7 3.7l-1.3 1.3" />
+    <path d="M8.4 11.4 7.1 12.7a2.6 2.6 0 0 1-3.7-3.7l1.3-1.3" />
+  </Glyph>
+);
+
+/** Revenue: a coin edge-on over a rising step. */
+export const IconRevenue = (p: IconProps) => (
+  <Glyph {...p}>
+    <circle cx={8} cy={6} r={3.6} />
+    <path d="M8 4.4v3.2" />
+    <path d="M1.5 13.5h3v-1.5h3v-1.5h3V9h4" />
+  </Glyph>
+);
+
+/** Frustration: a pointer with three short strokes of repeated clicking. */
+export const IconFrustration = (p: IconProps) => (
+  <Glyph {...p}>
+    <path d="M6 5.5v8l2.2-2.2 1.6 3 1.4-.7-1.6-3H13L6 5.5Z" />
+    <path d="M3.5 2.5 4.6 4M7.2 1.5v1.8M1.5 6h1.8" />
+  </Glyph>
+);
+
+/** Google Search results: a magnifier holding a results line. */
+export const IconSearchResults = (p: IconProps) => (
+  <Glyph {...p}>
+    <circle cx={7} cy={7} r={4.2} />
+    <path d="m10.1 10.1 3.6 3.6" />
+    <path d="M5.2 7h3.6" />
+  </Glyph>
+);
+
+/** MCP servers: two server units with a lead out to a plug. */
+export const IconMcp = (p: IconProps) => (
+  <Glyph {...p}>
+    <rect x={1.5} y={2.5} width={8} height={4.5} rx={1.2} />
+    <rect x={1.5} y={9} width={8} height={4.5} rx={1.2} />
+    <path d="M4 4.75h.01M4 11.25h.01" strokeWidth={1.8} />
+    <path d="M9.5 4.75h2.5v6.5H9.5" />
+    <path d="M12 8h2.5" />
+  </Glyph>
+);

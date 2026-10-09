@@ -47,6 +47,21 @@ export interface DrumAnnotation {
   at: number;
   label: string;
   tone?: "neutral" | "warn" | "good";
+  /**
+   * Who wrote the note. `auto` (the default) is one read off the data, by this
+   * chart or by the screen: a dot on the moment and a dotted leader to the
+   * margin. `user` is one a person wrote ("Launched v2"): a dashed rule across
+   * the whole plot with a flag at its top, a light band when it covers a range,
+   * and a solid leader ending in a flag. The two kinds differ by shape, so the
+   * difference never rests on colour alone.
+   */
+  kind?: "auto" | "user";
+  /** Inclusive end index, for a `user` note that covers a range. */
+  to?: number;
+  /** A CSS colour for a `user` note's rule, band, flag and words. */
+  color?: string;
+  /** A stable key for a `user` note, so two notes with the same words stay two. */
+  id?: string;
 }
 
 /** An annotation plus the colour of its on-plot mark, set internally so an
@@ -100,6 +115,12 @@ export interface DrumProps {
   gainNote?: boolean;
   /** Called when the reader drags out a range, with the inclusive sample indices. */
   onMeasure?: (from: number, to: number) => void;
+  /**
+   * Called when the reader presses and releases on one sample without
+   * dragging, with that sample's index. A drag is still a measured range; only
+   * a press that stays on one sample is a pick.
+   */
+  onPickSample?: (index: number) => void;
   /** Marks the newest sample with a dot, for a chart that updates live. */
   live?: boolean;
   formatTime?: (t: number) => string;
@@ -394,6 +415,7 @@ export function Drum({
   overRangeNotes = true,
   gainNote = true,
   onMeasure,
+  onPickSample,
   live = false,
   formatTime,
   emptyLabel = "No data for this period yet.",
@@ -750,12 +772,14 @@ export function Drum({
        text. Matching the text is what failed before: one screen wrote
        "Peak 1.2k fetches" against this component's "Peak 1,213", the keys never
        collided, and two identical marks landed on one sample and read as a
-       fault in the instrument. */
-    const claimed = new Set(annotations.map((a) => a.at));
+       fault in the instrument.
+       A note a person wrote claims nothing: "Launched v2" and "Peak 1,213"
+       say different things about the same sample, and both are true. */
+    const claimed = new Set(annotations.filter((a) => a.kind !== "user").map((a) => a.at));
     const seen = new Set<string>();
     return [...over.filter((o) => !claimed.has(o.at)), ...annotations]
       .filter((a) => {
-        const key = `${a.at}|${a.label}`;
+        const key = a.kind === "user" && a.id ? `user|${a.id}` : `${a.at}|${a.label}`;
         if (seen.has(key)) return false;
         seen.add(key);
         return true;
@@ -774,29 +798,63 @@ export function Drum({
 
   const svgRef = useRef<SVGSVGElement | null>(null);
 
+  /** The sample the pointer is over now; read on release to tell a pick from a drag. */
+  const lastIndex = useRef<number | null>(null);
+
   const onPointerDown = (e: ReactPointerEvent) => {
-    if (!onMeasure || empty) return;
+    if ((!onMeasure && !onPickSample) || empty) return;
     const rect = svgRef.current!.getBoundingClientRect();
     const i = indexFromEvent(e.clientX, rect);
     dragging.current = i;
-    setCaliper({ a: i, b: i });
+    lastIndex.current = i;
+    if (onMeasure) setCaliper({ a: i, b: i });
     (e.target as Element).setPointerCapture?.(e.pointerId);
   };
   const onPointerMove = (e: ReactPointerEvent) => {
     const rect = svgRef.current!.getBoundingClientRect();
     const i = indexFromEvent(e.clientX, rect);
     setHover(i);
-    if (dragging.current != null) setCaliper({ a: dragging.current, b: i });
+    lastIndex.current = i;
+    if (dragging.current != null && onMeasure) setCaliper({ a: dragging.current, b: i });
   };
-  const onPointerUp = () => {
-    if (dragging.current != null && caliper) {
+  /**
+   * Ends a press. A release on the sample it started on is a pick; a pointer
+   * that leaves the chart mid-press is never one, because nobody chose a sample
+   * by walking off the edge.
+   */
+  const finishPress = (pick: boolean) => {
+    const start = dragging.current;
+    if (start != null && caliper && onMeasure) {
       const from = Math.min(caliper.a, caliper.b);
       const to = Math.max(caliper.a, caliper.b);
-      if (to > from) onMeasure?.(from, to);
-      else setCaliper(null);
+      if (to > from) onMeasure(from, to);
+      else {
+        setCaliper(null);
+        if (pick) onPickSample?.(start);
+      }
+    } else if (start != null && pick && lastIndex.current === start) {
+      onPickSample?.(start);
     }
     dragging.current = null;
   };
+  const onPointerUp = () => finishPress(true);
+
+  /**
+   * The notes a person wrote, held to the samples this chart actually has. A
+   * note that starts before the window is drawn from its first sample, and a
+   * range is a band only when it covers more than one sample.
+   */
+  const userNotes = useMemo(() => {
+    if (!n) return [];
+    const clamp = (i: number) => Math.min(n - 1, Math.max(0, Math.round(i)));
+    return annotations
+      .filter((a) => a.kind === "user")
+      .map((a) => {
+        const at = clamp(a.at);
+        const to = a.to != null ? clamp(a.to) : null;
+        return { ...a, at, to: to != null && to > at ? to : null, ink: a.color ?? "var(--mf-ink-2)" };
+      });
+  }, [annotations, n]);
 
   /* Read off each pen's own samples: a pool's maximum can belong to a channel
      the label is not describing. */
@@ -815,15 +873,24 @@ export function Drum({
         role="img"
         aria-label={`Chart of ${channels.map((c) => c.label).join(" and ")} over ${n} intervals${
           anyClipped ? ". The scale is clipped; the true peak is given under the chart." : ""
+        }${
+          userNotes.length
+            ? `. ${userNotes.length} ${userNotes.length === 1 ? "annotation" : "annotations"}: ${userNotes
+                .map((a) => a.label)
+                .join("; ")}.`
+            : ""
         }`}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerLeave={() => {
           setHover(null);
-          onPointerUp();
+          finishPress(false);
         }}
-        style={{ touchAction: "pan-y", cursor: onMeasure && !empty ? "col-resize" : "default" }}
+        style={{
+          touchAction: "pan-y",
+          cursor: onMeasure && !empty ? "col-resize" : onPickSample && !empty ? "pointer" : "default",
+        }}
       >
         <defs>
           {/* The plot area. Grid lines and series are clipped to it. */}
@@ -928,6 +995,22 @@ export function Drum({
             ))}
 
           <g clipPath={`url(#clip-${uid})`}>
+            {/* A note a person wrote over a range: a light band behind the
+                series, so the lines stay readable through it. */}
+            {!empty &&
+              userNotes.map((a) =>
+                a.to != null ? (
+                  <rect
+                    key={`band-${a.id ?? `${a.at}-${a.label}`}`}
+                    x={x(a.at)}
+                    y={0}
+                    width={Math.max(1, x(a.to) - x(a.at))}
+                    height={innerH}
+                    fill={a.ink}
+                    opacity={0.07}
+                  />
+                ) : null,
+              )}
             <g
               key={motion.key}
               className={motionClass}
@@ -1084,6 +1167,49 @@ export function Drum({
 
           </g>
 
+          {/* A note a person wrote: a dashed rule across the whole plot, a
+              second fainter rule where a range ends, and a small flag standing
+              on the top edge. Drawn over the series, outside the clip, so the
+              flag sits in the top margin at any width. The words are in the
+              margin (or, on a narrow chart, in the flag's own title). */}
+          {!empty &&
+            userNotes.map((a) => {
+              const px = x(a.at);
+              return (
+                <g key={`rule-${a.id ?? `${a.at}-${a.label}`}`}>
+                  <title>{a.label}</title>
+                  <line
+                    x1={px}
+                    x2={px}
+                    y1={0}
+                    y2={innerH}
+                    stroke={a.ink}
+                    strokeWidth={1.2}
+                    strokeDasharray="4 3"
+                  />
+                  {a.to != null && (
+                    <line
+                      x1={x(a.to)}
+                      x2={x(a.to)}
+                      y1={0}
+                      y2={innerH}
+                      stroke={a.ink}
+                      strokeWidth={1}
+                      strokeDasharray="2 3"
+                      opacity={0.7}
+                    />
+                  )}
+                  <path
+                    d={`M${px},0 V-11 h7 l-2,2.6 l2,2.6 h-7`}
+                    fill={a.ink}
+                    stroke={a.ink}
+                    strokeWidth={1}
+                    strokeLinejoin="round"
+                  />
+                </g>
+              );
+            })}
+
           {/* A narrow chart has no margin to write in, so a noted moment keeps
               its mark on the time axis, longer than a tick and in the note's
               own tone, even though the words cannot fit. It sits beside the
@@ -1092,42 +1218,50 @@ export function Drum({
               already states every clipped peak in words. */}
           {narrow &&
             !empty &&
-            annotations.slice(0, 3).map((a) => (
-              <line
-                key={`mark-${a.at}-${a.label}`}
-                x1={x(a.at)}
-                x2={x(a.at)}
-                y1={innerH}
-                y2={innerH + 6}
-                stroke={
-                  a.tone === "warn"
-                    ? "var(--mf-danger)"
-                    : a.tone === "good"
-                      ? "var(--mf-success)"
-                      : "var(--mf-drum-label)"
-                }
-                strokeWidth={2}
-                strokeLinecap="butt"
-              >
-                <title>{a.label}</title>
-              </line>
-            ))}
+            annotations
+              .filter((a) => a.kind !== "user")
+              .slice(0, 3)
+              .map((a) => (
+                <line
+                  key={`mark-${a.at}-${a.label}`}
+                  x1={x(a.at)}
+                  x2={x(a.at)}
+                  y1={innerH}
+                  y2={innerH + 6}
+                  stroke={
+                    a.tone === "warn"
+                      ? "var(--mf-danger)"
+                      : a.tone === "good"
+                        ? "var(--mf-success)"
+                        : "var(--mf-drum-label)"
+                  }
+                  strokeWidth={2}
+                  strokeLinecap="butt"
+                >
+                  <title>{a.label}</title>
+                </line>
+              ))}
 
-          {/* ── margin notes, written beside the chart ──────────────── */}
+          {/* ── margin notes, written beside the chart. A note a person
+                 wrote has a solid leader ending in a flag on its own rule; a
+                 note read off the data has a dotted leader ending in a dot. ── */}
           {!narrow &&
             marginNotes.map((a, k) => {
-              const px = x(a.at);
+              const user = a.kind === "user";
+              const px = x(Math.min(n - 1, Math.max(0, a.at)));
               const py = 11 + k * ((innerH - 22) / Math.max(1, marginNotes.length - 1 || 1));
               const label = a.label.length > 22 ? `${a.label.slice(0, 21)}…` : a.label;
-              const tone =
-                a.tone === "warn"
+              const tone = user
+                ? (a.color ?? "var(--mf-ink-2)")
+                : a.tone === "warn"
                   ? "var(--mf-danger)"
                   : a.tone === "good"
                     ? "var(--mf-success)"
                     : "var(--mf-drum-label)";
               const mark = a.mark ?? tone;
               return (
-                <g key={`${a.at}-${a.label}`}>
+                <g key={user && a.id ? `user-${a.id}` : `${a.at}-${a.label}`}>
+                  {user && a.label.length > 22 ? <title>{a.label}</title> : null}
                   <line
                     x1={px}
                     y1={py}
@@ -1135,10 +1269,20 @@ export function Drum({
                     y2={py}
                     stroke={mark}
                     strokeWidth={1}
-                    strokeDasharray="2 3"
-                    opacity={0.7}
+                    strokeDasharray={user ? undefined : "2 3"}
+                    opacity={user ? 0.5 : 0.7}
                   />
-                  <circle cx={px} cy={py} r={2} fill={mark} />
+                  {user ? (
+                    <path
+                      d={`M${px},${py + 4} V${py - 5} h6 l-1.8,2.2 l1.8,2.2 h-6`}
+                      fill={mark}
+                      stroke={mark}
+                      strokeWidth={1}
+                      strokeLinejoin="round"
+                    />
+                  ) : (
+                    <circle cx={px} cy={py} r={2} fill={mark} />
+                  )}
                   <text x={innerW + 13} y={py + 3.5} className="mf-drum__annot" fill={tone}>
                     {label}
                   </text>

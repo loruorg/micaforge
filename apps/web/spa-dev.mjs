@@ -13,7 +13,7 @@
 
 /** @returns {import("astro").AstroIntegration} */
 export default function spaDevRouting() {
-  const DOORS = ["/app", "/share"];
+  const DOORS = ["/app", "/share", "/status"];
 
   return {
     name: "micaforge:spa-dev-routing",

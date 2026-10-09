@@ -415,3 +415,100 @@ export interface HitExtras {
   /** Overrides the clock. */
   timestamp?: Timestampish;
 }
+
+/* ---------------------------------------------------------------- MCP calls */
+
+/** The three MCP requests a server answers on behalf of a model. */
+export type McpMethod = "tools/call" | "resources/read" | "prompts/get";
+
+/**
+ * How a call ended.
+ *
+ * `error` is a request that failed: the handler threw, or the server answered with a
+ * JSON-RPC error. `tool_error` is a request that succeeded with a tool result marked
+ * `isError: true`, which MCP defines as a failure the model is meant to read. They have
+ * different owners, so they are kept apart.
+ */
+export type McpStatus = "ok" | "error" | "tool_error";
+
+/**
+ * One request an MCP server answered, for {@link Micaforge.recordMcpCall}.
+ *
+ * `instrumentMcpServer` builds these for the official SDK. Build one yourself for any
+ * other server: measure the handler, then record what happened.
+ *
+ * What is deliberately absent: argument values (unless you pass `arguments` after your
+ * own redaction), the result, and the error message. A message is free text a model or
+ * a user wrote into, and the class and code say what kind of failure it was.
+ */
+export interface McpCall {
+  /** The JSON-RPC method. Anything else is not recorded. */
+  method: McpMethod;
+  /** The tool or prompt name, or the resource URI (its query string is removed). */
+  name?: string;
+  /** How long the handler took, in milliseconds. */
+  durationMs: number;
+  /** How it ended. Default: `error` when `errorType` or `errorCode` is set, else `ok`. */
+  status?: McpStatus;
+  /** The error's class name, such as `McpError`. Never the message. */
+  errorType?: string;
+  /** The JSON-RPC error code, such as `-32602`. */
+  errorCode?: number;
+  /** Size of the serialised arguments, in bytes. */
+  argBytes?: number;
+  /** Size of the serialised result, in bytes. */
+  resultBytes?: number;
+  /**
+   * The arguments themselves. Send them only on purpose and only after redacting
+   * them: they are stored as given (up to 4 KB of JSON) and shown to the site's admins.
+   */
+  arguments?: unknown;
+  /** `clientInfo.name` from `initialize`, such as `claude-ai` or `cursor-vscode`. */
+  clientName?: string;
+  /** `clientInfo.version` from `initialize`. */
+  clientVersion?: string;
+  /** The protocol revision the session negotiated, such as `2025-06-18`. */
+  protocolVersion?: string;
+  /** `stdio`, `streamable-http`, `sse`, or your own label. */
+  transport?: string;
+  /**
+   * The MCP session id. Never sent: it is replaced by a keyed digest before the call is
+   * queued, because on the Streamable HTTP transport the id is what lets a client speak
+   * in an open session.
+   */
+  sessionId?: string;
+  /** Your server's name (`serverInfo.name`), so one site can hold several servers. */
+  serverName?: string;
+  /** Your server's version (`serverInfo.version`). */
+  serverVersion?: string;
+  /** When the call started. Defaults to now. */
+  timestamp?: Timestampish;
+}
+
+/** A row for the `mcp_calls` table. Every key is a column of it. */
+export interface WireMcpCall {
+  timestamp: string;
+  method: McpMethod;
+  name?: string;
+  server_name?: string;
+  server_version?: string;
+  client_name?: string;
+  client_version?: string;
+  protocol_version?: string;
+  transport?: string;
+  session_hash?: string;
+  duration_ms: number;
+  status: McpStatus;
+  error_type?: string;
+  error_code?: number;
+  arg_bytes?: number;
+  result_bytes?: number;
+  arguments?: unknown;
+  sdk_version: string;
+}
+
+/** The `POST /api/log/mcp` body, signed exactly like an edge batch. */
+export interface McpPayload {
+  site_id: number;
+  mcp_calls: WireMcpCall[];
+}

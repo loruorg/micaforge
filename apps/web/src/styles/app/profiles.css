@@ -1,0 +1,52 @@
+/* ============================================================================
+   Profiles: the trait history on a named visitor, and the search results on
+   the visitors screen.
+
+   The history is a plain ordered list: a time in the data face on the left,
+   the keys that changed and their new values on the right, one hairline
+   between calls. Nothing is a chip; a change is a fact with a time.
+   ========================================================================= */
+
+.mf-pr-history {
+  list-style: none;
+  margin: 0;
+  padding: 0 var(--mf-5) var(--mf-4);
+}
+
+.mf-pr-history__item {
+  display: grid;
+  grid-template-columns: minmax(10ch, 14ch) minmax(0, 1fr);
+  gap: var(--mf-4);
+  padding: var(--mf-3) 0;
+  border-top: 1px solid var(--mf-rule);
+}
+.mf-pr-history__item:first-child { border-top: 0; }
+
+.mf-pr-history__when {
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+  white-space: nowrap;
+}
+
+.mf-pr-history__changes {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--mf-1) var(--mf-3);
+  margin: 0;
+  font-size: var(--mf-t-sm);
+}
+.mf-pr-history__changes dt { color: var(--mf-ink-3); }
+.mf-pr-history__changes dd { margin: 0; color: var(--mf-ink); overflow-wrap: anywhere; }
+
+/* Under 600px the time sits above its changes rather than beside them. */
+@media (max-width: 600px) {
+  .mf-pr-history__item { grid-template-columns: 1fr; gap: var(--mf-1); }
+}
+
+/* The hint under the search box while fewer than two characters are typed. */
+.mf-pr-hint {
+  margin: 0;
+  padding: 0 var(--mf-5) var(--mf-4);
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink-3);
+}

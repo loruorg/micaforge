@@ -1,0 +1,71 @@
+---
+title: "Exporting raw data"
+description: "Every recorded event, error and web vital for a site and date range, as a streamed ZIP of CSV or JSON."
+group: "api"
+order: 6
+updated: 2026-10-08
+---
+
+The stats endpoints answer questions. The raw export hands over the rows every answer is
+computed from: each event, error and web vital the site recorded in a date range, one line
+per hit. Use it to check a number by hand, to load your data into a warehouse of your own,
+or to take it with you.
+
+```http
+GET /api/export/raw?site=1&start=2026-09-01&end=2026-10-01&format=csv
+```
+
+In the dashboard, the **Export** menu on any report has **Raw data, CSV** and **Raw data,
+JSON**. They use the site and the date range on screen.
+
+## Parameters
+
+| Parameter | Default | What it does |
+| --- | --- | --- |
+| `site` | required | The numeric site id. |
+| `start`, `end` or `range` | `30d` | The window, as in the [query envelope](/docs/api/stats-api). |
+| `format` | `csv` | `csv`, or `json` for one JSON object per line. |
+| `tables` | all three | A comma-separated subset of `events`, `errors`, `vitals`. |
+
+Only the site and the window apply. Filters, a saved segment and the audience are not used:
+a raw export that quietly dropped rows would not be raw.
+
+## The archive
+
+A ZIP, streamed as it is written, so a large window starts downloading at once and the
+server holds no copy of it.
+
+| File | Rows | Columns |
+| --- | --- | --- |
+| `events.csv` or `events.ndjson` | every recorded hit | every column of the `events` table, in schema order, `sample_rate` last |
+| `errors.csv` or `errors.ndjson` | every captured error | every column of the `errors` table |
+| `web_vitals.csv` or `web_vitals.ndjson` | the `web_vitals` events | time, session, visitor, path, browser, OS, device, country, LCP, CLS, INP, FCP, TTFB |
+| `README.txt` | | the site, the window, the row cap, and which files stopped short |
+
+Times are RFC 3339 in UTC. In CSV, a cell holding a comma, a double quote or a line break is
+quoted, and a cell that starts with `=`, `+`, `-` or `@` and is not a number gets a leading
+`'` so a spreadsheet does not run it as a formula. In JSON, a property bag or a map is an
+object, and a value that was never recorded is `null`.
+
+## Limits
+
+Each file holds at most 1,000,000 rows, earliest first. A file that stopped at the cap, or at
+the ZIP size limit of 4 GiB, ends cleanly, and the README names it and the time of its last
+row, which is where to start the next export. If the server fails part-way through, the
+download ends with an error and the archive has no directory at its end, so no unzip tool
+opens it as if it were complete.
+
+The route has no 30-second time limit: the download lasts as long as the client takes to
+read it.
+
+## Who may export
+
+A signed-in member of the site with any role. An API key needs the `export:read` scope,
+which `stats:read` does not include: a key minted to draw totals on a status page must not
+be able to carry off every row they were computed from.
+
+```sh
+curl -H "Authorization: Bearer $MICAFORGE_KEY" \
+  "https://analytics.example.com/api/export/raw?site=1&range=90d&format=json" \
+  -o micaforge-raw.zip
+```

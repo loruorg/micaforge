@@ -1,0 +1,96 @@
+---
+title: "Revenue from Paddle"
+description: "The notification destination to create in Paddle Billing, the three events Micaforge reads, and what each one records."
+group: "tracking"
+order: 14
+updated: 2026-10-08
+---
+
+This page connects a Paddle Billing account to [revenue](/docs/tracking/revenue). It needs
+the admin role on the site in Micaforge. Paddle Classic uses another webhook format and is
+not supported.
+
+## Setup
+
+1. In Micaforge, open the Revenue screen, under Growth, and add a Paddle integration. Copy
+   the webhook address it shows:
+
+   ```text
+   https://analytics.example.com/api/revenue/webhooks/paddle/<integration id>
+   ```
+
+2. In Paddle, open Developer tools, then Notifications, and create a new destination of
+   type webhook for that address.
+3. Select these three events: `transaction.completed`, `adjustment.created` and
+   `adjustment.updated`. Micaforge reads no others.
+4. Save the destination. Copy its secret key and paste it into the integration in
+   Micaforge.
+5. Pass the [checkout reference](/docs/tracking/revenue#paddlejs) to Paddle.js as
+   `customData`.
+
+Micaforge seals the secret and never shows it again. To change it, paste the new one into
+the same integration.
+
+Until the secret is pasted, Micaforge answers each notification with `503`, so Paddle retries
+it; the retries that arrive after you paste the secret are recorded. While the integration is
+turned off in the dashboard, notifications are answered `200` and nothing is recorded.
+
+Paddle's sandbox and live environments are separate, and each has its own notification
+destinations and secret keys. A site has one Paddle integration, with one secret, so
+connect the environment whose payments you want counted.
+
+## What each event records
+
+| Event | What Micaforge records |
+| --- | --- |
+| `transaction.completed` | `details.totals.total`: a sale, or a subscription payment when `subscription_id` is set. |
+| `adjustment.created` | A refund or chargeback, as negative revenue, once it is approved. |
+| `adjustment.updated` | The same, for an adjustment that is approved after it was created. |
+
+An adjustment counts when its action is `refund` or `chargeback` and its status is
+`approved`. Micaforge records its total as negative revenue, once per adjustment, whichever
+of the two events brings the approval.
+
+## Attribution
+
+Micaforge reads the checkout reference from `custom_data.mf_ref` on the transaction. The
+Paddle.js sample on the [revenue page](/docs/tracking/revenue#paddlejs) sets it through
+`customData`:
+
+```js
+Paddle.Checkout.open({
+  items: [{ priceId: "pri_…", quantity: 1 }],
+  customData: ref ? { mf_ref: ref } : undefined,
+});
+```
+
+Paddle notifications carry no customer email, so the email fallback does not apply to
+Paddle. A payment with no reference is still counted, as unattributed. The customer is the
+Paddle customer id (`ctm_…`).
+
+## Signature verification
+
+Every request must carry Paddle's signature header:
+
+```text
+Paddle-Signature: ts=<unix seconds>;h1=<hex>
+```
+
+`h1` is the HMAC-SHA256 of `<ts>:<raw body>`, keyed with the secret key. The header can
+carry several `h1` values while Paddle rotates a secret, and one that matches is enough. A
+request without a valid signature is refused.
+
+A request whose `ts` is more than 300 seconds from the server's clock is refused with `400`.
+Keep the server's clock in sync.
+
+## Checking it works
+
+After the first notification arrives, the integration's last event time is set. The API
+returns it as `last_event_at`:
+
+```http
+GET /api/revenue/integrations?site=1
+```
+
+Paddle also logs every notification it sent to the destination, with the status Micaforge
+answered.

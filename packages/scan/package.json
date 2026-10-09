@@ -1,0 +1,62 @@
+{
+  "name": "@micaforge/scan",
+  "version": "0.1.0",
+  "description": "Micaforge event scanner — find every analytics event in a codebase, check the names and properties, and compare them with what your site really receives",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "homepage": "https://github.com/loruorg/micaforge/tree/main/packages/scan",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/loruorg/micaforge.git",
+    "directory": "packages/scan"
+  },
+  "keywords": [
+    "analytics",
+    "events",
+    "tracking-plan",
+    "lint",
+    "cli",
+    "pii",
+    "typescript",
+    "micaforge"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "micaforge-scan": "./dist/bin.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@babel/parser": "^7.29.8"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "typescript": "^6.0.3",
+    "vitest": "^3.2.4"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

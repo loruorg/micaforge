@@ -1,50 +1,79 @@
 ---
 title: "Error tracking"
-description: "What the store and the report already do, and the recorder that is not written yet."
+description: "Capturing uncaught errors and unhandled rejections, what is sent, and how the Errors screen groups them."
 group: "tracking"
 order: 7
-updated: 2026-08-22
+updated: 2026-10-08
 ---
 
-<aside class="doc-annot" data-tone="gap">
-
-**Not built yet.** The browser tracker does not capture exceptions. It installs no
-`window.onerror` handler and no `unhandledrejection` listener, so nothing arrives in the
-errors report on its own. The storage and the report below are real and finished; the
-recorder that would feed them is not written.
-
-</aside>
-
-## What exists
-
-The `errors` table holds one row per client-side exception: name, message, stack,
-filename, line and column, the path it happened on, browser, OS, release, whether it was
-handled, and a fingerprint.
-
-`GET /api/stats/errors` groups those rows by fingerprint and returns each group with a
-sparkline, so a spike after a deploy is visible as a shape rather than as a count. The
-Errors screen reads that endpoint.
-
-None of it invents anything: with no recorder the report is empty, and says so.
-
-## What the tracker does report today
-
-One thing, and only when you ask for it. With `data-404` set, a page carrying the marker
-element reports an `error` event named `404`:
+Turn it on with `data-errors` on the script tag:
 
 ```html
-<script defer data-site="1" data-404 src="/mf.js"></script>
+<script defer data-site="1" data-errors data-release="2026.10.1" src="/mf.js"></script>
 ```
 
-```html
-<body data-mf-404>
-```
+The tracker then loads the `errors` plugin, a small separate file, and records two things:
 
-That is a broken inbound link, not an exception. It lands under Events.
+- every error that reaches `window.onerror`: an exception nothing caught;
+- every `unhandledrejection`: a promise that failed with nobody listening.
 
-## Until the recorder ships
+`data-release` is optional. When it is set, every report carries it, so the Errors screen
+can tell you which deploy a failure started with.
 
-Report the errors you already catch as custom events:
+## What is sent
+
+One `error` event per failure, with the error's type as its name and these properties:
+
+| Property | What it holds |
+| --- | --- |
+| `message` | The message, cut to 500 characters. |
+| `stack` | The stack, cut to 30 lines and 4,000 characters. |
+| `filename` | The script the error came from. |
+| `lineno`, `colno` | Where in that script. |
+| `handled` | `false`: it reached the page uncaught. |
+| `release` | Your `data-release`, when set. |
+
+The page is the event's own URL, so [`data-mask` and `data-strip-query`](/docs/tracking/sampling-and-masking)
+apply to it exactly as they do to a pageview. Before anything is sent, the query string is
+removed from every URL in the file name and the stack, and anything shaped like an email
+address in the message or the stack is replaced with `[email]`. An error message is free
+text and can hold whatever the failing code had in hand.
+
+## What is not sent, and why
+
+- **The same error twice on one page.** A loop that throws the same `TypeError` sixty
+  times a second is reported once per page view. A client-side navigation to another path
+  starts a new page view.
+- **More than ten errors per page view.** A page that has gone badly wrong costs a
+  bounded number of hits.
+- **Errors raised inside a browser extension.** Your users' extensions are not your code.
+- **A bare `Script error.`** Browsers hide the message, file and stack of an error in a
+  script served from another origin. With nothing in it there is nothing to fix. Serve the
+  script with `crossorigin="anonymous"` and a matching CORS header and the real error
+  arrives instead.
+- **The ResizeObserver loop notice**, which browsers raise for layouts that work.
+
+## How errors are grouped
+
+The server files each report in the `errors` table and gives it a fingerprint built from
+the error's type, its message and its file, never from the line number or the stack text,
+both of which change with every build. One fingerprint is one row on the Errors screen,
+however many times it fired.
+
+The Errors screen shows, for each group, the occurrences, the visitors it reached, the
+sessions it fired in, a trend line, and whether any occurrence was uncaught. It can be
+narrowed by browser, operating system, page and release. Open a group to see its stack,
+the pages, browsers and systems it fired on, a chart of when it fired, and the sessions
+it happened in.
+
+A group can be marked **resolved** or **ignored**. A resolved group that fires again after
+it was resolved reads as open again, because a fix that did not hold is what the screen
+exists to show. An ignored group stays ignored.
+
+## Reporting errors you catch yourself
+
+Errors your code catches never reach `window.onerror`. Report the ones you care about as
+custom events, and keep the same two rules the plugin keeps:
 
 ```js
 try {
@@ -53,26 +82,15 @@ try {
   micaforge.track("checkout_failed", {
     name: err.name,
     message: String(err.message).slice(0, 200),
-    step: "payment",
   });
   throw err;
 }
 ```
 
-They appear under Events, not under Errors: no fingerprinting, no grouping, no stack. It
-is a count of a known failure rather than a crash report, which is honest about what it
-is.
+## From the API
 
-Two things to hold to if you do this:
-
-- **Truncate the message.** An error message can contain anything, including a URL with a
-  token in it.
-- **Never send the stack.** A minified stack is not readable in a property, and an
-  unminified one can carry source paths you would rather not store.
-
-## Why it is not shipped
-
-The tracker has a hard budget of 3 KB gzipped for the core, enforced by its own build.
-A correct error recorder is not small: it needs source-map-aware fingerprinting, sampling,
-de-duplication and a promise-rejection path, and half of one would produce grouped
-nonsense. It will ship as an optional build, not by quietly making the core bigger.
+`GET /api/stats/errors` returns the groups with totals and the four facets, under the
+standard [query envelope](/docs/api/stats-api), and `?release=` narrows to one release.
+`GET /api/stats/errors?fingerprint=…` returns one group in full.
+`POST /api/stats/errors/{fingerprint}/status` with `{"status": "resolved"}`, `"ignored"`
+or `"open"` sets its state; it needs the `member` role.

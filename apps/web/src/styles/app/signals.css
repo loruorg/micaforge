@@ -1,0 +1,66 @@
+/* ============================================================================
+   Signals: the frustration report, and the note a sampled report carries.
+
+   Same layout grammar as the health area: a column of panels, a quiet aside
+   for what a screen cannot see, and mono only for things that are code (a
+   selector, a field name).
+   ========================================================================= */
+
+.mf-fr {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mf-6);
+  min-width: 0;
+}
+
+/* An honest aside, and the sampling note: the same quiet box. */
+.mf-fr-note,
+.mf-sample-note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--mf-3);
+  margin: 0;
+  padding: var(--mf-4) var(--mf-5);
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink-2);
+  background: var(--mf-ground-2);
+  border: 1px solid var(--mf-rule);
+  border-radius: var(--mf-r-md);
+  max-width: var(--mf-measure);
+}
+.mf-fr-note svg,
+.mf-sample-note svg { flex: none; margin-top: 3px; color: var(--mf-ink-3); }
+
+/* A selector or a field name is code, so it wears the data face and wraps
+   anywhere rather than pushing the table wider than the screen. */
+.mf-fr-selector,
+.mf-fr-field code {
+  font-family: var(--mf-font-data);
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink);
+  overflow-wrap: anywhere;
+}
+
+/* Rage and dead clicks are told apart by word and by drawn mark; the tone is a
+   third cue, never the only one. */
+.mf-fr-signal {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mf-2);
+  white-space: nowrap;
+  color: var(--mf-ink-2);
+}
+.mf-fr-signal[data-signal="rage"] svg { color: var(--mf-danger); }
+.mf-fr-signal[data-signal="dead"] svg { color: var(--mf-ink-3); }
+
+.mf-fr-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mf-1) var(--mf-3);
+}
+.mf-fr-field {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--mf-1);
+}
+.mf-fr-field .mf-data { color: var(--mf-ink-3); font-size: var(--mf-t-xs); }

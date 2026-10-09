@@ -1,0 +1,126 @@
+---
+title: "Billing, for operators"
+description: "Plans, quotas, usage emails and Stripe. Off by default, and meant for a hosted service."
+group: "self-hosting"
+order: 8
+updated: 2026-10-09
+---
+
+Micaforge can meter what each organisation records, apply plan limits, email the owner as
+the quota fills, and sell plans through Stripe. All of it is **off by default**. It exists
+for an operator who runs Micaforge as a service for other people. If you run Micaforge for
+yourself or your company, leave it off: nothing below applies, nothing is metered against a
+quota, and no call is made to Stripe.
+
+With billing off, the **Billing** screen shows the month's usage and says that nothing is
+charged, and `MICAFORGE_MAX_SITES_PER_ORG` limits sites as before.
+
+## Turn it on
+
+```sh
+MICAFORGE_BILLING_ENABLED=true
+MICAFORGE_BILLING_PLANS='[
+  {"id":"free","name":"Free","events":10000,"sites":2,"members":3},
+  {"id":"team","name":"Team","events":1000000,"sites":20,"members":25,
+   "price_id":"price_1Q...","price_label":"$19 a month"}
+]'
+```
+
+Each plan has:
+
+| Field | Meaning |
+| --- | --- |
+| `id` | Stable id, stored on the organisation. 1 to 32 of `a-z`, `0-9`, `-`, `_`. Never rename one in use. |
+| `name` | What the Billing screen calls it. |
+| `events` | Monthly event quota. Leave it out, or `null`, for no quota. |
+| `sites` | Most sites an organisation on the plan may hold. `null` for no limit. |
+| `members` | Most members, pending invitations included. `null` for no limit. |
+| `price_id` | The Stripe price that buys the plan. |
+| `price_label` | The price as the screen prints it. Stripe is not asked, so the screen works when Stripe is down. |
+
+Exactly one plan must have no `price_id`: it is the plan every organisation is on until it
+pays, and the plan it returns to when a subscription ends. The server refuses to start with
+a list it cannot use (bad JSON, a repeated id or price, no free plan or two of them) and says
+which.
+
+## Limits
+
+With billing on, the organisation's plan sets its limits, and **replaces
+`MICAFORGE_MAX_SITES_PER_ORG`**. Adding or moving in a site beyond the plan's `sites` is
+refused; instance admins are exempt from that, as they are from
+`MICAFORGE_MAX_SITES_PER_ORG`. Inviting a person beyond the plan's `members`, counting
+pending invitations, is refused for everybody.
+
+A paid plan applies while its Stripe subscription is `active`, `trialing` or `past_due`
+(Stripe's own retry period). Any other status puts the organisation back on the free plan.
+Nothing is deleted when that happens: an organisation over the free plan's limits keeps
+what it has, and only adding more is refused.
+
+## Usage and the quota
+
+A job meters every organisation once an hour: the rows in `events` (page views, custom
+events, errors and Web Vitals) across all its sites in the calendar month, UTC. AI crawler
+visits recorded from server logs (`agent_events`) are counted and shown, and never measured
+against the quota. The Billing screen also measures on demand when the last count is older
+than 15 minutes.
+
+The owner and admins get one email at **80%** of the quota and one at **100%**, once each a
+month.
+
+**Nothing is dropped past the quota.** Ingest never reads the meter. An organisation over
+its quota keeps recording exactly as before; the events above the quota are recorded as
+overage on the month's row, shown on the Billing screen and named in the 100% email.
+Overage is not charged automatically. The screen and the emails say so in these words:
+
+> Micaforge keeps recording every event past the quota: nothing is dropped and no tracking
+> stops. Events above the quota are counted as overage on the Billing screen, and the owner
+> and admins get an email at 80% and at 100%. Choose a larger plan to raise the quota;
+> overage is not charged automatically.
+
+## Stripe
+
+```sh
+MICAFORGE_STRIPE_SECRET_KEY=sk_live_...
+MICAFORGE_STRIPE_WEBHOOK_SECRET=whsec_...
+```
+
+Set both or neither; the server refuses to start with one. Micaforge calls Stripe only to
+create Checkout sessions and Customer portal sessions.
+
+Without the keys, billing still meters, limits and emails, and every organisation is on the
+free plan. To put one on another plan by hand, write its row in the `org_billing` table:
+
+```sql
+INSERT INTO org_billing (org_id, plan_id, status) VALUES ('<org id>', 'team', 'active')
+ON CONFLICT (org_id) DO UPDATE SET plan_id = excluded.plan_id, status = excluded.status;
+```
+
+1. Create a product and a recurring price in Stripe for each paid plan, and put each price
+   id in `price_id`.
+2. Turn on the **Customer portal** in Stripe's settings, so customers can change their card,
+   switch plans and cancel.
+3. Add a webhook endpoint at `MICAFORGE_PUBLIC_URL` + `/api/billing/webhook`, for example
+   `https://analytics.example.com/api/billing/webhook`, sending these events:
+
+   ```text
+   checkout.session.completed
+   customer.subscription.created
+   customer.subscription.updated
+   customer.subscription.deleted
+   invoice.payment_failed
+   ```
+
+4. Put the endpoint's signing secret in `MICAFORGE_STRIPE_WEBHOOK_SECRET`.
+
+Only the **owner** of an organisation can buy a plan or open the portal. **Choose this plan**
+opens Stripe Checkout and comes back to `/app/settings/billing`, which says whether the
+payment went through. The plan changes when Stripe's webhook arrives, usually within
+seconds.
+
+Every webhook is checked against its `Stripe-Signature` header (HMAC-SHA256 with the
+signing secret, and a timestamp no more than five minutes away) before anything in it is
+read. An event Stripe sends twice is applied once. A failed payment emails the owner and
+shows a warning on the Billing screen.
+
+Plan purchases and subscription changes are in the organisation's
+[audit log](/docs/dashboard/audit-log).

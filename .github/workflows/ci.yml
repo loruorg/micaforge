@@ -138,6 +138,18 @@ jobs:
       - name: Server SDK typecheck
         run: pnpm --filter @micaforge/sdk-server typecheck
 
+      # The add-ons: the DevTools overlay bundles the SDK, the Nuxt module wraps
+      # both SDKs and the overlay, and the scanner stands alone. pnpm builds a
+      # filtered set in dependency order, so these run after the two above.
+      - name: Add-ons build
+        run: pnpm --filter @micaforge/devtools --filter @micaforge/nuxt --filter @micaforge/scan build
+
+      - name: Add-ons test
+        run: pnpm --filter @micaforge/devtools --filter @micaforge/nuxt --filter @micaforge/scan test
+
+      - name: Add-ons typecheck
+        run: pnpm --filter @micaforge/devtools --filter @micaforge/nuxt --filter @micaforge/scan typecheck
+
   # ---------------------------------------------------------------------
   web:
     name: Web app

@@ -1,0 +1,149 @@
+/* ============================================================================
+   Connections: chat apps, AI insights, connected apps, alert channels and the
+   OAuth consent screen.
+
+   These screens are settings, so they are built from the settings rows and
+   blocks in settings.css; this file adds only what those do not cover: an ink
+   guide link, the one-time link code, the channel rows of an alert, a test
+   send's report, and the facts and scopes on the consent sheet. Links are ink
+   with an underline, never the people blue or the AI orange. Every value is a
+   var(--mf-*) token.
+   ========================================================================= */
+
+/* ── a guide link ────────────────────────────────────────────────────────── */
+
+.mf-cx-links { display: flex; flex-wrap: wrap; gap: var(--mf-2) var(--mf-5); }
+
+.mf-cx-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--mf-t-sm);
+  font-weight: 500;
+  color: var(--mf-ink);
+  text-decoration: underline;
+  text-decoration-color: var(--mf-rule-strong);
+  text-underline-offset: 3px;
+  transition: text-decoration-color var(--mf-dur-1) linear;
+}
+.mf-cx-link:hover { text-decoration-color: currentColor; }
+.mf-cx-link svg { color: var(--mf-ink-3); }
+
+/* ── one platform ────────────────────────────────────────────────────────── */
+
+.mf-cx-plat__head { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--mf-2) var(--mf-4); }
+.mf-cx-plat__head .mf-set-status { font-family: var(--mf-font-ui); font-weight: 500; }
+
+/* ── the one-time link code ──────────────────────────────────────────────── */
+
+.mf-cx-code {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mf-3);
+  min-width: 0;
+  padding: var(--mf-4);
+  background: var(--mf-ground);
+  border: 1px solid var(--mf-rule);
+  border-radius: var(--mf-r-sm);
+}
+.mf-cx-code__value {
+  font-size: var(--mf-t-xl);
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  color: var(--mf-ink-strong);
+  user-select: all;
+}
+.mf-cx-code__left { font-size: var(--mf-t-xs); color: var(--mf-ink-3); }
+.mf-cx-code__cmds { display: flex; flex-direction: column; gap: var(--mf-3); min-width: 0; }
+
+/* ── where an alert goes ─────────────────────────────────────────────────── */
+
+.mf-cx-chans {
+  margin-top: var(--mf-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--mf-2);
+  max-width: 720px;
+}
+.mf-cx-chan {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr) auto;
+  gap: var(--mf-3);
+  align-items: center;
+}
+.mf-cx-chan__pair {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  gap: var(--mf-2);
+  min-width: 0;
+}
+.mf-set-trip[data-on="false"] .mf-cx-chans { opacity: 0.6; }
+
+/* A test send reports per channel: a glyph and a sentence for each. */
+.mf-cx-tests {
+  list-style: none;
+  margin: var(--mf-3) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--mf-1);
+}
+.mf-cx-tests__row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--mf-2);
+  font-size: var(--mf-t-xs);
+  overflow-wrap: anywhere;
+}
+.mf-cx-tests__row svg { flex: none; align-self: center; }
+.mf-cx-tests__row[data-ok="true"] { color: var(--mf-success); }
+.mf-cx-tests__row[data-ok="false"] { color: var(--mf-danger); }
+
+@media (max-width: 760px) {
+  .mf-cx-chan { grid-template-columns: minmax(0, 1fr) auto; }
+  .mf-cx-chan > .mf-set-selwrap { grid-column: 1 / -1; }
+  .mf-cx-chan__pair { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ── the consent sheet ───────────────────────────────────────────────────── */
+
+.mf-cx-consent__facts {
+  margin: 0;
+  display: grid;
+  border-top: 1px solid var(--mf-rule);
+}
+.mf-cx-consent__facts > div {
+  display: grid;
+  gap: 2px;
+  padding: var(--mf-3) 0;
+  border-bottom: 1px solid var(--mf-rule);
+  min-width: 0;
+}
+.mf-cx-consent__facts dt { font-size: var(--mf-t-xs); color: var(--mf-ink-3); }
+.mf-cx-consent__facts dd { margin: 0; font-size: var(--mf-t-sm); color: var(--mf-ink-strong); overflow-wrap: anywhere; }
+.mf-cx-consent__uri {
+  padding: var(--mf-2) var(--mf-3);
+  background: var(--mf-well-2);
+  border: 1px solid var(--mf-rule);
+  border-radius: var(--mf-r-sm);
+  font-size: var(--mf-t-xs);
+  word-break: break-all;
+}
+
+.mf-cx-consent__scopes {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--mf-3);
+  min-width: 0;
+}
+.mf-cx-consent__scopes legend { padding: 0; margin-bottom: var(--mf-2); }
+.mf-cx-consent__scope { display: flex; align-items: flex-start; gap: var(--mf-3); }
+.mf-cx-consent__scope .mf-set-check { margin-top: 2px; }
+.mf-cx-consent__scope-text { display: grid; gap: 2px; min-width: 0; }
+.mf-cx-consent__scope-name { font-size: var(--mf-t-sm); font-weight: 500; color: var(--mf-ink); }
+.mf-cx-consent__req { font-weight: 400; color: var(--mf-ink-3); }
+.mf-cx-consent__scope-desc { font-size: var(--mf-t-xs); line-height: var(--mf-lead-snug); color: var(--mf-ink-2); }
+.mf-cx-consent__scope-key { font-size: var(--mf-t-2xs); color: var(--mf-ink-3); }

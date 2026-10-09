@@ -1,0 +1,155 @@
+---
+title: "Swift: iOS, macOS and other Apple apps"
+description: "The Swift SDK: screens, events, identify, revenue and flags from an Apple app."
+group: "getting-started"
+order: 6
+updated: 2026-10-09
+---
+
+The Swift SDK reports screens and events from an app on iOS 15, macOS 12, tvOS 15,
+watchOS 8, visionOS 1 or later. It has no dependencies, is written for Swift 6 strict
+concurrency, and stores no identifier of its own: no advertising id, no vendor id, no
+install id. MIT licensed.
+
+## Install
+
+In Xcode, choose **File, Add Package Dependencies** and enter the repository URL:
+
+```
+https://github.com/loruorg/micaforge
+```
+
+Or add it to `Package.swift`:
+
+```swift
+.package(url: "https://github.com/loruorg/micaforge", branch: "main"),
+// and in your target:
+.product(name: "Micaforge", package: "micaforge"),
+```
+
+## Configure
+
+Once, at launch:
+
+```swift
+import Micaforge
+
+Micaforge.configure(
+    siteKey: "1",
+    host: URL(string: "https://analytics.example.com")!,
+    options: MicaforgeOptions(domain: "example.com", pathPrefix: "/ios")
+)
+```
+
+`siteKey` is the numeric site id from the tracking snippet. It is public. The site's
+ingest key is a server secret: never put it in an app.
+
+### Set the domain
+
+The server accepts a hit only when its address is on one of the site's own domains. That
+check is what stops a stranger who read your site id from writing into your numbers. An
+app has no address, so the SDK reports each screen as
+`https://<domain><pathPrefix>/<screen>`.
+
+Set `domain` to the site's domain, a subdomain of it, or a domain listed in the site's
+settings. Without it, the SDK uses the hostname of `host`, which works when your
+Micaforge server runs on a subdomain of the site. If the debug log reports a `403`, this
+is the setting to fix. `pathPrefix` keeps the app's screens apart from the site's web
+pages in the same reports.
+
+## Record
+
+```swift
+Micaforge.screen("Order history")                     // reported as /ios/order-history
+Micaforge.screen("Product", path: "/products/\(id)")  // a path for one item of many
+Micaforge.track("signup", props: ["plan": "pro", "seats": 5])
+Micaforge.revenue(19.99, currency: "EUR")             // a "purchase" event with money
+Micaforge.identify(id: "u_123", traits: ["plan": "pro"])
+Micaforge.setProps(["theme": "dark"])                 // on every later event
+Micaforge.reset()                                     // on sign-out
+Micaforge.optOut()                                    // until optIn(), across launches
+```
+
+In SwiftUI, the view can report itself:
+
+```swift
+SettingsView()
+    .trackScreen("Settings")
+```
+
+A view that appears again while it is still the current screen, after a tab switch or a
+sheet, is not counted twice.
+
+A screen is a pageview, with the screen's name as the page title. Each screen carries the
+time the previous one spent in the foreground, and going to the background reports the
+current screen's time, so engagement time means the same thing it means on the web.
+`revenue` sends `revenue` and `currency` as properties, where the server lifts them into
+the [revenue columns](/docs/tracking/revenue).
+
+## Offline and delivery
+
+Events are sent in batches to `POST /api/track/batch`: when 20 are waiting, 10 seconds
+after the first, when the app goes to the background, and when you call
+`await Micaforge.flush()`. Until a batch is answered, it waits in a queue on disk, in
+Application Support, protected until the device is first unlocked and excluded from
+backups. A failed send is retried with exponential backoff and random jitter; a batch the
+server refuses outright (`403`, `400`) is dropped rather than retried forever. The queue
+keeps at most 1000 events, oldest dropped first.
+
+The server stamps every hit with the time it arrives, because the collection routes are
+unauthenticated and a client's clock cannot be trusted. An event recorded offline is
+therefore counted when it is delivered.
+
+## What the server sees
+
+The request's user agent names the platform, as in `Mozilla/5.0 (iPhone; CPU iPhone OS
+17_5 like Mac OS X) Micaforge-Swift/0.1.0`, so the dashboard shows the right OS and
+device type. It never carries your app's name: an app name with "bot" or "feed" in it
+would otherwise be filed as a crawler.
+
+As on the web, the visitor is a [daily hash](/docs/privacy/cookieless-identification) of
+the address and the user agent. Two phones on the same network with the same OS version
+count as one visitor that day, exactly as two identical browsers do. No identifier crosses
+apps, so App Tracking Transparency does not apply.
+
+## Options
+
+| Option | Default | What it does |
+| --- | --- | --- |
+| `domain` | the host's hostname | The hostname screens are reported under. |
+| `pathPrefix` | none | A path in front of every screen, such as `/ios`. |
+| `flushAt` | 20 | Send when this many events are waiting. |
+| `flushInterval` | 10 s | Send this long after the first waiting event. |
+| `maxBatchSize` | 50 | Events per request. |
+| `maxQueueSize` | 1000 | Events kept while offline. |
+| `persistQueue` | `true` | Keep the queue on disk across launches. |
+| `sampleRate` | everyone | Percent of devices to keep, drawn per device and day, as [`data-sample`](/docs/tracking/sampling-and-masking) is. |
+| `mask` | none | Path globs reported as the glob itself, as `data-mask` is. |
+| `exclude` | none | Path globs that are never reported. |
+| `stripQuery` | `.none` | `.all`, or `.parameters(["token"])`. |
+| `defaultProps` | none | Properties on every event. |
+| `debug` | `false` | Log every event and request to the unified log, subsystem `com.micaforge.sdk`. |
+| `enabled` | `true` | A kill switch. |
+| `trackLifecycle` | `true` | Engagement time, and a flush when the app goes to the background. |
+| `transport` | private `URLSession` | Your own transport, for a proxy or tests. |
+
+## Feature flags
+
+```swift
+let flags = Micaforge.flags!
+await flags.load()
+if flags.isEnabled("new-checkout") { showNewCheckout() }
+let variant = flags.variant("pricing-test")
+```
+
+Reads are synchronous, so a SwiftUI `body` can ask. They answer from the server's last
+evaluation, then from a ruleset you hand the client (`FlagOptions(rules:)`, decided on
+the device), then `bootstrap` values, then `fallback` rules. The local steps run the same
+evaluator as the server and the JavaScript SDKs, held to it by
+[one shared file of test vectors](/docs/tracking/feature-flags), which the Swift tests
+assert case by case.
+
+The SDK stores no identifier, so an anonymous person is bucketed by a random id that lasts
+one launch. Pass `FlagOptions(subject:)` with an install id of your own for stable
+bucketing; after `identify`, the identified id is the subject. Evaluations and exposures
+are counted for the flag's screen unless `stats` is `false`.

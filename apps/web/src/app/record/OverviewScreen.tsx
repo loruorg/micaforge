@@ -5,6 +5,12 @@
  * metric totals under it (selecting one charts it), and the breakdown tables
  * below.
  *
+ * The chart also carries the annotations people wrote ("Launched v2"), drawn
+ * as flagged rules beside the automatic notes it reads off the data. A click
+ * on one sample opens the annotation form at that time, and the list under
+ * the chart is where every note in the period can be read in full, changed or
+ * removed (see Annotations.tsx).
+ *
  * The AI traffic panel sits deliberately high on the page. People numbers are
  * available anywhere; the count of what the crawlers took, and how little of it
  * came back, is the reason this product exists, so it is not buried at the
@@ -33,7 +39,17 @@ import {
   Readout,
 } from "../../components/react/ui";
 import type { Channel } from "../../components/react/ui";
-import { IconClose, IconOut } from "../../components/react/icons";
+import { IconClose, IconOut, IconPlus } from "../../components/react/icons";
+import {
+  AnnotationForm,
+  AnnotationList,
+  annotationMarks,
+  blankDraft,
+  draftFrom,
+  toLocalInput,
+  useAnnotations,
+} from "./Annotations";
+import type { AnnotationDraft } from "./Annotations";
 import {
   TopSheets,
   asFraction,
@@ -48,6 +64,7 @@ import {
   useRecordState,
 } from "./TopSheets";
 import type { RecordQuery } from "./TopSheets";
+import { SamplingNote } from "../signals/SamplingNote";
 import "../../styles/app/record.css";
 
 /* ── the six metrics under the chart ─────────────────────────────────────── */
@@ -300,6 +317,8 @@ export function OverviewScreen() {
 
   const [metricKey, setMetricKey] = useState<MetricKey>("visitors");
   const [ghost, setGhost] = useState(true);
+  /** The annotation being written or changed; null while the form is closed. */
+  const [draft, setDraft] = useState<AnnotationDraft | null>(null);
 
   /** The named range to go back to when a range selected on the chart is cleared. */
   const namedRange = useRef(isMeasuredRange(range) ? "7d" : range);
@@ -431,6 +450,24 @@ export function OverviewScreen() {
     return out;
   }, [values, metric]);
 
+  /* The notes people wrote, placed on the same samples, after the automatic
+     ones. The chart draws them as a different mark (see Drum.tsx). */
+  const notes = useAnnotations(siteId, range, timezone);
+  const chartNotes = useMemo<DrumAnnotation[]>(
+    () => [...annotations, ...annotationMarks(times, notes.data ?? [])],
+    [annotations, times, notes.data],
+  );
+
+  /** A click on one sample opens the annotation form at that sample's time. */
+  const onPickSample = useCallback(
+    (i: number) => {
+      const t = times[i];
+      if (t == null) return;
+      setDraft((d) => (d ? { ...d, start: toLocalInput(t) } : blankDraft(t)));
+    },
+    [times],
+  );
+
   /** A range dragged on the chart becomes the date range. */
   const onMeasure = useCallback(
     (from: number, to: number) => {
@@ -508,21 +545,37 @@ export function OverviewScreen() {
         ) : null}
       </div>
 
+      {/* Says so when the tracker keeps only some visitors (data-sample). */}
+      <SamplingNote />
+
       {/* ── traffic chart ─────────────────────────────────────────────── */}
       <Panel>
         <PanelHead
           title="Traffic"
           note={windowNote}
           actions={
-            <Button
-              size="sm"
-              className="mfr-toggle"
-              icon={<CompareMark />}
-              aria-pressed={ghost}
-              onClick={() => setGhost((v) => !v)}
-            >
-              Compare to previous period
-            </Button>
+            <>
+              <Button
+                size="sm"
+                className="mfr-toggle"
+                icon={<CompareMark />}
+                aria-pressed={ghost}
+                onClick={() => setGhost((v) => !v)}
+              >
+                Compare to previous period
+              </Button>
+              <Button
+                size="sm"
+                icon={<IconPlus size={12} />}
+                aria-expanded={draft != null}
+                disabled={siteId == null}
+                onClick={() =>
+                  setDraft((d) => d ?? blankDraft(times[times.length - 1] ?? Date.now()))
+                }
+              >
+                Add annotation
+              </Button>
+            </>
           }
         />
         <div className="mfr-body">
@@ -540,8 +593,9 @@ export function OverviewScreen() {
               mode="stacked"
               scale="shared"
               height={channels.length > 1 ? 320 : 244}
-              annotations={annotations}
+              annotations={chartNotes}
               onMeasure={onMeasure}
+              onPickSample={onPickSample}
               live={audience !== "agent"}
               emptyLabel={
                 siteId == null || series.isPending
@@ -550,6 +604,19 @@ export function OverviewScreen() {
               }
             />
           )}
+
+          {draft && siteId != null ? (
+            <AnnotationForm
+              key={draft.id ?? "new"}
+              siteId={siteId}
+              draft={draft}
+              onDraft={setDraft}
+              onDone={() => setDraft(null)}
+            />
+          ) : null}
+          {siteId != null ? (
+            <AnnotationList query={notes} siteId={siteId} onEdit={(a) => setDraft(draftFrom(a))} />
+          ) : null}
 
           <div className="mfr-record__readout">
             {overview.isError ? (

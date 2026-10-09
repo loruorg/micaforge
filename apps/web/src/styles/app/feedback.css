@@ -1,0 +1,325 @@
+/* ============================================================================
+   Feedback: the "Send feedback" dialog every screen can open, and the triage
+   panel on the instance admin screen.
+
+   The dialog is a white panel over the page's own scrim, like every other
+   surface: a hairline edge, the large soft shadow, no blur and no glow. Its
+   fields are the settings fields (.mf-set-*), so a form looks the same
+   wherever it is. The only motion is a short fade, and only when the reader
+   has not asked for reduced motion; the dialog is complete without it.
+
+   Every colour, space, radius and duration is a var(--mf-*); only structural
+   sizes (a column track, the dialog's measure) are written directly.
+   ========================================================================= */
+
+/* ── the dialog ──────────────────────────────────────────────────────────── */
+
+.mf-fb-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: var(--mf-scrim);
+}
+
+.mf-fb-dialog {
+  position: fixed;
+  z-index: 61;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(34rem, calc(100vw - 2 * var(--mf-4)));
+  max-height: calc(100dvh - 2 * var(--mf-4));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--mf-6);
+  background: var(--mf-ground-2);
+  border: 1px solid var(--mf-rule);
+  border-radius: var(--mf-r-md);
+  box-shadow: var(--mf-shadow-lg);
+  color: var(--mf-ink);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .mf-fb-overlay[data-state="open"],
+  .mf-fb-dialog[data-state="open"] {
+    animation: mf-fb-fade var(--mf-dur-2) var(--mf-ease-out) both;
+  }
+}
+@keyframes mf-fb-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.mf-fb-dialog__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--mf-4);
+}
+
+.mf-fb-dialog__title {
+  font-family: var(--mf-font-display);
+  font-size: var(--mf-t-lg);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--mf-ink-strong);
+  margin: 0;
+}
+
+.mf-fb-dialog__x {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  color: var(--mf-ink-3);
+  background: none;
+  border: 0;
+  border-radius: var(--mf-r-sm);
+  cursor: pointer;
+  transition: color var(--mf-dur-1) linear, background-color var(--mf-dur-1) linear;
+}
+.mf-fb-dialog__x:hover { color: var(--mf-ink); background: var(--mf-ground-3); }
+
+.mf-fb-dialog__note {
+  margin-top: var(--mf-2);
+  font-size: var(--mf-t-sm);
+  line-height: var(--mf-lead-body);
+  color: var(--mf-ink-2);
+  max-width: 54ch;
+}
+
+.mf-fb-form,
+.mf-fb-done {
+  margin-top: var(--mf-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--mf-4);
+  min-width: 0;
+}
+
+.mf-fb-pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--mf-4);
+  align-items: start;
+}
+
+/* Details are prose, so they wrap; the settings text area keeps code-like
+   lines unwrapped, which is right for a snippet and wrong for a report. */
+.mf-fb-dialog .mf-fb-area {
+  min-height: 132px;
+  white-space: pre-wrap;
+  overflow-x: hidden;
+}
+
+.mf-fb-err {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--mf-2);
+  font-size: var(--mf-t-xs);
+  line-height: var(--mf-lead-snug);
+  color: var(--mf-danger);
+}
+.mf-fb-err svg { flex: none; margin-top: 1px; }
+.mf-fb-err--form {
+  padding: var(--mf-3);
+  font-size: var(--mf-t-sm);
+  background: var(--mf-danger-wash);
+  border-radius: var(--mf-r-sm);
+}
+
+/* The page address that goes with the report, said before it is sent. */
+.mf-fb-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mf-1);
+  min-width: 0;
+  padding: var(--mf-3);
+  font-size: var(--mf-t-xs);
+  line-height: var(--mf-lead-snug);
+  color: var(--mf-ink-2);
+  background: var(--mf-well-2);
+  border: 1px solid var(--mf-rule);
+  border-radius: var(--mf-r-sm);
+}
+.mf-fb-page__url {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--mf-ink);
+}
+
+.mf-fb-dialog__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--mf-2);
+  padding-top: var(--mf-2);
+}
+
+.mf-fb-done:focus { outline: none; }
+.mf-fb-done__head {
+  display: flex;
+  align-items: center;
+  gap: var(--mf-2);
+  font-size: var(--mf-t-md);
+  font-weight: 500;
+  color: var(--mf-success);
+}
+.mf-fb-done__head svg { flex: none; }
+.mf-fb-done__body {
+  font-size: var(--mf-t-sm);
+  line-height: var(--mf-lead-body);
+  color: var(--mf-ink-2);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 480px) {
+  .mf-fb-dialog { padding: var(--mf-5) var(--mf-4); }
+  .mf-fb-dialog__foot { justify-content: stretch; }
+  .mf-fb-dialog__foot .mf-btn { flex: 1 1 auto; }
+}
+
+/* ── the triage panel ────────────────────────────────────────────────────── */
+
+.mf-fb-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--mf-3) var(--mf-4);
+  max-width: 680px;
+  padding: 0 var(--mf-5) var(--mf-4);
+}
+
+.mf-fb-quiet { color: var(--mf-ink-3); }
+
+/* A status carries its own glyph and its word, so the tone is never the only
+   cue. Neither audience colour is used: a report is not traffic. */
+.mf-fb-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mf-1);
+  font-size: var(--mf-t-xs);
+  white-space: nowrap;
+}
+.mf-fb-status svg { flex: none; }
+.mf-fb-status[data-status="new"] { color: var(--mf-ink-strong); font-weight: 500; }
+.mf-fb-status[data-status="triaged"],
+.mf-fb-status[data-status="planned"] { color: var(--mf-ink-2); }
+.mf-fb-status[data-status="done"] { color: var(--mf-success); }
+.mf-fb-status[data-status="wont_fix"] { color: var(--mf-ink-3); }
+
+.mf-fb-severity {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mf-1);
+  font-size: var(--mf-t-xs);
+  white-space: nowrap;
+  color: var(--mf-ink-2);
+}
+.mf-fb-severity[data-severity="high"],
+.mf-fb-severity[data-severity="critical"] { color: var(--mf-danger); }
+.mf-fb-severity[data-severity="low"] { color: var(--mf-ink-3); }
+
+/* ── one report, opened ──────────────────────────────────────────────────── */
+
+.mf-fb-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mf-4);
+  min-width: 0;
+  padding: var(--mf-5);
+  border-top: 1px solid var(--mf-rule-strong);
+  background: var(--mf-ground);
+  border-radius: 0 0 var(--mf-r-md) var(--mf-r-md);
+}
+.mf-fb-detail:focus { outline: none; }
+.mf-fb-detail:focus-visible { outline: 2px solid var(--mf-focus); outline-offset: -2px; }
+
+.mf-fb-detail__head { display: flex; align-items: flex-start; gap: var(--mf-4); }
+.mf-fb-detail__head-text { flex: 1; min-width: 0; }
+.mf-fb-detail__title {
+  font-family: var(--mf-font-display);
+  font-size: var(--mf-t-md);
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--mf-ink-strong);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.mf-fb-detail__marks {
+  margin-top: var(--mf-2);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mf-2) var(--mf-4);
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-2);
+}
+
+/* The report as it was typed: line breaks kept, never markup. */
+.mf-fb-detail__body {
+  max-width: var(--mf-measure);
+  max-height: 24rem;
+  overflow-y: auto;
+  padding: var(--mf-4);
+  font-size: var(--mf-t-sm);
+  line-height: var(--mf-lead-body);
+  color: var(--mf-ink);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: var(--mf-ground-2);
+  border: 1px solid var(--mf-rule);
+  border-radius: var(--mf-r-sm);
+}
+
+.mf-fb-facts { margin: 0; display: flex; flex-direction: column; border-top: 1px solid var(--mf-rule); }
+.mf-fb-facts__row {
+  display: grid;
+  grid-template-columns: minmax(110px, 160px) minmax(0, 1fr);
+  gap: var(--mf-4);
+  padding: var(--mf-2) 0;
+  border-bottom: 1px solid var(--mf-rule);
+  font-size: var(--mf-t-sm);
+}
+.mf-fb-facts__row dt { color: var(--mf-ink-3); }
+.mf-fb-facts__row dd { margin: 0; min-width: 0; color: var(--mf-ink); }
+.mf-fb-wrap { overflow-wrap: anywhere; word-break: break-word; }
+
+/* A link in ink with an underline, the way the entry screens draw one: the
+   two audience colours mean people and AI, and a link is neither. */
+.mf-fb-link {
+  color: var(--mf-ink);
+  text-decoration: underline;
+  text-decoration-color: var(--mf-rule-strong);
+  text-underline-offset: 3px;
+  transition: text-decoration-color var(--mf-dur-1) linear;
+}
+.mf-fb-link:hover { color: var(--mf-ink-strong); text-decoration-color: currentColor; }
+
+/* "Create GitHub issue": the control, what it does, and its result, stacked. */
+.mf-fb-issue {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--mf-2);
+}
+
+.mf-fb-detail__acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--mf-3) var(--mf-5);
+}
+.mf-fb-detail__say { min-height: 1.5em; padding-bottom: 7px; }
+
+@media (max-width: 760px) {
+  .mf-fb-filters { padding: 0 var(--mf-4) var(--mf-4); }
+  .mf-fb-detail { padding: var(--mf-4); }
+  .mf-fb-facts__row { grid-template-columns: minmax(0, 1fr); gap: var(--mf-1); }
+}

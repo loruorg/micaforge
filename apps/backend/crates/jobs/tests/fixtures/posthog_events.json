@@ -1,0 +1,16 @@
+[
+  {
+    "uuid": "018f2a10-0000-7000-8000-000000000021",
+    "event": "$pageview",
+    "timestamp": "2026-09-03T12:00:00Z",
+    "distinct_id": "anon-7",
+    "properties": "{\"$pathname\":\"/blog/agents\",\"$browser\":\"Safari\",\"$device_type\":\"Mobile\",\"$session_id\":\"s-21\"}"
+  },
+  {
+    "uuid": "018f2a10-0000-7000-8000-000000000022",
+    "event": "$identify",
+    "timestamp": "2026-09-03T12:00:01Z",
+    "distinct_id": "anon-7",
+    "properties": {"$pathname": "/blog/agents"}
+  }
+]

@@ -1,0 +1,77 @@
+---
+title: "The DevTools overlay"
+description: "See every event the tracker sends, and why it did not send the rest, on your own page."
+group: "getting-started"
+order: 7
+updated: 2026-10-09
+---
+
+`@micaforge/devtools` is a panel for development and staging. It sits in a corner of your
+own page and shows, live, what the tracker does:
+
+- **Every event sent**: kind, name, properties, address, time since the page started, and
+  whether it left by beacon, fetch or the pixel.
+- **Every event not sent, and the rule that stopped it**: an opt-out, the sample, a
+  `localhost` page without `data-debug`, an excluded path, Do Not Track, or an
+  `identify()` that changed nothing.
+- **Addresses rewritten** by `data-mask` or `data-strip-query`, before and after.
+- **Flags**: the value the server answered and the rule that decided it, such as "outside
+  the rollout percentage" or "conditions did not match".
+- **Identity**: the identified id, the last traits, and the opt-out.
+- **Warnings**: an unknown or malformed event name, properties over the server's 8 KB
+  limit, a value that looks like an email address, phone number or card number, revenue
+  that is not a number, and a browser the server will file as a bot.
+
+It costs the tracker nothing. The tracker gains no byte and no hook: the panel watches
+the requests the tracker already makes and replays the tracker's own rules to explain a
+refusal. It runs inside a Shadow DOM, so your CSS cannot reach it and its CSS cannot reach
+your page. It sends nothing anywhere. MIT licensed.
+
+## Load it
+
+It only ever loads when you ask for it.
+
+**A script tag**, placed before the tracker so the first pageview is seen too:
+
+```html
+<script src="/devtools.js" data-devtools data-events="signup,purchase"></script>
+<script defer data-site="1" src="https://analytics.example.com/mf.js"></script>
+```
+
+`devtools.js` is `dist/devtools.js` from the npm package; serve it yourself or from a
+package CDN. With `data-devtools` the panel loads on every page. Without that attribute
+the tag does nothing until the address carries `?mf_devtools=1`, and the panel then stays
+on for the rest of the tab's session (`?mf_devtools=0` turns it off). That lets you leave
+the tag on a staging site.
+
+`data-events` lists the event names your site is meant to send. Any other name is
+flagged, with a suggestion when it is a near miss, such as `sign_up` for `signup`.
+`data-open` opens the panel at once, and `data-hotkey` changes the toggle.
+
+**From your own bundle:**
+
+```ts
+import { mountDevtools } from "@micaforge/devtools";
+
+if (import.meta.env.DEV) {
+  mountDevtools({ knownEvents: ["signup", "purchase"] });
+}
+```
+
+If you start the tracker with `init()` from [the npm package](/docs/getting-started/npm),
+pass the same settings as `tracker: { site, host, mask, exclude, ... }`, so the panel can
+explain a refusal. A script-tag tracker is read from its tag.
+
+**In Nuxt**, set `devtools: true` in the [module's options](/docs/getting-started/nuxt).
+It loads in development only, unless you also set `production: true` for a staging build.
+
+## Use it
+
+`Alt+Shift+M` opens and closes the panel, and `Escape` closes it. Each row expands to the
+payload as sent (or, for an event that was not sent, a preview of what would have been),
+with **Copy JSON**. The filter narrows the list by name, kind or path, and the menu
+shows only the events sent, not sent, or with warnings. **Clear** empties the list.
+
+The most common finding on a development machine is the first one it shows: on
+`localhost` the tracker sends nothing without `data-debug`. See
+[verify it works](/docs/getting-started/verify-it-works) for the rest of the checklist.

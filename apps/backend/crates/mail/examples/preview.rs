@@ -12,7 +12,9 @@
 use std::fs;
 use std::path::PathBuf;
 
-use micaforge_mail::{templates, AlertPayload, ReportPayload};
+use micaforge_mail::{
+    templates, AlertPayload, DigestItem, DigestPayload, FeedbackPayload, ReportPayload,
+};
 
 fn main() -> std::io::Result<()> {
     let out: PathBuf = std::env::args()
@@ -65,6 +67,43 @@ fn main() -> std::io::Result<()> {
         link: format!("{base}/app/1/agents"),
     };
 
+    let digest = DigestPayload {
+        period: "29 September to 5 October".to_string(),
+        opened: 2,
+        resolved: 1,
+        items: vec![
+            DigestItem {
+                title: "Visitors from AI answers rose on /docs/quickstart".to_string(),
+                status: "open".to_string(),
+                change: "+64% against the previous 7 days".to_string(),
+            },
+            DigestItem {
+                title: "Bounce rate rose".to_string(),
+                status: "monitoring".to_string(),
+                change: "+18% against the previous 7 days".to_string(),
+            },
+            DigestItem {
+                title: "Pageviews fell".to_string(),
+                status: "resolved".to_string(),
+                change: "back within 5% of the previous 7 days".to_string(),
+            },
+        ],
+        link: format!("{base}/app/1/insights"),
+        ai_configured: true,
+    };
+    let feedback = FeedbackPayload {
+        kind: "bug".to_string(),
+        title: "The citation gap chart is empty for a new site".to_string(),
+        body: "Demo report. After adding the tracker the chart says no data although the \
+               AI crawler table has rows."
+            .to_string(),
+        source: "dashboard".to_string(),
+        reporter: "ada@example.com".to_string(),
+        site: Some("reeds.dev".to_string()),
+        page_url: Some(format!("{base}/app/1/citation-gap")),
+        link: format!("{base}/app/admin"),
+    };
+
     let messages = [
         ("sign-in-code", templates::sign_in_code("048213", 10)),
         (
@@ -76,6 +115,55 @@ fn main() -> std::io::Result<()> {
             templates::report(base, "reeds.dev", "12 to 18 August", &report),
         ),
         ("alert", templates::alert(base, "reeds.dev", &alert)),
+        (
+            "insight-digest",
+            templates::insight_digest(base, "reeds.dev", &digest),
+        ),
+        ("feedback", templates::feedback_notice(base, &feedback)),
+        (
+            "blocked-traffic",
+            templates::blocked_traffic(
+                base,
+                "reeds.dev",
+                &templates::BlockedTraffic {
+                    day: "8 October".to_string(),
+                    denylist: 4_120,
+                    not_allowlisted: 0,
+                    hostname: 37,
+                    threshold: 1_000,
+                    link: format!("{base}/app/1/settings/guards"),
+                },
+            ),
+        ),
+        (
+            "usage-warning",
+            templates::usage(
+                base,
+                &templates::UsageNotice {
+                    org: "Reeds & Co".to_string(),
+                    plan: "Team".to_string(),
+                    month: "October 2026".to_string(),
+                    events: 812_400,
+                    quota: 1_000_000,
+                    reached: false,
+                    overage_policy: "Micaforge keeps recording every event past the quota. \
+                                     Nothing is dropped."
+                        .to_string(),
+                    link: format!("{base}/app/settings/billing"),
+                },
+            ),
+        ),
+        (
+            "payment-failed",
+            templates::payment_failed(
+                base,
+                &templates::PaymentFailed {
+                    org: "Reeds & Co".to_string(),
+                    plan: "Team".to_string(),
+                    link: format!("{base}/app/settings/billing"),
+                },
+            ),
+        ),
     ];
 
     for (name, rendered) in messages {

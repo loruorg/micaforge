@@ -3,7 +3,7 @@ title: "Data retention"
 description: "What expires, when, and how deletion is actually done."
 group: "privacy"
 order: 4
-updated: 2026-08-22
+updated: 2026-10-08
 ---
 
 ```sh
@@ -62,12 +62,15 @@ rotation has to match it. Otherwise the policy is theatre and the data is still 
 
 ## Deleting one thing rather than everything
 
-The event store is append-only by design. There is no "delete this visitor" button today.
+The event store is append-only by design, and most deletion is by whole site or by import.
+One person can be erased on request.
 
 - **An import** can be undone: every imported row carries an `import_id`, and removing an
   import is a delete on that id.
 - **A site** can be deleted, which removes its rows.
-- **A `identified_id`** can be found (it is a filter dimension) and deleted as an
-  operational task against ClickHouse.
+- **An `identified_id`** is erased with **Erase this visitor** on the person's profile, or
+  `DELETE /api/stats/visitors/:id`. It removes the identified events, the trait history,
+  the error reports and recordings, and the anonymous activity of every daily hash an
+  `identify()` call linked to the id.
 - **An anonymous visitor** cannot be found after 48 hours, because the salt needed to
   recompute the hash no longer exists. That is the design working, not a gap in it.

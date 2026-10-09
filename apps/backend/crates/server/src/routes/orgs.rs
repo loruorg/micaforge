@@ -49,6 +49,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use uuid::Uuid;
 
+use crate::audit::{self, Entry};
 use crate::error::ApiError;
 use crate::extract::AuthUser;
 use crate::response::ok;
@@ -385,6 +386,14 @@ async fn create_org(
     let org = orgs::create(&st.pg, new_id(), &name, &slug, auth.user.id).await?;
     orgs::add_member(&st.pg, org.id, auth.user.id, OWNER).await?;
 
+    audit::record(
+        &st,
+        &auth,
+        Entry::new("org.created")
+            .organisation(&org)
+            .after(json!({ "name": org.name, "slug": org.slug })),
+    )
+    .await;
     Ok(ok(org_json(&org, Some(OWNER), Some(0))))
 }
 
@@ -436,6 +445,15 @@ async fn update_org(
     };
 
     let updated = orgs::update(&st.pg, org.id, &name, &slug).await?;
+    audit::record(
+        &st,
+        &auth,
+        Entry::new("org.updated")
+            .organisation(&updated)
+            .before(json!({ "name": org.name, "slug": org.slug }))
+            .after(json!({ "name": updated.name, "slug": updated.slug })),
+    )
+    .await;
     Ok(ok(org_json(&updated, Some(&role), None)))
 }
 
@@ -448,6 +466,14 @@ async fn delete_org(
     auth.require_session()?;
     let (org, _) = authorize_org(&st.pg, org_id, auth.user.id, OWNER).await?;
     orgs::delete(&st.pg, org.id).await?;
+    audit::record(
+        &st,
+        &auth,
+        Entry::new("org.deleted")
+            .organisation(&org)
+            .before(json!({ "name": org.name, "slug": org.slug })),
+    )
+    .await;
     Ok(ok(json!({ "deleted": org.id })))
 }
 
@@ -490,6 +516,15 @@ async fn transfer_owner(
     // account that cannot be removed.
     orgs::add_member(&st.pg, org.id, auth.user.id, ADMIN).await?;
 
+    audit::record(
+        &st,
+        &auth,
+        Entry::new("org.owner_transferred")
+            .organisation(&updated)
+            .before(json!({ "owner_id": org.owner_id }))
+            .after(json!({ "owner_id": updated.owner_id })),
+    )
+    .await;
     Ok(ok(org_json(&updated, Some(ADMIN), None)))
 }
 
@@ -556,7 +591,20 @@ async fn update_member(
         .into());
     }
 
+    let previous = orgs::get_member(&st.pg, org.id, user_id)
+        .await?
+        .map(|m| m.role);
     let updated = orgs::update_member_role(&st.pg, org.id, user_id, role).await?;
+    audit::record(
+        &st,
+        &auth,
+        Entry::new("member.role_changed")
+            .org(org.id)
+            .target("member", user_id, &member_label(&st, user_id).await)
+            .before(json!({ "role": previous }))
+            .after(json!({ "role": updated.role })),
+    )
+    .await;
     Ok(ok(json!({
         "user_id": updated.user_id,
         "role": updated.role,
@@ -591,11 +639,24 @@ async fn remove_member(
         .into());
     }
 
+    let label = member_label(&st, user_id).await;
+    let previous = orgs::get_member(&st.pg, org.id, user_id)
+        .await?
+        .map(|m| m.role);
     for site in sites::list_for_org(&st.pg, org.id).await? {
         sites::revoke_access(&st.pg, site.id, user_id).await?;
     }
     orgs::remove_member(&st.pg, org.id, user_id).await?;
 
+    audit::record(
+        &st,
+        &auth,
+        Entry::new("member.removed")
+            .org(org.id)
+            .target("member", user_id, &label)
+            .before(json!({ "role": previous })),
+    )
+    .await;
     Ok(ok(json!({ "removed": user_id })))
 }
 
@@ -771,6 +832,22 @@ async fn create_invite(
         }
     }
 
+    // A plan's member limit counts the invitations still out, so a full
+    // organisation cannot be grown past it by inviting first. A re-invite of
+    // an address already invited replaces that invitation and is not counted.
+    let cap = crate::routes::billing::member_cap(&st, org.id).await?;
+    if cap > 0 {
+        let pending = index_invites(&st.kv, org.id).await?;
+        let members = orgs::list_members(&st.pg, org.id).await?.len();
+        let waiting = pending.iter().filter(|i| i.email != email).count();
+        if members + waiting >= cap as usize {
+            return Err(Error::Forbidden(format!(
+                "this organisation's plan allows {cap} members, invitations included"
+            ))
+            .into());
+        }
+    }
+
     let token = crypto::random_token(32);
     let invite = Invite {
         id: new_id(),
@@ -809,6 +886,16 @@ async fn create_invite(
         tracing::warn!(org = %org.id, error = %e, "invitation email could not be sent");
     }
 
+    audit::record(
+        &st,
+        &auth,
+        Entry::new("invite.created")
+            .org(org.id)
+            .target("invitation", invite.id, &invite.email)
+            .after(json!({ "email": invite.email, "role": invite.role })),
+    )
+    .await;
+
     let mut payload = invite_json(&invite);
     payload["link"] = json!(micaforge_mail::templates::invitation_link(
         st.mailer.base_url(),
@@ -838,7 +925,71 @@ async fn revoke_invite(
     st.kv.del(&invite_token_key(&invite.token_hash)).await?;
     put_index(&st.kv, org.id, &index).await?;
 
+    audit::record(
+        &st,
+        &auth,
+        Entry::new("invite.revoked")
+            .org(org.id)
+            .target("invitation", invite.id, &invite.email)
+            .before(json!({ "email": invite.email, "role": invite.role })),
+    )
+    .await;
     Ok(ok(json!({ "revoked": invite.id })))
+}
+
+/// A pending invitation given a fresh token and a fresh seven days.
+pub(crate) struct Reissued {
+    /// The invitation as the screen lists it, without the token.
+    pub(crate) invite: Value,
+    /// The address it is for.
+    pub(crate) email: String,
+    /// The new token. The old one stopped working when this was made.
+    pub(crate) token: String,
+}
+
+/// Mint a new token for a pending invitation, for "Send again".
+///
+/// Only the token's digest is ever stored, so the original link cannot be sent
+/// again; a new one is made and the old one is deleted in the same step, which
+/// is the rule a re-invite already follows. The invitation keeps its id, its
+/// role and who sent it; its clock starts again.
+pub(crate) async fn reissue_invite(
+    st: &AppState,
+    org_id: Uuid,
+    invite_id: Uuid,
+) -> Result<Reissued> {
+    let mut index = index_invites(&st.kv, org_id).await?;
+    let Some(position) = index.iter().position(|i| i.id == invite_id) else {
+        return Err(Error::not_found("invitation"));
+    };
+
+    let token = crypto::random_token(32);
+    let now = Utc::now();
+    let previous = index[position].clone();
+    let invite = Invite {
+        created_at: now,
+        expires_at: now + Duration::seconds(i64::from(INVITE_TTL_SECS)),
+        token_hash: crypto::token_hash(&token),
+        ..previous.clone()
+    };
+
+    st.kv
+        .set_json(
+            &invite_token_key(&invite.token_hash),
+            &invite,
+            Some(INVITE_TTL_SECS),
+        )
+        .await?;
+    st.kv.del(&invite_token_key(&previous.token_hash)).await?;
+    index[position] = invite.clone();
+    put_index(&st.kv, org_id, &index).await?;
+    remember_for_address(&st.kv, &st.cfg, &invite.email, &invite.token_hash).await?;
+
+    Ok(Reissued {
+        invite: invite_json(&invite),
+        email: invite.email,
+        token,
+    })
 }
 
 /// The token from the emailed link.
@@ -907,6 +1058,15 @@ async fn accept_invite(
 
     let member = redeem_invite(&st.pg, &st.kv, &invite, auth.user.id).await?;
     let org = orgs::get(&st.pg, invite.org_id).await?;
+    audit::record(
+        &st,
+        &auth,
+        Entry::new("invite.accepted")
+            .org(org.id)
+            .target("invitation", invite.id, &invite.email)
+            .after(json!({ "role": member.role })),
+    )
+    .await;
     Ok(ok(json!({
         "organization": org_json(&org, Some(&member.role), None),
         "role": member.role,
@@ -955,6 +1115,14 @@ async fn create_team(
     let (org, _) = authorize_org(&st.pg, org_id, auth.user.id, ADMIN).await?;
     let name = clean_name(&body.name, "name")?;
     let team = orgs::create_team(&st.pg, new_id(), org.id, &name).await?;
+    audit::record(
+        &st,
+        &auth,
+        Entry::new("team.created")
+            .org(org.id)
+            .target("team", team.id, &team.name),
+    )
+    .await;
     Ok(ok(team_json(&team, 0)))
 }
 
@@ -998,6 +1166,16 @@ async fn update_team(
     let name = clean_name(&body.name, "name")?;
     let updated = orgs::update_team(&st.pg, team.id, &name).await?;
     let members = orgs::list_team_members(&st.pg, updated.id).await?;
+    audit::record(
+        &st,
+        &auth,
+        Entry::new("team.updated")
+            .org(team.org_id)
+            .target("team", team.id, &updated.name)
+            .before(json!({ "name": team.name }))
+            .after(json!({ "name": updated.name })),
+    )
+    .await;
     Ok(ok(team_json(&updated, members.len())))
 }
 
@@ -1009,6 +1187,14 @@ async fn delete_team(
 ) -> ApiResult<Json<Value>> {
     let team = authorize_team(&st, team_id, auth.user.id, ADMIN).await?;
     orgs::delete_team(&st.pg, team.id).await?;
+    audit::record(
+        &st,
+        &auth,
+        Entry::new("team.deleted")
+            .org(team.org_id)
+            .target("team", team.id, &team.name),
+    )
+    .await;
     Ok(ok(json!({ "deleted": team.id })))
 }
 
@@ -1063,6 +1249,17 @@ async fn add_team_member(
     }
 
     orgs::add_team_member(&st.pg, team.id, body.user_id).await?;
+    audit::record(
+        &st,
+        &auth,
+        Entry::new("team.member_added")
+            .org(team.org_id)
+            .target("team", team.id, &team.name)
+            .meta(
+                json!({ "user_id": body.user_id, "member": member_label(&st, body.user_id).await }),
+            ),
+    )
+    .await;
     Ok(ok(json!({ "team_id": team.id, "user_id": body.user_id })))
 }
 
@@ -1075,6 +1272,15 @@ async fn remove_team_member(
     auth.require_session()?;
     let team = authorize_team(&st, team_id, auth.user.id, ADMIN).await?;
     orgs::remove_team_member(&st.pg, team.id, user_id).await?;
+    audit::record(
+        &st,
+        &auth,
+        Entry::new("team.member_removed")
+            .org(team.org_id)
+            .target("team", team.id, &team.name)
+            .meta(json!({ "user_id": user_id, "member": member_label(&st, user_id).await })),
+    )
+    .await;
     Ok(ok(json!({ "removed": user_id })))
 }
 
@@ -1149,6 +1355,19 @@ async fn grant_site_access(
     )?;
 
     let granted = sites::grant_access(&st.pg, site.id, body.user_id, role).await?;
+    audit::record(
+        &st,
+        &auth,
+        Entry::new("site.access_granted")
+            .site(&site)
+            .target(
+                "member",
+                body.user_id,
+                &member_label(&st, body.user_id).await,
+            )
+            .after(json!({ "role": granted.role })),
+    )
+    .await;
     Ok(ok(json!({
         "site_id": site.site_id,
         "user_id": granted.user_id,
@@ -1179,8 +1398,29 @@ async fn revoke_site_access(
         is_owner(&st, &site, user_id).await?,
     )?;
 
+    let previous = sites::get_access(&st.pg, site.id, user_id)
+        .await?
+        .map(|a| a.role);
     sites::revoke_access(&st.pg, site.id, user_id).await?;
+    audit::record(
+        &st,
+        &auth,
+        Entry::new("site.access_revoked")
+            .site(&site)
+            .target("member", user_id, &member_label(&st, user_id).await)
+            .before(json!({ "role": previous })),
+    )
+    .await;
     Ok(ok(json!({ "revoked": user_id })))
+}
+
+/// A member's address for an audit label, or their id when the account is
+/// gone.
+async fn member_label(st: &AppState, user_id: Uuid) -> String {
+    users::get(&st.pg, user_id)
+        .await
+        .map(|u| u.email)
+        .unwrap_or_else(|_| user_id.to_string())
 }
 
 /// The higher of a target's organisation role and their override on `site`.
@@ -1188,7 +1428,7 @@ async fn revoke_site_access(
 /// The higher one, because an override that narrowed an `admin` to `viewer` on
 /// one site does not make them a `viewer` in the organisation, and must not
 /// make them reachable by another `admin`.
-async fn target_standing(
+pub(crate) async fn target_standing(
     st: &AppState,
     site: &sites::Site,
     user_id: Uuid,
@@ -1208,7 +1448,7 @@ async fn target_standing(
 }
 
 /// Is `user_id` the owner of the organisation that holds `site`?
-async fn is_owner(st: &AppState, site: &sites::Site, user_id: Uuid) -> Result<bool> {
+pub(crate) async fn is_owner(st: &AppState, site: &sites::Site, user_id: Uuid) -> Result<bool> {
     Ok(orgs::get(&st.pg, site.org_id).await?.owner_id == user_id)
 }
 

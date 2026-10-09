@@ -60,6 +60,11 @@ export const DOC_GROUPS: DocGroup[] = [
     label: "Privacy",
     gloss: "What is stored, and what is never stored.",
   },
+  {
+    key: "integrations",
+    label: "Integrations",
+    gloss: "Chat apps that answer questions and post what changed.",
+  },
 ];
 
 export interface DocSection {

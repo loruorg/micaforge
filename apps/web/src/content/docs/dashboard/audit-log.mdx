@@ -1,0 +1,70 @@
+---
+title: "Audit log"
+description: "Who changed what in an organisation, when, and what it was before."
+group: "dashboard"
+order: 9
+updated: 2026-10-09
+---
+
+Every change made in an organisation is recorded: sites, members, invitations, teams, API
+keys, share links, alerts, reports, feature flags, target groups, imports, ingest guards
+and billing. Each record says who made the change, when, to which object, and the fields
+before and after. Sign-ins and two-factor changes of the organisation's members are listed
+too.
+
+Open it at **Account → Audit log**. Reading it needs the **admin** or **owner** role in the
+organisation.
+
+## Reading a change
+
+A row is one change: the time, who made it (a person, an API key, or Micaforge itself for a
+scheduled job), what it was, the object it changed and the site it belongs to. Open a row to
+see the fields that changed, before and after, with the ids of the object and the actor.
+
+Filter by person or API key, by kind of change (one action, or every change of one kind,
+such as every feature flag change), by object type and by days. The days are calendar days
+in your own timezone, both included.
+
+## What is recorded, and what is not
+
+- **Recorded:** the actor's id and name at the time, the action, the object's type, id and
+  name, the site, the changed fields, a keyed hash of the request's IP address, and the
+  browser's user agent.
+- **Never recorded:** an IP address itself, an API key or ingest key, a share-link password,
+  an alert's webhook address, a report's recipient addresses, a TOTP secret, or any other
+  credential. The log says that such a thing changed (a key was rotated, a link has a
+  password, a report has three recipients) and keeps no value. An API key is named by its
+  name and its public prefix.
+
+Recording a change never makes the change fail: if the log cannot be written, the change
+still happens and the server logs the failure. Retention does not remove audit records.
+
+## Export
+
+**Download CSV** saves every change matching the filters on screen, up to 50,000 rows, with
+the before and after values in full. Cells that a spreadsheet would read as a formula are
+escaped.
+
+## From the API
+
+An API key with the `audit:read` scope, granted on the organisation, reads the same log.
+A key bound to one site cannot: the log belongs to the organisation.
+
+```http
+GET /api/audit?org=<org id>&action=flag.&from=2026-10-01T00:00:00Z&limit=100
+GET /api/audit/actions
+GET /api/audit/export.csv?org=<org id>&actor=<user or key id>
+```
+
+| Parameter | Meaning |
+| --- | --- |
+| `org` | The organisation. Required. |
+| `actor` | A person's or an API key's id. |
+| `action` | One action (`site.updated`), or a prefix ending in a dot (`flag.`) for every action of one kind. |
+| `target_type`, `target_id` | The object changed. |
+| `from`, `to` | RFC 3339 timestamps, both included. |
+| `limit` | Rows per page: 50 by default, 200 at most. |
+| `before` | The `next` value of the previous page. |
+
+The answer is `{ events, next }`; `next` is `null` on the last page. `GET /api/audit/actions`
+lists every action with the sentence the dashboard shows for it.

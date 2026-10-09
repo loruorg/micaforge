@@ -1,0 +1,482 @@
+/* ============================================================================
+   FEATURE FLAGS, beyond the rollout band: templates, target groups,
+   conditions on any attribute, prerequisites, environment overrides, the
+   evaluations chart and a flag's history.
+
+   The flag index, the editor shell and the rollout band are drawn by
+   bench.css; this file adds only what those screens grew, under its own
+   `mf-fl-` prefix so it can never collide with the workspace sheet.
+
+   Same rules as bench.css, without exception: colour, spacing, radius and
+   duration come from var(--mf-*); depth is a soft shadow; hover changes tone
+   and fill, and nothing moves.
+   ========================================================================= */
+
+/* ── a flag's readable name, under its key in the index ──────────────────── */
+
+.mf-fl-name {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--mf-t-sm);
+  font-weight: 500;
+  color: var(--mf-ink);
+}
+
+/* ── one quiet line under a list, reporting what an action did ──────────── */
+
+.mf-fl-say {
+  padding: var(--mf-3) var(--mf-5);
+  border-top: 1px solid var(--mf-rule);
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-2);
+}
+.mf-fl-say[data-tone="warn"] {
+  color: var(--mf-danger);
+}
+
+/* ── a sub-heading inside an editor section ─────────────────────────────── */
+
+.mf-fl-sub {
+  margin: var(--mf-4) 0 var(--mf-2);
+  font-size: var(--mf-t-sm);
+  font-weight: 600;
+  color: var(--mf-ink);
+}
+.mf-bn-editor__h + .mf-bn-editor__hint + .mf-fl-sub {
+  margin-top: 0;
+}
+
+/* Controls laid out in a line that wraps rather than overflows. */
+.mf-fl-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mf-2) var(--mf-3);
+}
+.mf-fl-inline > .mf-bn-select,
+.mf-fl-inline > .mf-bn-input {
+  width: auto;
+  flex: 0 1 14rem;
+}
+
+/* ── templates ───────────────────────────────────────────────────────────── */
+
+.mf-fl-templates {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--mf-rule);
+}
+.mf-fl-templates__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-items: center;
+  gap: var(--mf-5);
+  padding: var(--mf-4) var(--mf-5);
+  border-bottom: 1px solid var(--mf-rule);
+}
+.mf-fl-templates__row:last-child {
+  border-bottom: 0;
+}
+.mf-fl-templates__text {
+  min-width: 0;
+}
+.mf-fl-templates__name {
+  font-size: var(--mf-t-base);
+  font-weight: 600;
+  color: var(--mf-ink);
+}
+.mf-fl-templates__desc {
+  margin-top: var(--mf-1);
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink-2);
+  max-width: 64ch;
+}
+.mf-fl-templates__meta {
+  margin-top: var(--mf-1);
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+}
+.mf-bn-indexwrap > .mf-fl-templates {
+  border-top: 0;
+}
+
+/* ── conditions on any attribute ─────────────────────────────────────────
+   The same run as the workspace condition builder (join word, attribute,
+   operator, value, remove), with the attribute as a typed field rather than a
+   select. A separate row class, because the workspace row widens itself when
+   it holds two inputs, and every row here holds two. */
+
+.mf-fl-cond__row {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.2fr) max-content;
+  align-items: center;
+  gap: var(--mf-2);
+}
+.mf-fl-cond {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--mf-3);
+}
+.mf-fl-cond__note {
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink-2);
+  max-width: 64ch;
+}
+.mf-fl-cond__raw {
+  width: 100%;
+  max-height: calc(var(--mf-32) + var(--mf-8));
+  margin: 0;
+  padding: var(--mf-3) var(--mf-4);
+  overflow: auto;
+  font-size: var(--mf-t-xs);
+  line-height: var(--mf-lead-snug);
+  color: var(--mf-ink-2);
+  background: var(--mf-well-2);
+  border: 1px solid var(--mf-rule);
+  border-radius: var(--mf-r-sm);
+}
+
+/* ── target groups: the site's panel ─────────────────────────────────────── */
+
+.mf-fl-groups {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.mf-fl-groups__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-items: start;
+  gap: var(--mf-5);
+  padding: var(--mf-4) var(--mf-5);
+  border-bottom: 1px solid var(--mf-rule);
+  transition: background-color var(--mf-dur-1) linear;
+}
+.mf-fl-groups__row:last-child {
+  border-bottom: 0;
+}
+.mf-fl-groups__row.is-open {
+  background: var(--mf-ground);
+  box-shadow: inset 2px 0 0 var(--mf-ink-strong);
+}
+.mf-fl-groups__ident {
+  min-width: 0;
+}
+.mf-fl-groups__name {
+  font-size: var(--mf-t-base);
+  font-weight: 600;
+  color: var(--mf-ink);
+}
+.mf-fl-groups__desc {
+  margin-top: var(--mf-1);
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink-2);
+  max-width: 64ch;
+}
+.mf-fl-groups__rule {
+  margin-top: var(--mf-1);
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-2);
+  overflow-wrap: anywhere;
+}
+.mf-fl-groups__rule .mf-data {
+  color: var(--mf-ink);
+}
+.mf-fl-groups__meta {
+  margin-top: var(--mf-1);
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+}
+.mf-fl-groups__act {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--mf-2);
+  max-width: 32rem;
+}
+
+.mf-fl-group-edit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mf-4);
+  padding: var(--mf-5);
+  border-top: 1px solid var(--mf-rule);
+  background: var(--mf-ground);
+  border-bottom-left-radius: var(--mf-r-md);
+  border-bottom-right-radius: var(--mf-r-md);
+}
+.mf-fl-group-edit .mf-bn-editor__h {
+  margin-bottom: 0;
+}
+.mf-fl-group-edit__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mf-3);
+  padding-top: var(--mf-4);
+  border-top: 1px solid var(--mf-rule);
+}
+
+/* ── target groups chosen on a flag ──────────────────────────────────────── */
+
+.mf-fl-picks {
+  list-style: none;
+  margin: 0 0 var(--mf-2);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--mf-2);
+}
+.mf-fl-picks__row {
+  display: grid;
+  grid-template-columns: minmax(10rem, max-content) minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--mf-4);
+}
+.mf-fl-picks__row .mf-bn-check {
+  color: var(--mf-ink);
+}
+.mf-fl-picks__rule {
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+  overflow-wrap: anywhere;
+}
+
+/* ── prerequisites ───────────────────────────────────────────────────────── */
+
+.mf-fl-deps,
+.mf-fl-envs {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--mf-3);
+}
+.mf-fl-deps__list,
+.mf-fl-envs__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--mf-2);
+}
+.mf-fl-deps__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mf-2) var(--mf-3);
+}
+.mf-fl-deps__row > .mf-bn-select {
+  flex: 0 1 14rem;
+}
+.mf-fl-deps__word {
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+  white-space: nowrap;
+}
+
+/* ── environment overrides ───────────────────────────────────────────────── */
+
+.mf-fl-envs__row {
+  display: grid;
+  grid-template-columns: minmax(7rem, max-content) max-content minmax(0, 1fr) max-content;
+  align-items: end;
+  gap: var(--mf-3) var(--mf-5);
+  padding: var(--mf-3) 0;
+  border-bottom: 1px solid var(--mf-rule);
+}
+.mf-fl-envs__row:first-child {
+  border-top: 1px solid var(--mf-rule);
+}
+.mf-fl-envs__name {
+  align-self: center;
+  font-size: var(--mf-t-sm);
+  color: var(--mf-ink);
+}
+.mf-fl-envs__cell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mf-1);
+  min-width: 0;
+}
+
+/* ── the two SDK snippets ────────────────────────────────────────────────── */
+
+.mf-fl-snips {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 26rem), 1fr));
+  gap: var(--mf-3);
+}
+
+/* ── evaluations and exposures ───────────────────────────────────────────── */
+
+.mf-fl-stats {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mf-4);
+  padding: 0 var(--mf-5) var(--mf-5);
+}
+.mf-fl-stats__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mf-2) var(--mf-4);
+}
+.mf-fl-stats .mf-sheet-wrap {
+  border-top: 1px solid var(--mf-rule);
+}
+.mf-fl-swatch {
+  flex: none;
+  display: inline-block;
+  width: var(--mf-2);
+  height: var(--mf-2);
+  border-radius: 1px;
+}
+.mf-fl-total {
+  font-weight: 500;
+  color: var(--mf-ink);
+}
+
+/* ── history ─────────────────────────────────────────────────────────────── */
+
+.mf-fl-history {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.mf-fl-history__item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mf-3);
+  padding: var(--mf-4) var(--mf-5);
+  border-bottom: 1px solid var(--mf-rule);
+}
+.mf-fl-history__item:last-child {
+  border-bottom: 0;
+}
+.mf-fl-history__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--mf-1) var(--mf-3);
+}
+.mf-fl-history__what {
+  font-size: var(--mf-t-sm);
+  font-weight: 600;
+  color: var(--mf-ink);
+}
+.mf-fl-history__who {
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+}
+.mf-fl-history__act {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mf-3);
+  margin-left: auto;
+}
+
+/* A change, field by field: the name, then before and after on one line. */
+.mf-fl-diff {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--mf-1);
+  padding: var(--mf-2) var(--mf-3);
+  background: var(--mf-well-2);
+  border: 1px solid var(--mf-rule);
+  border-radius: var(--mf-r-sm);
+}
+.mf-fl-diff__row {
+  display: grid;
+  grid-template-columns: 9rem minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--mf-3);
+}
+.mf-fl-diff__field {
+  font-size: var(--mf-t-xs);
+  color: var(--mf-ink-3);
+}
+.mf-fl-diff__change {
+  margin: 0;
+  min-width: 0;
+  font-size: var(--mf-t-xs);
+  overflow-wrap: anywhere;
+}
+.mf-fl-diff__from {
+  color: var(--mf-ink-3);
+}
+.mf-fl-diff__arrow {
+  padding: 0 var(--mf-2);
+  color: var(--mf-ink-3);
+}
+.mf-fl-diff__to {
+  color: var(--mf-ink);
+}
+
+.mf-fl-more {
+  padding: var(--mf-3) var(--mf-5);
+  border-top: 1px solid var(--mf-rule);
+}
+
+/* ── narrow ──────────────────────────────────────────────────────────────── */
+
+@media (max-width: 820px) {
+  .mf-fl-cond__row {
+    grid-template-columns: minmax(0, 1fr) max-content;
+    gap: var(--mf-2);
+    padding-bottom: var(--mf-3);
+    border-bottom: 1px solid var(--mf-rule);
+  }
+  .mf-fl-cond__row > .mf-bn-cond__join {
+    grid-column: 1 / -1;
+  }
+  .mf-fl-templates__row,
+  .mf-fl-groups__row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--mf-3);
+    padding-left: var(--mf-4);
+    padding-right: var(--mf-4);
+  }
+  .mf-fl-groups__act {
+    justify-content: flex-start;
+  }
+  .mf-fl-group-edit,
+  .mf-fl-history__item,
+  .mf-fl-say,
+  .mf-fl-more {
+    padding-left: var(--mf-4);
+    padding-right: var(--mf-4);
+  }
+  .mf-fl-stats {
+    padding: 0 var(--mf-4) var(--mf-4);
+  }
+  .mf-fl-envs__row {
+    grid-template-columns: minmax(0, 1fr) max-content;
+    align-items: start;
+  }
+  .mf-fl-envs__name {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .mf-fl-envs__row > .mf-btn {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .mf-fl-envs__cell {
+    grid-column: 1 / -1;
+  }
+  .mf-fl-picks__row,
+  .mf-fl-diff__row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+  .mf-fl-history__act {
+    margin-left: 0;
+  }
+}

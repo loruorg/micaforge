@@ -9,6 +9,11 @@
  *
  * The links are real links. A download that only works when JavaScript agrees
  * to run is not a download.
+ *
+ * A third kind of file sits below them: the raw rows (`GET /api/export/raw`),
+ * every event, error and web vital the site recorded in the date range, as a
+ * ZIP of CSV or JSON files. That one takes only the site and the dates, and
+ * says so, because a raw export that quietly dropped rows would not be raw.
  */
 import { useMemo } from "react";
 import * as RMenu from "@radix-ui/react-dropdown-menu";
@@ -61,6 +66,14 @@ export function ExportMenu({
   const stem = fileStem(report, domain, state.range);
   const ready = env != null;
 
+  /** The raw export's envelope: the site and the dates, nothing else. */
+  const rawUrl = (format: "csv" | "json"): string | undefined => {
+    if (!env) return undefined;
+    const { site, range, start, end } = env;
+    return api.exportUrl("/api/export/raw", { site, range, start, end, format });
+  };
+  const rawStem = fileStem("raw", domain, state.range);
+
   return (
     <RMenu.Root>
       <RMenu.Trigger asChild disabled={!ready}>
@@ -78,7 +91,7 @@ export function ExportMenu({
       <RMenu.Portal>
         <RMenu.Content className="mfs-slip-panel mfs-menu" sideOffset={8} align="end" collisionPadding={12}>
           <p className="mfs-menu__note">
-            Both files use the date range, audience and filters shown on screen.
+            These two files use the date range, audience and filters shown on screen.
           </p>
 
           <RMenu.Item asChild>
@@ -110,6 +123,31 @@ export function ExportMenu({
               </span>
             </a>
           </RMenu.Item>
+
+          <p className="mfs-menu__note">
+            Raw data: every event, error and web vital recorded in this date range, one row per
+            hit. Filters and the audience do not apply.
+          </p>
+
+          {(["csv", "json"] as const).map((format) => (
+            <RMenu.Item asChild key={format}>
+              <a
+                className="mfs-menu__item"
+                href={rawUrl(format)}
+                download={`${rawStem}-${format}.zip`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <span className="mfs-menu__item-name">
+                  Raw data, {format === "csv" ? "CSV" : "JSON"}
+                </span>
+                <span className="mfs-menu__item-note">
+                  {format === "csv" ? "One CSV file per table" : "One JSON object per line"}, in a
+                  ZIP. <span className="mf-data">.zip</span>
+                </span>
+              </a>
+            </RMenu.Item>
+          ))}
         </RMenu.Content>
       </RMenu.Portal>
     </RMenu.Root>

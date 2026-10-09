@@ -58,6 +58,7 @@ use serde::Serialize;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
 
+use crate::ch::FlagEventRow;
 use crate::ch::{AgentEventRow, BotEventRow, Ch, ErrorRow, EventRow, PageIndexRow, ReplayRow};
 
 /// One mebibyte, for the buffer budget.
@@ -311,6 +312,7 @@ pub struct EventWriter {
     replays: Arc<Lane<ReplayRow>>,
     errors: Arc<Lane<ErrorRow>>,
     pages: Arc<Lane<PageIndexRow>>,
+    flags: Arc<Lane<FlagEventRow>>,
 }
 
 impl Debug for EventWriter {
@@ -332,7 +334,8 @@ impl EventWriter {
             bots: Arc::new(spawn_lane::<BotEventRow>(ch.clone(), "bot_events", cfg)),
             replays: Arc::new(spawn_lane::<ReplayRow>(ch.clone(), "replay_events", cfg)),
             errors: Arc::new(spawn_lane::<ErrorRow>(ch.clone(), "errors", cfg)),
-            pages: Arc::new(spawn_lane::<PageIndexRow>(ch, "page_index", cfg)),
+            pages: Arc::new(spawn_lane::<PageIndexRow>(ch.clone(), "page_index", cfg)),
+            flags: Arc::new(spawn_lane::<FlagEventRow>(ch, "flag_events", cfg)),
         }
     }
 
@@ -366,6 +369,11 @@ impl EventWriter {
         self.pages.push(row);
     }
 
+    /// Queue a feature-flag evaluation or exposure count. Returns immediately.
+    pub fn push_flag(&self, row: FlagEventRow) {
+        self.flags.push(row);
+    }
+
     /// Try to write everything currently buffered, on every lane, and wait.
     ///
     /// Returns `true` when every row pushed before the call has been written.
@@ -384,8 +392,9 @@ impl EventWriter {
             self.replays.flush(),
             self.errors.flush(),
             self.pages.flush(),
+            self.flags.flush(),
         );
-        results.0 && results.1 && results.2 && results.3 && results.4 && results.5
+        results.0 && results.1 && results.2 && results.3 && results.4 && results.5 && results.6
     }
 
     /// Drain every lane, retrying until `within` has passed, then stop them.
@@ -403,8 +412,9 @@ impl EventWriter {
             self.replays.drain(deadline),
             self.errors.drain(deadline),
             self.pages.drain(deadline),
+            self.flags.drain(deadline),
         );
-        lost.0 + lost.1 + lost.2 + lost.3 + lost.4 + lost.5
+        lost.0 + lost.1 + lost.2 + lost.3 + lost.4 + lost.5 + lost.6
     }
 
     /// Every lane's counters, for the readiness route.
@@ -416,6 +426,7 @@ impl EventWriter {
             self.replays.snapshot(),
             self.errors.snapshot(),
             self.pages.snapshot(),
+            self.flags.snapshot(),
         ]
     }
 }
@@ -1074,6 +1085,74 @@ impl DropLog {
     /// Whatever has been dropped and not yet reported.
     fn take_pending(&mut self) -> u64 {
         std::mem::take(&mut self.pending)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// One lane on its own
+// ---------------------------------------------------------------------------
+
+/// A single writer lane for a table outside the six [`EventWriter`] carries.
+///
+/// The same lane, with the same buffer bound, backoff and drain, as every
+/// table in [`EventWriter`]; only the ownership differs. A feature whose rows
+/// arrive on a request a browser waits on (a short-link click, say) holds one
+/// of these, so a slow ClickHouse costs that request nothing, without the
+/// six-lane writer, its health snapshot and its contract growing a table for
+/// every feature that needs one.
+///
+/// Clone it freely; clones share the lane. Prefer [`TableWriter::shutdown`] to
+/// dropping the last clone, for the same reason as on [`EventWriter`].
+pub struct TableWriter<T> {
+    lane: Arc<Lane<T>>,
+}
+
+impl<T> Clone for TableWriter<T> {
+    fn clone(&self) -> Self {
+        TableWriter {
+            lane: Arc::clone(&self.lane),
+        }
+    }
+}
+
+impl<T> Debug for TableWriter<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TableWriter")
+            .field("table", &self.lane.table)
+            .finish()
+    }
+}
+
+impl<T> TableWriter<T>
+where
+    T: Row + Serialize + Send + Sync + 'static,
+{
+    /// Start the lane's task for `table`.
+    pub fn spawn(ch: Ch, table: &'static str, cfg: WriterCfg) -> TableWriter<T> {
+        TableWriter {
+            lane: Arc::new(spawn_lane::<T>(ch, table, cfg)),
+        }
+    }
+
+    /// Queue a row. Returns immediately.
+    pub fn push(&self, row: T) {
+        self.lane.push(row);
+    }
+
+    /// Try once to write everything buffered, and wait for the answer.
+    pub async fn flush(&self) -> bool {
+        self.lane.flush().await
+    }
+
+    /// Drain until `within` has passed, then stop the lane. Returns the rows
+    /// still unwritten at the deadline.
+    pub async fn shutdown(self, within: Duration) -> u64 {
+        self.lane.drain(Instant::now() + within).await
+    }
+
+    /// The lane's counters, for a readiness answer.
+    pub fn stats(&self) -> LaneSnapshot {
+        self.lane.snapshot()
     }
 }
 

@@ -3,7 +3,7 @@ title: "Configuration"
 description: "Every variable the server reads, what it defaults to, and what happens when it is unset."
 group: "self-hosting"
 order: 2
-updated: 2026-10-08
+updated: 2026-10-09
 ---
 
 `.env.example` in the repository is the complete inventory: every variable, once, with what
@@ -172,6 +172,37 @@ follows. The code works once, expires in ten minutes, and replaces any code sent
 address before. No code, link or token is ever written to the log, because anyone who can
 read a log could otherwise take over the account.
 
+## Google and GitHub sign-in, off by default
+
+```sh
+MICAFORGE_GOOGLE_CLIENT_ID=
+MICAFORGE_GOOGLE_CLIENT_SECRET=
+MICAFORGE_GITHUB_CLIENT_ID=
+MICAFORGE_GITHUB_CLIENT_SECRET=
+```
+
+Each pair adds a **Continue with** button to the sign-in screen, beside the emailed code.
+Set both halves of a pair or neither; one half alone stops the server at boot. Register
+`MICAFORGE_PUBLIC_URL` + `/api/auth/oauth/google/callback` (or `/github/callback`) with the
+provider. [Google and GitHub sign-in](/docs/self-hosting/google-and-github-sign-in) has the
+steps.
+
+## Billing, off by default
+
+```sh
+MICAFORGE_BILLING_ENABLED=false
+MICAFORGE_BILLING_PLANS=              # JSON list of plans, required when billing is on
+MICAFORGE_STRIPE_SECRET_KEY=          # optional, with the webhook secret
+MICAFORGE_STRIPE_WEBHOOK_SECRET=
+```
+
+For an operator who sells Micaforge as a service. Leave it off on your own install. When it
+is on, each organisation's plan sets its event quota and its site and member limits, and the
+plan's site limit replaces `MICAFORGE_MAX_SITES_PER_ORG`. The Stripe keys are read only while
+billing is on, and both or neither must be set.
+[Billing, for operators](/docs/self-hosting/billing) has the plan format and the Stripe
+setup.
+
 ## Images and ports
 
 ```sh
@@ -232,6 +263,30 @@ be pointed at your database or a cloud metadata endpoint. Turn
 `MICAFORGE_ALLOW_PRIVATE_OUTBOUND` on only if your webhooks really go to a host on your own
 network.
 
+## Monitoring and growth
+
+```sh
+MICAFORGE_REGION=default     # the probe region label on every uptime check
+MICAFORGE_LINKS_HOST=        # a bare hostname that serves short links, such as go.example.com
+```
+
+`MICAFORGE_REGION` is the probe region label written on every
+[uptime check](/docs/dashboard/uptime-monitoring). One install checks from one place, so the
+label names that place. It is stored on every check so that a later install that checks
+from more than one place can tell the results apart. Any short name will do: letters,
+digits, `-` and `_`, up to 32 characters. Anything else is refused at boot, by name.
+
+Uptime checks are outbound requests. They go through the same guard as webhooks, and
+`MICAFORGE_WORKER_CONCURRENCY` caps how many run at once. An install with no monitor makes
+none.
+
+`MICAFORGE_LINKS_HOST` is a hostname that also serves
+[short links](/docs/dashboard/short-links) at its root, such as
+`https://go.example.com/<slug>`. The scheme follows `MICAFORGE_PUBLIC_URL`. Give the bare
+hostname: a scheme, a port or a path is refused at boot. Unset, short links are served only
+at `<API origin>/l/<slug>`. A host here also needs DNS that points at the server and, in the
+compose stack, its own site block in the Caddyfile; the short links page has the block.
+
 ## The web app
 
 The shipped web image needs no build-time configuration: the dashboard calls the API on
@@ -243,3 +298,140 @@ PUBLIC_API_URL=https://api.example.com   # only when the dashboard is on another
 PUBLIC_SITE_URL=https://micaforge.com    # canonical address of the marketing pages
 ```
 
+## AI analyst, off by default
+
+```sh
+MICAFORGE_LLM_BASE_URL=          # https://api.openai.com/v1, or http://ollama:11434/v1
+MICAFORGE_LLM_MODEL=             # required with the base URL
+MICAFORGE_LLM_API_KEY=           # optional; a local server usually needs none
+# MICAFORGE_LLM_TIMEOUT_SECS=45  # per model call, 5 to 120
+# MICAFORGE_LLM_DAILY_LIMIT=0    # questions per organisation per UTC day, 0 = no limit
+```
+
+One model serves every AI feature: [Ask AI](/docs/dashboard/ask-ai), the explanations on
+[investigations](/docs/dashboard/insights), the MCP `ask` tool and the chat apps. Any endpoint
+that speaks the OpenAI `chat/completions` format with tool calling will do, hosted or on your
+own network: the server posts to `MICAFORGE_LLM_BASE_URL` followed by `/chat/completions`.
+
+The base URL and the model turn it on, and they go together: setting one without the other
+stops the server at boot and names the one that is missing. The key, the timeout and the
+limit mean nothing without an endpoint, so setting any of them with no base URL stops the boot
+too, naming `MICAFORGE_LLM_BASE_URL`, which is why the two defaults above are commented out.
+The base URL must be an absolute `http` or `https` address. The key is sent as a bearer token
+and is never logged.
+
+The model's address is configuration you wrote, not input a user typed, so the private-address
+rule that guards webhooks does not apply to it: a model server on your own network, such as
+`http://ollama:11434/v1` in the same compose project, works without
+`MICAFORGE_ALLOW_PRIVATE_OUTBOUND`.
+
+`MICAFORGE_LLM_TIMEOUT_SECS` bounds one call to the model, not a whole answer, which may take
+several calls. Outside 5 to 120 the server refuses to start.
+
+`MICAFORGE_LLM_DAILY_LIMIT` counts questions per organisation per UTC day, across the
+dashboard, MCP, the chat apps and the investigation explanations. Past it, every surface
+answers that the limit is reached until midnight UTC.
+
+With the base URL unset, no AI feature makes a call. The dashboard says AI is off,
+investigations open with their statistical findings only, and nothing is sent to a model.
+What is sent when it is on is listed in
+[Ask AI](/docs/dashboard/ask-ai#what-is-sent-to-the-provider).
+
+## Chat apps, off by default
+
+```sh
+MICAFORGE_SLACK_SIGNING_SECRET=        # Basic Information → App Credentials
+MICAFORGE_SLACK_BOT_TOKEN=             # xoxb-…
+MICAFORGE_DISCORD_APPLICATION_ID=
+MICAFORGE_DISCORD_PUBLIC_KEY=          # 64 hex characters
+MICAFORGE_DISCORD_BOT_TOKEN=
+MICAFORGE_TELEGRAM_BOT_TOKEN=          # from BotFather
+MICAFORGE_TELEGRAM_WEBHOOK_SECRET=     # 1 to 256 of A-Z a-z 0-9 _ -
+```
+
+Each platform is on when all of its variables are set and off when none are. Half a platform
+is refused at boot, with the missing variable named, rather than left to fail every request
+with a signature error nobody can trace back to a typo:
+
+| Platform | Variables, all or none |
+| --- | --- |
+| Slack | `MICAFORGE_SLACK_SIGNING_SECRET`, `MICAFORGE_SLACK_BOT_TOKEN` |
+| Discord | `MICAFORGE_DISCORD_APPLICATION_ID`, `MICAFORGE_DISCORD_PUBLIC_KEY`, `MICAFORGE_DISCORD_BOT_TOKEN` |
+| Telegram | `MICAFORGE_TELEGRAM_BOT_TOKEN`, `MICAFORGE_TELEGRAM_WEBHOOK_SECRET` |
+
+Two values are checked for shape at boot as well: the Discord public key must be the
+64-character hex key from the developer portal, and the Telegram secret must be 1 to 256
+characters of `A-Z`, `a-z`, `0-9`, `_` and `-`, which is what Telegram accepts.
+
+These are one set per install. Which channel answers for which site is not configuration: a
+member links it from the dashboard with a one-time code. Creating each app, step by step, is
+in [Slack](/docs/integrations/slack), [Discord](/docs/integrations/discord) and
+[Telegram](/docs/integrations/telegram).
+
+Two setup commands run on the host once the variables are in place:
+
+```sh
+docker compose exec micaforge micaforge-server chat-setup discord    # registers /micaforge
+docker compose exec micaforge micaforge-server chat-setup telegram   # sets the webhook and the commands
+```
+
+## Feedback channel, off by default
+
+```sh
+MICAFORGE_FEEDBACK_WEBHOOK_URL=        # a Slack incoming webhook, or a Discord webhook
+MICAFORGE_FEEDBACK_TELEGRAM_CHAT_ID=   # a chat the install's Telegram bot posts to
+```
+
+New [feedback](/docs/api/feedback) is always emailed to every instance admin when the install
+sends mail. These two add a channel beside the inbox, and both are optional.
+
+`MICAFORGE_FEEDBACK_WEBHOOK_URL` takes a Slack incoming webhook, or any endpoint that accepts
+the same JSON body, or a Discord webhook, which is recognised by its `discord.com` or
+`discordapp.com` host. It must be an `http` or `https` address.
+
+`MICAFORGE_FEEDBACK_TELEGRAM_CHAT_ID` sends each report to that chat with the install's own
+Telegram bot, so it needs `MICAFORGE_TELEGRAM_BOT_TOKEN`, and with it the rest of the Telegram
+pair. Set without the bot token, it stops the boot and names `MICAFORGE_TELEGRAM_BOT_TOKEN`.
+
+## Google Search Console, off by default
+
+```sh
+MICAFORGE_SEARCH_CONSOLE_CLIENT_ID=
+MICAFORGE_SEARCH_CONSOLE_CLIENT_SECRET=
+```
+
+The pair lets a site admin connect a Google Search Console property, so the Search screen
+shows the search terms, pages, countries and devices Google reports for the site. Set both or
+neither; one alone stops the server at boot. With neither, no site can connect and Micaforge
+makes no call to Google.
+
+It is a Google Cloud OAuth client of type **Web application**, in a project with the Google
+Search Console API turned on, with `MICAFORGE_PUBLIC_URL` + `/api/search-console/callback`
+registered as a redirect address. It is a separate pair from the sign-in client above because
+Search Console needs the `webmasters.readonly` scope, which Google reviews, while sign-in uses
+only scopes Google does not. You may paste the same client into both pairs if you register
+both redirect addresses on it. [Google Search Console](/docs/integrations/google-search-console)
+has the steps.
+
+## GitHub App, off by default
+
+```sh
+MICAFORGE_GITHUB_APP_ID=               # the numeric App ID
+MICAFORGE_GITHUB_APP_SLUG=             # the name in github.com/apps/<slug>
+MICAFORGE_GITHUB_APP_PRIVATE_KEY=      # the .pem GitHub generated; line breaks may be written as \n
+MICAFORGE_GITHUB_APP_WEBHOOK_SECRET=   # the webhook secret you gave the App
+MICAFORGE_GITHUB_APP_CLIENT_ID=        # the App's own client ID (not MICAFORGE_GITHUB_CLIENT_ID)
+MICAFORGE_GITHUB_APP_CLIENT_SECRET=    # a client secret generated on the App's page
+```
+
+The [GitHub App](/docs/integrations/github) puts each site's deploys, releases and pushes on its
+charts as annotations, and opens feedback as GitHub issues. Set all six or none; part of the
+group stops the boot and names the first missing variable. The App ID must be a number, the
+slug lower-case letters, digits and hyphens, and the private key an RSA key in PEM form, which
+the server checks at boot by parsing it. Register `MICAFORGE_PUBLIC_URL` + `/api/github/callback`
+as the App's callback URL, with "Request user authorization (OAuth) during installation" on,
+and `MICAFORGE_PUBLIC_URL` + `/api/github/webhook` as its webhook URL.
+
+These are separate from `MICAFORGE_GITHUB_CLIENT_ID` and `_SECRET`, which belong to the OAuth
+app behind "Continue with GitHub"; either can be set without the other. With none of the six
+set, the server makes no call to GitHub for this and refuses every delivery to the webhook.

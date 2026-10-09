@@ -27,6 +27,8 @@ micaforge-enrich = { workspace = true }
 micaforge-query = { workspace = true }
 micaforge-jobs = { workspace = true }
 micaforge-mail = { workspace = true }
+# The AI analyst behind `/api/ai/ask`, the MCP `ask` tool and the chat apps.
+micaforge-ai = { workspace = true }
 
 # `multipart` on top of the workspace feature set, for the import upload in
 # `routes::imports`. It is enabled here rather than in the workspace table so
@@ -38,6 +40,11 @@ tower-http = { workspace = true }
 http = { workspace = true }
 
 tokio = { workspace = true }
+# The AI analyst's answer is streamed as Server-Sent Events from a channel.
+tokio-stream = { workspace = true }
+# `routes::raw_export` turns its archive writer into a response body with
+# `futures::stream::unfold`, so the download is pulled at the client's pace.
+futures = { workspace = true }
 
 # Used directly by `routes::admin`, which reads a handful of instance-wide
 # aggregates that have no repository function because nothing else wants them.
@@ -61,10 +68,26 @@ blake3 = { workspace = true }
 hex = { workspace = true }
 hmac = { workspace = true }
 sha2 = { workspace = true }
+# `routes::log_drain`: Vercel signs a drain delivery with HMAC-SHA1 and may
+# send it gzip-compressed.
+sha1 = { workspace = true }
+flate2 = { workspace = true }
 subtle = { workspace = true }
 totp-rs = { workspace = true }
+# Verifying Discord's `X-Signature-Ed25519` on every interaction.
+ed25519-dalek = { workspace = true }
+# `routes::github`: the RS256 JWT a GitHub App signs with its private key to
+# read an installation and mint its tokens. Already the workspace's choice.
+jsonwebtoken = { workspace = true }
+# The OAuth token and revocation endpoints take form bodies, and their errors
+# must be OAuth's own JSON rather than the framework's rejection, so the body
+# is parsed here.
+serde_urlencoded = { workspace = true }
 
 once_cell = { workspace = true }
 tracing = { workspace = true }
+# `GET /api/links/{id}/qr.svg`. The encoder alone, with its SVG renderer and
+# no image stack: a QR code is a few hundred rectangles, written as text.
+qrcode = { workspace = true }
 tracing-subscriber = { workspace = true }
 dotenvy = { workspace = true }

@@ -1,0 +1,128 @@
+---
+title: "Uptime monitoring"
+description: "Monitors that check a URL on a schedule, what makes a check fail, and when an incident opens and closes."
+group: "dashboard"
+order: 9
+updated: 2026-10-08
+---
+
+A monitor checks one URL on a schedule and tells you when the answer stops being the one you
+expect. It belongs to a site, and it lives on the Uptime screen, under Monitoring.
+
+```http
+GET  /api/uptime/monitors?site=1
+POST /api/uptime/monitors?site=1
+GET  /api/uptime/summary?site=1
+GET  /api/uptime/incidents?site=1&limit=50
+```
+
+Anyone who can read the site can read its monitors. Creating, editing, testing and deleting
+one needs the member role.
+
+## A monitor
+
+| Field | Values | What it does |
+| --- | --- | --- |
+| URL | `http://` or `https://` | The address to check. |
+| Method | `GET`, `HEAD`, `POST` | The request method. |
+| Interval | 1 to 60 minutes | How often the check runs. |
+| Timeout | 1 to 30 seconds | How long to wait for an answer. |
+| Expected status | a range, default `200` to `299` | Any status outside the range is a failure. |
+| Keyword | text, optional | The response body must contain it. Case-sensitive. |
+| JSON path | a path, optional | The response body must be JSON with a value at this path. |
+| Expected value | text, optional | The value at the JSON path must equal this text. |
+| SSL check | on or off, `https` only | Fail when the certificate expires soon. |
+| SSL threshold | 1 to 365 days, default 14 | How many days count as soon. |
+| Failures before an incident | 1 to 10, default 2 | Consecutive failed checks that open an incident. |
+| Channels | email, Slack, webhook, or none | Where the down and recovered notices go. |
+
+Test a monitor before you save it. A test runs one check now and returns the result: the
+status code, the latency and the error. It stores nothing and changes no state, so it is
+also safe on a monitor that is already running.
+
+```http
+POST /api/uptime/test?site=1
+POST /api/uptime/monitors/:id/test
+```
+
+### JSON path assertions
+
+A path is a list of keys joined by dots, with `[n]` for an array index. A leading `$.` is
+allowed and changes nothing.
+
+```text
+status
+$.status
+data.items[0].ok
+```
+
+With an expected value, the value at the path must equal it as text. Without one, the path
+only has to exist.
+
+## When a check fails
+
+A check fails when any one of these is true:
+
+- No response arrived before the timeout, or the connection failed.
+- The status code is outside the expected range.
+- The keyword is not in the body.
+- The JSON path assertion is not met.
+- The SSL check is on and the certificate has fewer days left than the threshold.
+
+Each failed check carries one plain sentence that says why, such as
+`expected status 200-299, got 503` or `certificate expires in 3 days`.
+
+## Incidents and notifications
+
+One failed check is not an incident. After the number of consecutive failures you set, an
+incident opens and every channel on the monitor gets a "down" notice. The first successful
+check after that closes the incident and sends a "recovered" notice.
+
+The channels are the same email, Slack and webhook channels that alerts use. A monitor with
+no channel is allowed: the incident still opens and closes, and the Uptime screen still
+shows it.
+
+When the monitor is on a published [status page](/docs/dashboard/status-pages), the
+incident also appears there, and closes there when the monitor recovers.
+
+## Where checks run
+
+Checks run from the Micaforge server itself. There is no separate probe network.
+
+A job named `run_uptime_checks` runs every minute. It checks only the monitors that are
+due, it never runs two checks of the same monitor at the same time, and it runs at most
+`MICAFORGE_WORKER_CONCURRENCY` checks at once. When no monitor exists, the server makes no
+outbound request at all.
+
+Every check is stored with a region label, which is the value of `MICAFORGE_REGION`
+(default `default`). One install checks from one place. The label is stored so that a later
+install that checks from more than one place can tell the results apart. See
+[configuration](/docs/self-hosting/configuration).
+
+## What a check sends
+
+- It follows up to 5 redirects.
+- It reads at most 1 MiB of the body for the keyword and JSON path assertions.
+- It sends this user agent, so you can find the checks in your own logs:
+
+```text
+Micaforge-Uptime/1.0 (+https://micaforge.com/docs/dashboard/uptime-monitoring)
+```
+
+Checks use the same outbound guard as crawls and webhooks. A URL, or a DNS answer, on a
+private, loopback or link-local address is refused, unless the operator sets
+`MICAFORGE_ALLOW_PRIVATE_OUTBOUND=true`. On a self-hosted install that is how you monitor a
+service on your own network.
+
+## What is stored
+
+Every check is one row in the ClickHouse table `uptime_checks`: the time, the monitor, the
+region, the result, the status code, the latency, the error and the SSL days left. The rows
+follow `MICAFORGE_RETENTION_DAYS`, like every other event table. See
+[data retention](/docs/privacy/data-retention).
+
+The Uptime screen reads those rows. It shows the uptime of each monitor over 24 hours, 7
+days and 30 days, its latency, and its incidents.
+
+An agent can read the same data through the [MCP server](/docs/api/mcp-server), with
+`get_uptime_summary` and `list_uptime_incidents`.

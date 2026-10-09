@@ -72,6 +72,7 @@ use micaforge_store::ch::{
 use micaforge_store::models::{catalog as catalog_model, sites as sites_model};
 
 use crate::client_ip::address_tag;
+use crate::ingest_guard::{self, Blocked, Guard};
 use crate::middleware::{LogGate, LIMITER_BUDGET};
 use crate::state::AppState;
 
@@ -339,7 +340,14 @@ async fn ingest_one(state: &AppState, p: Payload, ctx: &RequestCtx) -> Verdict {
         return Verdict::Denied;
     };
     if !check_origin(&site, &hostname) {
+        ingest_guard::count_blocked(state, site_id, Blocked::Hostname);
         return Verdict::Denied;
+    }
+
+    // The site's address lists. A blocked hit is answered as accepted: the
+    // page is never broken and the sender learns nothing from the answer.
+    if !ingest_guard::admit(state, site_id, &site.guard, Some(ctx.ip)) {
+        return Verdict::Accepted;
     }
 
     // One Redis read for the salt, reused for the rate-limit key, the address
@@ -436,7 +444,7 @@ async fn ingest_one(state: &AppState, p: Payload, ctx: &RequestCtx) -> Verdict {
     row.entry_path = entry_path;
 
     if kind == EventKind::Error {
-        mirror_error(state, &row, &p);
+        mirror_error(state, &row);
     }
 
     state.writer.push_event(row);
@@ -466,7 +474,14 @@ fn build_event_row(
     let client = ua::parse(user_agent, sec_ch_ua, sec_ch_ua_platform, sec_ch_ua_mobile);
     let (querystring, url_params) = referrer::strip_and_collect_params(url);
     let attribution = referrer::attribute(p.r.as_deref(), url, &site.domain, &answer_engine_lookup);
-    let (props, revenue, currency) = props_of(p);
+    let (props, mut revenue, mut currency) = props_of(p);
+    // A trait is a fact about a person, not a sale: a `revenue` trait on an
+    // identify call (a customer's company size, say) must never reach the
+    // revenue column every report sums.
+    if kind == EventKind::Identify {
+        revenue = None;
+        currency.clear();
+    }
     let vitals = p.e.clone().unwrap_or_default();
 
     let mut row = EventRow {
@@ -512,6 +527,7 @@ fn build_event_row(
         fcp: vitals.fcp,
         ttfb: vitals.ttfb,
         sdk_version: clamp_opt(&p.v, 32),
+        sample_rate: sample_rate_of(p.sr),
         ..EventRow::default()
     };
 
@@ -545,7 +561,7 @@ fn build_event_row(
 /// that led to it — but the error report reads its own table, because grouping
 /// by a fingerprint computed at ingest is what keeps a group stable when the
 /// stack text changes between releases.
-fn mirror_error(state: &AppState, row: &EventRow, p: &Payload) {
+fn mirror_error(state: &AppState, row: &EventRow) {
     let props: Json = serde_json::from_str(&row.props).unwrap_or(Json::Null);
     let get = |key: &str| -> String {
         props
@@ -590,10 +606,14 @@ fn mirror_error(state: &AppState, row: &EventRow, p: &Payload) {
         pathname: row.pathname.clone(),
         browser: row.browser.clone(),
         os: row.os.clone(),
-        release: clamp_opt(&p.v, 64),
-        // The tracker only reports what it caught deliberately; anything that
-        // reached `window.onerror` arrives through the same route and is marked
-        // unhandled by the SDK through `props.handled`.
+        // The site's own release (`data-release` on the script tag, or a
+        // `release` property from a server SDK), and nothing when it gave none.
+        // The tracker's version is not a release of the site: grouping a site's
+        // errors under `0.1.0` would pin every regression on the wrong deploy.
+        release: clamp(&get("release"), 64),
+        // The error plugin marks what reached `window.onerror` or an unhandled
+        // rejection as `handled: false`; anything a site reports itself through
+        // the same route is handled unless it says otherwise.
         handled: u8::from(
             props
                 .get("handled")
@@ -756,8 +776,26 @@ async fn ingest_agent_hit(
     policy: Option<&PolicyCtx>,
     salt: &[u8],
 ) -> bool {
+    let classification = micaforge_agents::classify(&hit.user_agent, &HeaderView::empty(), None);
+    record_agent_hit(state, site, hit, &classification, policy, salt).await
+}
+
+/// [`ingest_agent_hit`] with the classification already made.
+///
+/// Split out so a caller that has to classify first to decide whether a hit
+/// belongs here at all ([`ingest_server_hits`]) does not pay for the catalog
+/// match twice on every line of a log batch.
+async fn record_agent_hit(
+    state: &AppState,
+    site: &SiteCtx,
+    hit: WireAgentEvent,
+    classification: &Classification,
+    policy: Option<&PolicyCtx>,
+    salt: &[u8],
+) -> bool {
     let hostname = normalise_host(&hit.hostname);
     if hostname.is_empty() || !check_origin(site, &hostname) {
+        ingest_guard::count_blocked(state, site.site_id, Blocked::Hostname);
         return false;
     }
     let pathname = url_norm::normalise_path(&hit.pathname, site.trailing_slash);
@@ -766,11 +804,13 @@ async fn ingest_agent_hit(
     }
 
     let ip = hit.ip.as_deref().and_then(parse_ip);
+    if !ingest_guard::admit(state, site.site_id, &site.guard, ip) {
+        return false;
+    }
     let ip_text = ip.map(|a| a.to_string()).unwrap_or_default();
     let location = ip.map(|a| state.geo.lookup(a)).unwrap_or_default();
     let ip_hash = ip_digest(salt, site.site_id, &ip_text);
 
-    let classification = micaforge_agents::classify(&hit.user_agent, &HeaderView::empty(), None);
     let timestamp = hit.timestamp_utc();
     let (robots_allowed, llms_listed) = policy_flags(policy, classification.agent(), &pathname);
 
@@ -841,6 +881,109 @@ async fn ingest_agent_hit(
     true
 }
 
+// ---------------------------------------------------------------------------
+// Request logs from a hosting platform
+// ---------------------------------------------------------------------------
+
+/// One request a hosting platform's log stream reported.
+///
+/// The column set of a `WireAgentEvent`, because it describes the same fact:
+/// a server answered a fetch. It is a separate type so the log-drain routes
+/// never see the edge path's wire format, and so the edge format can change
+/// without a drain parser noticing.
+#[derive(Debug, Default, Clone)]
+pub(crate) struct ServerHit {
+    /// When the platform answered the request. `None` means "now".
+    pub timestamp: Option<DateTime<Utc>>,
+    pub user_agent: String,
+    pub method: String,
+    pub hostname: String,
+    pub pathname: String,
+    pub querystring: String,
+    pub status: Option<u16>,
+    pub bytes: Option<u32>,
+    pub duration_ms: Option<u32>,
+    pub content_type: String,
+    /// Transport only: verified against published ranges, hashed, dropped.
+    pub ip: Option<String>,
+}
+
+/// Where the hits of one log batch went.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct HitTally {
+    /// Written to `agent_events`: a named agent.
+    pub agents: usize,
+    /// Written to `bot_events`: not human, not nameable.
+    pub bots: usize,
+    /// Classified as a person and skipped.
+    pub humans: usize,
+    /// Unusable: no hostname, a hostname that is not the site's, or an
+    /// excluded path.
+    pub rejected: usize,
+}
+
+/// Run a batch of platform request logs through the edge path's agent rules.
+///
+/// This is `POST /api/log/edge` without the envelope: the caller has already
+/// proved, its own way, that the batch speaks for `site`. Every hit is
+/// classified against the same catalog; a named agent lands in `agent_events`
+/// with its verification and policy columns, an unnamed non-human client in
+/// `bot_events`, exactly as an edge batch would file them.
+///
+/// **A person is skipped, not counted.** A platform log carries every request,
+/// and the human ones are already counted by the tracker in the page, with a
+/// session, a referrer and a visitor digest that a log line cannot give. Filing
+/// them here as well would count every reader twice.
+pub(crate) async fn ingest_server_hits(
+    state: &AppState,
+    site: &sites_model::Site,
+    hits: Vec<ServerHit>,
+) -> HitTally {
+    let site = SiteCtx::from_row(site);
+    let salt = daily_salt(state, &site).await;
+    let policy = resolve_policy(state, &site).await;
+    let mut tally = HitTally::default();
+
+    for hit in hits.into_iter().take(MAX_EDGE_ROWS) {
+        let classification =
+            micaforge_agents::classify(&hit.user_agent, &HeaderView::empty(), None);
+        if classification.is_human() {
+            tally.humans += 1;
+            continue;
+        }
+        let named = classification.agent().is_some();
+        let wire = WireAgentEvent {
+            timestamp: hit.timestamp.map(|t| t.to_rfc3339()).unwrap_or_default(),
+            user_agent: hit.user_agent,
+            method: hit.method,
+            hostname: hit.hostname,
+            pathname: hit.pathname,
+            querystring: hit.querystring,
+            status: hit.status,
+            bytes: hit.bytes,
+            duration_ms: hit.duration_ms,
+            content_type: hit.content_type,
+            conditional: None,
+            ip: hit.ip,
+        };
+        match record_agent_hit(
+            state,
+            &site,
+            wire,
+            &classification,
+            policy.as_deref(),
+            &salt,
+        )
+        .await
+        {
+            true if named => tally.agents += 1,
+            true => tally.bots += 1,
+            false => tally.rejected += 1,
+        }
+    }
+    tally
+}
+
 /// One row from the `events` array of an edge payload.
 ///
 /// A server SDK reports human page views for sites that cannot run the tracker.
@@ -855,6 +998,7 @@ async fn ingest_edge_event(
 ) -> bool {
     let hostname = normalise_host(&event.hostname);
     if hostname.is_empty() || !check_origin(site, &hostname) {
+        ingest_guard::count_blocked(state, site.site_id, Blocked::Hostname);
         return false;
     }
 
@@ -897,6 +1041,9 @@ async fn ingest_edge_event(
     };
 
     let ip = event.ip.as_deref().and_then(parse_ip);
+    if !ingest_guard::admit(state, site.site_id, &site.guard, ip) {
+        return false;
+    }
     let ip_text = ip.map(|a| a.to_string()).unwrap_or_default();
     let location = ip.map(|a| state.geo.lookup(a)).unwrap_or_default();
 
@@ -946,7 +1093,7 @@ async fn ingest_edge_event(
     row.timestamp = event.timestamp_utc();
 
     if kind == EventKind::Error {
-        mirror_error(state, &row, &payload);
+        mirror_error(state, &row);
     }
     state.writer.push_event(row);
     let _ = state.kv.bump_realtime(site.site_id, &visitor, false).await;
@@ -1131,6 +1278,55 @@ fn first_use(seen: &Mutex<HashMap<[u8; 32], i64>>, signed: &Signed, now: i64) ->
     true
 }
 
+/// A server batch whose signature verified for a site, not yet claimed.
+///
+/// For the signed collection routes other than [`edge`] itself (the MCP
+/// intake in `routes::model_context`). They prove the same thing the same
+/// way: the same key, the same window and the same replay memory, so a batch
+/// signed for one route cannot be replayed onto another.
+pub(crate) struct SignedBatch {
+    /// The site the batch speaks for, read fresh like [`edge`] reads it.
+    pub site: sites_model::Site,
+    signed: Signed,
+    now: i64,
+}
+
+impl SignedBatch {
+    /// Claim the signature: `true` the first time, `false` for an exact repeat
+    /// inside its window. Call it after the route's own limiter, as [`edge`]
+    /// does, so a batch refused with `429` can be sent again as it was.
+    pub(crate) fn claim(&self) -> bool {
+        first_use(seen_signatures(), &self.signed, self.now)
+    }
+}
+
+/// Verify a signed server batch for `site_id` exactly as [`edge`] does.
+///
+/// `None` for a site that does not exist, a site with no ingest key, a key
+/// that will not open, and a signature that is wrong or outside its window,
+/// after the same work in every case, so the caller answers all of them with
+/// one `401` that says nothing about which.
+pub(crate) async fn verify_server_batch(
+    state: &AppState,
+    site_id: u16,
+    body: &[u8],
+    signature: &str,
+) -> Option<SignedBatch> {
+    let row = sites_model::get_by_site_id(&state.pg, site_id).await.ok();
+    let key = match row.as_ref() {
+        Some(row) => stored_ingest_key(state, row).await,
+        None => None,
+    };
+    let now = Utc::now().timestamp();
+    let signed = verify_signature(key.as_deref().unwrap_or(""), body, signature, now)
+        .filter(|_| key.is_some())?;
+    Some(SignedBatch {
+        site: row?,
+        signed,
+        now,
+    })
+}
+
 // ---------------------------------------------------------------------------
 // The request
 // ---------------------------------------------------------------------------
@@ -1256,6 +1452,8 @@ struct SiteCtx {
     trailing_slash: bool,
     respect_dnt: bool,
     excluded: Vec<String>,
+    /// The site's address allow and deny lists (`crate::ingest_guard`).
+    guard: Guard,
 }
 
 /// One cache slot. `None` records a site that is known *not* to exist.
@@ -1465,6 +1663,7 @@ impl SiteCtx {
             trailing_slash: flag("trailing_slash", true),
             respect_dnt: flag("respect_dnt", false),
             excluded,
+            guard: Guard::from_settings(&site.settings),
         }
     }
 }
@@ -1660,7 +1859,10 @@ fn locate(state: &AppState, ctx: &RequestCtx) -> Location {
 /// extended to the same hop's other answers. `CF-IPCountry` is always sent; the
 /// city, region and coordinates arrive when the zone has Cloudflare's "Add
 /// visitor location headers" transform turned on.
-fn edge_location(headers: &axum::http::HeaderMap) -> Option<Location> {
+///
+/// Also read by the short-link redirect, which locates a click the way ingest
+/// locates a pageview.
+pub(crate) fn edge_location(headers: &axum::http::HeaderMap) -> Option<Location> {
     if crate::client_ip::proxy_header() != Some("cf-connecting-ip") {
         return None;
     }
@@ -1855,6 +2057,11 @@ struct Payload {
     /// Web vitals.
     #[serde(default)]
     e: Option<Vitals>,
+    /// The tracker's `data-sample` rate, sent only by a visitor inside a
+    /// sample. A number rather than an integer on the wire, because the
+    /// attribute is whatever the site typed.
+    #[serde(default)]
+    sr: Option<f64>,
 
     /// Page title. Not sent by the browser tracker, which has no room for it;
     /// filled in by the server SDKs, which do.
@@ -2147,6 +2354,16 @@ fn payload_from_query(query: &str) -> Option<Payload> {
             if let Ok(n) = value.parse::<u64>() {
                 object.insert(key, Json::from(n));
             }
+        } else if key == "sr" {
+            // A sampling rate may be fractional (`12.5`), so it is not one of
+            // the integer keys above.
+            if let Some(n) = value
+                .parse::<f64>()
+                .ok()
+                .and_then(serde_json::Number::from_f64)
+            {
+                object.insert(key, Json::Number(n));
+            }
         } else if NESTED.contains(&key.as_str()) {
             if let Ok(parsed) = serde_json::from_str::<Json>(&value) {
                 object.insert(key, parsed);
@@ -2345,6 +2562,19 @@ fn props_of(p: &Payload) -> (String, Option<i64>, String) {
     (serialised, revenue, currency)
 }
 
+/// The `sample_rate` column from the payload's `sr`.
+///
+/// Absent, zero, negative or not a number means the hit is not from a sample,
+/// which is `100`. A rate is stored as a whole percentage, at least 1: a
+/// tracker sampling at half a percent still sends hits, and a row that said
+/// `0` would claim a sample that kept nobody.
+fn sample_rate_of(sr: Option<f64>) -> u8 {
+    match sr {
+        Some(v) if v.is_finite() && v > 0.0 && v < 100.0 => v.round().clamp(1.0, 99.0) as u8,
+        _ => 100,
+    }
+}
+
 /// Feature-flag exposures as the `Map(String, String)` column wants them.
 ///
 /// Accepts either `{"beta":"on"}` or `[["beta","on"]]`, because both shapes are
@@ -2524,6 +2754,7 @@ mod tests {
             trailing_slash: true,
             respect_dnt: false,
             excluded: Vec::new(),
+            guard: Guard::default(),
         }
     }
 
@@ -2891,6 +3122,73 @@ mod tests {
         assert!(sane_time(Utc::now()).is_some());
         assert!(sane_time(Utc::now() + chrono::Duration::days(400)).is_none());
         assert!(sane_time(Utc.with_ymd_and_hms(1999, 1, 1, 0, 0, 0).unwrap()).is_none());
+    }
+
+    #[test]
+    fn a_sampled_hit_carries_its_rate_and_everything_else_is_everyone() {
+        assert_eq!(sample_rate_of(None), 100);
+        assert_eq!(sample_rate_of(Some(25.0)), 25);
+        assert_eq!(sample_rate_of(Some(12.5)), 13);
+        assert_eq!(
+            sample_rate_of(Some(0.4)),
+            1,
+            "a tiny sample is still a sample"
+        );
+        assert_eq!(sample_rate_of(Some(0.0)), 100);
+        assert_eq!(sample_rate_of(Some(-5.0)), 100);
+        assert_eq!(sample_rate_of(Some(100.0)), 100);
+        assert_eq!(sample_rate_of(Some(f64::NAN)), 100);
+
+        let p: Payload = serde_json::from_value(json!({ "s": 1, "sr": 25 })).unwrap();
+        let url = Url::parse("https://example.com/").unwrap();
+        let row = build_event_row(
+            &site("example.com", &[]),
+            &p,
+            EventKind::Pageview,
+            &url,
+            "example.com",
+            "/",
+            "",
+            None,
+            None,
+            None,
+            &Location::default(),
+        );
+        assert_eq!(row.sample_rate, 25);
+        assert_eq!(payload_from_query("s=1&sr=12.5").unwrap().sr, Some(12.5));
+    }
+
+    #[test]
+    fn a_trait_named_revenue_is_never_revenue() {
+        let p: Payload = serde_json::from_value(json!({
+            "s": 1,
+            "t": "identify",
+            "id": "u_1",
+            "p": { "revenue": 5000000, "currency": "usd", "email": "a@example.com" }
+        }))
+        .unwrap();
+        let url = Url::parse("https://example.com/").unwrap();
+        let row = build_event_row(
+            &site("example.com", &[]),
+            &p,
+            EventKind::Identify,
+            &url,
+            "example.com",
+            "/",
+            "",
+            None,
+            None,
+            None,
+            &Location::default(),
+        );
+        assert_eq!(row.kind, "identify");
+        assert_eq!(row.identified_id, "u_1");
+        assert_eq!(row.revenue, None);
+        assert!(row.currency.is_empty());
+        assert!(
+            row.props.contains("a@example.com"),
+            "the traits are kept as props"
+        );
     }
 
     #[test]

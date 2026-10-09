@@ -15,6 +15,8 @@ GET  /api/track/pixel.gif       the no-JavaScript fallback
 POST /api/log/edge              server-side hits, signed
 ```
 
+A fifth, `POST /api/log/mcp`, carries the calls an MCP server answered; see below.
+
 All four accept cross-origin requests. The first three need no credential: a site id is
 not a secret, it is in your page source. What protects them is that a hit is only accepted
 for a hostname that belongs to that site.
@@ -165,6 +167,44 @@ const v1 = createHmac("sha256", ingestKey).update(`${t}.${body}`, "utf8").digest
 Limits: 2 MB per request, 500 rows per array. Over the rate limit the answer is `429` with
 `Retry-After`. Unlike the browser endpoint, this one tells you: a shipper that is being
 throttled needs to know, and there is no page to protect.
+
+## POST /api/log/mcp
+
+The calls an MCP server answered, for [MCP server analytics](/docs/tracking/mcp-server-analytics).
+Signed exactly like `/api/log/edge`, with the same key, window and replay rule; the server
+SDK's `instrumentMcpServer` and `recordMcpCall` send it for you.
+
+```json
+{
+  "site_id": 1,
+  "mcp_calls": [
+    {
+      "timestamp": "2026-10-09T10:00:00.000Z",
+      "method": "tools/call",
+      "name": "search_docs",
+      "client_name": "claude-ai",
+      "client_version": "0.9.1",
+      "protocol_version": "2025-06-18",
+      "transport": "streamable-http",
+      "session_hash": "4f1c…",
+      "duration_ms": 41,
+      "status": "error",
+      "error_type": "McpError",
+      "error_code": -32602,
+      "arg_bytes": 38,
+      "result_bytes": 0,
+      "server_name": "docs",
+      "server_version": "1.2.0"
+    }
+  ]
+}
+```
+
+`method` is `tools/call`, `resources/read` or `prompts/get`, and `status` is `ok`, `error`
+or `tool_error`; a call with anything else is refused and counted. `session_hash` must be
+a hex digest, never the session id itself; anything else is dropped. `arguments`, when the
+owner opted in, is kept up to 4 KB of JSON. Limits: 1 MB per request, 500 calls. The answer
+is `202` with `{ "accepted": …, "rejected": … }`.
 
 ## Which one to use
 

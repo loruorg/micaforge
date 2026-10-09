@@ -111,7 +111,24 @@ services:
       MICAFORGE_CORS_ORIGINS: ${MICAFORGE_CORS_ORIGINS:-}
       MICAFORGE_RATE_LIMIT_PER_MIN: ${MICAFORGE_RATE_LIMIT_PER_MIN:-3000}
       MICAFORGE_ALLOW_PRIVATE_OUTBOUND: ${MICAFORGE_ALLOW_PRIVATE_OUTBOUND:-false}
+      # "Continue with Google / GitHub": both halves of a pair, or neither.
+      MICAFORGE_GOOGLE_CLIENT_ID: ${MICAFORGE_GOOGLE_CLIENT_ID:-}
+      MICAFORGE_GOOGLE_CLIENT_SECRET: ${MICAFORGE_GOOGLE_CLIENT_SECRET:-}
+      MICAFORGE_GITHUB_CLIENT_ID: ${MICAFORGE_GITHUB_CLIENT_ID:-}
+      MICAFORGE_GITHUB_CLIENT_SECRET: ${MICAFORGE_GITHUB_CLIENT_SECRET:-}
+      # Plans and Stripe, for a hosted service only. Off on a self-hosted install.
+      MICAFORGE_BILLING_ENABLED: ${MICAFORGE_BILLING_ENABLED:-false}
+      MICAFORGE_BILLING_PLANS: ${MICAFORGE_BILLING_PLANS:-}
+      MICAFORGE_STRIPE_SECRET_KEY: ${MICAFORGE_STRIPE_SECRET_KEY:-}
+      MICAFORGE_STRIPE_WEBHOOK_SECRET: ${MICAFORGE_STRIPE_WEBHOOK_SECRET:-}
       RUST_LOG: ${RUST_LOG:-info}
+
+      # -- monitoring and growth ---------------------------------------
+      # The label written on every uptime check, and a hostname that also
+      # serves short links at its root (it needs its own Caddy site block;
+      # see /docs/dashboard/short-links). Empty is the default for both.
+      MICAFORGE_REGION: ${MICAFORGE_REGION:-}
+      MICAFORGE_LINKS_HOST: ${MICAFORGE_LINKS_HOST:-}
 
       # -- the edge ----------------------------------------------------
       # Caddy writes the visitor address it resolved into X-Real-IP and
@@ -119,6 +136,25 @@ services:
       # server believes. Who Caddy itself trusts is MICAFORGE_TRUSTED_PROXIES,
       # below. Change this only if you replace Caddy with another proxy.
       MICAFORGE_TRUSTED_PROXY_HEADER: ${MICAFORGE_TRUSTED_PROXY_HEADER:-x-real-ip}
+
+      # -- AI analyst, chat apps and feedback (all off while empty) ------
+      # An empty value counts as unset, so these stay off until .env sets
+      # them. Each group is all or nothing; the server names the missing
+      # half at boot. See docs/self-hosting/configuration.
+      MICAFORGE_LLM_BASE_URL: ${MICAFORGE_LLM_BASE_URL:-}
+      MICAFORGE_LLM_MODEL: ${MICAFORGE_LLM_MODEL:-}
+      MICAFORGE_LLM_API_KEY: ${MICAFORGE_LLM_API_KEY:-}
+      MICAFORGE_LLM_TIMEOUT_SECS: ${MICAFORGE_LLM_TIMEOUT_SECS:-}
+      MICAFORGE_LLM_DAILY_LIMIT: ${MICAFORGE_LLM_DAILY_LIMIT:-}
+      MICAFORGE_SLACK_SIGNING_SECRET: ${MICAFORGE_SLACK_SIGNING_SECRET:-}
+      MICAFORGE_SLACK_BOT_TOKEN: ${MICAFORGE_SLACK_BOT_TOKEN:-}
+      MICAFORGE_DISCORD_APPLICATION_ID: ${MICAFORGE_DISCORD_APPLICATION_ID:-}
+      MICAFORGE_DISCORD_PUBLIC_KEY: ${MICAFORGE_DISCORD_PUBLIC_KEY:-}
+      MICAFORGE_DISCORD_BOT_TOKEN: ${MICAFORGE_DISCORD_BOT_TOKEN:-}
+      MICAFORGE_TELEGRAM_BOT_TOKEN: ${MICAFORGE_TELEGRAM_BOT_TOKEN:-}
+      MICAFORGE_TELEGRAM_WEBHOOK_SECRET: ${MICAFORGE_TELEGRAM_WEBHOOK_SECRET:-}
+      MICAFORGE_FEEDBACK_WEBHOOK_URL: ${MICAFORGE_FEEDBACK_WEBHOOK_URL:-}
+      MICAFORGE_FEEDBACK_TELEGRAM_CHAT_ID: ${MICAFORGE_FEEDBACK_TELEGRAM_CHAT_ID:-}
 
     volumes:
       # Drop a MaxMind-compatible .mmdb here and point the two GEOIP paths at

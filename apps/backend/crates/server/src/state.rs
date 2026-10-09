@@ -16,7 +16,9 @@ use micaforge_agents::verify::RangeStore;
 use micaforge_core::Config;
 use micaforge_enrich::Geo;
 use micaforge_mail::Mailer;
+use micaforge_store::McpCallRow;
 use micaforge_store::{Ch, EventWriter, Kv, PgPool};
+use micaforge_store::{LinkClickRow, TableWriter};
 use tokio::sync::RwLock;
 
 /// Everything a handler can reach.
@@ -52,6 +54,14 @@ pub struct AppState {
     /// is documented as something to build once and reuse, and a second one
     /// would mean a second connection pool to every host a policy crawl reads.
     pub http: reqwest::Client,
+    /// The writer lane for short-link clicks. A redirect pushes its row here
+    /// and answers at once, for the same reason ingest uses
+    /// [`AppState::writer`]: a slow ClickHouse must never be a slow redirect.
+    pub link_clicks: TableWriter<LinkClickRow>,
+    /// The writer lane for MCP server calls (`routes::model_context`). A
+    /// batch from an MCP server's SDK is pushed here and answered at once, so
+    /// a slow ClickHouse never holds the server that measured the calls.
+    pub mcp_calls: TableWriter<McpCallRow>,
 }
 
 impl std::fmt::Debug for AppState {

@@ -1,0 +1,103 @@
+---
+title: "Google and GitHub sign-in"
+description: "Add Continue with Google and Continue with GitHub beside the emailed code."
+group: "self-hosting"
+order: 7
+updated: 2026-10-09
+---
+
+Micaforge signs people in with a six-digit code sent to their email address. There is no
+password. An install can also offer **Continue with Google** and **Continue with GitHub**.
+Both are off until you configure them, and an install with neither configured never calls
+Google or GitHub.
+
+A provider sign-in follows the same rules as the code:
+
+- The account is the **verified email address**. Google must say the address is verified.
+  On GitHub, the account's primary address must be verified; Micaforge does not fall back
+  to a secondary address.
+- The first sign-in with a provider **links** it to the Micaforge account with that address.
+  Later sign-ins find the account by the provider's own id, so a changed address at the
+  provider still reaches the same account.
+- **The same door** decides who gets in: an existing account, the first account on a new
+  install, anybody while registration is open, or an address with an invitation. Anybody
+  else is turned away.
+- An account with **two-factor** on is asked for its authenticator code after the provider,
+  exactly as after an emailed code.
+
+Nothing the provider issues is stored. The access token is used once, inside the sign-in,
+to read the address, and then dropped.
+
+## Set up Google
+
+1. In the Google Cloud console, open **APIs & Services → Credentials** and create an
+   **OAuth client ID** of type **Web application**.
+2. Add this **authorised redirect URI**, with your own public URL:
+
+   ```text
+   https://analytics.example.com/api/auth/oauth/google/callback
+   ```
+
+3. Put the client id and secret in `.env` and restart the server:
+
+   ```sh
+   MICAFORGE_GOOGLE_CLIENT_ID=1234567890-abc.apps.googleusercontent.com
+   MICAFORGE_GOOGLE_CLIENT_SECRET=
+   ```
+
+Micaforge asks for the `openid email profile` scopes.
+
+## Set up GitHub
+
+1. In GitHub, open **Settings → Developer settings → OAuth Apps** and create a new OAuth
+   app. (A GitHub App works too, if it can read email addresses.)
+2. Set the **authorization callback URL**:
+
+   ```text
+   https://analytics.example.com/api/auth/oauth/github/callback
+   ```
+
+3. Put the client id and secret in `.env` and restart the server:
+
+   ```sh
+   MICAFORGE_GITHUB_CLIENT_ID=Ov23li...
+   MICAFORGE_GITHUB_CLIENT_SECRET=
+   ```
+
+Micaforge asks for the `read:user user:email` scopes.
+
+The callback address is always `MICAFORGE_PUBLIC_URL` followed by
+`/api/auth/oauth/<provider>/callback`. If `MICAFORGE_PUBLIC_URL` is wrong, the provider
+refuses the redirect. Set both the id and the secret of a provider, or neither: the server
+refuses to start with only one of them.
+
+## What people see
+
+The sign-in screen shows one button per configured provider, under the code form.
+`GET /api/config` lists them as `oauth_providers`, so a button never appears for a provider
+that is not set up.
+
+In **Account → Sign-in methods**, a person sees which providers are linked to their account
+and can unlink one. The emailed code always works, so unlinking never locks anybody out.
+
+When a provider sign-in is refused, the sign-in screen says why:
+
+| Reason | What happened |
+| --- | --- |
+| `state` | The sign-in took more than ten minutes, or came back in a different browser. |
+| `denied` | The person cancelled at the provider. |
+| `unverified_email` | The provider has no verified address for that account. |
+| `closed` | The install is invite-only and the address has no account or invitation. |
+| `linked` | The Micaforge account is already linked to a different account at that provider. |
+| `provider` | The provider did not answer as expected. |
+| `disabled` | That provider is not configured. |
+
+## How it is protected
+
+Each sign-in carries a random `state` and a PKCE verifier (`S256`). The state is kept in an
+`HttpOnly` cookie scoped to `/api/auth/oauth` and must match what the provider sends back,
+once, in the same browser, within ten minutes. That stops somebody else's sign-in from being
+planted in your browser, and a code stolen from the redirect is useless without the
+verifier. After the sign-in, the browser is sent only to a path inside the dashboard.
+
+Every provider sign-in, link and unlink is in the [audit log](/docs/dashboard/audit-log).

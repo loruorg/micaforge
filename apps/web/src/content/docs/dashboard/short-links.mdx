@@ -1,0 +1,146 @@
+---
+title: "Short links"
+description: "Short links with UTM parameters, device targets, preview cards and QR codes, and click counts that never store an address."
+group: "dashboard"
+order: 11
+updated: 2026-10-08
+---
+
+A short link sends a click to a target URL and counts it. The API server answers it, at
+`/l/` and the slug on the API origin:
+
+```text
+https://analytics.example.com/l/launch
+```
+
+Manage links on the Links screen, under Growth. A link belongs to an organisation, and
+optionally to one of its sites. Folders belong to the organisation. A viewer can read links
+and their counts; creating, editing and deleting a link or a folder needs the member role.
+
+```http
+GET  /api/links?site=1
+POST /api/links?site=1
+GET  /api/links/:id/stats?range=30d
+```
+
+## Slugs
+
+A slug is 1 to 64 characters of `A-Z`, `a-z`, `0-9`, `_` and `-`. Leave it empty and the
+server generates a 7-character slug. A few words are reserved, because on the links host they
+would cover a path the server or the web app answers: `api`, `l`, `app`, `share`, `status`,
+`admin` and `docs`, in any case.
+
+There is one link namespace per install. A slug is unique across the install, whichever
+organisation owns it, and it works on both addresses below. Asking for a slug that is taken
+answers `409 conflict`.
+
+## A link
+
+| Field | What it does |
+| --- | --- |
+| Target URL | Where a click goes. `http://` or `https://`. |
+| UTM | `utm_source`, `utm_medium`, `utm_campaign`, `utm_term`, `utm_content`. |
+| Title, description, image | The preview card that link-preview bots see. |
+| iOS URL | Where an iPhone, iPad or iPod goes, when set. |
+| Android URL | Where an Android phone goes, when set. |
+| App deep link | A custom scheme, such as `myapp://item/42`, tried first on a phone. |
+| Expiry | After this time the link answers that it has expired. |
+| Folder | Optional, for your own order. |
+
+### The UTM builder
+
+The UTM fields are appended to the target URL as query parameters. A query the target
+already has is kept. A `utm_*` parameter that is already in the target is replaced by the
+one you set.
+
+```text
+target   https://example.com/pricing?plan=pro&utm_source=old
+utm      source=newsletter, medium=email, campaign=october
+result   https://example.com/pricing?plan=pro&utm_source=newsletter&utm_medium=email&utm_campaign=october
+```
+
+## What a click gets
+
+The server takes the first rule that matches:
+
+1. **Unknown slug.** A 404 page.
+2. **Expired link.** A 410 page that says "This link has expired".
+3. **A link-preview bot.** A 200 HTML page with Open Graph and Twitter card tags made from
+   the link's title, description and image. No redirect. The bots are Twitterbot,
+   Slackbot, facebookexternalhit, Facebot, Discordbot, LinkedInBot, TelegramBot, WhatsApp,
+   SkypeUriPreview, Pinterestbot, redditbot, Embedly, Iframely, Mastodon, Bluesky's Cardyb,
+   vkShare and Snapchat.
+4. **A phone, when the link has an app deep link.** A small page that tries the custom
+   scheme first. After about 1.5 seconds it falls back to the phone's own target, or to the
+   web target when the link has none for that phone.
+5. **An iPhone, iPad or iPod.** The iOS URL, when it is set.
+6. **An Android phone.** The Android URL, when it is set.
+7. **Everyone else.** The target URL, with the UTM parameters appended.
+
+Every redirect is a `302` with `Cache-Control: no-store`. A browser that cached the
+redirect would skip the server on the next click, so the click would not be counted, and
+a change to the target would not reach that browser.
+
+## Your own short domain
+
+Set `MICAFORGE_LINKS_HOST` to a bare hostname and the server also answers short links at the
+root of that host:
+
+```sh
+MICAFORGE_LINKS_HOST=go.example.com
+```
+
+```text
+https://go.example.com/launch
+```
+
+The scheme follows `MICAFORGE_PUBLIC_URL`. The `/l/` address keeps working, and the
+dashboard shows the short domain form. See
+[configuration](/docs/self-hosting/configuration).
+
+Point the host's DNS at the server. In the compose stack, also add a site block for it to
+`infra/caddy/Caddyfile`, after the main one, that sends everything to the server:
+
+```caddyfile
+go.example.com {
+	reverse_proxy micaforge:8080 {
+		header_up X-Real-IP {client_ip}
+	}
+}
+```
+
+Keep the `X-Real-IP` line. It is how the server learns the visitor's address, which it needs
+for the country and region of a click, exactly as on the main block. Caddy gets a
+certificate for the host the same way it does for `MICAFORGE_DOMAIN`; on an install that
+serves plain HTTP, write the address as `http://go.example.com`. Apply the change with
+`docker compose restart caddy`.
+
+## Clicks
+
+Every click is one row in the ClickHouse table `link_clicks`: the time, the link, the
+referrer and its host, the country, the region, the device type, the browser, the OS, a bot
+flag, and which target was served (`web`, `ios`, `android`, `deep_link`, `preview` or
+`expired`).
+
+- **No cookie, and no IP address stored.** The address is read for the country and region,
+  and dropped.
+- **Bots are counted apart.** Link-preview bots and other clients that are not people get
+  the bot flag. They are never counted as people.
+- **The same enrichment as the tracker.** User-agent parsing, the GeoIP database when there
+  is one, and the Cloudflare country header when Cloudflare is the trusted proxy.
+
+Each link carries its human clicks of the last 30 days. Its statistics show people and bots
+over time, and rank the referrers, countries, devices, browsers and targets, over 24 hours,
+7, 30 or 90 days. The referrer list counts people only.
+
+## QR codes
+
+```http
+GET /api/links/:id/qr.svg
+```
+
+This answers an SVG image of the short URL, made on the server, with error correction level
+M and a quiet zone of 4 modules. The Links screen downloads it from there.
+
+An agent can list links and read their counts through the
+[MCP server](/docs/api/mcp-server), with `list_links` and `get_link_stats`.

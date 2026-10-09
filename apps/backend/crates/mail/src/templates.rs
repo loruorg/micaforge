@@ -36,7 +36,7 @@
 //! [`Block::Paragraph`], which takes HTML built with [`escape`] and [`strong`].
 //! No builder interpolates customer data raw.
 
-use crate::{AlertPayload, ReportPayload};
+use crate::{AlertPayload, DigestPayload, FeedbackPayload, ReportPayload};
 
 // ---------------------------------------------------------------------------
 // Palette. Every colour any message uses is named here and nowhere else, so a
@@ -389,6 +389,400 @@ pub fn alert(base_url: &str, site: &str, a: &AlertPayload) -> Rendered {
         subject,
         html,
         text,
+    }
+}
+
+/// The weekly digest of one site's investigations.
+///
+/// Every line is something that changed, with its status, because the digest
+/// exists to answer "is anything still wrong?" on a Monday morning. A week in
+/// which nothing changed still sends, and says so in one sentence: a digest
+/// that goes silent is indistinguishable from one that broke.
+pub fn insight_digest(base_url: &str, site: &str, d: &DigestPayload) -> Rendered {
+    let link = if safe_href(&d.link).is_empty() {
+        format!("{}/app", trim(base_url))
+    } else {
+        d.link.clone()
+    };
+    let subject = format!("{site} · what changed, {}", d.period);
+    let note = "You receive this because you turned on the weekly digest under Site setup, AI \
+                insights. Turn it off there.";
+    let open = d.items.iter().filter(|i| i.status != "resolved").count();
+    let heading = match (d.items.is_empty(), open) {
+        (true, _) => "Nothing changed enough to investigate".to_string(),
+        (false, 0) => "Every investigation is resolved".to_string(),
+        (false, 1) => "1 investigation needs a look".to_string(),
+        (false, n) => format!("{n} investigations need a look"),
+    };
+
+    let mut blocks = vec![Block::Stats(vec![
+        Stat::plain("Opened", fmt_int(d.opened)),
+        Stat::accent("Still open", fmt_int(open as u64)),
+        Stat::plain("Resolved", fmt_int(d.resolved)),
+    ])];
+    if d.items.is_empty() {
+        blocks.push(Block::Paragraph(escape(
+            "The detector found no change this week that was large enough to open an \
+             investigation. That is a result, not a failure.",
+        )));
+    }
+    for item in &d.items {
+        blocks.push(Block::Paragraph(format!(
+            "{}<br>{}",
+            strong(&item.title),
+            escape(&format!("{} · {}", humanise(&item.status), item.change))
+        )));
+    }
+    if !d.ai_configured {
+        blocks.push(Block::Paragraph(escape(
+            "Explanations of likely causes need an AI model configured on this server; these \
+             are the statistical findings alone.",
+        )));
+    }
+
+    let html = render(&Letter {
+        title: &subject,
+        preheader: &heading,
+        heading: &heading,
+        meta: &format!("{site} · {}", d.period),
+        blocks,
+        action: Some(Action {
+            label: "Open Insights",
+            href: &link,
+            show_url: false,
+        }),
+        note,
+    });
+
+    let mut t = format!("{}\n\n", heading.to_uppercase());
+    t.push_str(&text_row("Opened", &fmt_int(d.opened)));
+    t.push_str(&text_row("Still open", &fmt_int(open as u64)));
+    t.push_str(&text_row("Resolved", &fmt_int(d.resolved)));
+    t.push('\n');
+    for item in &d.items {
+        t.push_str(&format!(
+            "- {}\n  {} · {}\n",
+            wrap(&item.title),
+            humanise(&item.status),
+            item.change
+        ));
+    }
+    if !d.ai_configured {
+        t.push_str("\nExplanations of likely causes need an AI model configured on this server.\n");
+    }
+    t.push_str(&format!("\nOpen Insights: {link}\n"));
+    t.push_str(&format!("\n{note}"));
+
+    Rendered {
+        subject,
+        text: text_page(&format!("{site} · {}", d.period), &t),
+        html,
+    }
+}
+
+/// A new feedback report, for the instance admins.
+///
+/// The body is the reporter's own words and is rendered as escaped text,
+/// never as HTML: a report is the one message on this install whose content
+/// anybody who can sign in, or any agent with a key, can choose.
+pub fn feedback_notice(base_url: &str, f: &FeedbackPayload) -> Rendered {
+    let link = if safe_href(&f.link).is_empty() {
+        format!("{}/app/admin", trim(base_url))
+    } else {
+        f.link.clone()
+    };
+    let subject = format!("Feedback · {}", truncate(&f.title, 80));
+    let meta = format!(
+        "{} · from {} · via {}",
+        humanise(&f.kind),
+        f.reporter,
+        f.source
+    );
+    let note = "Instance admins receive every new report. Triage them under This instance, \
+                Feedback.";
+
+    let mut blocks = vec![Block::Paragraph(escape(&truncate(&f.body, 4000)))];
+    let mut facts = Vec::new();
+    if let Some(site) = f.site.as_deref() {
+        facts.push(format!("Site: {site}"));
+    }
+    if let Some(page) = f.page_url.as_deref() {
+        facts.push(format!("Page: {page}"));
+    }
+    if !facts.is_empty() {
+        blocks.push(Block::Paragraph(escape(&facts.join(" · "))));
+    }
+
+    let html = render(&Letter {
+        title: &subject,
+        preheader: &truncate(&f.body, 120),
+        heading: &f.title,
+        meta: &meta,
+        blocks,
+        action: Some(Action {
+            label: "Open feedback",
+            href: &link,
+            show_url: false,
+        }),
+        note,
+    });
+
+    let mut t = format!("{}\n{meta}\n\n{}\n", f.title.to_uppercase(), wrap(&f.body));
+    for fact in [f.site.as_deref(), f.page_url.as_deref()]
+        .into_iter()
+        .flatten()
+    {
+        t.push_str(&format!("\n{fact}"));
+    }
+    t.push_str(&format!("\n\nOpen feedback: {link}\n"));
+    t.push_str(&format!("\n{note}"));
+
+    Rendered {
+        subject,
+        text: text_page("Feedback", &t),
+        html,
+    }
+}
+
+/// One day of requests an ingest guard blocked on one site.
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+pub struct BlockedTraffic {
+    /// The UTC day, as a person reads it ("8 October").
+    pub day: String,
+    /// Blocked by the deny list.
+    pub denylist: u64,
+    /// Blocked because the address was not on the allow list.
+    pub not_allowlisted: u64,
+    /// Refused because the hostname is not one of the site's.
+    pub hostname: u64,
+    /// The site's daily threshold that this day passed.
+    pub threshold: u64,
+    /// The ingest guards screen of the site.
+    pub link: String,
+}
+
+impl BlockedTraffic {
+    /// Every blocked request of the day.
+    pub fn total(&self) -> u64 {
+        self.denylist + self.not_allowlisted + self.hostname
+    }
+}
+
+/// The daily digest of blocked traffic, sent to a site's admins when a day's
+/// count passed the threshold they set.
+pub fn blocked_traffic(base_url: &str, site: &str, b: &BlockedTraffic) -> Rendered {
+    let link = if safe_href(&b.link).is_empty() {
+        format!("{}/app", trim(base_url))
+    } else {
+        b.link.clone()
+    };
+    let total = fmt_int(b.total());
+    let subject = format!("{site} · {total} requests blocked on {}", b.day);
+    let context = format!("Ingest guards · {site}");
+    let sentence = format!(
+        "Micaforge blocked {total} requests to {site} on {}, above the threshold of {} a day \
+         that is set for this site. Blocked requests are answered as if they were recorded, and \
+         nothing from them is stored.",
+        b.day,
+        fmt_int(b.threshold)
+    );
+    let note = "This email is sent at most once a day. Change the threshold, or set it to 0 to \
+                stop these emails, under Settings, Ingest guards, on the site.";
+
+    let html = render(&Letter {
+        title: &subject,
+        preheader: &sentence,
+        heading: &format!("{total} requests blocked"),
+        meta: &context,
+        blocks: vec![
+            Block::Paragraph(escape(&sentence)),
+            Block::Stats(vec![
+                Stat::plain("Deny list", fmt_int(b.denylist)),
+                Stat::plain("Not on the allow list", fmt_int(b.not_allowlisted)),
+                Stat::plain("Hostname not allowed", fmt_int(b.hostname)),
+            ]),
+        ],
+        action: Some(Action {
+            label: "Open the ingest guards",
+            href: &link,
+            show_url: false,
+        }),
+        note,
+    });
+
+    let mut t = format!("{} REQUESTS BLOCKED\n\n{}\n\n", total, wrap(&sentence));
+    t.push_str(&text_row("Deny list", &fmt_int(b.denylist)));
+    t.push_str(&text_row(
+        "Not on the allow list",
+        &fmt_int(b.not_allowlisted),
+    ));
+    t.push_str(&text_row("Hostname not allowed", &fmt_int(b.hostname)));
+    t.push_str(&format!("\nOpen the ingest guards: {link}\n"));
+    t.push_str(&format!("\n{}", wrap(note)));
+
+    Rendered {
+        subject,
+        text: text_page(&context, &t),
+        html,
+    }
+}
+
+/// An organisation's usage against its plan's monthly quota.
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+pub struct UsageNotice {
+    /// The organisation's name.
+    pub org: String,
+    /// The plan's name.
+    pub plan: String,
+    /// The calendar month, as a person reads it ("October 2026").
+    pub month: String,
+    /// Events recorded this month.
+    pub events: u64,
+    /// The plan's monthly quota.
+    pub quota: u64,
+    /// True for the whole quota, false for the 80% warning.
+    pub reached: bool,
+    /// What happens past the quota, in the server's own words.
+    pub overage_policy: String,
+    /// The Billing screen.
+    pub link: String,
+}
+
+/// The 80% and 100% usage emails.
+pub fn usage(base_url: &str, u: &UsageNotice) -> Rendered {
+    let link = if safe_href(&u.link).is_empty() {
+        format!("{}/app/settings/billing", trim(base_url))
+    } else {
+        u.link.clone()
+    };
+    let share = if u.quota == 0 {
+        0.0
+    } else {
+        u.events as f64 / u.quota as f64
+    };
+    let subject = if u.reached {
+        format!("{} has used its {} quota for {}", u.org, u.plan, u.month)
+    } else {
+        format!(
+            "{} has used 80% of its {} quota for {}",
+            u.org, u.plan, u.month
+        )
+    };
+    let context = format!("Billing · {}", u.org);
+    let over = u.events.saturating_sub(u.quota);
+    let note = "Usage emails are sent once per threshold per month to the organisation's owner \
+                and admins.";
+
+    let html = render(&Letter {
+        title: &subject,
+        preheader: &u.overage_policy,
+        heading: &format!("{} of this month's events", fmt_pct(share)),
+        meta: &context,
+        blocks: vec![
+            Block::Paragraph(format!(
+                "{} {}",
+                strong(&u.org),
+                escape(&format!(
+                    "has recorded {} events in {} on the {} plan, which includes {}.",
+                    fmt_int(u.events),
+                    u.month,
+                    u.plan,
+                    fmt_int(u.quota)
+                ))
+            )),
+            Block::Stats(vec![
+                Stat::plain("Events", fmt_int(u.events)),
+                Stat::plain("Quota", fmt_int(u.quota)),
+                Stat::accent("Over the quota", fmt_int(over)),
+            ]),
+            Block::Paragraph(escape(&u.overage_policy)),
+        ],
+        action: Some(Action {
+            label: "Open billing",
+            href: &link,
+            show_url: false,
+        }),
+        note,
+    });
+
+    let mut t = format!(
+        "{} OF THIS MONTH'S EVENTS\n\n{}\n\n",
+        fmt_pct(share),
+        wrap(&format!(
+            "{} has recorded {} events in {} on the {} plan, which includes {}.",
+            u.org,
+            fmt_int(u.events),
+            u.month,
+            u.plan,
+            fmt_int(u.quota)
+        ))
+    );
+    t.push_str(&text_row("Events", &fmt_int(u.events)));
+    t.push_str(&text_row("Quota", &fmt_int(u.quota)));
+    t.push_str(&text_row("Over the quota", &fmt_int(over)));
+    t.push_str(&format!("\n{}\n", wrap(&u.overage_policy)));
+    t.push_str(&format!("\nOpen billing: {link}\n"));
+    t.push_str(&format!("\n{}", wrap(note)));
+
+    Rendered {
+        subject,
+        text: text_page(&context, &t),
+        html,
+    }
+}
+
+/// A failed subscription payment.
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+pub struct PaymentFailed {
+    /// The organisation's name.
+    pub org: String,
+    /// The plan the subscription is for.
+    pub plan: String,
+    /// The Billing screen.
+    pub link: String,
+}
+
+/// Stripe could not take a payment.
+pub fn payment_failed(base_url: &str, p: &PaymentFailed) -> Rendered {
+    let link = if safe_href(&p.link).is_empty() {
+        format!("{}/app/settings/billing", trim(base_url))
+    } else {
+        p.link.clone()
+    };
+    let subject = format!("{}: a payment for Micaforge failed", p.org);
+    let context = format!("Billing · {}", p.org);
+    let sentence = format!(
+        "Stripe could not take the payment for the {} plan. Micaforge keeps recording your \
+         data. Update the payment method from the Billing screen to keep the plan; Stripe tries \
+         the payment again on its own schedule.",
+        p.plan
+    );
+    let note = "Payments are handled by Stripe. Micaforge never sees a card number.";
+
+    let html = render(&Letter {
+        title: &subject,
+        preheader: &sentence,
+        heading: "A payment failed",
+        meta: &context,
+        blocks: vec![Block::Paragraph(escape(&sentence))],
+        action: Some(Action {
+            label: "Open billing",
+            href: &link,
+            show_url: false,
+        }),
+        note,
+    });
+
+    let t = format!(
+        "A PAYMENT FAILED\n\n{}\n\nOpen billing: {link}\n\n{}",
+        wrap(&sentence),
+        wrap(note)
+    );
+
+    Rendered {
+        subject,
+        text: text_page(&context, &t),
+        html,
     }
 }
 
@@ -1336,5 +1730,122 @@ mod tests {
         let wrapped = wrap(&"word ".repeat(40));
         assert!(wrapped.lines().all(|line| line.chars().count() <= 72));
         assert_eq!(wrap("one two"), "one two");
+    }
+
+    #[test]
+    fn a_feedback_body_is_text_and_never_markup() {
+        let f = FeedbackPayload {
+            kind: "bug".into(),
+            title: "The <b>chart</b> is empty".into(),
+            body: "<script>alert(1)</script> & more".into(),
+            source: "mcp".into(),
+            reporter: "Claude Code (key 0190)".into(),
+            site: Some("reeds.dev".into()),
+            page_url: Some("https://app.example.com/app/1?x=\"y\"".into()),
+            link: "javascript:alert(1)".into(),
+        };
+        let r = feedback_notice("https://app.example.com", &f);
+        assert!(!r.html.contains("<script>"));
+        assert!(r.html.contains("&lt;script&gt;"));
+        assert!(!r.html.contains("<b>chart"));
+        assert!(
+            !r.html.contains("javascript:"),
+            "a hostile link falls back to the dashboard"
+        );
+        assert!(r.html.contains("https://app.example.com/app/admin"));
+        assert!(
+            r.text.contains("<script>alert(1)</script>"),
+            "plain text is the words as sent"
+        );
+    }
+
+    #[test]
+    fn a_quiet_week_still_sends_and_says_so() {
+        let quiet = DigestPayload {
+            period: "29 September to 5 October".into(),
+            link: "https://app.example.com/app/1/insights".into(),
+            ..DigestPayload::default()
+        };
+        let r = insight_digest("https://app.example.com", "reeds.dev", &quiet);
+        assert!(r.html.contains("Nothing changed enough to investigate"));
+        assert!(r.text.to_lowercase().contains("need an ai model"));
+
+        let busy = DigestPayload {
+            items: vec![crate::DigestItem {
+                title: "Visitors from <AI> answers rose".into(),
+                status: "open".into(),
+                change: "+42% against the previous 7 days".into(),
+            }],
+            opened: 1,
+            ai_configured: true,
+            ..quiet
+        };
+        let r = insight_digest("https://app.example.com", "reeds.dev", &busy);
+        assert!(r.html.contains("1 investigation needs a look"));
+        assert!(r.html.contains("&lt;AI&gt;"));
+        assert!(!r.text.to_lowercase().contains("need an ai model"));
+    }
+
+    #[test]
+    fn the_guard_usage_and_payment_emails_escape_and_carry_both_parts() {
+        let base = "https://mf.example.com";
+        let blocked = blocked_traffic(
+            base,
+            "<b>evil</b>.com",
+            &BlockedTraffic {
+                day: "8 October".into(),
+                denylist: 1_200,
+                not_allowlisted: 30,
+                hostname: 4,
+                threshold: 1_000,
+                link: "javascript:alert(1)".into(),
+            },
+        );
+        assert!(!blocked.html.contains("<b>evil"));
+        assert!(blocked.subject.contains("1,234 requests blocked"));
+        assert!(blocked.html.contains("https://mf.example.com/app"));
+        assert!(!blocked.html.contains("javascript:"));
+        assert!(blocked.text.contains("Deny list"));
+
+        let notice = UsageNotice {
+            org: "Reeds & <Co>".into(),
+            plan: "Team".into(),
+            month: "October 2026".into(),
+            events: 1_050,
+            quota: 1_000,
+            reached: true,
+            overage_policy: "Nothing is dropped.".into(),
+            link: format!("{base}/app/settings/billing"),
+        };
+        let reached = usage(base, &notice);
+        assert!(reached.subject.contains("has used its Team quota"));
+        assert!(reached.html.contains("Reeds &amp; &lt;Co&gt;"));
+        assert!(reached.text.contains("Over the quota"));
+        assert!(reached.text.contains("50"));
+        let warned = usage(
+            base,
+            &UsageNotice {
+                reached: false,
+                events: 800,
+                ..notice
+            },
+        );
+        assert!(warned.subject.contains("80%"));
+
+        let failed = payment_failed(
+            base,
+            &PaymentFailed {
+                org: "Reeds".into(),
+                plan: "Team".into(),
+                link: String::new(),
+            },
+        );
+        assert!(failed
+            .html
+            .contains("https://mf.example.com/app/settings/billing"));
+        for r in [blocked, reached, warned, failed] {
+            assert!(!r.text.is_empty());
+            assert!(!r.html.contains("<img"));
+        }
     }
 }

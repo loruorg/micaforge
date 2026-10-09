@@ -9,6 +9,12 @@
  * `ErasureDialog` and `IconErase` live in this file because erasure is this
  * file's subject; the replay screen imports both rather than growing a second
  * confirmation of its own that could drift out of step with this one.
+ *
+ * The traits, their history and the earlier anonymous sessions come from
+ * `GET /api/stats/profiles/:id`, which reads the site's own identify() and
+ * setTraits() calls. Each panel says plainly that the site sent it: Micaforge
+ * links a daily visitor hash to an id only where an identify() call carried
+ * both, never by guessing.
  */
 import type { ReactNode, SVGProps } from "react";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
@@ -36,6 +42,7 @@ import {
 import type { SessionRow } from "./SessionsScreen";
 import type { VisitorRow } from "./VisitorsScreen";
 import "../../styles/app/people.css";
+import "../../styles/app/profiles.css";
 
 /* ── the erase mark ──────────────────────────────────────────────────────
    Drawn in the icon set's grammar (16x16, 1.4 stroke, square caps, one filled
@@ -184,6 +191,33 @@ interface VisitorDetailPayload extends VisitorRow {
   events?: number;
 }
 
+/** One identify() or setTraits() call that changed something. */
+export interface TraitChange {
+  t: string;
+  traits: Record<string, unknown>;
+  changed: string[];
+}
+
+/** A session recorded under a linked daily hash before the id was attached. */
+export interface AnonymousSession {
+  session_id: string;
+  visitor_id: string;
+  started: string;
+  ended: string;
+  pageviews: number;
+  entry_path: string;
+  channel: string;
+}
+
+/** `GET /api/stats/profiles/:id`; `null` for an id the site never identified. */
+export interface ProfilePayload {
+  identified_id: string;
+  traits: Record<string, unknown>;
+  history: TraitChange[];
+  linked: { visitor_id: string; linked_at: string }[];
+  anonymous_sessions: AnonymousSession[];
+}
+
 interface GoalRow {
   id?: string;
   name: string;
@@ -236,6 +270,18 @@ export function VisitorDetail() {
     enabled: siteId != null && !!visitorId,
   });
 
+  const profileQ = useQuery({
+    queryKey: ["stats", "profile", siteId, visitorId],
+    queryFn: () =>
+      api
+        .get<ProfilePayload | null>(`/api/stats/profiles/${encodeURIComponent(visitorId)}`, {
+          site: siteId as number,
+          range: "all",
+        })
+        .then((r) => r.data ?? null),
+    enabled: siteId != null && !!visitorId,
+  });
+
   const erase = useMutation({
     mutationFn: () => api.del<unknown>(`/api/stats/visitors/${encodeURIComponent(visitorId)}`),
     onSuccess: () => {
@@ -248,10 +294,14 @@ export function VisitorDetail() {
   const visitor = q.data?.data;
   const sessions = useMemo(() => asRows<SessionRow>(sessionsQ.data?.data, "sessions"), [sessionsQ.data]);
   const goals = useMemo(() => asRows<GoalRow>(goalsQ.data?.data, "goals"), [goalsQ.data]);
+  const profile = profileQ.data ?? null;
   const traits = useMemo(
-    () => Object.entries(visitor?.traits ?? {}).filter(([, v]) => v !== undefined),
-    [visitor],
+    () => Object.entries(profile?.traits ?? visitor?.traits ?? {}).filter(([, v]) => v !== undefined),
+    [profile, visitor],
   );
+  const history = useMemo(() => [...(profile?.history ?? [])].reverse(), [profile]);
+  const anonymous = profile?.anonymous_sessions ?? [];
+  const linkedDays = profile?.linked.length ?? 0;
   const missing = q.isError && q.error instanceof ApiError && q.error.status === 404;
 
   const channels: Channel[] = visitor
@@ -277,8 +327,46 @@ export function VisitorDetail() {
         ...(visitor.events != null ? [{ label: "Custom events", value: num(visitor.events) }] : []),
         ...(visitor.replays != null ? [{ label: "Replay recordings", value: num(visitor.replays) }] : []),
         ...(traits.length ? [{ label: "Traits", value: num(traits.length) }] : []),
+        ...(history.length ? [{ label: "Trait changes", value: num(history.length) }] : []),
+        ...(anonymous.length
+          ? [{ label: "Earlier anonymous sessions", value: num(anonymous.length) }]
+          : []),
       ]
     : [{ label: "The identifier itself", value: visitorId }];
+
+  const anonymousColumns: Column<AnonymousSession>[] = [
+    {
+      key: "started",
+      head: "Started",
+      width: "15ch",
+      render: (r) => (
+        <Link
+          className="mf-data"
+          to={`${base}/sessions/${encodeURIComponent(r.session_id)}`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {dayAt(r.started, timezone)}
+        </Link>
+      ),
+    },
+    {
+      key: "entry",
+      head: "First page",
+      render: (r) => (
+        <span className="mf-data" title={r.entry_path}>
+          {r.entry_path || "—"}
+        </span>
+      ),
+    },
+    {
+      key: "pages",
+      head: "Pages",
+      numeric: true,
+      width: "8ch",
+      render: (r) => <span className="mf-data">{num(r.pageviews)}</span>,
+    },
+    { key: "channel", head: "Channel", width: "16ch", render: (r) => <span>{channelLabel(r.channel || "direct")}</span> },
+  ];
 
   const sessionColumns: Column<SessionRow>[] = [
     {
@@ -387,6 +475,36 @@ export function VisitorDetail() {
               </Panel>
 
               <Panel>
+                <PanelHead
+                  title="Before they were identified"
+                  note={
+                    linkedDays
+                      ? `Sessions recorded under the ${num(linkedDays)} daily ${
+                          linkedDays === 1 ? "hash" : "hashes"
+                        } your site tied to this id with identify(), before the id was attached that day.`
+                      : "Sessions from the same day as an identify() call, before the call, appear here."
+                  }
+                />
+                {profileQ.isError ? (
+                  <ErrorState detail={apiMessage(profileQ.error)} onRetry={() => profileQ.refetch()} />
+                ) : (
+                  <Sheet
+                    rows={anonymous}
+                    columns={anonymousColumns}
+                    loading={profileQ.isPending}
+                    getKey={(r) => r.session_id}
+                    onRowClick={(r) => navigate(`${base}/sessions/${encodeURIComponent(r.session_id)}`)}
+                    empty={
+                      <Empty
+                        title="No earlier anonymous sessions"
+                        body="Either identify() ran at the start of every visit, or nothing was recorded before it on those days. Micaforge links only what an identify() call tied together."
+                      />
+                    }
+                  />
+                )}
+              </Panel>
+
+              <Panel>
                 <PanelHead title="Goals reached" />
                 {goalsQ.isError ? (
                   <ErrorState detail={apiMessage(goalsQ.error)} onRetry={() => goalsQ.refetch()} />
@@ -426,8 +544,11 @@ export function VisitorDetail() {
 
             <div className="mf-p-stack">
               <Panel>
-                <PanelHead title="Traits" note="Whatever your site passed alongside the id." />
-                {q.isPending ? (
+                <PanelHead
+                  title="Traits"
+                  note="Whatever your site passed with identify() or setTraits(), latest value first."
+                />
+                {q.isPending || profileQ.isPending ? (
                   <div className="mf-p-facts" aria-busy="true">
                     {[0, 1, 2, 3].map((i) => (
                       <p key={i} className="mf-p-wait-row mf-p-wait-row--span">
@@ -438,7 +559,7 @@ export function VisitorDetail() {
                 ) : traits.length === 0 ? (
                   <Empty
                     title="No traits were sent with this id"
-                    body="Pass a second argument to identify() and it collects here: plan, role, company, whatever your product already knows."
+                    body="Pass a second argument to identify(), or call setTraits(), and it collects here: plan, role, company, whatever your product already knows."
                   />
                 ) : (
                   <dl className="mf-p-facts">
@@ -449,6 +570,47 @@ export function VisitorDetail() {
                       </Fragment>
                     ))}
                   </dl>
+                )}
+              </Panel>
+
+              <Panel>
+                <PanelHead
+                  title="Trait history"
+                  note="Every call that changed a trait, newest first, with the time it arrived."
+                />
+                {profileQ.isPending ? (
+                  <div className="mf-p-facts" aria-busy="true">
+                    {[0, 1, 2].map((i) => (
+                      <p key={i} className="mf-p-wait-row mf-p-wait-row--span">
+                        <span className="mf-wait" style={{ width: `${40 + i * 15}%` }} />
+                      </p>
+                    ))}
+                  </div>
+                ) : profileQ.isError ? (
+                  <ErrorState detail={apiMessage(profileQ.error)} onRetry={() => profileQ.refetch()} />
+                ) : history.length === 0 ? (
+                  <Empty
+                    title="No trait has changed yet"
+                    body="Each identify() or setTraits() call that changes a value is kept here with its time, so a plan upgrade shows when it happened."
+                  />
+                ) : (
+                  <ol className="mf-pr-history">
+                    {history.map((h, i) => (
+                      <li key={`${h.t}-${i}`} className="mf-pr-history__item">
+                        <span className="mf-pr-history__when mf-data" title={stampAt(h.t, timezone)}>
+                          {dayAt(h.t, timezone)}
+                        </span>
+                        <dl className="mf-pr-history__changes">
+                          {h.changed.map((k) => (
+                            <Fragment key={k}>
+                              <dt className="mf-data">{k}</dt>
+                              <dd className="mf-data">{showTrait(h.traits[k])}</dd>
+                            </Fragment>
+                          ))}
+                        </dl>
+                      </li>
+                    ))}
+                  </ol>
                 )}
               </Panel>
 
