@@ -401,6 +401,18 @@ impl Kv {
         Ok(count <= u64::from(limit))
     }
 
+    /// Whether `key` has already used up `limit` in the current window, without
+    /// consuming a unit. For a limit that only failures are charged against.
+    pub async fn rate_exhausted(&self, key: &str, limit: u32, window_secs: u32) -> Result<bool> {
+        let window = window_secs.max(1);
+        let index = Utc::now().timestamp() / i64::from(window);
+        let redis_key = format!("mf:rl:{key}:{index}");
+        let mut conn = self.conn.clone();
+        let count: Option<u64> =
+            bounded(redis::cmd("GET").arg(&redis_key).query_async(&mut conn)).await?;
+        Ok(count.unwrap_or(0) >= u64::from(limit))
+    }
+
     // -----------------------------------------------------------------------
     // The session window
     // -----------------------------------------------------------------------

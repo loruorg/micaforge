@@ -11,7 +11,7 @@
  * The rule for every function in this file is that a malformed input returns a sensible
  * empty value. Nothing here throws.
  */
-import type { HeadersLike, RequestLike } from "./types.js";
+import type { ClientHeaders, HeadersLike, RequestLike } from "./types.js";
 
 /** Read one header, case-insensitively, from either header shape. */
 export function header(headers: HeadersLike | undefined, name: string): string {
@@ -166,6 +166,7 @@ export interface ReadRequest {
   referrer: string;
   language: string;
   conditional: boolean;
+  headers: ClientHeaders;
 }
 
 /**
@@ -186,5 +187,11 @@ export function readRequest(req: RequestLike, trustProxy = true): ReadRequest {
     referrer: header(req.headers, "referer") || header(req.headers, "referrer"),
     language: (header(req.headers, "accept-language").split(",")[0] ?? "").trim(),
     conditional: isConditional(req),
+    headers: {
+      accept: header(req.headers, "accept"),
+      acceptLanguage: header(req.headers, "accept-language"),
+      secFetchMode: header(req.headers, "sec-fetch-mode"),
+      secChUa: header(req.headers, "sec-ch-ua"),
+    },
   };
 }

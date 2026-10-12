@@ -205,6 +205,12 @@ export interface TrackEvent {
    */
   ip?: string;
 
+  /**
+   * The end client's request headers the server's bot check reads. Transport only,
+   * never persisted. Without them a Chromium user agent scores as a bot.
+   */
+  headers?: ClientHeaders;
+
   /** `language`, for example `en-GB`. */
   language?: string;
   /** `timezone`, an IANA name. */
@@ -325,6 +331,22 @@ export interface WireEvent {
   user_agent?: string;
   /** Transport: derives `country`, `region`, `city`, `asn`. Never persisted (7.1). */
   ip?: string;
+  /** Transport: the client's `Accept` header, for the bot check. */
+  accept?: string;
+  /** Transport: the client's `Accept-Language` header, for the bot check. */
+  accept_language?: string;
+  /** Transport: the client's `Sec-Fetch-Mode` header, for the bot check. */
+  sec_fetch_mode?: string;
+  /** Transport: the client's `Sec-CH-UA` header, for the bot check. */
+  sec_ch_ua?: string;
+}
+
+/** The end client's headers the server's bot check reads. Empty values are not sent. */
+export interface ClientHeaders {
+  accept?: string;
+  acceptLanguage?: string;
+  secFetchMode?: string;
+  secChUa?: string;
 }
 
 /**

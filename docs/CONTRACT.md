@@ -336,6 +336,16 @@ more than 300 s from its clock (`401 unauthorized`, the same answer as a wrong k
 exact repeat of an accepted signature while it is still inside that window
 (`409 conflict`). Clients sign every attempt afresh.
 
+Edge body: `{ site_id, agent_events: [...], events: [...] }`. A row in `events` may carry
+transport fields that the server reads and never stores: `user_agent`, `ip`, and the
+visitor's `accept`, `accept_language`, `sec_fetch_mode` and `sec_ch_ua` request headers.
+The bot check reads the four headers; a field that is absent or empty counts as a header
+the visitor did not send, so a Chromium user agent without them scores as a bot.
+
+Edge rate limits: 6000 signed batches per minute per site (`429`, retry under the same
+signature). Failed signatures are counted per caller address; past 600 a minute, that
+address gets `429` before verification.
+
 **Analytics read** (all take the envelope)
 ```
 GET /api/stats/overview          totals + deltas: visitors, sessions, pageviews, bounce, avg_duration, views_per_session

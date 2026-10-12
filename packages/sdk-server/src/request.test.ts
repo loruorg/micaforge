@@ -124,6 +124,9 @@ describe("readRequest()", () => {
         "accept-language": "en-GB,en;q=0.9",
         "x-forwarded-for": "203.0.113.9",
         "if-none-match": '"v2"',
+        accept: "text/html",
+        "sec-fetch-mode": "navigate",
+        "sec-ch-ua": '"Chromium";v="128"',
       },
     });
     expect(read).toEqual({
@@ -134,6 +137,12 @@ describe("readRequest()", () => {
       referrer: "https://chatgpt.com/",
       language: "en-GB",
       conditional: true,
+      headers: {
+        accept: "text/html",
+        acceptLanguage: "en-GB,en;q=0.9",
+        secFetchMode: "navigate",
+        secChUa: '"Chromium";v="128"',
+      },
     });
   });
 

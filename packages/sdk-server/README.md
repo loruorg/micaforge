@@ -554,9 +554,11 @@ tables they land in.
 }
 ```
 
-Every key is a column in `docs/CONTRACT.md` section 1.1 or 1.2, with two exceptions:
-`user_agent` and `ip` on an events row are transport fields. The server reads them to
-derive the columns it does have and writes down neither raw address.
+Every key is a column in `docs/CONTRACT.md` section 1.1 or 1.2, with these exceptions:
+`user_agent`, `ip`, `accept`, `accept_language`, `sec_fetch_mode` and `sec_ch_ua` on an
+events row are transport fields. The server reads them to derive the columns it does have
+and to tell a browser from a bot, and writes down none of them raw. `pageview()` and the
+middleware send the four headers for you; with `track()`, pass them as `headers`.
 
 ### What is deliberately absent
 

@@ -19,8 +19,8 @@
  * 2. **It never blocks your response.** Hits are queued and sent on a 200 ms window, or
  *    as soon as 50 are waiting. Nothing awaits the collector.
  * 3. **It sends only what the schema has a column for.** Every key on the wire is a
- *    column from `docs/CONTRACT.md` 1.1 or 1.2, with two documented transport fields
- *    (`user_agent`, `ip`) that the server reads and drops.
+ *    column from `docs/CONTRACT.md` 1.1 or 1.2, with documented transport fields
+ *    (`user_agent`, `ip` and four request headers) that the server reads and drops.
  *
  * @packageDocumentation
  */
@@ -228,6 +228,10 @@ export function toWireEvent(event: TrackEvent, sdkVersion = VERSION): WireEvent 
     sdk_version: sdkVersion,
     user_agent: event.userAgent,
     ip: event.ip,
+    accept: event.headers?.accept,
+    accept_language: event.headers?.acceptLanguage,
+    sec_fetch_mode: event.headers?.secFetchMode,
+    sec_ch_ua: event.headers?.secChUa,
   }, EVENT_REQUIRED);
 }
 
@@ -577,6 +581,7 @@ export class Micaforge {
         language: read.language,
         userAgent: read.userAgent,
         ip: read.ip,
+        headers: read.headers,
         title: extras.title,
         props: extras.props,
         identifiedId: extras.identifiedId,
@@ -772,6 +777,7 @@ export class Micaforge {
           language: read.language,
           userAgent: read.userAgent,
           ip: read.ip,
+          headers: read.headers,
         });
       }
     };

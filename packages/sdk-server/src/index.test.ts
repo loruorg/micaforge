@@ -164,6 +164,18 @@ describe("toWireEvent()", () => {
     });
   });
 
+  it("sends the client's headers as transport fields for the bot check", () => {
+    const row = toWireEvent({
+      pathname: "/",
+      userAgent: CHROME,
+      headers: { accept: "text/html", acceptLanguage: "en", secFetchMode: "navigate", secChUa: "" },
+    });
+    expect(row.accept).toBe("text/html");
+    expect(row.accept_language).toBe("en");
+    expect(row.sec_fetch_mode).toBe("navigate");
+    expect("sec_ch_ua" in row).toBe(false);
+  });
+
   it("keeps the columns that have no DEFAULT, and drops the ones that do", () => {
     const row = toWireEvent({ pathname: "/" });
     expect(Object.keys(row).sort()).toEqual(["hostname", "kind", "pathname", "sdk_version", "timestamp"]);

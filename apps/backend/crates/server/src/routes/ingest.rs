@@ -102,6 +102,10 @@ const MAX_EDGE_ROWS: usize = 500;
 /// broken loop, not to police traffic.
 const RATE_LIMIT_PER_MIN: u32 = 600;
 
+/// Signed edge batches per minute per site. Higher than the per-address limit
+/// because one site's shippers (every Worker isolate, every server) share it.
+const EDGE_SITE_LIMIT_PER_MIN: u32 = 6_000;
+
 /// The rate-limit window.
 const RATE_WINDOW_SECS: u32 = 60;
 
@@ -675,12 +679,13 @@ async fn edge(State(state): State<AppState>, req: Request) -> Response {
         return unauthorized();
     };
 
-    // A limiter keyed on the caller's address alone, because the per-site,
-    // per-salt digest needs a site and resolving one is precisely the work this
-    // is here to protect. The key holds the keyed address tag, which nothing
-    // can turn back into the address.
-    let caller = address_tag(ctx.ip);
-    if !allow(&state, &format!("edge-ip:{caller}")).await {
+    // Only failed signatures are charged to the caller's address, so honest
+    // shippers that share egress addresses (Cloudflare Workers) never throttle
+    // each other here. An address over its failure budget is refused before
+    // anything touches Postgres. The key holds the keyed address tag, which
+    // nothing can turn back into the address.
+    let failures = format!("edge-fail:{}", address_tag(ctx.ip));
+    if exhausted(&state, &failures).await {
         return too_many("too many unsigned or unrecognised edge batches");
     }
 
@@ -718,15 +723,23 @@ async fn edge(State(state): State<AppState>, req: Request) -> Response {
     let signed = verify_signature(key.as_deref().unwrap_or(""), &body, &signature, now)
         .filter(|_| key.is_some());
     let (Some(row), Some(signed)) = (row, signed) else {
+        let _ = allow(&state, &failures).await;
         return unauthorized();
     };
     let site = Arc::new(SiteCtx::from_row(&row));
 
-    let salt = daily_salt(&state, &site).await;
-    let shipper = ip_digest(&salt, site_id, &ctx.ip_text);
-    if !allow(&state, &format!("edge:{site_id}:{shipper}")).await {
+    // Keyed on the site alone: the signature proved who is sending, and a
+    // shipper's address says nothing useful once it has.
+    if !allow_n(
+        &state,
+        &format!("edge-site:{site_id}"),
+        EDGE_SITE_LIMIT_PER_MIN,
+    )
+    .await
+    {
         return too_many("too many edge batches for this site");
     }
+    let salt = daily_salt(&state, &site).await;
 
     // Claimed only now, after the limiter, so a batch refused with `429` can be
     // retried under the same signature.
@@ -1003,7 +1016,7 @@ async fn ingest_edge_event(
     }
 
     let user_agent = event.user_agent.clone().unwrap_or_default();
-    let classification = micaforge_agents::classify(&user_agent, &HeaderView::empty(), None);
+    let classification = micaforge_agents::classify(&user_agent, &event.header_view(), None);
     if classification.agent().is_some() {
         // Reported as a human, recognised as a crawler. The catalog wins: a
         // shipper that cannot tell the difference is exactly why this server
@@ -2169,6 +2182,16 @@ struct WireEvent {
     /// Transport only. `docs/CONTRACT.md` §7.1.
     #[serde(default)]
     ip: Option<String>,
+    /// Transport only: the visitor's request headers, read by the bot check and
+    /// never written down. Absent means "not known", as before.
+    #[serde(default)]
+    accept: Option<String>,
+    #[serde(default)]
+    accept_language: Option<String>,
+    #[serde(default)]
+    sec_fetch_mode: Option<String>,
+    #[serde(default)]
+    sec_ch_ua: Option<String>,
 }
 
 fn pageview() -> String {
@@ -2176,6 +2199,21 @@ fn pageview() -> String {
 }
 
 impl WireEvent {
+    /// The visitor's headers the shipper forwarded, for the classifier. An empty
+    /// string counts as absent.
+    fn header_view(&self) -> HeaderView<'_> {
+        fn some(v: &Option<String>) -> Option<&str> {
+            v.as_deref().filter(|s| !s.is_empty())
+        }
+        HeaderView {
+            accept: some(&self.accept),
+            accept_language: some(&self.accept_language),
+            sec_fetch_mode: some(&self.sec_fetch_mode),
+            sec_ch_ua: some(&self.sec_ch_ua),
+            ..HeaderView::empty()
+        }
+    }
+
     /// Rebuild a page URL from the split columns, so one enrichment path serves
     /// both intakes.
     ///
@@ -2419,17 +2457,35 @@ fn put(headers: &mut HeaderMap, name: &'static str, value: &str) {
 /// Turning a cache outage into a collection outage would be the worse failure,
 /// and the limiter is here to bound a broken loop rather than to keep anyone out.
 async fn allow(state: &AppState, key: &str) -> bool {
+    allow_n(state, key, RATE_LIMIT_PER_MIN).await
+}
+
+/// [`allow`] with its own per-minute limit.
+async fn allow_n(state: &AppState, key: &str, limit: u32) -> bool {
     match tokio::time::timeout(
         LIMITER_BUDGET,
-        state
-            .kv
-            .rate_limit(key, RATE_LIMIT_PER_MIN, RATE_WINDOW_SECS),
+        state.kv.rate_limit(key, limit, RATE_WINDOW_SECS),
     )
     .await
     {
         Ok(Ok(allowed)) => allowed,
         Ok(Err(_)) | Err(_) => true,
     }
+}
+
+/// Whether `key` has used up [`RATE_LIMIT_PER_MIN`] this window, without
+/// consuming a unit. Fails open like [`allow`].
+async fn exhausted(state: &AppState, key: &str) -> bool {
+    matches!(
+        tokio::time::timeout(
+            LIMITER_BUDGET,
+            state
+                .kv
+                .rate_exhausted(key, RATE_LIMIT_PER_MIN, RATE_WINDOW_SECS),
+        )
+        .await,
+        Ok(Ok(true))
+    )
 }
 
 /// The answer for a collection request that ran past its time budget, or
@@ -2870,6 +2926,44 @@ mod tests {
         assert_eq!(
             event.timestamp_utc().to_rfc3339(),
             "2026-08-21T09:00:00+00:00"
+        );
+    }
+
+    #[test]
+    fn an_edge_event_with_browser_headers_is_a_human() {
+        const CHROME: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) \
+                              AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36";
+        let bare: WireEvent = serde_json::from_value(json!({
+            "hostname": "example.com",
+            "user_agent": CHROME,
+        }))
+        .unwrap();
+        let bare_class = micaforge_agents::classify(CHROME, &bare.header_view(), None);
+        assert!(!bare_class.is_human(), "no headers: unchanged, still a bot");
+
+        let full: WireEvent = serde_json::from_value(json!({
+            "hostname": "example.com",
+            "user_agent": CHROME,
+            "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "accept_language": "en-GB,en;q=0.9",
+            "sec_fetch_mode": "navigate",
+            "sec_ch_ua": "\"Chromium\";v=\"128\", \"Google Chrome\";v=\"128\"",
+        }))
+        .unwrap();
+        let full_class = micaforge_agents::classify(CHROME, &full.header_view(), None);
+        assert!(full_class.is_human(), "Chrome with its headers is a person");
+
+        let blank: WireEvent = serde_json::from_value(json!({
+            "user_agent": CHROME,
+            "accept": "",
+            "accept_language": "",
+            "sec_fetch_mode": "",
+            "sec_ch_ua": "",
+        }))
+        .unwrap();
+        assert!(
+            !micaforge_agents::classify(CHROME, &blank.header_view(), None).is_human(),
+            "empty strings count as absent"
         );
     }
 
