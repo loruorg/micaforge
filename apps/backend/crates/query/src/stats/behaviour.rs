@@ -302,6 +302,28 @@ struct FunnelLevelRow {
     visitors: u64,
 }
 
+/// The funnel query text.
+///
+/// `windowFunnel` refuses `DateTime64` (ClickHouse code 43), so the timestamp
+/// goes in as unsigned epoch milliseconds and the window in milliseconds too.
+/// `toDateTime` would also be accepted, but it drops the milliseconds, and two
+/// steps inside one second would then count in either order.
+fn funnel_sql(window_ms: u64, conditions: &[String], scope: &str) -> String {
+    format!(
+        "SELECT level, toUInt64(count()) AS visitors
+FROM (
+  SELECT visitor_id,
+         windowFunnel({window_ms})(toUInt64(toUnixTimestamp64Milli(timestamp)), {conditions}) AS level
+  FROM events
+  WHERE {scope}
+  GROUP BY visitor_id
+)
+GROUP BY level
+ORDER BY level ASC",
+        conditions = conditions.join(", "),
+    )
+}
+
 /// `GET /api/stats/funnel/:id`.
 ///
 /// Built on ClickHouse's `windowFunnel`, which is the reason this is one pass
@@ -329,7 +351,7 @@ pub async fn funnel(
         ));
     }
 
-    let window_seconds = u64::from(window_hours.clamp(1, MAX_FUNNEL_WINDOW_HOURS)) * 3_600;
+    let window_ms = u64::from(window_hours.clamp(1, MAX_FUNNEL_WINDOW_HOURS)) * 3_600_000;
 
     let mut conditions = Vec::with_capacity(steps.len());
     let mut params: Vec<Param> = Vec::new();
@@ -342,19 +364,7 @@ pub async fn funnel(
     let (scope, scope_params) = scope_predicate(env, Table::Events)?;
     params.extend(scope_params);
 
-    let sql = format!(
-        "SELECT level, toUInt64(count()) AS visitors
-FROM (
-  SELECT visitor_id,
-         windowFunnel({window_seconds})(timestamp, {conditions}) AS level
-  FROM events
-  WHERE {scope}
-  GROUP BY visitor_id
-)
-GROUP BY level
-ORDER BY level ASC",
-        conditions = conditions.join(", "),
-    );
+    let sql = funnel_sql(window_ms, &conditions, &scope);
 
     let levels = fetch_all::<FunnelLevelRow>(ch, "funnel", &sql, &params).await?;
 
@@ -660,4 +670,21 @@ ORDER BY cohort ASC, period_offset ASC"
         period,
         cohorts: all,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_funnel_never_hands_window_funnel_a_datetime64() {
+        let sql = funnel_sql(3_600_000, &["kind = 'pageview'".into(), "1".into()], "1");
+        assert!(sql.contains(
+            "windowFunnel(3600000)(toUInt64(toUnixTimestamp64Milli(timestamp)), kind = 'pageview', 1)"
+        ));
+        assert!(
+            !sql.contains("(timestamp,"),
+            "the raw DateTime64 column is refused"
+        );
+    }
 }
