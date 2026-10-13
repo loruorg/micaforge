@@ -340,7 +340,8 @@ Edge body: `{ site_id, agent_events: [...], events: [...] }`. A row in `events` 
 transport fields that the server reads and never stores: `user_agent`, `ip`, and the
 visitor's `accept`, `accept_language`, `sec_fetch_mode` and `sec_ch_ua` request headers.
 The bot check reads the four headers; a field that is absent or empty counts as a header
-the visitor did not send, so a Chromium user agent without them scores as a bot.
+the visitor did not send, so a Chromium user agent without them scores as a bot. A row may
+also carry `automation`, the §4 `a` bitmask; nonzero files it as a bot.
 
 Edge rate limits: 6000 signed batches per minute per site (`429`, retry under the same
 signature). Failed signatures are counted per caller address; past 600 a minute, that
@@ -616,9 +617,20 @@ against the organisation owner's memberships but never carries the owner's autho
   "id": "u_123",          // identify()
   "v": "1.0.0",           // sdk version
   "e": { "lcp": 1180 },   // web vitals, when present
-  "sr": 25                // data-sample rate, only from a sampled visitor
+  "sr": 25,               // data-sample rate, only from a sampled visitor
+  "a": 1                  // automation bitmask, only when nonzero
 }
 ```
+
+`a` is a bitmask of browser automation the tracker saw on the page, read once per load:
+`1` `navigator.webdriver === true`; `2` CDP-driver globals (`$cdc_…`/`cdc_…`,
+`__playwright…`, `__pw_manual`, `__PW_inspect`, `__puppeteer…`); `4` Selenium, PhantomJS
+or Nightmare globals (`_phantom`, `callPhantom`, `__nightmare`, `domAutomation…`, keys
+matching `selenium|webdriver|driver_e|driver-e|fxdriver`, case-insensitive); `8`
+`navigator.userAgentData` brands include `HeadlessChrome`; `16` the host page's own
+checks found automation (edge and server SDK only). Any nonzero bit files the hit as a
+bot (`bot_events`, reason `automation:<webdriver|cdp|selenium|headless_brand|site>`),
+whatever the headers say. It never renames a hit as a catalog agent.
 
 Keys are one to two characters on purpose: the payload rides in a `sendBeacon` and the
 tracker's whole job is to be small. There is no time key: the server stamps each hit
@@ -627,7 +639,7 @@ never returns them to the page. `navigator.userAgent` is not sent; the server re
 request header.
 
 **Tracker requirements:** < 3 KB gzipped core; zero dependencies; `sendBeacon` then
-`fetch(keepalive)` then image fallback; SPA `pushState`/`replaceState`/`hashchange`;
+`fetch(keepalive)`; SPA `pushState`/`replaceState`/`hashchange`;
 respects `do-not-track` when `data-respect-dnt` is set; `data-*` attribute configuration;
 auto-capture of outbound links, downloads, form submits and 404s behind flags; never
 throws into the host page; queues before init.

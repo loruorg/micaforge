@@ -133,6 +133,10 @@ pub struct HeaderView<'a> {
     pub from: Option<&'a str>,
     /// `Signature-Agent`, the self-declared identity from Web Bot Auth.
     pub signature_agent: Option<&'a str>,
+    /// The automation bitmask from the page (`a` in `docs/CONTRACT.md` §4,
+    /// `automation` on the edge). Not a header, but evidence of the same kind:
+    /// what the client showed about itself. 0 means nothing was seen.
+    pub automation: u32,
 }
 
 impl<'a> HeaderView<'a> {
@@ -185,6 +189,15 @@ const HEADLESS_TOKENS: &[&str] = &[
     "electron/",
     "chrome-lighthouse",
     "cypress",
+];
+
+/// The automation bits and their reason names, `docs/CONTRACT.md` §4.
+const AUTOMATION_BITS: &[(u32, &str)] = &[
+    (1, "webdriver"),
+    (2, "cdp"),
+    (4, "selenium"),
+    (8, "headless_brand"),
+    (16, "site"),
 ];
 
 /// Generic self-descriptions. Weaker evidence than the two lists above, because
@@ -282,6 +295,14 @@ pub fn score(user_agent: &str, headers: &HeaderView<'_>) -> BotSignals {
         }
     }
 
+    // The page saw a driver. As strong as a headless token, and true however
+    // real the headers look: a headed Chrome under automation sends them all.
+    for (bit, name) in AUTOMATION_BITS {
+        if headers.automation & bit != 0 {
+            signals.add(60, &format!("automation:{name}"));
+        }
+    }
+
     if headers.accept_language.is_none() {
         // A browser sends this on a navigation. A fetcher rarely bothers.
         signals.add(20, "no_accept_language");
@@ -323,6 +344,7 @@ mod tests {
             sec_ch_ua: Some("\"Chromium\";v=\"124\", \"Google Chrome\";v=\"124\""),
             from: None,
             signature_agent: None,
+            automation: 0,
         }
     }
 
@@ -433,6 +455,55 @@ mod tests {
         let signals = c.signals().unwrap();
         assert!(signals.reasons.iter().any(|r| r == "empty_user_agent"));
         assert!(!signals.reasons_joined().is_empty());
+    }
+
+    #[test]
+    fn automated_chrome_with_real_headers_is_a_bot() {
+        for (bits, reason) in [
+            (1, "automation:webdriver"),
+            (2, "automation:cdp"),
+            (4, "automation:selenium"),
+            (8, "automation:headless_brand"),
+            (16, "automation:site"),
+        ] {
+            let headers = HeaderView {
+                automation: bits,
+                ..browser_headers()
+            };
+            let c = classify(CHROME, &headers, None);
+            let signals = c.signals().expect("automation must be flagged");
+            assert!(signals.is_bot());
+            assert!(
+                signals.reasons.iter().any(|r| r == reason),
+                "{reasons:?}",
+                reasons = signals.reasons
+            );
+            assert_eq!(c.table(), Table::BotEvents);
+        }
+        let all = score(
+            CHROME,
+            &HeaderView {
+                automation: 31,
+                ..browser_headers()
+            },
+        );
+        assert_eq!(all.reasons.len(), 5);
+        assert_eq!(all.score, 100);
+    }
+
+    #[test]
+    fn automation_never_renames_an_agent() {
+        let ua = "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; GPTBot/1.2; \
+                  +https://openai.com/gptbot)";
+        let headers = HeaderView {
+            automation: 1,
+            ..browser_headers()
+        };
+        assert_eq!(
+            classify(ua, &headers, None).agent().map(|d| d.slug),
+            Some("gptbot")
+        );
+        assert!(classify(CHROME, &headers, None).agent().is_none());
     }
 
     #[test]

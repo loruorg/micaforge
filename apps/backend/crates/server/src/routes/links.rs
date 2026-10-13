@@ -440,6 +440,7 @@ fn record_click(
                 sec_ch_ua: text_of(headers, "sec-ch-ua"),
                 from: text_of(headers, "from"),
                 signature_agent: text_of(headers, "signature-agent"),
+                automation: 0,
             },
             None,
         ) {

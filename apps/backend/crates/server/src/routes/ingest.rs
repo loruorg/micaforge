@@ -282,8 +282,8 @@ async fn track_batch(State(state): State<AppState>, req: Request) -> Response {
 
 /// `GET /api/track/pixel.gif` — the no-JavaScript fallback.
 ///
-/// The tracker falls back to this when `sendBeacon` and `fetch` both fail, and
-/// a site with no JavaScript at all can embed it directly. The payload is the
+/// For a site with no JavaScript at all, which embeds it directly (the tracker
+/// itself sends only by `sendBeacon` or `fetch`). The payload is the
 /// same one from `docs/CONTRACT.md` §4, query-string encoded, with `p` and `e`
 /// carrying a JSON object as a string.
 ///
@@ -379,8 +379,11 @@ async fn ingest_one(state: &AppState, p: Payload, ctx: &RequestCtx) -> Verdict {
         return Verdict::Accepted;
     }
 
-    let classification =
-        micaforge_agents::classify(&ctx.user_agent, &ctx.header_view(), Some(&ctx.ip_text));
+    let headers = HeaderView {
+        automation: p.a,
+        ..ctx.header_view()
+    };
+    let classification = micaforge_agents::classify(&ctx.user_agent, &headers, Some(&ctx.ip_text));
 
     // A beacon is JavaScript, and no crawler runs JavaScript. Named or not, a
     // non-human hit on this route is a spoof or a headless run, so it is
@@ -1380,6 +1383,7 @@ impl RequestCtx {
             sec_ch_ua: self.sec_ch_ua.as_deref(),
             from: self.from.as_deref(),
             signature_agent: self.signature_agent.as_deref(),
+            automation: 0,
         }
     }
 }
@@ -2075,6 +2079,9 @@ struct Payload {
     /// attribute is whatever the site typed.
     #[serde(default)]
     sr: Option<f64>,
+    /// Browser automation the tracker saw, as the §4 bitmask. 0 when absent.
+    #[serde(default, deserialize_with = "flexible_u32")]
+    a: u32,
 
     /// Page title. Not sent by the browser tracker, which has no room for it;
     /// filled in by the server SDKs, which do.
@@ -2192,6 +2199,9 @@ struct WireEvent {
     sec_fetch_mode: Option<String>,
     #[serde(default)]
     sec_ch_ua: Option<String>,
+    /// Transport only: the §4 automation bitmask, read by the bot check.
+    #[serde(default, deserialize_with = "flexible_u32")]
+    automation: u32,
 }
 
 fn pageview() -> String {
@@ -2210,6 +2220,7 @@ impl WireEvent {
             accept_language: some(&self.accept_language),
             sec_fetch_mode: some(&self.sec_fetch_mode),
             sec_ch_ua: some(&self.sec_ch_ua),
+            automation: self.automation,
             ..HeaderView::empty()
         }
     }
@@ -2381,7 +2392,7 @@ fn decode_batch(items: Vec<Json>) -> Vec<Payload> {
 /// coerced back here rather than by a lenient deserializer, because the coercion
 /// is specific to this one transport.
 fn payload_from_query(query: &str) -> Option<Payload> {
-    const NUMERIC: &[&str] = &["s", "w", "h", "vw", "vh", "d", "sc"];
+    const NUMERIC: &[&str] = &["s", "w", "h", "vw", "vh", "d", "sc", "a"];
     const NESTED: &[&str] = &["p", "e", "flags"];
 
     let mut object = serde_json::Map::new();
@@ -2965,6 +2976,61 @@ mod tests {
             !micaforge_agents::classify(CHROME, &blank.header_view(), None).is_human(),
             "empty strings count as absent"
         );
+    }
+
+    #[test]
+    fn automation_files_a_browser_with_real_headers_as_a_bot() {
+        const CHROME: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) \
+                              AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36";
+        let browser = HeaderView {
+            accept: Some("text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"),
+            accept_language: Some("en-GB,en;q=0.9"),
+            sec_fetch_mode: Some("navigate"),
+            sec_ch_ua: Some("\"Chromium\";v=\"128\", \"Google Chrome\";v=\"128\""),
+            ..HeaderView::empty()
+        };
+
+        // The tracker path: `a` on the §4 payload.
+        let with_a: Payload = serde_json::from_value(json!({ "s": 1, "a": 1 })).unwrap();
+        let without_a: Payload = serde_json::from_value(json!({ "s": 1 })).unwrap();
+        let class = |p: &Payload| {
+            micaforge_agents::classify(
+                CHROME,
+                &HeaderView {
+                    automation: p.a,
+                    ..browser
+                },
+                None,
+            )
+        };
+        let bot = class(&with_a);
+        assert_eq!(bot.table(), micaforge_core::Table::BotEvents);
+        assert!(bot
+            .signals()
+            .unwrap()
+            .reasons
+            .contains(&"automation:webdriver".to_string()));
+        assert!(class(&without_a).is_human());
+        assert_eq!(payload_from_query("s=1&a=2").unwrap().a, 2);
+
+        // The edge path: `automation` on a row.
+        let edge: WireEvent = serde_json::from_value(json!({
+            "hostname": "example.com",
+            "user_agent": CHROME,
+            "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "accept_language": "en-GB,en;q=0.9",
+            "sec_fetch_mode": "navigate",
+            "sec_ch_ua": "\"Chromium\";v=\"128\", \"Google Chrome\";v=\"128\"",
+            "automation": 16,
+        }))
+        .unwrap();
+        let c = micaforge_agents::classify(CHROME, &edge.header_view(), None);
+        assert_eq!(c.table(), micaforge_core::Table::BotEvents);
+        assert!(c
+            .signals()
+            .unwrap()
+            .reasons
+            .contains(&"automation:site".to_string()));
     }
 
     #[test]
