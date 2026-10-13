@@ -211,6 +211,14 @@ export interface TrackEvent {
    */
   headers?: ClientHeaders;
 
+  /**
+   * Browser automation the end client showed, as the `docs/CONTRACT.md` section 4
+   * bitmask: 1 webdriver, 2 CDP globals, 4 Selenium-family globals, 8 HeadlessChrome
+   * brand, 16 your own checks found automation. Nonzero files the hit as a bot.
+   * Transport only, never persisted.
+   */
+  automation?: number;
+
   /** `language`, for example `en-GB`. */
   language?: string;
   /** `timezone`, an IANA name. */
@@ -339,6 +347,8 @@ export interface WireEvent {
   sec_fetch_mode?: string;
   /** Transport: the client's `Sec-CH-UA` header, for the bot check. */
   sec_ch_ua?: string;
+  /** Transport: the automation bitmask, for the bot check. Sent only when nonzero. */
+  automation?: number;
 }
 
 /** The end client's headers the server's bot check reads. Empty values are not sent. */
@@ -434,6 +444,8 @@ export interface HitExtras {
   props?: Props;
   /** `identified_id`, human rows only. */
   identifiedId?: string;
+  /** The automation bitmask, human rows only. See {@link TrackEvent.automation}. */
+  automation?: number;
   /** Overrides the clock. */
   timestamp?: Timestampish;
 }

@@ -176,6 +176,11 @@ describe("toWireEvent()", () => {
     expect("sec_ch_ua" in row).toBe(false);
   });
 
+  it("sends the automation bitmask only when nonzero", () => {
+    expect(toWireEvent({ pathname: "/", userAgent: CHROME, automation: 16 }).automation).toBe(16);
+    expect("automation" in toWireEvent({ pathname: "/", automation: 0 })).toBe(false);
+  });
+
   it("keeps the columns that have no DEFAULT, and drops the ones that do", () => {
     const row = toWireEvent({ pathname: "/" });
     expect(Object.keys(row).sort()).toEqual(["hostname", "kind", "pathname", "sdk_version", "timestamp"]);
@@ -267,6 +272,17 @@ describe("classification", () => {
     // The referrer travels unresolved: naming the channel is the server's job.
     expect(calls[0]!.body.events![0]!.referrer).toBe("https://chatgpt.com/");
     expect(calls[0]!.body.agent_events).toBeUndefined();
+  });
+
+  it("forwards the automation bitmask from pageview() and track()", async () => {
+    const { micaforge, calls } = client();
+    micaforge.pageview(
+      { method: "GET", url: "/a", headers: { host: "docs.example.com", "user-agent": CHROME } },
+      { automation: 16 },
+    );
+    micaforge.track({ url: "https://docs.example.com/b", userAgent: CHROME, automation: 1 });
+    await micaforge.flush();
+    expect(calls[0]!.body.events!.map((e) => e.automation)).toEqual([16, 1]);
   });
 
   it("re-files a track()ed pageview from a crawler, but leaves a named event alone", async () => {

@@ -232,6 +232,7 @@ export function toWireEvent(event: TrackEvent, sdkVersion = VERSION): WireEvent 
     accept_language: event.headers?.acceptLanguage,
     sec_fetch_mode: event.headers?.secFetchMode,
     sec_ch_ua: event.headers?.secChUa,
+    automation: event.automation || undefined,
   }, EVENT_REQUIRED);
 }
 
@@ -582,6 +583,7 @@ export class Micaforge {
         userAgent: read.userAgent,
         ip: read.ip,
         headers: read.headers,
+        automation: extras.automation,
         title: extras.title,
         props: extras.props,
         identifiedId: extras.identifiedId,
