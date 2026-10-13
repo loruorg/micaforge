@@ -300,9 +300,8 @@ pageviews from `$page.url.pathname` yourself.
 
 ## The no-JS pixel
 
-The tracker falls back to a 1x1 GIF when `sendBeacon` and `fetch` are both unavailable or
-blocked. You can also use that endpoint directly, with no JavaScript at all, in an email,
-an RSS item, or a `<noscript>` block. The keys are the ones in the table below.
+A 1x1 GIF endpoint for pages with no JavaScript at all: an email, an RSS item, or a
+`<noscript>` block. The tracker itself sends with `sendBeacon` or `fetch`. The keys are the ones in the table below.
 
 ```html
 <noscript>
@@ -384,7 +383,7 @@ Your visitors can also set `localStorage["mf-opt-out"] = "1"` themselves. Set
 ## What gets sent
 
 One small JSON body per event, by `navigator.sendBeacon` first, `fetch(keepalive: true)`
-second, and a 1x1 GIF last. Nothing is awaited, so nothing the tracker does can hold up
+second. Nothing is awaited, so nothing the tracker does can hold up
 your page. The full shape is `docs/CONTRACT.md` section 4.
 
 | Key | Meaning |
@@ -405,6 +404,7 @@ your page. The full shape is `docs/CONTRACT.md` section 4.
 | `v` | SDK version |
 | `e` | web vitals, once per page |
 | `sr` | the `data-sample` rate, only from a sampled visitor |
+| `a` | browser automation bitmask (1 webdriver, 2 CDP globals, 4 Selenium-family globals, 8 HeadlessChrome brand), only when nonzero; such hits are filed as bots |
 
 Empty, zero and absent fields are left out rather than sent.
 

@@ -40,7 +40,6 @@ export const DOWNLOAD_EXTENSIONS =
 
 /** The realm. Shared with the tracker entry so the bundle carries one copy. */
 export const G: any = globalThis;
-const R = Math.round;
 
 /* ------------------------------------------------------------ pure helpers */
 
@@ -149,16 +148,13 @@ const guard =
  */
 export function createTracker(config: TrackerConfig): TrackerApi {
   const W: any = G.window || {};
-  const D: any = W.document || {};
+  const D: any = W.document;
   const N: any = W.navigator || {};
-  const SC: any = W.screen || {};
 
   const LOC: any = W.location;
-  const site = +(config.site as any) || 0;
+  const site = +(config.site as any);
   const endpoint = (config.host || "").replace(/\/$/, "") + "/api/track";
-  const pixel = endpoint + "/pixel.gif";
   const exts = config.downloadExtensions || DOWNLOAD_EXTENSIONS;
-  const exclude = config.exclude;
   const autoPageview = flagOn(config.autoPageview, true);
   const spa = flagOn(config.spa, true);
   const outbound = flagOn(config.outbound, true);
@@ -182,6 +178,7 @@ export function createTracker(config: TrackerConfig): TrackerApi {
   let ticking = false;
   let started = false;
   let tz = "";
+  let auto = 0;
   let navTimer: any;
   let lastTraits = "";
 
@@ -198,40 +195,27 @@ export function createTracker(config: TrackerConfig): TrackerApi {
     !site ||
     !sampled ||
     config.enabled === false ||
-    !LOC ||
     isOptedOut() ||
     (respectDnt && N.doNotTrack == "1") ||
     // A developer's own refreshes are not data.
     (!debug &&
       (LOC.protocol == "file:" ||
-        /^(localhost|127\.|\[?::1|0\.0)|\.local(host)?$/i.test(LOC.hostname || "")));
+        /^(localhost|127\.|\[?::1|0\.0)|\.local(host)?$/i.test(LOC.hostname)));
 
-  const currentUrl = (): string => {
-    const h = LOC.href;
-    return useHash ? h : h.split("#")[0];
-  };
+  // Replacing "" is a no-op, so the hash stays when `useHash` is on.
+  const currentUrl = (): string => LOC.href.replace(useHash ? "" : (/#.*/ as any), "");
 
-  /* transport: sendBeacon, then fetch(keepalive), then a 1x1 pixel GET */
-
-  const query = (p: any): string =>
-    Object.keys(p)
-      .map((k) => k + "=" + encodeURIComponent(typeof p[k] == "object" ? JSON.stringify(p[k]) : p[k]))
-      .join("&");
+  /* transport: sendBeacon, then fetch(keepalive). Every browser that can parse this
+     bundle has fetch, so there is no pixel fallback; the pixel is for no-JS pages. */
 
   const post = (p: Payload): void => {
     const body = JSON.stringify(p);
     try {
       if (N.sendBeacon(endpoint, body)) return;
     } catch {}
-    try {
-      // A string body is sent as text/plain, which keeps this a simple CORS request:
-      // no preflight, no cost to the page.
-      W.fetch(endpoint, { method: "POST", body: body, keepalive: true }).catch(() => {});
-      return;
-    } catch {}
-    try {
-      new W.Image().src = pixel + "?" + query(p);
-    } catch {}
+    // A string body is sent as text/plain, which keeps this a simple CORS request:
+    // no preflight, no cost to the page. A throw here lands in emit()'s catch.
+    W.fetch(endpoint, { method: "POST", body: body, keepalive: true }).catch(() => {});
   };
 
   /**
@@ -240,19 +224,19 @@ export function createTracker(config: TrackerConfig): TrackerApi {
    */
   const emit = (t: EventKind, o: any): void => {
     try {
-      if (blocked() || isExcluded(LOC.pathname || "", exclude)) return;
+      if (blocked() || isExcluded(LOC.pathname, config.exclude)) return;
       const p: any = { s: site, t: t, u: maskUrl(o.url || currentUrl(), config), v: VERSION },
         // `raw` events (identify, error reports, frustration signals) carry their
         // own properties only: a trait change or a crash report is not a page
         // event that should inherit the page's default properties.
-        props: any = o.raw ? o.props || {} : { ...defaults, ...o.props },
+        props: any = { ...(o.raw ? 0 : defaults), ...o.props },
         // Everything else is optional: an empty, zero or absent value is left out,
         // because every column it maps to already carries that DEFAULT.
         rest: any = {
           n: o.name,
           r: maskUrl(o.referrer ?? D.referrer, config),
-          w: SC.width,
-          h: SC.height,
+          w: W.screen.width,
+          h: W.screen.height,
           vw: W.innerWidth,
           vh: W.innerHeight,
           l: N.language,
@@ -262,6 +246,7 @@ export function createTracker(config: TrackerConfig): TrackerApi {
           id: identity,
           e: o.vitals,
           sr: rate < 100 && rate,
+          a: auto,
         };
       for (const k in rest) if (rest[k]) p[k] = rest[k];
       if (Object.keys(props).length) p.p = props;
@@ -269,9 +254,6 @@ export function createTracker(config: TrackerConfig): TrackerApi {
       post(p as Payload);
     } catch {}
   };
-
-  /** Whether a pageview has been sent, so the first one reports no prior page. */
-  let sentPageview = false;
 
   /* engagement time and scroll depth, both per page */
 
@@ -291,10 +273,10 @@ export function createTracker(config: TrackerConfig): TrackerApi {
   const measure = () => {
     if (!doScroll) return;
     const de = D.documentElement,
-      vh = W.innerHeight || 0,
-      h = Math.max(de.scrollHeight || 0, vh),
+      vh = W.innerHeight,
+      h = Math.max(de.scrollHeight, vh),
       // `h` is never below `vh`, so a page that does not scroll reads 100.
-      pct = Math.min(100, R((((W.scrollY || 0) + vh) / h) * 100));
+      pct = Math.min(100, Math.round(((W.scrollY + vh) / h) * 100));
     if (pct > scrollPct) scrollPct = pct;
   };
 
@@ -329,7 +311,6 @@ export function createTracker(config: TrackerConfig): TrackerApi {
 
   const pageview = (ov?: PageviewOverrides): void => {
     const url = (ov && ov.url) || currentUrl();
-    lastUrl = url;
     stopClock();
     // `d` and `sc` describe the page being LEFT, so the first pageview of a
     // document has nothing to report: the clock started at boot, and reporting
@@ -337,11 +318,11 @@ export function createTracker(config: TrackerConfig): TrackerApi {
     // never existed. It is a small number, one or two milliseconds, which is
     // exactly what makes it dangerous: it is not obviously wrong in a payload,
     // and it lands on the engagement figure of every first pageview.
-    const d = sentPageview ? engagedMs : 0,
-      sc = sentPageview ? scrollPct : 0;
-    sentPageview = true;
-    engagedMs = 0;
-    scrollPct = 0;
+    // `lastUrl` is empty until the first pageview, so it doubles as "one was sent".
+    const d = lastUrl ? engagedMs : 0,
+      sc = lastUrl ? scrollPct : 0;
+    lastUrl = url;
+    engagedMs = scrollPct = 0;
     startClock();
     emit("pageview", { url: url, referrer: ov && ov.referrer, props: ov && ov.props, d: d, sc: sc });
     measure();
@@ -360,7 +341,7 @@ export function createTracker(config: TrackerConfig): TrackerApi {
 
   const patch = (k: string) => {
     const h = W.history,
-      orig = h && h[k];
+      orig = h[k];
     if (!orig || orig.mf) return;
     const wrapped: any = (...a: any[]) => {
       const r = orig.apply(h, a);
@@ -373,13 +354,12 @@ export function createTracker(config: TrackerConfig): TrackerApi {
 
   /* auto-capture */
 
+  // No link throws into `guard`; an empty or `#` href is neither a file nor
+  // another site, so neither check below reports it.
   const onClick = (ev: any) => {
-    const a = ev.target.closest("a[href]");
-    if (!a) return;
-    const href: string = a.href || "";
-    if (!href || href[0] == "#") return;
+    const href: string = ev.target.closest("a[href]").href;
     if (downloads && hasDownloadExtension(href, exts)) emit("file_download", { name: href });
-    else if (outbound && isOutboundUrl(LOC.hostname || "", href))
+    else if (outbound && isOutboundUrl(LOC.hostname, href))
       emit("outbound", { name: href });
   };
 
@@ -403,8 +383,18 @@ export function createTracker(config: TrackerConfig): TrackerApi {
     started = true;
     try {
       tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+      // `a`: browser automation seen on this page, the CONTRACT.md section 4
+      // bitmask. 1 navigator.webdriver, 2 CDP-driver globals, 4 Selenium,
+      // Phantom or Nightmare globals, 8 a HeadlessChrome brand. Read once.
+      const k = Object.keys(W) + "," + Object.keys(D);
+      auto =
+        ((N.webdriver === true) as any) |
+        (/(^|,)\$?cdc_|__p(laywright|uppeteer|w_manual)|__PW_inspect/.test(k) as any) * 2 |
+        ((/_phantom|callPhantom|__nightmare|domAutomation/.test(k) ||
+          /selenium|webdriver|driver[-_]e|fxdriver/i.test(k)) as any) * 4 |
+        (/HeadlessChrome/.test(JSON.stringify(N.userAgentData)) as any) * 8;
     } catch {}
-    if (!D.addEventListener) return;
+    if (!D) return;
     const on = (t: any, ev: string, fn: any, opt?: any) => t.addEventListener(ev, guard(fn), opt);
     startClock();
     // No measure() here: the first pageview must not carry a scroll depth, and

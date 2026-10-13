@@ -12,7 +12,7 @@
  * - `navigator.sendBeacon(url, body)`, the tracker's first choice;
  * - `fetch(url, { body })`, its fallback, and the flag client's transport (which is how the
  *   overlay reads `GET /api/flags/evaluate` answers, reasons included);
- * - the `src` of an image, the last resort (`/api/track/pixel.gif?…`).
+ * - the `src` of an image, for a hand-written pixel (`/api/track/pixel.gif?…`).
  *
  * Only requests to the collection paths are read; everything else passes through
  * untouched, and every wrapper calls the original first and inspects afterwards inside a

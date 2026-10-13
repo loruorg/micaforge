@@ -22,7 +22,7 @@ const split = (v: string | null): string[] =>
 /** Turn one `<script data-site="1" …>` into a `TrackerConfig`. Null without a site. */
 export function readScriptConfig(el: any, fallbackOrigin: string): TrackerConfig | null {
   const at = (k: string): string | null => el.getAttribute("data-" + k);
-  const site = +(at("site") || 0);
+  const site = +(at("site") as any);
   if (!site) return null;
 
   const cfg: any = {
@@ -55,7 +55,7 @@ export function boot(): TrackerApi | undefined {
     if (!D || (W.micaforge && W.micaforge.mf)) return;
 
     const el = D.currentScript || D.querySelector("script[data-site]"),
-      cfg = el && readScriptConfig(el, (W.location || {}).origin || "");
+      cfg = el && readScriptConfig(el, W.location.origin);
     if (!cfg) return;
 
     // Anything the page queued through the snippet before this file arrived.

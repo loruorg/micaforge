@@ -231,7 +231,7 @@ describe("payload construction", () => {
     const b = stubBrowser();
     const mf = start();
     mf.track("x", { a: 1 });
-    const allowed = "s t n u r w h vw vh l tz d sc p id v e sr".split(" ");
+    const allowed = "s t n u r w h vw vh l tz d sc p id v e sr a".split(" ");
     for (const hit of b.sent) for (const k of Object.keys(hit.body)) expect(allowed).toContain(k);
   });
 
@@ -741,8 +741,72 @@ describe("identify and traits", () => {
   });
 });
 
+describe("automation bits", () => {
+  const bits = (setup: (b: ReturnType<typeof stubBrowser>) => void) => {
+    const b = stubBrowser();
+    setup(b);
+    start();
+    return b.sent[0].body.a;
+  };
+
+  it("sends no `a` for a plain browser", () => {
+    expect(bits(() => {})).toBeUndefined();
+    expect(bits((b) => (b.window.navigator.webdriver = false))).toBeUndefined();
+    expect(
+      bits((b) => (b.window.navigator.userAgentData = { brands: [{ brand: "Google Chrome", version: "128" }] })),
+    ).toBeUndefined();
+  });
+
+  it("sets 1 for navigator.webdriver", () => {
+    expect(bits((b) => (b.window.navigator.webdriver = true))).toBe(1);
+  });
+
+  it("sets 2 for CDP-driver globals", () => {
+    expect(bits((b) => (b.document.$cdc_asdjflasutopfhvcZLmcfl_ = {}))).toBe(2);
+    expect(bits((b) => (b.window.cdc_adoQpoasnfa76pfcZLmcfl_Array = []))).toBe(2);
+    expect(bits((b) => (b.window.__playwright__binding__ = 1))).toBe(2);
+    expect(bits((b) => (b.window.__pw_manual = 1))).toBe(2);
+    expect(bits((b) => (b.window.__PW_inspect = 1))).toBe(2);
+    expect(bits((b) => (b.window.__puppeteer_evaluation_script__ = 1))).toBe(2);
+    expect(bits((b) => (b.window.abcdc_x = 1))).toBeUndefined();
+  });
+
+  it("sets 4 for Selenium, Phantom and Nightmare globals", () => {
+    for (const k of ["_phantom", "callPhantom", "__nightmare", "domAutomation", "domAutomationController"])
+      expect(bits((b) => (b.window[k] = 1))).toBe(4);
+    for (const k of ["_Selenium_IDE_Recorder", "__webdriverFunc", "__driver_evaluate", "__fxdriver_unwrapped"])
+      expect(bits((b) => (b.window[k] = 1))).toBe(4);
+    for (const k of ["__webdriver_script_fn", "__selenium_unwrapped", "__driver-evaluate"])
+      expect(bits((b) => (b.document[k] = 1))).toBe(4);
+  });
+
+  it("sets 8 for a HeadlessChrome brand, and combines bits", () => {
+    expect(
+      bits((b) => (b.window.navigator.userAgentData = { brands: [{ brand: "HeadlessChrome", version: "128" }] })),
+    ).toBe(8);
+    expect(
+      bits((b) => {
+        b.window.navigator.webdriver = true;
+        b.document.$cdc_x = 1;
+      }),
+    ).toBe(3);
+  });
+
+  it("never throws on a hostile navigator", () => {
+    const b = stubBrowser();
+    Object.defineProperty(b.window.navigator, "userAgentData", {
+      get() {
+        throw new Error("no");
+      },
+    });
+    start();
+    expect(b.sent[0].body.a).toBeUndefined();
+    expect(b.sent[0].body.t).toBe("pageview");
+  });
+});
+
 describe("transport", () => {
-  it("falls back from sendBeacon to fetch to a pixel", () => {
+  it("falls back from sendBeacon to fetch", () => {
     const beacon = stubBrowser();
     start();
     expect(beacon.sent[0].via).toBe("beacon");
@@ -753,19 +817,10 @@ describe("transport", () => {
     expect(full.sent[0].via).toBe("fetch");
     vi.unstubAllGlobals();
 
-    const pixel = stubBrowser({ beacon: "missing", fetch: "missing" });
-    start();
-    expect(pixel.sent[0].via).toBe("pixel");
-    expect(pixel.sent[0].url).toBe(ENDPOINT + "/pixel.gif");
-    expect(pixel.sent[0].body.s).toBe("1");
-    expect(pixel.sent[0].body.u).toBe("https://example.com/docs/x?a=1");
-  });
-
-  it("encodes props and vitals as JSON in the pixel query string", () => {
-    const b = stubBrowser({ beacon: "missing", fetch: "missing" });
-    const mf = start({ autoPageview: false });
-    mf.track("signup", { plan: "pro" });
-    expect(JSON.parse(b.sent[0].body.p)).toEqual({ plan: "pro" });
+    // No pixel fallback: a browser that parses the bundle has fetch.
+    const none = stubBrowser({ beacon: "missing", fetch: "missing" });
+    expect(() => start()).not.toThrow();
+    expect(none.sent).toHaveLength(0);
   });
 
   it("swallows a transport that fails at every level", () => {

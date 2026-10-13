@@ -77,6 +77,8 @@ export interface Payload {
   e?: Vitals;
   /** `data-sample` rate, 1-99, sent only when this browser is in a sample */
   sr?: number;
+  /** browser automation bitmask, sent only when nonzero: 1 webdriver, 2 CDP globals, 4 Selenium-family globals, 8 HeadlessChrome brand */
+  a?: number;
 }
 
 /**

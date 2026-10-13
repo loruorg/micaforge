@@ -108,13 +108,12 @@ describe("what the tracker sends", () => {
     expect(store.events[0]).toMatchObject({ kind: "pageview", via: "fetch", status: "failed" });
   });
 
-  it("reads the pixel fallback", () => {
+  it("sees no pixel from the tracker, which has no pixel fallback", () => {
     Object.defineProperty(window.navigator, "sendBeacon", { configurable: true, writable: true, value: () => false });
     vi.stubGlobal("fetch", undefined);
     const store = new Store();
     start(store);
-    expect(store.events[0]).toMatchObject({ kind: "pageview", via: "pixel", status: "sent" });
-    expect(store.events[0].payload).toMatchObject({ s: 1, t: "pageview" });
+    expect(store.events.some((e) => e.via == "pixel")).toBe(false);
   });
 });
 
