@@ -44,10 +44,10 @@
     "@micaforge/devtools": "workspace:*",
     "@micaforge/sdk": "workspace:*",
     "@micaforge/sdk-server": "workspace:*",
-    "@nuxt/kit": "^4.6.0"
+    "@nuxt/kit": "^4.6.1"
   },
   "devDependencies": {
-    "@nuxt/schema": "^4.6.0",
+    "@nuxt/schema": "^4.6.1",
     "@types/node": "^24.13.3",
     "jsdom": "^26.1.0",
     "typescript": "^6.0.3",
