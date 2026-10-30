@@ -1,0 +1,149 @@
+---
+title: "How to add analytics to a GitHub Pages site"
+seoTitle: "How to add analytics to a GitHub Pages site"
+nav: "GitHub Pages"
+description: "Add cookieless Micaforge analytics to a GitHub Pages site, plain HTML or Jekyll, and learn what GitHub Pages cannot show you about AI crawlers."
+order: 11
+updated: 2026-10-30
+related: ["docusaurus-analytics", "track-ai-crawlers-cloudflare", "find-404-pages", "exclude-your-own-visits"]
+cta:
+  text: "Add one tag to your GitHub Pages site and see its visitors, sources and AI answer referrals."
+  label: "Create a free account"
+  href: "/app/"
+---
+
+GitHub Pages serves static files and gives you no visitor numbers of your own. Here you
+add the Micaforge tracker to a GitHub Pages site, either plain HTML or Jekyll with the
+default theme, mark the 404 page, and check the first visits. GitHub Pages has one limit
+you cannot change from the repository, and this guide ends with the workaround for it.
+You need push access to the repository and a Micaforge site.
+
+## 1. Create the site in Micaforge
+
+Sign in at [micaforge.com/app](/app/) with your email address and the six-digit code
+Micaforge sends you. Choose **Add a site** and enter the host your pages are served on:
+`username.github.io`, or your custom domain if you set one. Choose **Add the site**, then
+open **Settings**, **Tracking setup** and copy the tag from the **Script tag** panel:
+
+```html
+<script defer data-site="1" src="https://api.micaforge.com/mf.js"></script>
+```
+
+Micaforge accepts hits by host. Every project site under `username.github.io/` shares
+that host, so one Micaforge site for `username.github.io` receives all of them. To look
+at one project, filter **Pages** by a path that starts with `/project-name/`.
+
+## 2. Add the tag to a plain HTML site
+
+If your repository holds HTML files, paste the tag into the `<head>` of every page:
+
+```html
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>My project</title>
+    <script defer data-site="1" src="https://api.micaforge.com/mf.js"></script>
+  </head>
+  <body>
+    ...
+  </body>
+</html>
+```
+
+Commit and push. GitHub Pages publishes the change when its build finishes.
+
+## 3. Add the tag to a Jekyll site
+
+A Jekyll site gets its `<head>` from the theme. To change it, you copy the theme file into
+your repository: Jekyll uses a file in your `_includes` or `_layouts` folder before the
+theme's file of the same name.
+
+GitHub Pages runs `minima` 2.5.1 as its default theme. Its `<head>` is in
+`_includes/head.html`. Create that file in your repository with the theme's content and
+the tag added before `</head>`:
+
+```liquid
+<head>
+<meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+{%- seo -%}
+<link rel="stylesheet" href="{{ "/assets/main.css" | relative_url }}">
+{%- feed_meta -%}
+{%- if jekyll.environment == 'production' and site.google_analytics -%}
+{%- include google-analytics.html -%}
+{%- endif -%}
+<script defer data-site="1" src="https://api.micaforge.com/mf.js"></script>
+</head>
+```
+
+For another theme, find the file that writes `<head>`. With Bundler installed locally,
+`bundle info --path <theme-name>` prints the folder of the theme's files. Copy that file
+to the same path in your repository and add the tag.
+
+The tracker sends nothing from `localhost`, so `bundle exec jekyll serve` on your machine
+does not count. Your published site does.
+
+## 4. Mark the 404 page
+
+GitHub Pages serves `404.html` from the root of the site for any missing path. Put the
+`data-mf-404` attribute on an element of that page, and add `data-404` to the tag:
+
+```html
+---
+layout: default
+permalink: /404.html
+---
+<h1 data-mf-404>Page not found</h1>
+<p><a href="/">Back to the home page</a></p>
+```
+
+```html
+<script defer data-site="1" data-404 src="https://api.micaforge.com/mf.js"></script>
+```
+
+In Jekyll, `layout: default` puts the page inside your theme's layout, so it loads the tag
+from step 3. In a plain HTML site, the page needs its own copy of the tag. Each visit to a missing URL then shows on the **Errors** screen as a `404`, with
+the path. [How to find broken links and 404 pages](/docs/guides/find-404-pages/) shows how
+to read it.
+
+## 5. Check the first visits
+
+Open your published site in a browser, then open **Realtime** in Micaforge. Your visit
+appears there, and the status line on **Tracking setup** changes to **This site is live**.
+
+From then on, **Sources** shows where readers come from. For a project page, links from
+GitHub itself, from a README or a release, arrive as a referral from `github.com`.
+
+To keep your own visits out, follow [how to exclude your own visits](/docs/guides/exclude-your-own-visits/).
+
+## 6. What GitHub Pages cannot show you
+
+<aside class="doc-annot" data-tone="gap">
+
+**Micaforge cannot see AI crawlers on a GitHub Pages site.** AI crawlers do not run the
+tracker. Micaforge records them from a server's access log or from code that runs on each
+request, and GitHub Pages gives you neither. The **AI crawlers**, **Citation gap** and
+**Robots.txt rules** screens stay empty for crawls, even when crawlers read your site.
+
+</aside>
+
+The workaround is to put Cloudflare in front of a custom domain. With the domain's DNS on
+Cloudflare and the record proxied, a Worker on that route sees every request before it
+reaches GitHub Pages and reports the crawler fetches to Micaforge. The code, the route
+configuration and the secrets are in
+[how to track AI crawlers on Cloudflare](/docs/guides/track-ai-crawlers-cloudflare/), step 6.
+The Worker passes each request on to GitHub Pages with `fetch(request)`, so the site
+itself does not change.
+
+A `*.github.io` address cannot be proxied, so this needs a custom domain.
+
+## Common problems
+
+| What you see | Cause and fix |
+| --- | --- |
+| Nothing arrives | Open the published page source and look for `mf.js`. If it is missing in Jekyll, your `_includes/head.html` is not used: check the theme name and the file path. |
+| The tag shows in the source but nothing arrives | The Micaforge site's domain does not match the host. Add the host under **Settings**, **Ingest guards**, **Hostnames**, or create the site with the right domain. |
+| Visits from another project appear | All project sites under `username.github.io` share the host. Filter by path. |
+| The 404 page counts as a normal page only | The page has no `data-mf-404`, or the tag has no `data-404`. |

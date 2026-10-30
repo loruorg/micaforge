@@ -1,0 +1,156 @@
+---
+title: "How to exclude your own visits from analytics"
+seoTitle: "How to exclude your own visits from analytics"
+nav: "Exclude your own visits"
+description: "Keep your own pageviews, your team's office and your staging sites out of Micaforge, with a browser opt-out, an IP deny list and path rules."
+order: 8
+updated: 2026-10-30
+related: ["track-utm-campaigns", "astro-analytics", "github-pages-analytics"]
+cta:
+  text: "Set up the opt-out and the deny list once, and the numbers you read are your readers'."
+  label: "Create a free account"
+  href: "/app/"
+---
+
+On a small site, your own visits can be a large part of the traffic: every check after a
+deploy, every proofread, every test of a form. Here you keep them out with three tools: a
+per-browser opt-out, a deny list of addresses, and rules for paths and hosts. You need a
+Micaforge site with the script tag on your pages, and the admin role on the site for the
+deny list.
+
+## 1. Know what is already left out
+
+The tracker sends nothing when the page runs on your own machine. It stays silent when the
+host name is `localhost`, starts with `127.` or `0.0`, is `::1`, or ends in `.local` or
+`.localhost`, and when the page is opened from a `file://` address. Your local development
+server needs no setup.
+
+The `data-debug` attribute turns this off, so that you can test the tracker locally. Do
+not leave it on the tag you deploy.
+
+## 2. Opt out each browser you use
+
+Open your live site in the browser you use for work. Open the developer tools console and
+run:
+
+```js
+micaforge.optOut();
+micaforge.isOptedOut(); // true
+```
+
+From then on, the tracker in that browser sends nothing to that site: no pageviews, no
+events, and no plugins are loaded. The setting is one `localStorage` key, `mf-opt-out`.
+It is the only thing the tracker ever writes to the browser's storage.
+
+To count yourself again, run `micaforge.optIn()`.
+
+Three limits come from `localStorage` itself:
+
+- It belongs to one origin. `example.com` and `www.example.com` each need their own
+  opt-out, and so does a docs site on another subdomain.
+- A private window starts empty, so it is counted.
+- Clearing site data removes the opt-out.
+
+To make this easy for a team, put a button on a page only your team knows, for example
+`/opt-out`, and exclude that page as in step 4:
+
+```html
+<button type="button" onclick="micaforge.optOut(); this.textContent = 'This browser is now excluded';">
+  Exclude this browser from analytics
+</button>
+```
+
+## 3. Block your office or home address
+
+The opt-out covers browsers. An address block also covers phones, colleagues who never
+ran the command, and server-side hits from your access log.
+
+Open **Settings**, then **Ingest guards**. Under **Deny list**, choose **Add an address
+or range** and enter a single address or a range in CIDR form:
+
+```text
+203.0.113.7          one address
+203.0.113.0/24       an office range
+2001:db8:abcd::/48   an IPv6 prefix
+```
+
+Add a note so that you know later what the entry is for, then choose **Save the guards**.
+New hits follow the rules within a minute. The list holds up to 200 entries.
+
+Your public address is the one your router shows as its WAN address, or the one any
+"what is my IP" page reports. Many home connections change their IPv6 address often but
+keep the prefix: deny the `/64` or `/56` prefix rather than one address.
+
+A blocked request gets the same answer as a recorded one, so nothing looks broken. The
+table **Blocked in the last 7 days** on the same screen counts what the guards turned
+away, by reason.
+
+<aside class="doc-annot" data-tone="gap">
+
+**A deny list can hide real visitors.** If customers use your office network, or your
+address is shared through a mobile carrier, their visits are dropped too. Prefer the
+browser opt-out for a shared or changing address.
+
+</aside>
+
+## 4. Leave out admin and preview paths
+
+If your admin, preview or internal pages share the site's domain, exclude them by path.
+Open **Settings**, **Tracking setup**, and enter one path per line in **Excluded
+paths** under **What the tracker captures**. Choose **Save capture options**, then copy
+the script tag again: the setting is written into the tag as `data-exclude`.
+
+```html
+<script
+  defer
+  data-site="1"
+  data-exclude="/admin/**,/preview/*,/opt-out"
+  src="https://api.micaforge.com/mf.js"
+></script>
+```
+
+`*` matches one path segment and `**` matches any depth. The tracker drops an excluded
+path in the browser, before anything is sent.
+
+## 5. Keep staging and preview hosts out
+
+Micaforge accepts hits only from the site's domain, its subdomains, and the extra
+hostnames under **Ingest guards**, **Hostnames**. A preview on another domain, such as a
+`*.pages.dev` or `*.vercel.app` address, is refused.
+
+A staging site on a subdomain of your real domain is accepted, because it is a subdomain.
+To keep it out, load the tracker only on the production host:
+
+```html
+<script>
+  if (location.hostname === "www.example.com") {
+    var s = document.createElement("script");
+    s.defer = true;
+    s.src = "https://api.micaforge.com/mf.js";
+    s.setAttribute("data-site", "1");
+    document.head.appendChild(s);
+  }
+</script>
+```
+
+micaforge.com loads its own tracker this way.
+
+## 6. Check that you are gone
+
+Open **Realtime** in Micaforge, then load a few pages of your site in the opted-out
+browser. Your visit must not appear. Then load the site from a browser that is not opted
+out, such as a private window on your phone's mobile data, and check that it does
+appear.
+
+## Common problems
+
+| What you see | Cause and fix |
+| --- | --- |
+| `micaforge is not defined` in the console | The tracker is not on this page, or it did not load yet. Reload the page and run the command again. |
+| You still appear after `optOut()` | You opted out on another origin. Run it on the exact host you visit, with or without `www`. |
+| You still appear after adding a deny entry | Your address changed, or you denied an IPv4 address while the browser uses IPv6. Deny both, or use the opt-out. |
+| **Save the guards** answers with an error | An entry is not a valid address or CIDR range, or the same range is listed twice. The error names the list. |
+| Visits from your laptop never show, even when you want them | You test on `localhost`. Add `data-debug` to the tag in development only. |
+
+The rules and limits of the address lists are in [ingest guards](/docs/dashboard/ingest-guards),
+and every tracker attribute is in [the script tag](/docs/getting-started/script-tag).

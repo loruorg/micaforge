@@ -31,6 +31,21 @@ visible to the people who wrote these pages.
 - [Stats API](/docs/api/stats-api): the read API.
 - [MCP server](/docs/api/mcp-server): querying your own analytics from an agent.
 
+## Guides
+
+- [All guides](/docs/guides/): one task per page, from start to finish.
+- [How to track traffic from ChatGPT and other AI assistants](/docs/guides/track-chatgpt-traffic/)
+- [How to see which AI crawlers visit your website](/docs/guides/see-ai-crawlers/)
+- [How to track AI crawlers on Cloudflare Pages and Workers](/docs/guides/track-ai-crawlers-cloudflare/)
+- [How to block AI crawlers with robots.txt](/docs/guides/block-ai-crawlers/)
+- [How to track UTM campaigns](/docs/guides/track-utm-campaigns/)
+- [How to track form submissions](/docs/guides/track-form-submissions/)
+- [How to find broken links and 404 pages](/docs/guides/find-404-pages/)
+- [How to exclude your own visits from analytics](/docs/guides/exclude-your-own-visits/)
+- [How to add analytics to an Astro site](/docs/guides/astro-analytics/)
+- [How to add analytics to a Docusaurus site](/docs/guides/docusaurus-analytics/)
+- [How to add analytics to a GitHub Pages site](/docs/guides/github-pages-analytics/)
+
 ## Comparisons
 
 - [Micaforge vs Plausible](/vs/plausible)

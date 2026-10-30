@@ -1,0 +1,46 @@
+---
+/**
+ * The guide list, at /docs/guides/.
+ *
+ * Flat, in reading order, one rule between entries: a guide is found by its task, and a
+ * task reads as one line.
+ */
+import { getCollection } from "astro:content";
+import Docs from "../../../layouts/Docs.astro";
+import { guideHref, guidesIndexJsonLd, ordered } from "../../../lib/guides";
+
+const guides = ordered(await getCollection("guides"));
+const site = Astro.site ?? new URL("https://micaforge.com");
+
+const title = "Guides: step-by-step tasks";
+const description =
+  "Step-by-step guides for Micaforge: track ChatGPT traffic, see and block AI crawlers, add analytics to Astro, Docusaurus and GitHub Pages.";
+const jsonLd = guidesIndexJsonLd(site, guides, title, description);
+---
+
+<Docs
+  title={`${title} · Micaforge`}
+  description={description}
+  section="docs"
+  current="guides"
+  heading="Guides"
+  standfirst="Each guide does one job with Micaforge, from the first step to the result on your dashboard. The steps use the dashboard, the tracker and the API as they work today. For every option and limit, follow the links to the documentation."
+  rail={false}
+  prose={false}
+>
+  <script slot="head" type="application/ld+json" is:inline set:html={JSON.stringify(jsonLd)} />
+  <ul class="doc-posts">
+    {
+      guides.map((g) => (
+        <li class="doc-posts__item">
+          <a class="doc-posts__link doc-posts__link--plain" href={guideHref(g.id)}>
+            <div>
+              <h2 class="doc-posts__title">{g.data.title}</h2>
+              <p class="doc-posts__sub">{g.data.description}</p>
+            </div>
+          </a>
+        </li>
+      ))
+    }
+  </ul>
+</Docs>

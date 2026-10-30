@@ -1,0 +1,185 @@
+---
+title: "How to add analytics to an Astro site"
+nav: "Astro"
+description: "Add cookieless Micaforge analytics to an Astro site: one tag in the layout, page changes with view transitions, events, 404s and AI crawlers."
+order: 9
+updated: 2026-10-30
+related: ["track-ai-crawlers-cloudflare", "track-form-submissions", "find-404-pages", "exclude-your-own-visits"]
+cta:
+  text: "Add one tag to your Astro layout, and Micaforge counts from your next deploy."
+  label: "Create a free account"
+  href: "/app/"
+---
+
+Astro sends HTML with little or no JavaScript, and analytics should not change that. The
+Micaforge tracker is one script under 3 KB gzipped, with no cookies and no dependencies.
+Here you add it to an Astro layout, keep page changes counted with view transitions, send
+events from components, and record the AI crawlers that read your pages. You need an
+Astro project and a Micaforge site.
+
+## 1. Get your script tag
+
+Sign in at [micaforge.com/app](/app/) with your email address, and enter the six-digit
+code Micaforge sends you. Choose **Add a site**, enter your domain, and choose **Add the
+site**. Then open **Settings**, **Tracking setup**. The **Script tag** panel has the tag
+with your site id:
+
+```html
+<script defer data-site="1" src="https://api.micaforge.com/mf.js"></script>
+```
+
+On a self-hosted install, the address is your own Micaforge host.
+
+## 2. Add the tag to your layout
+
+Put the tag in the `<head>` of the layout that every page uses, often
+`src/layouts/Layout.astro`, with the `is:inline` directive:
+
+```astro
+---
+// src/layouts/Layout.astro
+const { title } = Astro.props;
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>{title}</title>
+    <script is:inline defer data-site="1" src="https://api.micaforge.com/mf.js"></script>
+  </head>
+  <body>
+    <slot />
+  </body>
+</html>
+```
+
+`is:inline` tells Astro to leave the tag as you wrote it. Astro does not bundle a script
+that has attributes other than `src` anyway, and the directive makes that explicit.
+
+If some pages do not use the layout, add the same tag to their `<head>`. Each page needs
+it once.
+
+### In a Starlight docs site
+
+Starlight writes the `<head>` for you, so add the tag through its `head` option in
+`astro.config.mjs`:
+
+```js
+// astro.config.mjs
+import { defineConfig } from "astro/config";
+import starlight from "@astrojs/starlight";
+
+export default defineConfig({
+  integrations: [
+    starlight({
+      title: "My docs",
+      head: [
+        {
+          tag: "script",
+          attrs: {
+            src: "https://api.micaforge.com/mf.js",
+            "data-site": "1",
+            defer: true,
+          },
+        },
+      ],
+    }),
+  ],
+});
+```
+
+Starlight adds the tag to every page it builds. Other tracker options go in `attrs` the
+same way, for example `"data-404": true`.
+
+## 3. Keep page changes counted with view transitions
+
+With `<ClientRouter />`, Astro changes pages without a full load. The router calls
+`history.pushState`, and the tracker follows `pushState`, `replaceState` and the back
+button, so each page change sends a pageview. You need no extra code.
+
+Do not add `data-astro-rerun` to the tag. If Astro runs the script again, the tracker sees
+that it is already running and does not start twice.
+
+## 4. Send events from components
+
+The tracker publishes `window.micaforge`. Call it from a component script:
+
+```astro
+---
+// src/components/SignupButton.astro
+---
+
+<button id="signup" type="button">Start free</button>
+
+<script>
+  document.getElementById("signup")?.addEventListener("click", () => {
+    window.micaforge?.track("signup_click", { placement: "hero" });
+  });
+</script>
+```
+
+For TypeScript, declare the global once, for example in `src/env.d.ts`:
+
+```ts
+interface Window {
+  micaforge?: {
+    track(name: string, props?: Record<string, unknown>): void;
+    pageview(): void;
+  };
+}
+```
+
+For a click without any script, add `data-tags` to the tracker tag and `data-track` to the
+element: `<a href="/pricing" data-track="pricing_click">`. To count a form only when it
+succeeds, follow [how to track form submissions](/docs/guides/track-form-submissions/).
+
+## 5. Mark your 404 page
+
+Astro builds `src/pages/404.astro` as the not-found page. Add the `data-mf-404` attribute
+to it, and `data-404` to the tracker tag:
+
+```astro
+---
+// src/pages/404.astro
+import Layout from "../layouts/Layout.astro";
+---
+
+<Layout title="Not found">
+  <h1 data-mf-404>Page not found</h1>
+</Layout>
+```
+
+Each visit to a missing URL then shows on the **Errors** screen as a `404`, with the path.
+[How to find broken links and 404 pages](/docs/guides/find-404-pages/) covers the rest.
+
+## 6. Record AI crawlers
+
+AI crawlers do not run JavaScript, so the tag above never sees them. How you record them
+depends on where the site is served:
+
+| Astro output and host | Use |
+| --- | --- |
+| Static or server output on Cloudflare Pages | The Pages middleware in [how to track AI crawlers on Cloudflare](/docs/guides/track-ai-crawlers-cloudflare/). For Astro, exclude `/_astro/*` in `_routes.json`. |
+| Any output on Vercel | A [Vercel log drain](/docs/agents/vercel-log-drains) |
+| Static files behind nginx, Apache or Caddy, or the Node adapter behind a proxy | The log shipper in [how to see which AI crawlers visit your website](/docs/guides/see-ai-crawlers/) |
+
+For Cloudflare Pages, put `_routes.json` in `public/`: Astro copies that folder to the
+build output.
+
+## 7. Deploy and check
+
+The tracker sends nothing from `localhost`, so `astro dev` does not count. Deploy, open
+your live site, and open **Realtime** in Micaforge. Your visit shows there. The status
+line on **Tracking setup** changes to **This site is live**.
+
+## Common problems
+
+| What you see | Cause and fix |
+| --- | --- |
+| Nothing arrives from `astro dev` or `astro preview` | Both run on `localhost`, where the tracker is silent. Add `data-debug` to the tag while you test, and remove it before you deploy. |
+| Nothing arrives from the live site | View the page source and check that the tag is in `<head>` with your site id. Then follow [verify it works](/docs/getting-started/verify-it-works). |
+| The browser console reports a Content Security Policy error | Allow `https://api.micaforge.com` in `script-src` and in `connect-src`. |
+| Page changes after the first do not count | The router does not use the History API, or the tag has `data-spa="false"`. Remove the attribute. |
+| `window.micaforge` has a type error | Add the `Window` declaration from step 4. |
+
+Every attribute the tag accepts is in [the script tag](/docs/getting-started/script-tag).

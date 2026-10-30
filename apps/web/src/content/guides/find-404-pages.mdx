@@ -1,0 +1,163 @@
+---
+title: "How to find broken links and 404 pages"
+seoTitle: "How to find broken links and 404 pages"
+nav: "Find 404 pages"
+description: "Record every visit that lands on your 404 page, list the missing URLs people and AI crawlers ask for, and redirect the ones that matter."
+order: 7
+updated: 2026-10-30
+related: ["see-ai-crawlers", "track-chatgpt-traffic", "track-form-submissions"]
+cta:
+  text: "Mark your 404 page once and Micaforge lists every missing URL your visitors and crawlers ask for."
+  label: "Create a free account"
+  href: "/app/"
+---
+
+A broken link costs you the visitor who followed it. The link may sit on another site, in
+an old email, or in an AI answer that cites a URL your site never had. Here you mark your
+404 page so that Micaforge records each miss, list the missing URLs, check which ones AI
+crawlers ask for, and redirect the ones worth keeping. You need a Micaforge site with the
+script tag on your pages.
+
+## 1. Mark the page your server shows for a miss
+
+A 404 page is an ordinary page to a script, so the tracker cannot know the page is a miss
+until you tell it. Put the `data-mf-404` attribute on any element of that page. The
+`body` is the usual place:
+
+```html
+<!-- 404.html -->
+<body data-mf-404>
+  <h1>Page not found</h1>
+  <p><a href="/">Go to the home page</a></p>
+</body>
+```
+
+In an Astro site, `src/pages/404.astro` is the page; put the attribute on its `body` or
+on an element inside it. In a Jekyll site, including GitHub Pages, it is `404.html` at the
+root. In other frameworks, use the template your server returns with status `404`.
+
+The page must load the same script tag as the rest of your site.
+
+## 2. Turn on 404 capture
+
+Add `data-404` to the script tag:
+
+```html
+<script defer data-site="1" data-404 src="https://api.micaforge.com/mf.js"></script>
+```
+
+Or in the dashboard: open **Settings**, **Tracking setup**, tick **Not-found pages** under
+**What the tracker captures**, choose **Save capture options**, and copy the script tag
+again. The boxes on that screen are attributes on the tag, so a saved box does nothing
+until the new tag is on your pages.
+
+With `data-404` set, the tracker loads a small plugin. When the page has the marker, it
+sends one `error` event named `404` for the page's address. The pageview is sent as well,
+so the visit still counts.
+
+<aside class="doc-annot">
+
+The plugin reads the marker once, when it loads. A single-page app that draws its
+not-found view after a client-side navigation does not send a `404`. A broken link from
+another site always loads the page in full, so those are recorded.
+
+</aside>
+
+## 3. List the missing URLs
+
+Open **Errors** in the left navigation, under Health. Misses appear as one row named
+`404`, with the occurrences, the visitors and when it was first and last seen.
+
+Select the row. The panel **Where it fired** lists each missing path with its count. That
+is your list of broken links, busiest first. **Sessions where it happened** lists the
+visits. Open one to see its channel, source and referrer: that tells you whether the bad
+link sits on another site, in a campaign, or in an AI answer.
+
+The same list from the API, with a key that has **Read analytics**:
+
+```python
+import os, requests
+
+API = "https://api.micaforge.com/api/stats/errors"
+headers = {"Authorization": f"Bearer {os.environ['MICAFORGE_API_KEY']}"}
+window = {"site": 1, "range": "30d"}
+
+groups = requests.get(API, headers=headers, params=window).json()["data"]["rows"]
+missing = next((g for g in groups if g["name"] == "404"), None)
+if missing:
+    detail = requests.get(
+        API, headers=headers, params={**window, "fingerprint": missing["fingerprint"]}
+    ).json()["data"]
+    for page in detail["by_page"]:
+        print(page["count"], page["value"])
+```
+
+```js
+const API = "https://api.micaforge.com/api/stats/errors";
+const headers = { Authorization: `Bearer ${process.env.MICAFORGE_API_KEY}` };
+const query = "site=1&range=30d";
+
+const { data } = await (await fetch(`${API}?${query}`, { headers })).json();
+const missing = data.rows.find((g) => g.name === "404");
+if (missing) {
+  const detail = await (await fetch(`${API}?${query}&fingerprint=${missing.fingerprint}`, { headers })).json();
+  for (const page of detail.data.by_page) console.log(page.count, page.value);
+}
+```
+
+## 4. Find the 404s AI crawlers hit
+
+Crawlers do not run the script, so step 3 never sees them. If your server's crawls reach
+Micaforge, through the [log shipper](/docs/guides/see-ai-crawlers/) or the
+[Cloudflare middleware](/docs/guides/track-ai-crawlers-cloudflare/), each fetch carries
+its HTTP status.
+
+Open **AI crawlers**. In **Who fetched**, choose **Status**, then select the `404` row to
+filter the screen. Choose **Path** to list the missing paths, or **Crawler** to see which
+crawlers asked for them.
+
+From the API:
+
+```sh
+curl -G "https://api.micaforge.com/api/agents/breakdown" \
+  -H "Authorization: Bearer $MICAFORGE_API_KEY" \
+  --data-urlencode "site=1" \
+  --data-urlencode "range=30d" \
+  --data-urlencode "dimension=pathname" \
+  --data-urlencode 'filters=[{"dimension":"status","op":"is","value":404}]'
+```
+
+Each row has `key` (the path), `fetches`, `unique_paths`, `bytes`, `verified_pct` and
+`last_seen`.
+
+A crawler that keeps fetching a missing path found the link somewhere. If it is a page
+you moved, a redirect gives the crawler the new address.
+
+## 5. Redirect the URLs that matter
+
+For each missing path with real traffic, send a permanent redirect to the page that
+replaced it. Use the host's own redirect file or the server configuration:
+
+```text
+# Cloudflare Pages and Netlify: _redirects in the build output
+/old-pricing    /pricing     301
+/docs/setup     /docs/getting-started/installation    301
+```
+
+```nginx
+location = /old-pricing { return 301 /pricing; }
+```
+
+After the redirect is live, the path stops appearing in **Where it fired** for new visits.
+Old occurrences stay in the period you are looking at.
+
+## Common problems
+
+| What you see | Cause and fix |
+| --- | --- |
+| No `404` row on **Errors** | The tag has no `data-404`, the page has no `data-mf-404`, or the 404 page does not load the script tag. View the source of a missing URL on your site to check all three. |
+| Each miss counts as a normal page and nothing else | The marker is missing. Only a page with `data-mf-404` sends the `404` event. |
+| A known broken link does not appear | The visit was on `localhost`, where the tracker sends nothing, or it was a client-side navigation in a single-page app. |
+| **Status** shows no `404` on **AI crawlers** | No server-side crawls arrive yet, or your log format has no status field. The `combined` format has it. |
+
+The 404 marker and every other tracker attribute are in [the script tag](/docs/getting-started/script-tag).

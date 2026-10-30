@@ -1,0 +1,237 @@
+---
+title: "How to track form submissions"
+nav: "Track form submissions"
+description: "Count signups, contact requests and other form submissions as events and goals, see where people drop out, and never read a field value."
+order: 6
+updated: 2026-10-30
+related: ["track-utm-campaigns", "find-404-pages", "track-chatgpt-traffic"]
+cta:
+  text: "Send one event when a form succeeds and Micaforge counts it as a conversion on every screen."
+  label: "Create a free account"
+  href: "/app/"
+---
+
+A form submission is often the number that matters most: a signup, a demo request, a
+contact message. Here you send an event when a form succeeds, make it a goal, and find
+where people give up on the form. None of the methods read what a visitor typed. You need
+a Micaforge site with the script tag on your pages.
+
+## 1. Choose how to record the submission
+
+Micaforge has three ways to record a form:
+
+| Method | What it records | Shows on Events and Goals |
+| --- | --- | --- |
+| `micaforge.track()` after the form succeeds | A custom event that you name | Yes |
+| `data-track` on the submit button | A custom event on each click of the button | Yes |
+| `data-forms` on the script tag | A `form` event on each browser `submit`, named by the form's `id` or `name` | No |
+
+Use `track()` when you can. It fires only after your server accepted the form, so a
+failed or rejected submission does not count. `data-track` needs no JavaScript, but it
+counts clicks, including clicks on a form that then fails validation.
+
+<aside class="doc-annot" data-tone="gap">
+
+**Automatic form events do not reach the reports.** The events that `data-forms` sends
+show in **Live events** on the **Events** screen and as "Form submitted" in a session's
+timeline. The **Events** list, **Goals** and the Stats API count only custom events, so a
+`data-forms` submission cannot be a goal. To count a form as a conversion, send a custom
+event with `track()` or `data-track`.
+
+</aside>
+
+## 2. Send a custom event when the form succeeds
+
+Give the event a name for what happened, such as `signup` or `contact_sent`, and put
+details in properties. Keep personal data out of properties: they are stored exactly as
+sent.
+
+For a form you submit with `fetch`:
+
+```html
+<form id="signup">
+  <input name="email" type="email" required />
+  <select name="plan">
+    <option value="free">Free</option>
+    <option value="team">Team</option>
+  </select>
+  <button type="submit">Create account</button>
+</form>
+
+<script>
+  document.getElementById("signup").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const res = await fetch("/api/signup", { method: "POST", body: new FormData(form) });
+    if (res.ok) {
+      window.micaforge?.track("signup", { plan: form.elements.plan.value });
+    }
+  });
+</script>
+```
+
+The `plan` value is one of your own option values, not text the visitor typed.
+
+In React:
+
+```jsx
+async function onSubmit(event) {
+  event.preventDefault();
+  const data = new FormData(event.currentTarget);
+  const res = await fetch("/api/signup", { method: "POST", body: data });
+  if (res.ok) window.micaforge?.track("signup", { plan: data.get("plan") });
+}
+```
+
+The tracker loads with `defer`, so it may not exist yet when your code runs on a fast
+page. Put this queue snippet in the `<head>`, before the script tag, and calls made early
+are sent when the tracker arrives:
+
+```html
+<script>
+  window.micaforge =
+    window.micaforge ||
+    function () {
+      (window.micaforge.q ||= []).push(arguments);
+    };
+</script>
+```
+
+With the queue in place, `micaforge("event", "signup", { plan: "team" })` works before
+and after the tracker loads.
+
+For a form that posts to the server and reloads the page, send the event from the page
+the visitor lands on after success, or use a goal on that page's path in step 4.
+
+## 3. Or tag the button, with no JavaScript
+
+Add `data-tags` to the script tag, then `data-track` to the submit button:
+
+```html
+<script defer data-site="1" data-tags src="https://api.micaforge.com/mf.js"></script>
+
+<button type="submit" data-track="contact_click" data-track-form="contact">Send</button>
+```
+
+Each click sends a custom event named `contact_click` with the property
+`{ "form": "contact" }`. Name it as a click, because a click is what it counts.
+[Click tags](/docs/tracking/click-tags) has the rules.
+
+## 4. Make it a goal
+
+A goal turns the event into conversions and a conversion rate on every screen. Create it
+with the API, using a key that has **Change site configuration**. Issue the key from the
+account menu: **Your account**, **API keys**.
+
+```sh
+curl -X POST "https://api.micaforge.com/api/goals?site=1" \
+  -H "Authorization: Bearer $MICAFORGE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "name": "Signup",
+    "kind": "event",
+    "conditions": [{ "dimension": "event_name", "op": "is", "value": "signup" }]
+  }'
+```
+
+```python
+import os, requests
+
+res = requests.post(
+    "https://api.micaforge.com/api/goals",
+    headers={"Authorization": f"Bearer {os.environ['MICAFORGE_API_KEY']}"},
+    params={"site": 1},
+    json={
+        "name": "Signup, team plan",
+        "kind": "event",
+        "conditions": [
+            {"dimension": "event_name", "op": "is", "value": "signup"},
+            {"dimension": "props.plan", "op": "is", "value": "team"},
+        ],
+    },
+)
+res.raise_for_status()
+print(res.json()["data"]["id"])
+```
+
+| Field | Values |
+| --- | --- |
+| `kind` | `event` for a custom event, `path` for a page reached, also `outbound`, `file`, `revenue` |
+| `conditions` | Filters in the [filter shape](/docs/dashboard/filters-and-segments). All must match. |
+| `value_cents` | Optional. What one conversion is worth, in minor units. |
+
+If your form sends people to a thank-you page, a `path` goal needs no event:
+`"kind": "path"` with `[{ "dimension": "pathname", "op": "starts_with", "value": "/thanks" }]`.
+
+Open **Goals** to see conversions, and filter any screen by the goal to see the pages,
+sources and campaigns of the visits that converted. [Goals](/docs/dashboard/goals) has the
+five kinds.
+
+## 5. Find where people give up
+
+Two tools show the people who did not finish.
+
+A funnel shows the drop between steps. Create one with the form page as the first step
+and the event as the last. Each step has a `label` and `conditions` in the filter shape:
+
+```sh
+curl -X POST "https://api.micaforge.com/api/funnels?site=1" \
+  -H "Authorization: Bearer $MICAFORGE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "name": "Signup form",
+    "window_hours": 1,
+    "steps": [
+      { "label": "Opened the form", "conditions": [{ "dimension": "pathname", "op": "is", "value": "/signup" }] },
+      { "label": "Signed up", "conditions": [{ "dimension": "event_name", "op": "is", "value": "signup" }] }
+    ]
+  }'
+```
+
+The result is on **Funnels**. `window_hours` is how long a session has to go from the
+first step to the last, from 1 hour up.
+
+Abandoned forms show the field where people stopped. Add `data-frustration` to the script
+tag. When someone types into a form and then leaves the page without sending it, the
+tracker reports the form by its `id` or `name` and the last field touched by its `name`.
+Never the value. The reports are on the **Frustration** screen, under Behavior. See
+[frustration signals](/docs/tracking/frustration-signals).
+
+## 6. Read the counts from the API
+
+With a key that has **Read analytics** (account menu, **Your account**, **API keys**):
+
+```sh
+curl -G "https://api.micaforge.com/api/stats/events" \
+  -H "Authorization: Bearer $MICAFORGE_API_KEY" \
+  --data-urlencode "site=1" --data-urlencode "range=30d"
+```
+
+```python
+import os, requests
+
+res = requests.get(
+    "https://api.micaforge.com/api/stats/events",
+    headers={"Authorization": f"Bearer {os.environ['MICAFORGE_API_KEY']}"},
+    params={"site": 1, "range": "30d"},
+)
+for row in res.json()["data"]["rows"]:
+    print(row["name"], row["count"], row["visitors"])
+```
+
+Add `event=signup&properties=1` to break one event down by its properties.
+
+## Common problems
+
+| What you see | Cause and fix |
+| --- | --- |
+| The event never arrives | You are on `localhost`, where the tracker sends nothing. Test on the real site, or add `data-debug` to the script tag while you test. |
+| `micaforge is not defined` | Your code ran before the tracker loaded. Use `window.micaforge?.track(…)` or the queue snippet. |
+| The form submits but no event follows | The browser left the page before your code ran. Send the event from the next page, or use a path goal. |
+| Events count more than your database | You are using `data-track`, which counts clicks. Move to `track()` after success. |
+| The form shows in **Live events** but not in the list | It came from `data-forms`. Only custom events reach the list and goals. |
+| The goal call answers `403` | The key lacks **Change site configuration**, or it is limited to another site. |
+| The goal call answers `422` | The answer names the field. A condition must use `dimension`, `op` and `value`. |
+
+[Custom events](/docs/tracking/custom-events) covers names, properties and default
+properties in full.

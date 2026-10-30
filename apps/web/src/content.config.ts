@@ -1,9 +1,10 @@
 /**
  * Content collections.
  *
- * Three collections, three jobs: the manual (`docs`), the argument (`blog`) and the
- * record of what changed (`changelog`). All three are file-backed and static. There is
- * no CMS, no API call at build time, and nothing here reaches the network.
+ * Four collections, four jobs: the manual (`docs`), the task guides (`guides`), the
+ * argument (`blog`) and the record of what changed (`changelog`). All four are
+ * file-backed and static. There is no CMS, no API call at build time, and nothing here
+ * reaches the network.
  *
  * The schemas are deliberately strict. A page that forgets its `group` would silently
  * fall out of the index rather than fail the build, and a docs site that quietly loses a
@@ -75,4 +76,42 @@ const changelog = defineCollection({
   }),
 });
 
-export const collections = { docs, blog, changelog };
+/** What follows the page title in every `<title>`. */
+export const TITLE_SUFFIX = " · Micaforge";
+
+/**
+ * Task guides: one job per page, start to finish, at `/docs/guides/<id>/`.
+ *
+ * A guide links to the manual for the reference and never repeats it. The limits below are
+ * search limits rather than style: a `<title>` of 60 characters or more and a description
+ * of 155 or more are cut short in a results page.
+ */
+const guides = defineCollection({
+  loader: glob({ base: "./src/content/guides", pattern: "*.mdx" }),
+  schema: z
+    .object({
+      /** The H1: the task, as the reader would type it. */
+      title: z.string().max(80),
+      /** The `<title>` before the suffix, when the H1 is too long for one. */
+      seoTitle: z.string().optional(),
+      /** The left index's label. Short enough for one line. */
+      nav: z.string().max(34),
+      /** The meta description, and the line under the title in the guide list. */
+      description: z.string().max(154),
+      /** Position in the list, and in previous and next. */
+      order: z.number().int(),
+      /** When the guide was last checked against the code and the live product. */
+      updated: z.coerce.date(),
+      /** Ids of two to four other guides. A wrong id fails the build. */
+      related: z.array(z.string()).min(2).max(4),
+      /** The closing line: a sentence, then one link. */
+      cta: z.object({ text: z.string(), label: z.string(), href: z.string() }),
+      draft: z.boolean().default(false),
+    })
+    .refine((g) => (g.seoTitle ?? g.title).length + TITLE_SUFFIX.length < 60, {
+      message: "the <title> must be under 60 characters: set or shorten seoTitle",
+      path: ["seoTitle"],
+    }),
+});
+
+export const collections = { docs, blog, changelog, guides };

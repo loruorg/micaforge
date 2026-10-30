@@ -881,3 +881,18 @@
      less of it gets none, and loses nothing, because it carries no content. */
   .doc-bar__pen { display: none; }
 }
+
+/* ── the task guides ─────────────────────────────────────────────────────── */
+
+.doc-register__name a { text-decoration: none; }
+.doc-register__name a:hover { text-decoration: underline; text-underline-offset: 4px; }
+
+/* The guide list is the post register without its date column. */
+.doc-posts__link--plain { grid-template-columns: minmax(0, 1fr); }
+
+/* The closing line of a guide sits below a hairline, apart from the related list. */
+.doc-prose .doc-guide-cta {
+  margin-top: var(--mf-10);
+  padding-top: var(--mf-6);
+  border-top: 1px solid var(--mf-rule);
+}

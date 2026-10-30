@@ -1,0 +1,239 @@
+---
+title: "How to track AI crawlers on Cloudflare Pages and Workers"
+seoTitle: "How to track AI crawlers on Cloudflare Pages"
+nav: "AI crawlers on Cloudflare"
+description: "Report GPTBot, ClaudeBot and other AI crawler fetches from a Cloudflare Pages middleware or a Worker, with no access log and no npm package."
+order: 3
+updated: 2026-10-30
+related: ["see-ai-crawlers", "block-ai-crawlers", "astro-analytics"]
+cta:
+  text: "Add the middleware once and every AI crawl of your Cloudflare site shows up next to your visitors."
+  label: "Create a free account"
+  href: "/app/"
+---
+
+A site on Cloudflare Pages keeps no access log you can read, and AI crawlers never run your
+analytics script. The one place a crawl is visible is the request itself. Here you add a
+small Pages middleware that reports each AI crawler fetch to Micaforge after the response
+has gone out, and the same code as a Worker for a site on any other origin. You need a
+Micaforge site and a Cloudflare account with the site's project or domain in it.
+
+The middleware has no dependencies. It signs with Web Crypto, so it needs no
+`nodejs_compat` flag. micaforge.com reports its own crawlers this way.
+
+## 1. Copy the site id and the ingest key
+
+In Micaforge, open **Settings**, then **Tracking setup**. The site id is the `data-site`
+value in the script tag. In the panel **Track AI crawlers**, choose **Show the key** and
+copy the ingest key.
+
+The ingest key can write events to your site. Keep it in a Cloudflare secret, never in
+your repository or in a file the browser can load.
+
+## 2. Add the two variables to the Pages project
+
+In the Cloudflare dashboard, open **Workers & Pages**, select the project, then
+**Settings**, **Variables and Secrets**. Choose **Add** twice:
+
+| Name | Type | Value |
+| --- | --- | --- |
+| `MICAFORGE_SITE_ID` | Text | Your site id, for example `1` |
+| `MICAFORGE_INGEST_KEY` | Secret (select **Encrypt**) | The ingest key |
+
+Set them for the production environment. A preview deployment serves a `*.pages.dev`
+address that is not your site's domain, and Micaforge rejects hits from a host that is not
+the site's.
+
+Variables apply to the next deployment, so add them before you deploy the middleware.
+
+## 3. Add the middleware
+
+Create `functions/_middleware.js` in the project's root directory, beside your build
+configuration and outside the build output. A `_middleware.js` at the root of
+`functions/` runs in front of every request, static files included.
+
+```js
+// functions/_middleware.js
+// Reports AI crawler fetches to Micaforge. The visitor's response never waits for it.
+const ENDPOINT = "https://api.micaforge.com/api/log/edge";
+
+// Product tokens from Micaforge's agent catalog. Other requests are not sent:
+// the script tag already counts people.
+const AGENTS = new RegExp(
+  [
+    "GPTBot", "OAI-SearchBot", "ChatGPT-User", "ClaudeBot", "Claude-User",
+    "Claude-SearchBot", "anthropic-ai", "Claude-Web", "PerplexityBot",
+    "Perplexity-User", "Googlebot", "GoogleOther", "Google-CloudVertexBot",
+    "Google-InspectionTool", "bingbot", "BingPreview", "msnbot",
+    "meta-externalagent", "meta-externalfetcher", "FacebookBot",
+    "facebookexternalhit", "Applebot", "Amazonbot", "Bytespider", "CCBot",
+    "cohere-training-data-crawler", "cohere-ai", "MistralAI-User", "YouBot",
+    "DuckAssistBot", "DuckDuckBot", "AI2Bot", "Diffbot", "omgili", "Timpibot",
+    "PanguBot", "PetalBot", "Kangaroo Bot", "ImagesiftBot", "img2dataset",
+    "FirecrawlAgent", "SemrushBot", "AhrefsBot", "YandexBot", "Baiduspider",
+    "Twitterbot", "LinkedInBot", "Slackbot", "Discordbot", "TelegramBot",
+  ].join("|"),
+  "i",
+);
+
+export async function onRequest(context) {
+  const started = Date.now();
+  const response = await context.next();
+  context.waitUntil(report(context.request, context.env, response, started));
+  return response;
+}
+
+async function report(request, env, response, started) {
+  try {
+    const userAgent = request.headers.get("user-agent") || "";
+    if (!env.MICAFORGE_INGEST_KEY || !AGENTS.test(userAgent)) return;
+
+    const url = new URL(request.url);
+    const length = response.headers.get("content-length");
+    const row = {
+      timestamp: new Date().toISOString(),
+      user_agent: userAgent,
+      method: request.method,
+      hostname: url.hostname,
+      pathname: url.pathname,
+      querystring: url.search.slice(1) || undefined,
+      status: response.status,
+      bytes: length ? Number(length) : undefined,
+      duration_ms: Date.now() - started,
+      content_type: response.headers.get("content-type")?.split(";")[0] || undefined,
+      conditional: request.headers.has("if-none-match") || request.headers.has("if-modified-since") ? 1 : 0,
+      ip: request.headers.get("cf-connecting-ip") || undefined,
+    };
+
+    // Sign the exact bytes that are sent: HMAC-SHA256 over `${t}.${body}`.
+    const body = JSON.stringify({ site_id: Number(env.MICAFORGE_SITE_ID), agent_events: [row] });
+    const t = Math.floor(Date.now() / 1000);
+    const enc = new TextEncoder();
+    const key = await crypto.subtle.importKey(
+      "raw", enc.encode(env.MICAFORGE_INGEST_KEY), { name: "HMAC", hash: "SHA-256" }, false, ["sign"],
+    );
+    const mac = await crypto.subtle.sign("HMAC", key, enc.encode(`${t}.${body}`));
+    const v1 = [...new Uint8Array(mac)].map((b) => b.toString(16).padStart(2, "0")).join("");
+
+    await fetch(ENDPOINT, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-micaforge-signature": `t=${t},v1=${v1}` },
+      body,
+    });
+  } catch {
+    // A failed report must never break the page.
+  }
+}
+```
+
+What the code does:
+
+- It calls `context.next()` first, so the visitor gets the page with no delay.
+- It hands the report to `context.waitUntil()`, which keeps the function alive until the
+  send finishes.
+- It sends only requests whose user agent names a known crawler. Micaforge decides the
+  operator, the purpose and the verification on its side.
+- It sends `cf-connecting-ip`, the client address. Micaforge checks it against the
+  operator's published ranges and stores only a salted hash of it.
+
+On a self-hosted install, change `ENDPOINT` to `https://<your Micaforge host>/api/log/edge`.
+
+## 4. Keep the middleware off your static assets
+
+Once a Pages project has Functions, every request runs them by default. Each run counts
+as a Workers request, and the Workers Free plan allows 100,000 a day, reset at midnight
+UTC. Requests that run no Function are free.
+
+Crawlers read pages, so exclude the folders that hold scripts, styles, fonts and images.
+Put a `_routes.json` file in the build output directory. In most frameworks, a file in
+`public/` is copied there.
+
+```json
+{
+  "version": 1,
+  "include": ["/*"],
+  "exclude": ["/_astro/*", "/assets/*", "/fonts/*", "/images/*"]
+}
+```
+
+Change the folder names to the ones your build writes. `exclude` always wins over
+`include`. The file can hold at most 100 rules, of up to 100 characters each. Keep
+`robots.txt`, `llms.txt` and `sitemap.xml` included: crawlers fetch them, and Micaforge
+uses those fetches in its [robots.txt and llms.txt report](/docs/agents/robots-and-llms-txt).
+
+## 5. Deploy and send a test fetch
+
+Deploy the project. Then request a page with a crawler's user agent:
+
+```sh
+curl -s -o /dev/null -w "%{http_code}\n" \
+  -A "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; GPTBot/1.2; +https://openai.com/gptbot)" \
+  https://www.example.com/
+```
+
+Open **AI crawlers** in Micaforge. The test shows as a GPTBot fetch. It is not verified,
+because it came from your address and not from OpenAI's ranges. Real crawls arrive in the
+same place. [How to see which AI crawlers visit your website](/docs/guides/see-ai-crawlers/)
+explains each panel of that screen.
+
+## 6. On Workers instead of Pages
+
+A Worker can do the same job in front of any origin: a site on GitHub Pages, a server
+elsewhere, or a Worker's own static assets. The domain must be on Cloudflare with its DNS
+record proxied.
+
+Copy the `ENDPOINT`, `AGENTS` and `report` parts of the middleware into `src/index.js`,
+and replace `onRequest` with a `fetch` handler:
+
+```js
+export default {
+  async fetch(request, env, ctx) {
+    const started = Date.now();
+    // In front of an origin. For a Worker's own static assets, use env.ASSETS.fetch(request).
+    const response = await fetch(request);
+    ctx.waitUntil(report(request, env, response, started));
+    return response;
+  },
+};
+```
+
+Route the Worker to your domain and set the site id in `wrangler.jsonc`:
+
+```jsonc
+{
+  "name": "micaforge-crawlers",
+  "main": "src/index.js",
+  "compatibility_date": "2026-10-01",
+  "routes": [{ "pattern": "www.example.com/*", "zone_name": "example.com" }],
+  "vars": { "MICAFORGE_SITE_ID": "1" }
+}
+```
+
+Store the key as a secret and deploy:
+
+```sh
+npx wrangler secret put MICAFORGE_INGEST_KEY
+npx wrangler deploy
+```
+
+For a Worker that serves static assets, Cloudflare answers asset requests without running
+the Worker. Set `"run_worker_first": true` under `"assets"`, or a list of route patterns,
+so the Worker sees the pages crawlers fetch.
+
+## Common errors
+
+The middleware drops every error so that a page never breaks. To see what Micaforge
+answers, log the status for a while: change `await fetch(ENDPOINT, …)` to
+`const res = await fetch(ENDPOINT, …); console.log("micaforge", res.status, await res.text());`
+and read the function logs with `npx wrangler pages deployment tail --project-name <project>`.
+
+| Answer | Cause and fix |
+| --- | --- |
+| Nothing is logged | The function did not run. Check that `functions/` is in the project's root directory, and that `_routes.json` does not exclude the path. |
+| No request is sent | `MICAFORGE_INGEST_KEY` is not set for this environment, or it was added after the last deployment. Deploy again. |
+| `401`, "the signature did not verify for this site" | The key or the site id is wrong. Copy both again from **Tracking setup**. |
+| `202` with `"accepted":0,"rejected":1` | The row was refused: its host is not your site's domain or a subdomain of it, its path is excluded, or an ingest guard blocks the address. Add a host under **Settings**, **Ingest guards**, **Hostnames**. |
+| `429`, `rate_limited` | Too many batches for one site. The answer carries `Retry-After: 60`. |
+
+The middleware covers crawlers only. Put the [script tag](/docs/getting-started/script-tag)
+on your pages for people, and the two halves will not count the same request twice.

@@ -1,0 +1,149 @@
+---
+title: "How to add analytics to a Docusaurus site"
+nav: "Docusaurus"
+description: "Add cookieless Micaforge analytics to Docusaurus with one entry in docusaurus.config.js, then see which docs people read and which AI crawlers fetch."
+order: 10
+updated: 2026-10-30
+related: ["see-ai-crawlers", "track-chatgpt-traffic", "find-404-pages", "github-pages-analytics"]
+cta:
+  text: "One entry in docusaurus.config.js gives your docs pageviews, scroll depth and AI answer referrals, with no cookie banner."
+  label: "Create a free account"
+  href: "/app/"
+---
+
+Documentation is read by people and by AI crawlers that answer questions about your
+product. Here you add the Micaforge tracker to a Docusaurus site with one entry
+in its configuration, check that client-side page changes count, see which pages people
+read to the end, and record the crawlers. You need a Docusaurus site and a Micaforge
+site. The tracker sets no cookie, so it needs no consent banner of its own.
+
+## 1. Get your site id
+
+Sign in at [micaforge.com/app](/app/) with your email address and the six-digit code
+Micaforge sends you. Choose **Add a site**, enter the domain of your docs, and choose
+**Add the site**. Open **Settings**, **Tracking setup**: the **Script tag** panel shows
+the tag, and its `data-site` value is your site id.
+
+## 2. Add the tracker to docusaurus.config.js
+
+Docusaurus adds each entry of the `scripts` array to the `<head>` of every page, with the
+attributes you give it. Add the tracker there:
+
+```js
+// docusaurus.config.js
+export default {
+  title: "My docs",
+  url: "https://docs.example.com",
+  // ...the rest of your configuration
+  scripts: [
+    {
+      src: "https://api.micaforge.com/mf.js",
+      defer: true,
+      "data-site": "1",
+    },
+  ],
+};
+```
+
+`defer: true` keeps the script from blocking the page. If your configuration uses
+`module.exports` or a `docusaurus.config.ts` file, add the same `scripts` entry there.
+Replace `1` with your site id. On a self-hosted install, use your own Micaforge host in
+`src`.
+
+To set any other tracker option, add it as another attribute in the same object, for
+example `"data-404": true` or `"data-tags": true`. [The script tag](/docs/getting-started/script-tag)
+lists them all.
+
+## 3. Check that page changes count
+
+After the first load, Docusaurus changes pages in the browser with the History API. The
+tracker follows `pushState`, `replaceState` and the back button, so each page a reader
+opens is a pageview.
+
+A link to a heading on the same page, such as `#installation`, is not a new pageview,
+because the tracker leaves the hash out of the page address. That keeps one row per page
+on the **Pages** screen.
+
+Build and serve the site, then open it from its real domain. The tracker sends nothing
+from `localhost`, so `npm run start` and `npm run serve` on your machine do not count. To
+test locally, add `"data-debug": true` to the entry, and remove it before you deploy.
+
+## 4. See which docs people read
+
+Open **Pages** in Micaforge. For each page it shows the visitors and how far down people
+scrolled, so a long guide that most readers leave at the top stands out. **Entry pages**
+shows where visits start, which for docs is usually a search result or an AI answer.
+**Page titles** groups the same traffic by title.
+
+Open **Sources** to see how readers find the docs. Search, Social and **AI answers** are
+separate channels. [How to track traffic from ChatGPT](/docs/guides/track-chatgpt-traffic/)
+shows which pages the assistants send people to.
+
+To see the words people searched on Google before they arrived, connect
+[Google Search Console](/docs/integrations/google-search-console).
+
+## 5. Count clicks without code
+
+For a download button or a link to your app, add `"data-tags": true` to the script entry
+and a `data-track` attribute to the link. MDX passes the attribute through:
+
+```mdx
+<a href="https://github.com/example/cli/releases" data-track="cli_download" data-track-os="linux">
+  Download the CLI
+</a>
+```
+
+Each click sends a custom event named `cli_download` with the property `os`. It shows on
+the **Events** screen. The tracker already reports clicks on links that leave the site,
+and on file links such as `.zip` or `.dmg`, with no attribute.
+
+## 6. Mark the 404 page
+
+Docusaurus builds its not-found page from the theme's `NotFound` component, which you can
+wrap. Run:
+
+```sh
+npm run swizzle @docusaurus/theme-classic NotFound -- --wrap
+```
+
+Then put the marker around it in the generated `src/theme/NotFound/index.js`:
+
+```jsx
+import NotFound from "@theme-original/NotFound";
+
+export default function NotFoundWrapper(props) {
+  return (
+    <div data-mf-404>
+      <NotFound {...props} />
+    </div>
+  );
+}
+```
+
+Add `"data-404": true` to the script entry. A visitor who follows a broken link from
+another site then shows on the **Errors** screen as a `404` with the missing path. A
+broken link between two of your own pages opens the not-found view in the browser without
+a page load, and the tracker does not see it. Docusaurus reports broken internal links at
+build time, so fix those there. [How to find broken links and 404 pages](/docs/guides/find-404-pages/)
+has the rest.
+
+## 7. Record AI crawlers
+
+AI crawlers never run the tracker. Record them on the server side,
+by host:
+
+| Host | Use |
+| --- | --- |
+| Cloudflare Pages | The middleware in [how to track AI crawlers on Cloudflare](/docs/guides/track-ai-crawlers-cloudflare/). Put `_routes.json` in `static/`, which Docusaurus copies to the build output, and exclude `/assets/*`. |
+| Vercel | A [Vercel log drain](/docs/agents/vercel-log-drains) |
+| Your own server | The log shipper in [how to see which AI crawlers visit your website](/docs/guides/see-ai-crawlers/) |
+| GitHub Pages | No access log. See [GitHub Pages](/docs/guides/github-pages-analytics/) for the workaround. |
+
+## Common problems
+
+| What you see | Cause and fix |
+| --- | --- |
+| Nothing arrives | Open the live page source and look for `mf.js` with your `data-site` in `<head>`. If it is there, follow [verify it works](/docs/getting-started/verify-it-works). |
+| Only the first page of a visit counts | The entry has `"data-spa": "false"`, or a plugin replaced the router. Remove the attribute. |
+| The build fails after the swizzle | The wrapper must import from `@theme-original/NotFound`, not from `@theme/NotFound`. |
+| A Content Security Policy error in the console | Allow `https://api.micaforge.com` in `script-src` and `connect-src`. |

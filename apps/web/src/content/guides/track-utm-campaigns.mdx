@@ -1,0 +1,175 @@
+---
+title: "How to track UTM campaigns"
+nav: "Track UTM campaigns"
+description: "Tag links with UTM parameters, file each campaign under the right channel, and compare campaigns by visitors and conversions in Micaforge."
+order: 5
+updated: 2026-10-30
+related: ["track-chatgpt-traffic", "track-form-submissions", "exclude-your-own-visits"]
+cta:
+  text: "Tag one link, share it, and the campaign shows up in Micaforge with its visitors and conversions."
+  label: "Create a free account"
+  href: "/app/"
+---
+
+UTM parameters tell your analytics where a click came from when the referrer cannot: a
+newsletter, a slide deck, a podcast note or a paid post. Here you tag links so that
+Micaforge files each one under the channel you mean, then compare campaigns by visitors
+and conversions. You need a Micaforge site with the script tag on your pages. Nothing
+else: Micaforge reads the parameters from the page address.
+
+## 1. Tag the link
+
+Add the parameters to the address people will open:
+
+```text
+https://www.example.com/pricing?utm_source=newsletter&utm_medium=email&utm_campaign=october-launch
+```
+
+| Parameter | What it records | Example |
+| --- | --- | --- |
+| `utm_source` | Who sent the visit | `newsletter`, `hn`, `partner-blog` |
+| `utm_medium` | The kind of link, which sets the channel | `email`, `social`, `cpc` |
+| `utm_campaign` | The campaign it belongs to | `october-launch` |
+| `utm_term` | A keyword, usually for paid search | `cookieless-analytics` |
+| `utm_content` | Which link inside the same message | `header-button` |
+
+Micaforge stores the values as you write them, so `Newsletter` and `newsletter` are two
+rows. Pick lowercase and keep to it.
+
+If a link has `ref` or `source` and no `utm_source`, Micaforge uses that value as the
+source. An explicit `utm_source` always wins.
+
+Micaforge removes these parameters from the stored query string, so a tagged link does
+not split one page into many rows on **Pages**.
+
+## 2. Choose the medium that matches the channel
+
+Micaforge puts each visit in one channel. An explicit `utm_medium` decides it before
+anything else, including the referrer:
+
+| `utm_medium` | Channel |
+| --- | --- |
+| `email`, `e-mail`, `newsletter`, `mail` | Email |
+| `social`, `social-media`, `social_media`, `sm` | Social |
+| `cpc`, `ppc`, `paid`, `cpm`, `display`, `retargeting`, `paid-social` | Paid |
+| `organic`, `search`, `organic-search` | Search |
+| `ai`, `llm`, `genai`, `answer_engine` | AI answers |
+| `referral`, `affiliate`, `link` | Referral |
+
+A medium that is not in this table does not set a channel. The visit then falls through
+to the referrer: a known search engine, social network or AI assistant, or Referral for
+any other site.
+
+A link with no referrer and no medium, but with a `utm_source`, goes to **Referral** with
+that source, so a tagged link never vanishes into Direct. A link with an ad click id such
+as `gclid`, `fbclid` or `msclkid` goes to **Paid**, unless its `utm_medium` is one of the
+values above.
+
+## 3. Keep the parameters on the page
+
+The tracker sends the full page address with the first pageview, and the server reads the
+parameters from it. Two things can remove them first:
+
+- A redirect that drops the query string. If `/pricing?utm_source=…` redirects to
+  `/pricing/`, the parameters must go with it. Test the link with `curl -sI` and read the
+  `location` header.
+- The `data-strip-query` attribute on its own removes the whole query string, UTM
+  parameters included. To hide only private parameters, give it a list:
+
+```html
+<script
+  defer
+  data-site="1"
+  data-strip-query="token,email"
+  src="https://api.micaforge.com/mf.js"
+></script>
+```
+
+[Sampling and masking](/docs/tracking/sampling-and-masking) has the other privacy
+attributes.
+
+## 4. Compare campaigns on the Sources screen
+
+Open **Sources**. The panel **Campaigns** groups visits by one parameter at a time. Choose
+**Campaign**, **Source**, **Medium**, **Term** or **Content** above the table.
+
+Select a row to filter every screen by that tag. With `utm_campaign` set to
+`october-launch`, **Pages** shows where those visitors went, **Locations** where they
+were, and **Goals** how many converted.
+
+## 5. Count conversions per campaign
+
+Define a goal for the action the campaign is for, such as a
+signup page or a `signup` event:
+[how to track form submissions](/docs/guides/track-form-submissions/) shows how. Then open
+**Goals** with the campaign filter on.
+
+To compare campaigns in a script, read the Stats API with a key that has **Read
+analytics**. Create one from the account menu: **Your account**, **API keys**,
+**Issue the key**.
+
+Visitors per campaign, for email links in the last 30 days:
+
+```sh
+curl -G "https://api.micaforge.com/api/stats/breakdown" \
+  -H "Authorization: Bearer $MICAFORGE_API_KEY" \
+  --data-urlencode "site=1" \
+  --data-urlencode "range=30d" \
+  --data-urlencode "dimension=utm_campaign" \
+  --data-urlencode 'filters=[{"dimension":"utm_medium","op":"is","value":"email"}]'
+```
+
+Conversions for one campaign, per goal:
+
+```js
+const params = new URLSearchParams({
+  site: "1",
+  range: "30d",
+  filters: JSON.stringify([{ dimension: "utm_campaign", op: "is", value: "october-launch" }]),
+});
+const res = await fetch(`https://api.micaforge.com/api/stats/goals?${params}`, {
+  headers: { Authorization: `Bearer ${process.env.MICAFORGE_API_KEY}` },
+});
+const { data } = await res.json();
+for (const goal of data.goals) console.log(goal.name, goal.conversions, goal.rate);
+```
+
+```python
+import json, os, requests
+
+res = requests.get(
+    "https://api.micaforge.com/api/stats/goals",
+    headers={"Authorization": f"Bearer {os.environ['MICAFORGE_API_KEY']}"},
+    params={
+        "site": 1,
+        "range": "30d",
+        "filters": json.dumps([{"dimension": "utm_campaign", "op": "is", "value": "october-launch"}]),
+    },
+)
+res.raise_for_status()
+for goal in res.json()["data"]["goals"]:
+    print(goal["name"], goal["conversions"], goal["rate"])
+```
+
+`rate` is converting visitors as a percentage of all visitors that match the filter. The
+breakdown rows carry `key`, `label`, `visitors`, `sessions` and `pageviews`.
+
+## 6. Build tagged links in the dashboard
+
+**Links** in the left navigation makes short links with the UTM fields filled in. It
+appends the parameters to the target address, replaces a `utm_*` parameter the target
+already had, and counts clicks without storing an address. See
+[short links](/docs/dashboard/short-links).
+
+## Common problems
+
+| What you see | Cause and fix |
+| --- | --- |
+| The campaign is missing from **Campaigns** | The parameters did not reach the page. Check redirects and `data-strip-query` (step 3). |
+| A campaign appears twice | The values differ in case or spelling. Fix the links; old visits keep the old value. |
+| Email visits show under Referral | `utm_medium` is missing or not in the table in step 2. Use `email`. |
+| The API answers `422` with `"field": "dimension"` | The dimension name is wrong. Use `utm_campaign`, `utm_source`, `utm_medium`, `utm_term` or `utm_content`. |
+| The API answers `403` | The key lacks **Read analytics**, or it is limited to another site. |
+
+Every dimension you can filter on, and the operators, are in
+[filters and segments](/docs/dashboard/filters-and-segments).

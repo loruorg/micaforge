@@ -1,0 +1,203 @@
+---
+title: "How to track traffic from ChatGPT and other AI assistants"
+seoTitle: "How to track traffic from ChatGPT"
+nav: "Track ChatGPT traffic"
+description: "See how many visitors ChatGPT, Perplexity, Claude and Gemini send you, which pages they land on, and whether they convert."
+order: 1
+updated: 2026-10-30
+related: ["see-ai-crawlers", "track-utm-campaigns", "block-ai-crawlers"]
+cta:
+  text: "Micaforge is free while it is in beta, and the AI answers channel is on from the first pageview."
+  label: "Create a free account"
+  href: "/app/"
+---
+
+When someone clicks a link inside an AI answer, your site gets a visitor from ChatGPT,
+Perplexity, Claude or a similar assistant. Micaforge files those visits under their own
+channel, **AI answers**, next to Search and Social. You will see how many visitors each
+assistant sends, which pages they land on, and how they convert. You need a Micaforge site
+with the tracker on your pages.
+
+## 1. Put the tracker on your pages
+
+Skip this step if the tracker already runs on your site.
+
+Sign in at [micaforge.com/app](/app/) with your email address. Micaforge sends you a
+six-digit code, and there is no password. Choose **Add a site**, enter the domain, and
+choose **Add the site**. Then open **Settings**, **Tracking setup**, and copy the script tag.
+It looks like this, with your own site id:
+
+```html
+<script defer data-site="1" src="https://api.micaforge.com/mf.js"></script>
+```
+
+Paste it into the `<head>` of every page. On a self-hosted install, the host is your own
+server instead of `api.micaforge.com`. The [installation page](/docs/getting-started/installation)
+has the details.
+
+The tracker sends the page's referrer with each pageview. That referrer is what tells
+Micaforge a visit came from an assistant, so do not strip it.
+
+## 2. Open the AI answers channel
+
+Open **Sources** in the left navigation. The figures at the top include **From answer
+engines** and **Answer-engine share**: the visitors that AI answers sent you, and their
+share of all visitors in the period.
+
+The table under the figures lists every channel. Select **AI answers**. The panel below
+changes to **Sources in AI answers** and lists each assistant by name.
+
+Micaforge attributes a visit to an assistant when the referrer host is one of these:
+
+| Assistant | Referrer hosts |
+| --- | --- |
+| ChatGPT | `chatgpt.com`, `chat.openai.com` |
+| Perplexity | `perplexity.ai`, `perplexity.com` |
+| Claude | `claude.ai`, `claude.com` |
+| Gemini | `gemini.google.com`, `bard.google.com` |
+| Microsoft Copilot | `copilot.microsoft.com` |
+| Grok | `grok.com`, `x.ai` |
+| DeepSeek | `chat.deepseek.com`, `deepseek.com` |
+| Meta AI | `meta.ai` |
+| Le Chat | `chat.mistral.ai` |
+| You.com, Phind, Poe | `you.com`, `phind.com`, `poe.com` |
+
+Subdomains count too, so `www.perplexity.ai` is Perplexity.
+
+<aside class="doc-annot" data-tone="gap">
+
+**Some AI traffic cannot be told apart.** A click on a link in a Google AI Overview arrives
+with `google.com` as the referrer, the same as an ordinary search click, so it is counted
+under Search. DuckDuckGo's AI chat, HuggingChat and Kagi Assistant share a host with a
+search page or a hub, and browsers usually send only the host, so Micaforge does not
+count them by host. Micaforge does not guess at either case.
+
+</aside>
+
+## 3. Find ChatGPT visits that arrived without a referrer
+
+ChatGPT adds `utm_source=chatgpt.com` to the links in its search answers. Most of those
+clicks also carry a `chatgpt.com` referrer and land in AI answers. Some arrive with the
+parameter and no referrer.
+
+Micaforge files a visit with a `utm_source` and no referrer under **Referral**, with the
+`utm_source` value as the source. Those ChatGPT visits are in **Referral**, as source
+`chatgpt.com`. To see them, select **Referral** in the channel table and look for
+`chatgpt.com` in the sources list.
+
+To count both kinds together, filter on either condition. In the [Stats API](/docs/api/stats-api),
+this filter group matches a visit from any assistant, and a ChatGPT visit with only the
+parameter:
+
+```json
+{
+  "logic": "or",
+  "filters": [
+    { "dimension": "channel", "op": "is", "value": "answer_engine" },
+    { "dimension": "utm_source", "op": "is", "value": "chatgpt.com" }
+  ]
+}
+```
+
+If you tag your own links for an assistant (for example in a custom GPT), set
+`utm_medium=ai`. Micaforge reads `ai`, `llm`, `genai`, `answer_engine` and `answer-engine`
+in `utm_medium` as the AI answers channel, and an explicit `utm_medium` outranks the
+referrer.
+
+## 4. See which pages assistants send people to
+
+In **Sources in AI answers**, select an assistant, for example `chatgpt`. Micaforge adds it
+as a filter to every screen.
+
+Open **Pages** and choose **Entry pages**. The list now shows the pages where ChatGPT
+visitors started their visit. These are the pages an assistant cites and links to. Compare
+them with your top pages from search.
+
+To remove the filter, choose **Clear all filters** above the table.
+
+## 5. Check whether AI visitors convert
+
+Back on **Sources**, the panel **What each channel is worth** shows the conversion rate
+and the time on site for each channel. The vertical mark on each bar is the site average.
+A bar for AI answers that passes the mark converts better than your average visitor.
+
+The conversion rate needs at least one goal, for example a signup page or a custom event.
+[How to track form submissions](/docs/guides/track-form-submissions/) shows how to create
+one.
+
+## 6. Get the numbers from the API
+
+To put the figures in a report or a spreadsheet, read them from the Stats API. Open the
+account menu at the top right, choose **Your account**, then **API keys**. Enter a name,
+tick **Read analytics**, and choose **Issue the key**. Copy the key when it is shown: it is
+shown once.
+
+This call lists visitors by assistant for the last 30 days. Replace `1` with your site id.
+
+```sh
+curl -G "https://api.micaforge.com/api/stats/breakdown" \
+  -H "Authorization: Bearer $MICAFORGE_API_KEY" \
+  --data-urlencode "site=1" \
+  --data-urlencode "range=30d" \
+  --data-urlencode "dimension=source" \
+  --data-urlencode 'filters=[{"dimension":"channel","op":"is","value":"answer_engine"}]'
+```
+
+```js
+const params = new URLSearchParams({
+  site: "1",
+  range: "30d",
+  dimension: "source",
+  filters: JSON.stringify([{ dimension: "channel", op: "is", value: "answer_engine" }]),
+});
+const res = await fetch(`https://api.micaforge.com/api/stats/breakdown?${params}`, {
+  headers: { Authorization: `Bearer ${process.env.MICAFORGE_API_KEY}` },
+});
+const { data } = await res.json();
+for (const row of data) console.log(row.label, row.visitors);
+```
+
+```python
+import json, os, requests
+
+res = requests.get(
+    "https://api.micaforge.com/api/stats/breakdown",
+    headers={"Authorization": f"Bearer {os.environ['MICAFORGE_API_KEY']}"},
+    params={
+        "site": 1,
+        "range": "30d",
+        "dimension": "source",
+        "filters": json.dumps([{"dimension": "channel", "op": "is", "value": "answer_engine"}]),
+    },
+)
+res.raise_for_status()
+for row in res.json()["data"]:
+    print(row["label"], row["visitors"])
+```
+
+Each row has `key`, `label`, `visitors`, `sessions` and `pageviews`. Use
+`dimension=entry_path` instead of `source` to list landing pages.
+
+| Parameter | Values |
+| --- | --- |
+| `range` | `today`, `yesterday`, `24h`, `7d`, `30d`, `90d`, `12mo`, `mtd`, `ytd`, `all` |
+| `dimension` | `source`, `entry_path`, `pathname`, `country`, `device_type` and the others in [filters](/docs/dashboard/filters-and-segments) |
+| `filters` | A JSON array, or a group with `logic` and `filters` |
+| `compare` | `none`, `previous`, `year` |
+
+## Common errors
+
+| Status | Code | Cause and fix |
+| --- | --- | --- |
+| `401` | `unauthorized` | The key is missing, mistyped or revoked. Send it as `Authorization: Bearer mfg_…`. |
+| `403` | `forbidden` | The key does not have **Read analytics**, or it is limited to a different site. |
+| `422` | `validation_error` | A parameter is wrong. The `field` in the answer names it, for example an unknown `range` or `dimension`. |
+
+If the AI answers row does not appear at all, no visit in the period came from an
+assistant. Choose a longer period. If no visits appear on any screen, follow
+[verify it works](/docs/getting-started/verify-it-works).
+
+AI answers count the people who clicked through. The crawlers that read your pages to
+write those answers never run the tracker. To see them, follow
+[how to see which AI crawlers visit your website](/docs/guides/see-ai-crawlers/), then
+compare the two on the [Citation Gap](/docs/agents/the-citation-gap) screen.

@@ -1,0 +1,204 @@
+---
+title: "How to see which AI crawlers visit your website"
+seoTitle: "How to see which AI crawlers visit your site"
+nav: "See AI crawlers"
+description: "Find GPTBot, ClaudeBot, PerplexityBot and other AI crawlers in your access log, send them to Micaforge, and read what each one fetched."
+order: 2
+updated: 2026-10-30
+related: ["track-ai-crawlers-cloudflare", "block-ai-crawlers", "track-chatgpt-traffic"]
+cta:
+  text: "Send your access log to Micaforge and every crawl gets an operator, a purpose and a verification result."
+  label: "Create a free account"
+  href: "/app/"
+---
+
+AI crawlers do not run JavaScript, so no analytics script ever sees GPTBot, ClaudeBot or
+PerplexityBot. The server that answered them has the record: its access log. Here you
+check that log, send it to Micaforge, and read which crawlers fetched which pages, how
+often, and for what purpose. You need shell access to the web server and Node.js 20 or
+newer on it. For a host with no access log, see the table in step 2.
+
+## 1. Check your log for AI crawlers
+
+You can count AI crawlers before you set anything up. Each one names itself in the user
+agent, so a search of the access log finds it:
+
+```sh
+grep -icE "GPTBot|OAI-SearchBot|ChatGPT-User|ClaudeBot|Claude-User|PerplexityBot|Bytespider|CCBot" \
+  /var/log/nginx/access.log
+```
+
+For a list by crawler, use the Micaforge log shipper in dry-run mode. It is one file with
+no dependencies. Download it from the repository and run it on your log:
+
+```sh
+curl -fsSLO https://raw.githubusercontent.com/loruorg/micaforge/main/packages/sdk-server/bin/micaforge-shipper.mjs
+node micaforge-shipper.mjs --dry-run --from-beginning --no-follow --no-state /var/log/nginx/access.log
+```
+
+A dry run sends nothing and needs no account. If your user cannot read the log, run both
+commands with `sudo`. The output looks like this:
+
+```text
+Dry run. Nothing was sent.
+  lines read        18422
+  agent fetches     1184
+  skipped           17238
+
+  By agent, as this tool's mirror named it. The server decides the
+  operator, the purpose and whether the fetch could be verified.
+
+    gptbot             412
+    claudebot          337
+    perplexitybot      201
+```
+
+A user agent is a claim, and anyone can send `GPTBot` in one. Micaforge checks the source
+address against the ranges each operator publishes, which a `grep` cannot do.
+
+## 2. Choose how the crawls reach Micaforge
+
+The crawls reach Micaforge through `POST /api/log/edge`, signed with your site's ingest
+key. Which sender you use depends on where the site runs:
+
+| Your site runs on | Use |
+| --- | --- |
+| Your own server with nginx, Apache or Caddy | The log shipper, steps 3 and 4 below |
+| Vercel | A [Vercel log drain](/docs/agents/vercel-log-drains), with no change to the site |
+| Cloudflare Pages or Workers | A middleware: see [how to track AI crawlers on Cloudflare](/docs/guides/track-ai-crawlers-cloudflare/) |
+| Anything else that can run code | Your own signed requests, as the [Events API](/docs/api/events-api) describes |
+
+<aside class="doc-annot" data-tone="gap">
+
+**Some hosts give you no way in.** GitHub Pages and other static hosts that keep no log
+you can read and run no code of yours cannot report a crawl. Micaforge shows nothing for
+crawlers on those sites. To fix that, serve the site through Cloudflare, as the
+[Cloudflare guide](/docs/guides/track-ai-crawlers-cloudflare/) shows.
+
+</aside>
+
+## 3. Get the site id and the ingest key
+
+Sign in at [micaforge.com/app](/app/), and add your site if it is not there yet. Open
+**Settings**, then **Tracking setup**. The panel **Track AI crawlers** has the ingest key:
+choose **Show the key** and copy it.
+
+The ingest key is a secret. It can write events to your site, so keep it out of your
+repository and out of any page a browser loads. The site id is the number in the
+`data-site` attribute of the script tag on the same screen.
+
+On the server, put the three values in a file that only root can read:
+
+```sh
+sudo install -m 600 /dev/null /etc/micaforge-shipper.env
+sudo tee /etc/micaforge-shipper.env > /dev/null <<'EOF'
+MICAFORGE_HOST=https://api.micaforge.com
+MICAFORGE_SITE_ID=1
+MICAFORGE_INGEST_KEY=paste-the-key-here
+EOF
+```
+
+On a self-hosted install, `MICAFORGE_HOST` is your own Micaforge address.
+
+## 4. Run the shipper as a service
+
+The shipper follows the log as it grows, sends AI crawler fetches in batches, and keeps
+its read position in a state file, so a restart does not send anything twice. It reads
+log rotation correctly with no `postrotate` hook.
+
+Move the file to a fixed place and create a systemd unit:
+
+```sh
+sudo mkdir -p /opt/micaforge
+sudo mv micaforge-shipper.mjs /opt/micaforge/
+```
+
+```ini
+# /etc/systemd/system/micaforge-shipper.service
+[Unit]
+Description=Micaforge log shipper
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+EnvironmentFile=/etc/micaforge-shipper.env
+ExecStart=/usr/bin/node /opt/micaforge/micaforge-shipper.mjs \
+  --state /var/lib/micaforge-shipper/access.state \
+  /var/log/nginx/access.log
+DynamicUser=yes
+SupplementaryGroups=adm
+StateDirectory=micaforge-shipper
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+```
+
+`SupplementaryGroups=adm` lets the service read the log on Debian and Ubuntu, where nginx
+logs belong to the `adm` group. Change it if your logs belong to another group. If
+`command -v node` prints a path other than `/usr/bin/node`, use that path in `ExecStart`.
+Then start it:
+
+```sh
+sudo systemctl daemon-reload
+sudo systemctl enable --now micaforge-shipper
+journalctl -u micaforge-shipper -f
+```
+
+On the first run the shipper starts at the end of the file, so it sends only new crawls.
+To send what the log already holds once, run it by hand with `--from-beginning --no-follow`
+before you start the service. To send rotated logs, pipe them in:
+`zcat /var/log/nginx/access.log.*.gz | node micaforge-shipper.mjs --no-follow -`.
+
+| Option | What it does |
+| --- | --- |
+| `--format auto\|combined\|common\|json` | The log format. `auto` reads it from the first line. |
+| `--hostname docs.example.com` | The host to file hits under when the log has no host field. |
+| `--exclude '/assets/**'` | Skips matching paths. Repeat it for more paths. |
+| `--key-file <path>` | Reads the key from a file instead of the environment. |
+| `--verbose` | Prints one line per hit. |
+
+The full list is in `node micaforge-shipper.mjs --help` and in
+[shipping server logs](/docs/agents/shipping-server-logs), which also has an nginx log
+format with the host and response time.
+
+## 5. Read the AI crawlers screen
+
+Open **AI crawlers** in the left navigation. The screen fills in when the first batch
+arrives. The status line at the top of **Tracking setup** also changes to **This site is
+live** and shows a count of AI crawler fetches.
+
+The figures at the top are **Fetches**, **Crawlers seen**, **Verified share**,
+**Bytes served** and **Paths reached**. **Crawls over time** draws each operator as a band.
+
+**Who fetched** groups the same period by **Crawler**, **Operator**, **Purpose**, **Path**
+or **Status**. Select a crawler row to see its details. Select any other row to filter the
+whole screen to that value: for example, select a path to see which crawlers read it.
+
+The **Purpose** column says why a crawler fetched the page:
+
+| Purpose | Meaning | Examples |
+| --- | --- | --- |
+| `training` | Bulk collection for a training corpus | GPTBot, ClaudeBot, CCBot, Bytespider |
+| `rag` | Fetched to answer a person's question now | ChatGPT-User, Claude-User, Perplexity-User |
+| `search` | Building a search or answer index | OAI-SearchBot, PerplexityBot, Googlebot |
+| `preview` | Rendering a link preview | Slackbot, Discordbot, LinkedInBot |
+| `eval` | Testing and one-off research | GoogleOther, Google-InspectionTool |
+| `unknown` | Named, but the operator gives no purpose | SemrushBot, AhrefsBot |
+
+**Crawl coverage** lists every known page on the site, with the pages no crawler has
+fetched. Micaforge builds that page list from your sitemap once a day, so it fills in
+after the first run of that job.
+
+## Common errors
+
+| What you see | Cause and fix |
+| --- | --- |
+| `agent fetches 0` and an error that the log is in the common format | The common format has no user agent. Switch nginx to the `combined` format, or to the JSON format in [shipping server logs](/docs/agents/shipping-server-logs). |
+| `error: the collector rejected the signature (401)` | The ingest key or the site id is wrong, or the server clock is more than five minutes off. Copy the key again and check that the clock is synchronised. |
+| `error: could not reach …` | The server cannot reach `MICAFORGE_HOST`. Check the address and any outbound firewall. |
+| Fetches arrive but none are verified | Your log records a proxy's address. Behind Cloudflare or a load balancer, log the forwarded client address instead of `$remote_addr`. |
+| Nothing arrives for one host in a shared log | The hits name a host that is not the site's domain. Pass `--hostname`, or add the host under **Settings**, **Ingest guards**, **Hostnames**. |
+
+To find out what the crawlers do with your pages, compare their fetches with the visitors
+that AI answers send back on the [Citation Gap](/docs/agents/the-citation-gap) screen.

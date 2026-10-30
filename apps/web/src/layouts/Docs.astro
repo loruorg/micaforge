@@ -16,6 +16,7 @@ import Base from "./Base.astro";
 import DocsNav from "../components/DocsNav.astro";
 import { IconOut, Mark } from "../components/react/icons";
 import { docHref, isoDay, neighbours } from "../lib/docs";
+import type { Turn } from "../lib/guides";
 import "../styles/docs.css";
 
 interface Props {
@@ -34,6 +35,10 @@ interface Props {
   stamp?: string;
   /** When this page was last checked against the code. */
   updated?: Date;
+  /** Shown under the standfirst as "Last updated", for a page that dates itself up top. */
+  lastUpdated?: Date;
+  /** Previous and next, for a page outside the manual's reading order. */
+  turn?: { prev?: Turn; next?: Turn };
   /** Rendered into the right-hand depth scale by the page itself. */
   rail?: boolean;
   /** Set false on a page that carries no manual index. */
@@ -51,13 +56,20 @@ const {
   standfirst,
   stamp,
   updated,
+  lastUpdated,
+  turn: ownTurn,
   rail = true,
   index = true,
   prose = true,
 } = Astro.props;
 
 const entries = index && section === "docs" ? await getCollection("docs") : [];
-const turn = current ? neighbours(entries, current) : {};
+const guides = index && section === "docs" ? await getCollection("guides") : [];
+const manual = current ? neighbours(entries, current) : {};
+const turn: { prev?: Turn; next?: Turn } = ownTurn ?? {
+  prev: manual.prev && { href: docHref(manual.prev.id), title: manual.prev.data.title },
+  next: manual.next && { href: docHref(manual.next.id), title: manual.next.data.title },
+};
 
 // `short` is what a narrow bar shows. Both strings are in the markup, so the label a
 // reader sees is never waiting on a script or a media query to be written.
@@ -71,6 +83,7 @@ const SOURCE = "https://github.com/loruorg/micaforge";
 ---
 
 <Base title={title} description={description}>
+  <Fragment slot="head"><slot name="head" /></Fragment>
   <div class="doc-shell">
     <header class="doc-bar">
       <div class="doc-bar__inner">
@@ -105,7 +118,7 @@ const SOURCE = "https://github.com/loruorg/micaforge";
         index && (
           <aside class="doc-body__index">
             <slot name="index">
-              {section === "docs" && <DocsNav entries={entries} current={current} />}
+              {section === "docs" && <DocsNav entries={entries} guides={guides} current={current} />}
             </slot>
           </aside>
         )
@@ -118,6 +131,11 @@ const SOURCE = "https://github.com/loruorg/micaforge";
               <h1 class="doc-sheet__title">{heading}</h1>
               {standfirst && <p class="doc-sheet__standfirst">{standfirst}</p>}
               {stamp && <p class="doc-sheet__stamp">{stamp}</p>}
+              {lastUpdated && (
+                <p class="doc-sheet__stamp">
+                  Last updated <time datetime={isoDay(lastUpdated)}>{isoDay(lastUpdated)}</time>
+                </p>
+              )}
             </header>
           )
         }
@@ -135,19 +153,19 @@ const SOURCE = "https://github.com/loruorg/micaforge";
                 </p>
               )}
               {(turn.prev || turn.next) && (
-                <nav class="doc-turn" aria-label="Manual">
+                <nav class="doc-turn" aria-label={ownTurn ? "Guides" : "Manual"}>
                   {turn.prev ? (
-                    <a class="doc-turn__link" href={docHref(turn.prev.id)} rel="prev">
+                    <a class="doc-turn__link" href={turn.prev.href} rel="prev">
                       <span class="doc-turn__dir">Previous</span>
-                      <span class="doc-turn__title">{turn.prev.data.title}</span>
+                      <span class="doc-turn__title">{turn.prev.title}</span>
                     </a>
                   ) : (
                     <span class="doc-turn__slot" />
                   )}
                   {turn.next ? (
-                    <a class="doc-turn__link doc-turn__link--next" href={docHref(turn.next.id)} rel="next">
+                    <a class="doc-turn__link doc-turn__link--next" href={turn.next.href} rel="next">
                       <span class="doc-turn__dir">Next</span>
-                      <span class="doc-turn__title">{turn.next.data.title}</span>
+                      <span class="doc-turn__title">{turn.next.title}</span>
                     </a>
                   ) : (
                     <span class="doc-turn__slot" />

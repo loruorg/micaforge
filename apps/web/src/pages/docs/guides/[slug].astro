@@ -1,0 +1,64 @@
+---
+/**
+ * One task guide, at /docs/guides/<id>/.
+ *
+ * The same sheet as a page of the manual, with three additions the manual does not need:
+ * a "Last updated" line under the title, the related guides and the closing line after
+ * the body, and previous and next that stay inside the guides.
+ */
+import { getCollection, render } from "astro:content";
+import type { GetStaticPaths } from "astro";
+import Docs from "../../../layouts/Docs.astro";
+import CodeBlock from "../../../components/CodeBlock.astro";
+import OnThisPage from "../../../components/OnThisPage.astro";
+import {
+  guideHref,
+  guideJsonLd,
+  guideNeighbours,
+  guideTitle,
+  ordered,
+  relatedOf,
+} from "../../../lib/guides";
+
+export const getStaticPaths = (async () => {
+  const entries = ordered(await getCollection("guides"));
+  return entries.map((entry) => ({ params: { slug: entry.id }, props: { entry } }));
+}) satisfies GetStaticPaths;
+
+const { entry } = Astro.props;
+const all = await getCollection("guides");
+const { Content, headings } = await render(entry);
+const related = relatedOf(all, entry);
+const site = Astro.site ?? new URL("https://micaforge.com");
+const jsonLd = guideJsonLd(site, entry);
+const marks = [...headings, { depth: 2, slug: "related-guides", text: "Related guides" }];
+---
+
+<Docs
+  title={guideTitle(entry)}
+  description={entry.data.description}
+  section="docs"
+  current={`guides/${entry.id}`}
+  heading={entry.data.title}
+  lastUpdated={entry.data.updated}
+  turn={guideNeighbours(all, entry.id)}
+>
+  <script slot="head" type="application/ld+json" is:inline set:html={JSON.stringify(jsonLd)} />
+  <OnThisPage slot="rail" headings={marks} />
+  <Content components={{ pre: CodeBlock }} />
+
+  <h2 id="related-guides">Related guides</h2>
+  <ul>
+    {
+      related.map((g) => (
+        <li>
+          <a href={guideHref(g.id)}>{g.data.title}</a>
+        </li>
+      ))
+    }
+  </ul>
+
+  <p class="doc-guide-cta">
+    {entry.data.cta.text} <a href={entry.data.cta.href}>{entry.data.cta.label}</a>
+  </p>
+</Docs>

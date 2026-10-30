@@ -10,6 +10,7 @@ import Docs from "../../layouts/Docs.astro";
 import CodeBlock from "../../components/CodeBlock.astro";
 import { getCollection } from "astro:content";
 import { docHref, sections } from "../../lib/docs";
+import { GUIDES_HREF, guideHref, ordered } from "../../lib/guides";
 
 const snippet = `<script
   defer
@@ -20,7 +21,8 @@ const snippet = `<script
 
 const entries = await getCollection("docs");
 const register = sections(entries);
-const pages = register.reduce((n, s) => n + s.docs.length, 0);
+const guides = ordered(await getCollection("guides"));
+const pages = register.reduce((n, s) => n + s.docs.length, 0) + guides.length;
 ---
 
 <Docs
@@ -52,23 +54,45 @@ const pages = register.reduce((n, s) => n + s.docs.length, 0);
 
     <div class="doc-register">
       {
-        register.map((section) => (
-          <section class="doc-register__row">
-            <div>
-              <h2 class="doc-register__name">{section.group.label}</h2>
-              <p class="doc-register__gloss">{section.group.gloss}</p>
-            </div>
-            <ul class="doc-register__list">
-              {section.docs.map((doc) => (
-                <li>
-                  <a class="doc-register__link" href={docHref(doc.id)}>
-                    {doc.data.title}
-                    <span>{doc.data.description}</span>
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </section>
+        register.map((section, i) => (
+          <>
+            <section class="doc-register__row">
+              <div>
+                <h2 class="doc-register__name">{section.group.label}</h2>
+                <p class="doc-register__gloss">{section.group.gloss}</p>
+              </div>
+              <ul class="doc-register__list">
+                {section.docs.map((doc) => (
+                  <li>
+                    <a class="doc-register__link" href={docHref(doc.id)}>
+                      {doc.data.title}
+                      <span>{doc.data.description}</span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </section>
+            {i === 0 && guides.length > 0 && (
+              <section class="doc-register__row">
+                <div>
+                  <h2 class="doc-register__name">
+                    <a href={GUIDES_HREF}>Guides</a>
+                  </h2>
+                  <p class="doc-register__gloss">One task per page, from start to finish.</p>
+                </div>
+                <ul class="doc-register__list">
+                  {guides.map((g) => (
+                    <li>
+                      <a class="doc-register__link" href={guideHref(g.id)}>
+                        {g.data.title}
+                        <span>{g.data.description}</span>
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+          </>
         ))
       }
     </div>

@@ -1,0 +1,190 @@
+---
+title: "How to block AI crawlers with robots.txt"
+nav: "Block AI crawlers"
+description: "Write robots.txt rules for GPTBot, ClaudeBot, CCBot and other AI crawlers, keep the ones that send you readers, and check that each crawler obeyed."
+order: 4
+updated: 2026-10-30
+related: ["see-ai-crawlers", "track-chatgpt-traffic", "track-ai-crawlers-cloudflare"]
+cta:
+  text: "Micaforge puts your robots.txt next to what each crawler did, so you can see which rules were obeyed."
+  label: "Create a free account"
+  href: "/app/"
+---
+
+`robots.txt` tells crawlers which paths they may fetch. AI operators run several crawlers
+with different jobs, so the rule you write decides whether you leave a training corpus,
+an AI search index, or the answers a person reads. Here you pick the crawlers to block,
+write the rules, publish the file, and check in Micaforge that each crawler obeyed it.
+You need write access to your site's root. To check compliance, your server's crawls must
+reach Micaforge: see [how to see which AI crawlers visit your website](/docs/guides/see-ai-crawlers/).
+
+## 1. Decide what to block, by purpose
+
+Block by what a crawler does. These are the user-agent
+tokens in Micaforge's catalog, grouped by purpose:
+
+| Operator | Training | Search index | Fetch for a person's question |
+| --- | --- | --- | --- |
+| OpenAI | `GPTBot` | `OAI-SearchBot` | `ChatGPT-User` |
+| Anthropic | `ClaudeBot` | `Claude-SearchBot` | `Claude-User` |
+| Perplexity | | `PerplexityBot` | `Perplexity-User` |
+| Google | `Google-Extended` | `Googlebot` | `Google-CloudVertexBot` |
+| Apple | `Applebot-Extended` | `Applebot` | |
+| Meta | `meta-externalagent`, `FacebookBot` | | `meta-externalfetcher` |
+| Others | `CCBot`, `Bytespider`, `cohere-training-data-crawler`, `AI2Bot`, `Diffbot` | `Amazonbot`, `YouBot` | `MistralAI-User`, `DuckAssistBot`, `cohere-ai` |
+
+What each choice costs:
+
+- A training crawler copies pages into a corpus. Blocking it sends no visitors away.
+- A search crawler builds the index an assistant cites.
+  [OpenAI's crawler documentation](https://developers.openai.com/api/docs/bots) says that
+  sites opted out of `OAI-SearchBot` are not shown in ChatGPT search answers. Block a search
+  crawler and you drop out of that assistant's answers.
+- A fetch for a person happens when someone asks an assistant about your page right now.
+  If the fetcher obeys the rule, the assistant cannot read your page for that person.
+  Some of these fetchers do not read `robots.txt` at all: see step 6.
+
+`Google-Extended` and `Applebot-Extended` never appear in a request. They are `robots.txt`
+controls over how Google and Apple may use pages that `Googlebot` and `Applebot` already
+fetched. Both operators state that blocking them does not remove a page from their search
+results.
+
+## 2. Write the rules
+
+A group starts with one or more `User-agent` lines, followed by its rules. A crawler obeys
+the group that names its token, and falls back to the `*` group when none does.
+
+To leave training corpora but stay in AI search and answers:
+
+```text
+User-agent: GPTBot
+User-agent: ClaudeBot
+User-agent: Google-Extended
+User-agent: Applebot-Extended
+User-agent: meta-externalagent
+User-agent: CCBot
+User-agent: Bytespider
+User-agent: cohere-training-data-crawler
+Disallow: /
+
+User-agent: *
+Allow: /
+
+Sitemap: https://www.example.com/sitemap.xml
+```
+
+To keep AI crawlers out of one folder only, for example paid content:
+
+```text
+User-agent: GPTBot
+User-agent: OAI-SearchBot
+User-agent: ChatGPT-User
+User-agent: ClaudeBot
+User-agent: Claude-SearchBot
+User-agent: Claude-User
+User-agent: PerplexityBot
+Disallow: /members/
+```
+
+`ClaudeBot` and `ChatGPT-User` are different crawlers. A rule for one does not reach the
+other, so name every token you mean.
+
+## 3. Publish the file at the root
+
+The file must be at `/robots.txt` on each host it covers. `www.example.com` and
+`docs.example.com` each need their own. In a static site, put it in the folder that is
+copied to the root of the build, often `public/` or `static/`.
+
+After you deploy, check what crawlers will read:
+
+```sh
+curl -s https://www.example.com/robots.txt
+```
+
+If the answer is an HTML page or a `404`, the file is not at the root yet.
+
+## 4. Tell Micaforge to read the new file
+
+Micaforge reads your `robots.txt` and `llms.txt` once a day. To read them now, open
+**Robots.txt rules** in the left navigation and choose **Check both files again**. The
+screen shows both files as Micaforge read them.
+
+Each fetch is judged against the rule that was in force when it arrived, so fetches from
+before your change keep the old verdict.
+
+## 5. Check which crawlers obeyed
+
+The panel **What crawlers actually did** lists every crawler that fetched the site in the
+period. For each one it shows the rule your `robots.txt` gives it, its **Fetches**, and
+how many were **Against rule**. Select a row to highlight that crawler's rule in the file.
+
+The panel **Fetched anyway** lists the paths a crawler fetched that its own rule
+disallows. Micaforge lists a crawler there only when the fetch came from an address the
+operator publishes. Anyone can send `GPTBot` as a user agent, and Micaforge will not blame
+OpenAI for a copy.
+
+To read the same report from a script, use the API with a key that has **Read analytics**:
+
+```sh
+curl -G "https://api.micaforge.com/api/policy/violations" \
+  -H "Authorization: Bearer $MICAFORGE_API_KEY" \
+  --data-urlencode "site=1" --data-urlencode "range=30d"
+```
+
+```python
+import os, requests
+
+res = requests.get(
+    "https://api.micaforge.com/api/policy/violations",
+    headers={"Authorization": f"Bearer {os.environ['MICAFORGE_API_KEY']}"},
+    params={"site": 1, "range": "30d"},
+)
+for row in res.json()["data"]["rows"]:
+    print(row["agent"], row["path"], row["fetches"], row["verified_fetches"], row["compliance"])
+```
+
+`compliance` is `violation` only when a verified fetch hit a disallowed path. It is
+`unverified` when every fetch of that path came from an address the operator does not
+publish.
+
+## 6. Block at the server when a rule is not obeyed
+
+`robots.txt` is a request, and some fetchers say they do not follow it. Perplexity says
+`Perplexity-User` does not check `robots.txt` because a person asked for the page. OpenAI
+says `robots.txt` rules may not apply to `ChatGPT-User` for the same reason. `img2dataset`
+is a download library that never reads the file. To stop a crawler outright, refuse it at
+the server.
+
+In nginx, inside the `server` block:
+
+```nginx
+if ($http_user_agent ~* "(GPTBot|ClaudeBot|CCBot|Bytespider|img2dataset)") {
+    return 403;
+}
+```
+
+In Apache, in the site configuration or `.htaccess`:
+
+```apache
+RewriteEngine On
+RewriteCond %{HTTP_USER_AGENT} (GPTBot|ClaudeBot|CCBot|Bytespider|img2dataset) [NC]
+RewriteRule .* - [F,L]
+```
+
+Keep `/robots.txt` reachable for every crawler. A crawler that cannot read the file cannot
+obey it.
+
+The blocked fetches still reach your access log, so they still reach Micaforge. On
+**AI crawlers**, group **Who fetched** by **Status** and select `403` to see each crawler
+you turned away.
+
+## Common problems
+
+| What you see | Cause and fix |
+| --- | --- |
+| **Robots.txt rules** shows no file | Micaforge could not read `/robots.txt` on the site's domain. Check that the `curl` in step 3 returns the file, then choose **Check both files again**. |
+| A crawler shows **No rule** | No group names its token and there is no `*` group. Micaforge reports that as no policy, not as allowed. |
+| No crawler appears at all | No server-side crawls have arrived. Crawlers never run the script tag. Set up the [log shipper](/docs/guides/see-ai-crawlers/) or the [Cloudflare middleware](/docs/guides/track-ai-crawlers-cloudflare/). |
+| A disallowed fetch is not in **Fetched anyway** | The fetch was not verified against the operator's ranges. It is counted on **What crawlers actually did**, not reported as a violation. |
+
+The reference for this report is [robots.txt and llms.txt](/docs/agents/robots-and-llms-txt).
