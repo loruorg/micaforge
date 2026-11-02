@@ -48,7 +48,7 @@
   },
   "devDependencies": {
     "@nuxt/schema": "^4.6.0",
-    "@types/node": "^24.13.3",
+    "@types/node": "^26.6.4",
     "jsdom": "^26.1.0",
     "typescript": "^6.0.3",
     "vitest": "^3.2.4",
