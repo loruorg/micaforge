@@ -1617,7 +1617,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "argon2",
- "base64 0.22.1",
+ "base64 0.23.1",
  "blake3",
  "chacha20poly1305",
  "chrono",
@@ -1655,7 +1655,7 @@ name = "micaforge-jobs"
 version = "0.1.0"
 dependencies = [
  "axum",
- "base64 0.22.1",
+ "base64 0.23.1",
  "chrono",
  "chrono-tz",
  "clickhouse",
@@ -1715,7 +1715,7 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "axum-extra",
- "base64 0.22.1",
+ "base64 0.23.1",
  "blake3",
  "chrono",
  "chrono-tz",
